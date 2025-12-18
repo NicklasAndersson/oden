@@ -136,11 +136,10 @@ def process_message(obj):
     source_number = envelope.get("sourceNumber") or envelope.get("source")
 
     ts_ms = envelope.get("timestamp")
-    dt = (
-        datetime.datetime.fromtimestamp(ts_ms / 1000.0, tz=datetime.timezone.utc)
-        if ts_ms
-        else datetime.datetime.now(datetime.timezone.utc)
-    )
+    if ts_ms:
+        dt = datetime.datetime(1970, 1, 1) + datetime.timedelta(seconds=ts_ms / 1000)
+    else:
+        dt = datetime.datetime.utcnow()
 
     path = get_message_filepath(group_title, dt, source_name, source_number)
     os.makedirs(os.path.dirname(path), exist_ok=True)

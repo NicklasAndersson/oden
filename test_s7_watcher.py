@@ -43,7 +43,7 @@ class TestS7Watcher(unittest.TestCase):
 
     def test_get_message_filepath(self):
         dt = datetime.datetime(2025, 12, 18, 10, 30)
-        expected_path = os.path.join("vault", "My_Group", "181030-123-John_Doe.md")
+        expected_path = os.path.join("vault", "My Group", "181030-123-John_Doe.md")
         self.assertEqual(get_message_filepath("My Group", dt, "John Doe", "+123"), expected_path)
 
     def test_extract_message_details_data_message(self):
@@ -91,7 +91,7 @@ class TestS7Watcher(unittest.TestCase):
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 1765890600000, # 2025-12-18 10:30:00 UTC
+                "timestamp": 1765890600000, # GMT: Tuesday 16 December 2025 13:10:00
                 "dataMessage": {
                     "message": "Hello world",
                     "groupV2": {"name": "Test Group", "id": "group123"}
@@ -101,8 +101,8 @@ class TestS7Watcher(unittest.TestCase):
 
         process_message(message_obj)
 
-        mock_makedirs.assert_called_once_with(os.path.join("vault", "Test_Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("vault", "Test_Group", "181130-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_once_with(os.path.join("vault", "Test Group"), exist_ok=True)
+        mock_open.assert_called_once_with(os.path.join("vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
@@ -121,7 +121,7 @@ class TestS7Watcher(unittest.TestCase):
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 1765890600000, # 2025-12-18 10:30:00 UTC
+                "timestamp": 1765890600000, # GMT: Tuesday 16 December 2025 13:10:00
                 "dataMessage": {
                     "message": "Another message",
                     "groupV2": {"name": "Test Group", "id": "group123"}
@@ -131,8 +131,8 @@ class TestS7Watcher(unittest.TestCase):
 
         process_message(message_obj)
 
-        mock_makedirs.assert_called_once_with(os.path.join("vault", "Test_Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("vault", "Test_Group", "181130-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_once_with(os.path.join("vault", "Test Group"), exist_ok=True)
+        mock_open.assert_called_once_with(os.path.join("vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
