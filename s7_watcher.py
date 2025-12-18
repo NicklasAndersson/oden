@@ -30,13 +30,19 @@ def get_safe_group_dir_path(group_title):
     return os.path.join(VAULT_PATH, safe_title)
 
 
+def _format_phone_number(number_str):
+    """Replaces '+' with 'tel-' in a phone number string."""
+    if not number_str:
+        return None
+    return number_str.replace("+", "tel-")
+
+
 def create_message_filename(dt, source_name, source_number):
     """Creates a sanitized, timestamped filename for a message."""
     ts_str = dt.strftime("%d%H%M")
-    
     parts = []
     if source_number:
-        parts.append(source_number.replace("+", ""))
+        parts.append(_format_phone_number(source_number))
     if source_name:
         parts.append(source_name)
     
@@ -49,9 +55,10 @@ def create_message_filename(dt, source_name, source_number):
 
 def format_sender_display(source_name, source_number):
     """Constructs a display string for the sender, including name and number."""
+    formatted_number = _format_phone_number(source_number)
     if source_name and source_number:
-        return f"#{source_name} (#{source_number})"
-    return source_name or source_number or "Unknown"
+        return f"{source_name} ( #{formatted_number})"
+    return source_name or formatted_number or "Okänd"
 
 
 def get_message_filepath(group_title, dt, source_name, source_number):
@@ -91,6 +98,22 @@ def _extract_message_details(envelope):
     return None, None, None
 
 
+def _format_quote(quote):
+    """Formats a quote block into a markdown blockquote."""
+    author_name = quote.get("authorName")
+    author_number = quote.get("authorNumber")
+    author_display = format_sender_display(author_name, author_number)
+    text = quote.get("text", "...")
+
+    # Indent every line of the quoted text for markdown blockquote
+    quoted_lines = [f"> {line}" for line in text.split('\n')]
+    
+    return [
+        f"> **Svarar på {author_display}:**",
+        *quoted_lines
+    ]
+
+
 def process_message(obj):
     """
     Parses a signal message object and writes it to a markdown file.
@@ -106,6 +129,9 @@ def process_message(obj):
         print("Skipping message: Not a group message or no message body.", file=sys.stderr)
         return
 
+    # Extract potential quote from the dataMessage
+    dm = envelope.get("dataMessage", {})
+    quote = dm.get("quote")
     source_name = envelope.get("sourceName")
     source_number = envelope.get("sourceNumber") or envelope.get("source")
 
@@ -123,10 +149,12 @@ def process_message(obj):
 
     if file_exists:
         # File exists, so we just append the new message with a separator.
+        quote_parts = _format_quote(quote) if quote else []
         content_parts = [
             "\n---\n",  # Markdown horizontal rule for separation
-            "## Meddelande\n",
-            msg,
+            *quote_parts,
+            "\n## Meddelande\n" if quote else "## Meddelande\n",
+            msg.strip(),
             ""
         ]
     else:
@@ -134,14 +162,16 @@ def process_message(obj):
         sender_display = format_sender_display(source_name, source_number)
         content_parts = [
             f"# {group_title}\n",
-            f"TNR: {dt.strftime('%d%H%M')}",
-            f"Avsändare: {sender_display}",
-            f"Grupp: #{group_title}",
+            f"TNR: {dt.strftime('%d%H%M')}\n",
+            f"Avsändare: {sender_display}\n",
+            f"Grupp: #{group_title}\n",
             f"Grupp id: {group_id}\n",
-            "## Meddelande\n",
-            msg,
-            ""
         ]
+        if quote:
+            content_parts.extend(_format_quote(quote))
+        content_parts.append("\n## Meddelande\n")
+        content_parts.append(msg.strip())
+        content_parts.append("")
 
     # Open in append mode, which creates the file if it doesn't exist.
     with open(path, "a", encoding="utf-8") as f:
