@@ -50,7 +50,7 @@ def create_message_filename(dt, source_name, source_number):
 def format_sender_display(source_name, source_number):
     """Constructs a display string for the sender, including name and number."""
     if source_name and source_number:
-        return f"{source_name} ({source_number})"
+        return f"#{source_name} (#{source_number})"
     return source_name or source_number or "Unknown"
 
 
@@ -92,7 +92,10 @@ def _extract_message_details(envelope):
 
 
 def process_message(obj):
-    """Parses a signal message object and writes it to a markdown file."""
+    """
+    Parses a signal message object and writes it to a markdown file.
+    If a file for that sender already exists from the same minute, appends the new message.
+    """
     envelope = obj.get("envelope", {})
     if not envelope:
         return
@@ -116,23 +119,36 @@ def process_message(obj):
     path = get_message_filepath(group_title, dt, source_name, source_number)
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    sender_display = format_sender_display(source_name, source_number)
+    file_exists = os.path.exists(path)
 
-    content = [
-        f"# {group_title}\n",
-        f"- TNR: {dt.strftime('%d%H%M')}",
-        f"- Sender: {sender_display}",
-        f"- Group title: {group_title}",
-        f"- Group id: {group_id}\n",
-        "## Message\n",
-        msg,
-        ""
-    ]
+    if file_exists:
+        # File exists, so we just append the new message with a separator.
+        content_parts = [
+            "\n---\n",  # Markdown horizontal rule for separation
+            "## Meddelande\n",
+            msg,
+            ""
+        ]
+    else:
+        # File doesn't exist, create it with the full header.
+        sender_display = format_sender_display(source_name, source_number)
+        content_parts = [
+            f"# {group_title}\n",
+            f"TNR: {dt.strftime('%d%H%M')}",
+            f"Avsändare: {sender_display}",
+            f"Grupp: #{group_title}",
+            f"Grupp id: {group_id}\n",
+            "## Meddelande\n",
+            msg,
+            ""
+        ]
 
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(content))
+    # Open in append mode, which creates the file if it doesn't exist.
+    with open(path, "a", encoding="utf-8") as f:
+        f.write("\n".join(content_parts))
 
-    print(f"WROTE: {path}", file=sys.stderr)
+    action = "APPENDED TO" if file_exists else "WROTE"
+    print(f"{action}: {path}", file=sys.stderr)
 
 
 # ==============================================================================
