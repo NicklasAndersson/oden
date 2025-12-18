@@ -1,1 +1,4 @@
 signal-cli-0.13.22/
+vault/.obsidian/*
+.DS_Store
+__pycache__/*
