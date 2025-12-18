@@ -31,10 +31,10 @@ def get_safe_group_dir_path(group_title):
 
 
 def _format_phone_number(number_str):
-    """Replaces '+' with 'tel-' in a phone number string."""
+    """Säkerställer att ett telefonnummer formateras med prefixet 'tel-'."""
     if not number_str:
         return None
-    return number_str.replace("+", "tel-")
+    return f" #tel-{number_str.lstrip('+')}"
 
 
 def create_message_filename(dt, source_name, source_number):
@@ -42,7 +42,7 @@ def create_message_filename(dt, source_name, source_number):
     ts_str = dt.strftime("%d%H%M")
     parts = []
     if source_number:
-        parts.append(_format_phone_number(source_number))
+        parts.append(source_number.lstrip('+'))
     if source_name:
         parts.append(source_name)
     
@@ -57,7 +57,7 @@ def format_sender_display(source_name, source_number):
     """Constructs a display string for the sender, including name and number."""
     formatted_number = _format_phone_number(source_number)
     if source_name and source_number:
-        return f"{source_name} ( #{formatted_number})"
+        return f"{source_name} ({formatted_number})"
     return source_name or formatted_number or "Okänd"
 
 
