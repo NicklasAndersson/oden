@@ -4,6 +4,7 @@ import json
 import os
 import datetime
 import asyncio
+import base64
 import re
 
 # ==============================================================================
@@ -84,6 +85,7 @@ def _extract_message_details(envelope):
             dm.get("message") or dm.get("body"),
             group_meta.get("name") or group_meta.get("title") or group_meta.get("groupName"),
             group_meta.get("id") or group_meta.get("groupId"),
+            dm.get("attachments", [])
         )
 
     if "syncMessage" in envelope:
@@ -93,9 +95,48 @@ def _extract_message_details(envelope):
             sent.get("message"),
             group_info.get("groupName") or group_info.get("title") or group_info.get("name"),
             group_info.get("groupId"),
+            sent.get("attachments", [])
         )
 
-    return None, None, None
+    return None, None, None, []
+
+
+async def _get_attachment_data(attachment_id, reader, writer):
+    """
+    Makes a JSON-RPC call to signal-cli to get attachment data by ID.
+    Returns base64 encoded data if successful, otherwise None.
+    """
+    request_id = datetime.datetime.now().microsecond # Simple unique ID for the request
+    json_request = {
+        "jsonrpc": "2.0",
+        "method": "getAttachment",
+        "params": {
+            "id": attachment_id
+        },
+        "id": request_id
+    }
+    request_str = json.dumps(json_request) + "\n"
+
+    try:
+        writer.write(request_str.encode('utf-8'))
+        await writer.drain()
+
+        # Read response line by line until our request_id is matched
+        response_line = await reader.readline() # Assume response is on one line for now
+        if not response_line:
+            print(f"ERROR: No response for getAttachment request {request_id}", file=sys.stderr)
+            return None
+        
+        response = json.loads(response_line.decode('utf-8').strip())
+        
+        if response.get("id") == request_id and "result" in response:
+            return response["result"].get("data")
+        else:
+            print(f"ERROR: Invalid or unmatched response for getAttachment: {response}", file=sys.stderr)
+            return None
+    except Exception as e:
+        print(f"ERROR calling getAttachment for ID {attachment_id}: {e}", file=sys.stderr)
+        return None
 
 
 def _format_quote(quote):
@@ -114,19 +155,24 @@ def _format_quote(quote):
     ]
 
 
-def process_message(obj):
+async def process_message(obj, reader, writer):
     """
-    Parses a signal message object and writes it to a markdown file.
+    Parses a signal message object and writes it to a markdown file, including attachments.
     If a file for that sender already exists from the same minute, appends the new message.
     """
     envelope = obj.get("envelope", {})
     if not envelope:
         return
 
-    msg, group_title, group_id = _extract_message_details(envelope)
+    msg, group_title, group_id, attachments = _extract_message_details(envelope)
 
-    if not msg or not group_title:
-        print("Skipping message: Not a group message or no message body.", file=sys.stderr)
+    # If no message body and no attachments, skip.
+    if not msg and not attachments:
+        print("Skipping message: No message body and no attachments.", file=sys.stderr)
+        return
+    
+    if not group_title:
+        print("Skipping message: Not a group message.", file=sys.stderr)
         return
 
     # Extract potential quote from the dataMessage
@@ -143,35 +189,90 @@ def process_message(obj):
     )
 
     path = get_message_filepath(group_title, dt, source_name, source_number)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    group_dir = os.path.dirname(path)
+    os.makedirs(group_dir, exist_ok=True)
 
     file_exists = os.path.exists(path)
 
+    # --- Handle Attachments ---
+    attachment_links = []
+    if attachments:
+        # Create a unique subdirectory for attachments for this specific message entry
+        # Using the message timestamp (up to second) for the attachment folder name
+        attachment_subdir_name = dt.strftime("%Y%m%d%H%M%S") + "_" + create_message_filename(dt, source_name, source_number).replace(".md", "")
+        attachment_dir = os.path.join(group_dir, attachment_subdir_name)
+        os.makedirs(attachment_dir, exist_ok=True)
+
+        for i, attachment in enumerate(attachments):
+            data = attachment.get("data")
+            # Use 'filename' if available, otherwise fallback to 'id'
+            filename = attachment.get("filename") or attachment.get("id")
+            attachment_id = attachment.get("id") # Get the attachment ID for potential retrieval
+            
+            if not data and attachment_id: # If data is missing but we have an ID, try to fetch it
+                print(f"Attempting to fetch attachment data for ID: {attachment_id}", file=sys.stderr)
+                retrieved_data = await _get_attachment_data(attachment_id, reader, writer)
+                if retrieved_data:
+                    data = retrieved_data
+                    print(f"Successfully fetched data for attachment ID: {attachment_id}", file=sys.stderr)
+                else:
+                    print(f"Failed to fetch data for attachment ID: {attachment_id}", file=sys.stderr)
+
+            if data and filename:
+                try:
+                    decoded_data = base64.b64decode(data)
+                    # Create a safe filename for the attachment to avoid issues with special characters
+                    safe_filename = f"{i+1}_{filename}" # Prefix with index to ensure uniqueness
+                    attachment_filepath = os.path.join(attachment_dir, safe_filename)
+
+                    with open(attachment_filepath, "wb") as f:
+                        f.write(decoded_data)
+                    
+                    # Generate Markdown link for the attachment
+                    # Obsidian relative path link for attachments
+                    relative_path = os.path.relpath(attachment_filepath, group_dir)
+                    attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}]]")
+                    print(f"Saved attachment: {attachment_filepath}", file=sys.stderr)
+                except Exception as e:
+                    print(f"ERROR: Could not save attachment {filename}. Error: {e}", file=sys.stderr)
+            else:
+                missing_parts = []
+                if not data:
+                    missing_parts.append("data")
+                if not filename:
+                    missing_parts.append("filename")
+                print(f"WARNING: Attachment missing {' and '.join(missing_parts)}: {attachment}", file=sys.stderr)
+
+
+    # --- Prepare content for Markdown file ---
+    content_parts = []
     if file_exists:
         # File exists, so we just append the new message with a separator.
-        quote_parts = _format_quote(quote) if quote else []
-        content_parts = [
-            "\n---\n",  # Markdown horizontal rule for separation
-            *quote_parts,
-            "\n## Meddelande\n" if quote else "## Meddelande\n",
-            msg.strip(),
-            ""
-        ]
+        content_parts.append("\n---\n")  # Markdown horizontal rule for separation
     else:
         # File doesn't exist, create it with the full header.
         sender_display = format_sender_display(source_name, source_number)
-        content_parts = [
+        content_parts.extend([
             f"# {group_title}\n",
             f"TNR: {dt.strftime('%d%H%M')}\n",
             f"Avsändare: {sender_display}\n",
             f"Grupp: #{group_title}\n",
             f"Grupp id: {group_id}\n",
-        ]
-        if quote:
-            content_parts.extend(_format_quote(quote))
+        ])
+
+    if quote:
+        content_parts.extend(_format_quote(quote))
+
+    if msg: # Only add message header if there's actual text message
         content_parts.append("\n## Meddelande\n")
         content_parts.append(msg.strip())
-        content_parts.append("")
+
+    if attachment_links:
+        content_parts.append("\n## Bilagor\n")
+        content_parts.extend(attachment_links)
+    
+    content_parts.append("") # Ensure a final newline
+
 
     # Open in append mode, which creates the file if it doesn't exist.
     with open(path, "a", encoding="utf-8") as f:
@@ -190,7 +291,7 @@ async def subscribe_and_listen():
     print(f"Connecting to signal-cli at {SIGNAL_RPC_HOST}:{SIGNAL_RPC_PORT}...", file=sys.stderr)
     
     try:
-        reader, writer = await asyncio.open_connection(SIGNAL_RPC_HOST, SIGNAL_RPC_PORT)
+        reader, writer = await asyncio.open_connection(SIGNAL_RPC_HOST, SIGNAL_RPC_PORT, limit=1024 * 1024 * 100) # 100 MB limit
     except ConnectionRefusedError as e:
         print(f"\nConnection to signal-cli daemon failed: {e}", file=sys.stderr)
         print("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket, for example:", file=sys.stderr)
@@ -212,7 +313,7 @@ async def subscribe_and_listen():
             try:
                 data = json.loads(message_str)
                 if data.get("method") == "receive" and (params := data.get("params")):
-                    process_message(params)
+                    await process_message(params, reader, writer)
                 else:
                     print(f"DEBUG: Received non-message data: {data}", file=sys.stderr)
             except json.JSONDecodeError:

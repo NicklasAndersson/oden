@@ -1,9 +1,10 @@
 
 import unittest
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, mock_open, AsyncMock
 import os
 import datetime
 import re
+import asyncio
 from s7_watcher import (
     get_safe_group_dir_path,
     _format_phone_number,
@@ -53,10 +54,11 @@ class TestS7Watcher(unittest.TestCase):
                 "groupV2": {"name": "Test Group", "id": "group123"}
             }
         }
-        msg, group_title, group_id = _extract_message_details(envelope)
+        msg, group_title, group_id, attachments = _extract_message_details(envelope)
         self.assertEqual(msg, "Hello")
         self.assertEqual(group_title, "Test Group")
         self.assertEqual(group_id, "group123")
+        self.assertEqual(attachments, [])
 
     def test_extract_message_details_sync_message(self):
         envelope = {
@@ -67,10 +69,11 @@ class TestS7Watcher(unittest.TestCase):
                 }
             }
         }
-        msg, group_title, group_id = _extract_message_details(envelope)
+        msg, group_title, group_id, attachments = _extract_message_details(envelope)
         self.assertEqual(msg, "Hi there")
         self.assertEqual(group_title, "Sync Group")
         self.assertEqual(group_id, "group456")
+        self.assertEqual(attachments, [])
 
     def test_format_quote(self):
         quote = {
@@ -85,7 +88,7 @@ class TestS7Watcher(unittest.TestCase):
     @patch('os.path.exists')
     @patch('os.makedirs')
     @patch('builtins.open', new_callable=mock_open)
-    def test_process_message_new_file(self, mock_open, mock_makedirs, mock_exists):
+    async def test_process_message_new_file(self, mock_open, mock_makedirs, mock_exists):
         mock_exists.return_value = False
         message_obj = {
             "envelope": {
@@ -99,7 +102,9 @@ class TestS7Watcher(unittest.TestCase):
             }
         }
 
-        process_message(message_obj)
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+        await process_message(message_obj, mock_reader, mock_writer)
 
         mock_makedirs.assert_called_once_with(os.path.join("vault", "Test Group"), exist_ok=True)
         mock_open.assert_called_once_with(os.path.join("vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
@@ -115,7 +120,7 @@ class TestS7Watcher(unittest.TestCase):
     @patch('os.path.exists')
     @patch('os.makedirs')
     @patch('builtins.open', new_callable=mock_open)
-    def test_process_message_append_file(self, mock_open, mock_makedirs, mock_exists):
+    async def test_process_message_append_file(self, mock_open, mock_makedirs, mock_exists):
         mock_exists.return_value = True
         message_obj = {
             "envelope": {
@@ -129,7 +134,9 @@ class TestS7Watcher(unittest.TestCase):
             }
         }
 
-        process_message(message_obj)
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+        await process_message(message_obj, mock_reader, mock_writer)
 
         mock_makedirs.assert_called_once_with(os.path.join("vault", "Test Group"), exist_ok=True)
         mock_open.assert_called_once_with(os.path.join("vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
