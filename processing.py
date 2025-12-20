@@ -3,6 +3,8 @@ import sys
 import json
 import datetime
 import base64
+import re
+from urllib.parse import urlparse, parse_qs
 
 from formatting import (
     get_message_filepath,
@@ -163,6 +165,13 @@ async def process_message(obj, reader, writer):
 
     file_exists = os.path.exists(path)
 
+    # Check for Google Maps link and extract coordinates early
+    lat, lon = None, None
+    if msg:
+        maps_url_match = re.search(r"https://maps\.google\.com/maps\?q=([\d.-]+)%2C([\d.-]+)", msg)
+        if maps_url_match:
+            lat, lon = maps_url_match.groups()
+
     # --- Handle Attachments ---
     attachment_links = []
     if attachments:
@@ -200,7 +209,7 @@ async def process_message(obj, reader, writer):
                     # Generate Markdown link for the attachment
                     # Obsidian relative path link for attachments
                     relative_path = os.path.relpath(attachment_filepath, group_dir)
-                    attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}']]")
+                    attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}]]")
                     print(f"Saved attachment: {attachment_filepath}", file=sys.stderr)
                 except Exception as e:
                     print(f"ERROR: Could not save attachment {filename}. Error: {e}", file=sys.stderr)
@@ -221,6 +230,16 @@ async def process_message(obj, reader, writer):
     else:
         # File doesn't exist, create it with the full header.
         sender_display = format_sender_display(source_name, source_number)
+        
+        # Add properties block if coordinates are found
+        if lat is not None and lon is not None:
+            content_parts.extend([
+                "---",
+                "locations: \"\"",
+                "---",
+                "" # Ensure a newline after the properties block
+            ])
+
         content_parts.extend([
             f"# {group_title}\n",
             f"TNR: {dt.strftime('%d%H%M')}\n",
@@ -228,6 +247,9 @@ async def process_message(obj, reader, writer):
             f"Grupp: #{group_title}\n",
             f"Grupp id: {group_id}\n",
         ])
+        if lat is not None and lon is not None:
+            content_parts.append(f"[Position](geo:{lat},{lon})\n")
+
 
     if quote:
         content_parts.extend(_format_quote(quote))

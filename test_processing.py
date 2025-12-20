@@ -73,6 +73,39 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('os.path.exists')
     @patch('os.makedirs')
     @patch('builtins.open', new_callable=mock_open)
+    async def test_process_message_with_maps_link(self, mock_open, mock_makedirs, mock_exists):
+        mock_exists.return_value = False
+        message_obj = {
+            "envelope": {
+                "sourceName": "Jane Doe",
+                "sourceNumber": "+456",
+                "timestamp": 1765890600000,
+                "dataMessage": {
+                    "message": "Check this location https://maps.google.com/maps?q=59.514828%2C17.767852",
+                    "groupV2": {"name": "Maps Group", "id": "group789"}
+                }
+            }
+        }
+
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_makedirs.assert_called_once_with(os.path.join("vault", "Maps Group"), exist_ok=True)
+        mock_open.assert_called_once_with(os.path.join("vault", "Maps Group", "161310-456-Jane_Doe.md"), "a", encoding="utf-8")
+        
+        handle = mock_open()
+        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+        
+        
+        self.assertIn("---\nlocations: \"\"\n---\n\n", written_content)
+        self.assertIn("[Position](geo:59.514828,17.767852)\n", written_content)
+        self.assertIn("Check this location https://maps.google.com/maps?q=59.514828%2C17.767852", written_content)
+
+
+    @patch('os.path.exists')
+    @patch('os.makedirs')
+    @patch('builtins.open', new_callable=mock_open)
     async def test_process_message_append_file(self, mock_open, mock_makedirs, mock_exists):
         mock_exists.return_value = True
         message_obj = {
