@@ -6,11 +6,12 @@ on:
       - main
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # Needed to create releases
-
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -18,7 +19,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Or your preferred version
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
@@ -26,8 +27,38 @@ jobs:
           pip install pyinstaller
 
       - name: Build executable with PyInstaller
+        run: pyinstaller --onefile --name s7_watcher s7_watcher.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: s7_watcher-${{ matrix.os }}
+          path: |
+            dist/s7_watcher
+            dist/s7_watcher.exe
+          if-no-files-found: ignore
+
+  package-and-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write 
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Package release assets
         run: |
-          pyinstaller --onefile --name s7_watcher s7_watcher.py
+          mkdir release_package
+          find artifacts -type f -name "s7_watcher*" -exec cp {} release_package/ \;
+          cp HOW_TO_RUN.md release_package/
+          zip -j s7_watcher-release.zip release_package/*
 
       - name: Create Release
         id: create_release
@@ -39,6 +70,7 @@ jobs:
           release_name: Release ${{ github.sha }}
           body: |
             Automated release for commit ${{ github.sha }}.
+            Includes executables for Windows, macOS, and Linux.
           draft: false
           prerelease: false
 
@@ -48,6 +80,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/s7_watcher
-          asset_name: s7_watcher
-          asset_content_type: application/octet-stream
+          asset_path: ./s7_watcher-release.zip
+          asset_name: s7_watcher-release.zip
+          asset_content_type: application/zip
