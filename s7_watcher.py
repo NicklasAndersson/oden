@@ -4,7 +4,7 @@ import json
 import os
 import asyncio
 
-from config import SIGNAL_RPC_HOST, SIGNAL_RPC_PORT, VAULT_PATH
+from config import VAULT_PATH, INBOX_PATH, SIGNAL_NUMBER
 from processing import process_message
 
 # ==============================================================================
