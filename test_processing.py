@@ -3,12 +3,40 @@ from unittest.mock import patch, mock_open, AsyncMock
 import os
 import asyncio
 import json
+import config
+import importlib
 from processing import (
     _extract_message_details,
     process_message
 )
 
 class TestProcessing(unittest.IsolatedAsyncioTestCase):
+
+    def setUp(self):
+        # Patch config.get_config to return a dummy configuration
+        self.patcher_get_config = patch('config.get_config')
+        self.mock_get_config = self.patcher_get_config.start()
+        self.mock_get_config.return_value = {
+            'vault_path': 'mock_vault',
+            'inbox_path': 'mock_inbox',
+            'signal_number': 'mock_signal_number'
+        }
+        # Reload config module to apply the mock
+        import config
+        import importlib
+        importlib.reload(config)
+
+        # Patch formatting.VAULT_PATH
+        self.patcher_vault_path = patch('formatting.VAULT_PATH', 'mock_vault')
+        self.patcher_vault_path.start()
+
+    def tearDown(self):
+        self.patcher_get_config.stop()
+        self.patcher_vault_path.stop()
+        # Reload config module again to clean up the mock
+        import config
+        import importlib
+        importlib.reload(config)
 
     def test_extract_message_details_data_message(self):
         envelope = {
@@ -59,8 +87,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_writer = AsyncMock()
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_makedirs.assert_called_once_with(os.path.join("vault", "Test Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
+        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
@@ -91,8 +119,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_writer = AsyncMock()
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_makedirs.assert_called_once_with(os.path.join("vault", "Maps Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("vault", "Maps Group", "161310-456-Jane_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Maps Group"), exist_ok=True)
+        mock_open.assert_called_once_with(os.path.join("mock_vault", "Maps Group", "161310-456-Jane_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
@@ -124,8 +152,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_writer = AsyncMock()
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_makedirs.assert_called_once_with(os.path.join("vault", "Test Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
+        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
