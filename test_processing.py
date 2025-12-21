@@ -66,10 +66,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(group_id, "group456")
         self.assertEqual(attachments, [])
 
-    @patch('os.path.exists')
-    @patch('os.makedirs')
     @patch('builtins.open', new_callable=mock_open)
-    async def test_process_message_new_file(self, mock_open, mock_makedirs, mock_exists):
+    @patch('os.makedirs')
+    @patch('os.path.exists')
+    @patch('config.VAULT_PATH', 'vault')
+    async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
             "envelope": {
@@ -98,10 +99,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("## Meddelande", written_content)
         self.assertIn("Hello world", written_content)
 
-    @patch('os.path.exists')
-    @patch('os.makedirs')
     @patch('builtins.open', new_callable=mock_open)
-    async def test_process_message_with_maps_link(self, mock_open, mock_makedirs, mock_exists):
+    @patch('os.makedirs')
+    @patch('os.path.exists')
+    @patch('config.VAULT_PATH', 'vault')
+    async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
             "envelope": {
@@ -131,10 +133,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Check this location https://maps.google.com/maps?q=59.514828%2C17.767852", written_content)
 
 
-    @patch('os.path.exists')
-    @patch('os.makedirs')
     @patch('builtins.open', new_callable=mock_open)
-    async def test_process_message_append_file(self, mock_open, mock_makedirs, mock_exists):
+    @patch('os.makedirs')
+    @patch('os.path.exists')
+    @patch('config.VAULT_PATH', 'vault')
+    async def test_process_message_append_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = True
         message_obj = {
             "envelope": {
