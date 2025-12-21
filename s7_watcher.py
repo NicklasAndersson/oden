@@ -7,6 +7,10 @@ import asyncio
 from config import VAULT_PATH, INBOX_PATH, SIGNAL_NUMBER
 from processing import process_message
 
+# Configuration for signal-cli RPC
+SIGNAL_RPC_HOST = os.environ.get("SIGNAL_RPC_HOST", "127.0.0.1")
+SIGNAL_RPC_PORT = int(os.environ.get("SIGNAL_RPC_PORT", "8080"))
+
 # ==============================================================================
 # DAEMON/LISTENER
 # ==============================================================================
@@ -15,17 +19,12 @@ async def subscribe_and_listen():
     """Connects to signal-cli via TCP socket, subscribes to messages, and processes them."""
     print(f"Connecting to signal-cli at {SIGNAL_RPC_HOST}:{SIGNAL_RPC_PORT}...", file=sys.stderr)
     
+    reader = None
+    writer = None
     try:
         reader, writer = await asyncio.open_connection(SIGNAL_RPC_HOST, SIGNAL_RPC_PORT, limit=1024 * 1024 * 100) # 100 MB limit
-    except ConnectionRefusedError as e:
-        print(f"\nConnection to signal-cli daemon failed: {e}", file=sys.stderr)
-        print("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket, for example:", file=sys.stderr)
-        print(f"  signal-cli -u YOUR_SIGNAL_NUMBER jsonrpc --tcp {SIGNAL_RPC_HOST}:{SIGNAL_RPC_PORT}", file=sys.stderr)
-        sys.exit(1)
-
-    print("Connection successful. Waiting for messages...", file=sys.stderr)
-    
-    try:
+        print("Connection successful. Waiting for messages...", file=sys.stderr)
+        
         while not reader.at_eof():
             line = await reader.readline()
             if not line:
@@ -45,11 +44,17 @@ async def subscribe_and_listen():
                 print(f"ERROR: Received non-JSON message: {message_str}", file=sys.stderr)
             except Exception as e:
                 print(f"ERROR: Could not process message.\n  Error: {repr(e)}\n  Message: {message_str}", file=sys.stderr)
-    finally:
-        writer.close()
-        await writer.wait_closed()
-        print("\nConnection closed.", file=sys.stderr)
 
+    except ConnectionRefusedError as e:
+        print(f"\nConnection to signal-cli daemon failed: {e}", file=sys.stderr)
+        print("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket, for example:", file=sys.stderr)
+        print(f"  signal-cli -u YOUR_SIGNAL_NUMBER jsonrpc --tcp {SIGNAL_RPC_HOST}:{SIGNAL_RPC_PORT}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        if writer:
+            writer.close()
+            await writer.wait_closed()
+        print("\nConnection closed.", file=sys.stderr)
 
 def main():
     """Sets up the vault path and starts the async listener."""
