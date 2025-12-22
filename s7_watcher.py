@@ -26,36 +26,6 @@ def is_signal_cli_running(host, port):
         except (socket.error, ConnectionRefusedError):
             return False
 
-""" def start_signal_cli_daemon(cli_path, signal_number, rpc_host, rpc_port):
-
-    print("Starting signal-cli daemon...", file=sys.stderr)
-    command = [
-        cli_path,
-        '-u', signal_number,
-        'jsonrpc',
-        '--tcp', f"{rpc_host}:{rpc_port}"
-    ]
-    
-    # Use preexec_fn=os.setsid to make it a detached process
-    # This process will not be killed when the parent process exits
-    subprocess.Popen(command, preexec_fn=os.setsid, 
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    print(f"signal-cli daemon started with command: {' '.join(command)}", file=sys.stderr)
-    print("Waiting for signal-cli daemon to become reachable...", file=sys.stderr)
-    
-    # Wait for the daemon to become reachable
-    retries = 10
-    for i in range(retries):
-        if is_signal_cli_running(rpc_host, rpc_port):
-            print("signal-cli daemon is reachable.", file=sys.stderr)
-            return True
-        print(f"Attempt {i+1}/{retries}: signal-cli not yet reachable, waiting 1 second...", file=sys.stderr)
-        time.sleep(1)
-    
-    print("Failed to start signal-cli daemon or it did not become reachable.", file=sys.stderr)
-    return False """
-
 # ==============================================================================
 # DAEMON/LISTENER
 # ==============================================================================
