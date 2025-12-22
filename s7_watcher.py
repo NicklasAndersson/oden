@@ -7,7 +7,7 @@ import subprocess
 import time
 import socket
 
-from config import VAULT_PATH, INBOX_PATH, SIGNAL_NUMBER
+from config import VAULT_PATH
 from processing import process_message
 
 # Configuration for signal-cli RPC
@@ -74,11 +74,7 @@ async def subscribe_and_listen():
 def main():
     """Sets up the vault path, ensures signal-cli is running, and starts the async listener."""
     print("Starting s7_watcher...", file=sys.stderr)
-    os.makedirs(INBOX_PATH, exist_ok=True) # Ensure inbox directory exists
 
-    if SIGNAL_NUMBER == "YOUR_SIGNAL_NUMBER":
-        print("\nERROR: Please update 'Number' in config.ini with your Signal number.", file=sys.stderr)
-        sys.exit(1)
 
     if not is_signal_cli_running(SIGNAL_RPC_HOST, SIGNAL_RPC_PORT):
             print("Failed to ensure signal-cli is running. Exiting.", file=sys.stderr)

@@ -26,29 +26,21 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         self.patcher_get_config = patch('config.get_config')
         self.mock_get_config = self.patcher_get_config.start()
         self.mock_get_config.return_value = {
-            'vault_path': 'mock_vault',
-            'inbox_path': 'mock_inbox',
-            'signal_number': 'mock_signal_number'
+            'vault_path': 'mock_vault'
         }
         importlib.reload(config)
 
         # Patch module-level variables
         self.patcher_vault_path = patch('s7_watcher.VAULT_PATH', 'mock_vault')
-        self.patcher_inbox_path = patch('s7_watcher.INBOX_PATH', 'mock_inbox')
-        self.patcher_signal_number = patch('s7_watcher.SIGNAL_NUMBER', 'mock_signal_number')
         self.patcher_stderr = patch('sys.stderr', new_callable=io.StringIO)
 
         self.patcher_vault_path.start()
-        self.patcher_inbox_path.start()
-        self.patcher_signal_number.start()
         self.mock_stderr = self.patcher_stderr.start()
 
 
     def tearDown(self):
         self.patcher_get_config.stop()
         self.patcher_vault_path.stop()
-        self.patcher_inbox_path.stop()
-        self.patcher_signal_number.stop()
         self.patcher_stderr.stop()
         importlib.reload(config)
 
