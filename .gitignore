@@ -1,4 +1,7 @@
 signal-cli-0.13.22/
-vault/.obsidian/*
+vault/*
 .DS_Store
 __pycache__/*
+dist/*
+build/*
+.gemeni/*
