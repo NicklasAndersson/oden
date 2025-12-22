@@ -88,7 +88,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
         
         self.assertIn("# Test Group", written_content)
-        self.assertIn("Avsändare: John Doe ( #tel-123)", written_content)
+        self.assertIn("Avsändare: John Doe ( [[+123]])", written_content)
         self.assertIn("## Meddelande", written_content)
         self.assertIn("Hello world", written_content)
 
