@@ -58,7 +58,8 @@ jobs:
           mkdir release_package
           find artifacts -type f -name "s7_watcher*" -exec cp {} release_package/ \;
           cp HOW_TO_RUN.md release_package/
-          zip -j s7_watcher-release.zip release_package/*
+          cp -r responses release_package/
+          zip -r s7_watcher-release.zip release_package/
 
       - name: Create Release
         id: create_release
