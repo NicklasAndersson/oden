@@ -82,7 +82,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(message_obj, mock_reader, mock_writer)
 
         mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
@@ -115,7 +115,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(message_obj, mock_reader, mock_writer)
 
         mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Maps Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("mock_vault", "Maps Group", "161310-456-Jane_Doe.md"), "a", encoding="utf-8")
+        mock_open.assert_called_once_with(os.path.join("mock_vault", "Maps Group", "161410-456-Jane_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
@@ -149,7 +149,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(message_obj, mock_reader, mock_writer)
 
         mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161310-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)

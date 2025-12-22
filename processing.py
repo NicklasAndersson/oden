@@ -6,7 +6,7 @@ import base64
 import re
 from urllib.parse import urlparse, parse_qs
 
-from config import REGEX_PATTERNS
+from config import REGEX_PATTERNS, TIMEZONE
 from formatting import (
     get_message_filepath,
     format_sender_display,
@@ -181,9 +181,9 @@ async def process_message(obj, reader, writer):
 
     ts_ms = envelope.get("timestamp")
     dt = (
-        datetime.datetime.fromtimestamp(ts_ms / 1000.0, tz=datetime.timezone.utc)
+        datetime.datetime.fromtimestamp(ts_ms / 1000.0, tz=TIMEZONE)
         if ts_ms
-        else datetime.datetime.now(datetime.timezone.utc)
+        else datetime.datetime.now(TIMEZONE)
     )
 
     path = get_message_filepath(group_title, dt, source_name, source_number)
