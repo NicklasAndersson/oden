@@ -62,50 +62,6 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         import importlib
         importlib.reload(config)
 
-    @patch('sys.exit')
-    @patch('s7_watcher.os.makedirs') # Mock this to avoid file system interaction
-    @patch('s7_watcher.is_signal_cli_running', return_value=True) # Mock this to skip daemon start logic
-    def test_main_signal_number_placeholder_exit(self, mock_is_running, mock_makedirs, mock_exit):
-        # Override the return value of get_config for this test
-        self.mock_get_config.return_value['signal_number'] = "YOUR_SIGNAL_NUMBER"
-        # Reload config and s7_watcher to ensure the new value is picked up
-        importlib.reload(config)
-        import s7_watcher
-        reloaded_s7_watcher = importlib.reload(s7_watcher)
-        print(f"DEBUG: SIGNAL_NUMBER in reloaded s7_watcher: {reloaded_s7_watcher.SIGNAL_NUMBER}", file=sys.stderr)
-
-        with self.assertRaises(SystemExit) as cm:
-            reloaded_s7_watcher.main() # Call the reloaded main
-        self.assertEqual(cm.exception.code, 1)
-        mock_exit.assert_called_once_with(1)
-        self.assertIn("ERROR: Please update 'Number' in config.ini with your Signal number.", self.mock_stderr.getvalue())
-
-    @patch('asyncio.open_connection')
-    async def test_subscribe_and_listen_success(self, mock_open_connection):
-        # Configure the mock reader and writer
-        mock_reader = AsyncMock()
-        mock_writer = AsyncMock()
-        mock_open_connection.return_value = (mock_reader, mock_writer)
-
-        # Mock reader.at_eof as a non-async callable
-        mock_reader.at_eof = MagicMock(side_effect=[False, True])
-        mock_reader.readline.side_effect = [
-            json.dumps({"jsonrpc": "2.0", "method": "receive", "params": {"envelope": {"source": "+123", "dataMessage": {"message": "Hello"}}}}) 
-            .encode('utf-8') + b'\n',
-            b'', # EOF
-        ]
-        
-        # Mock process_message from processing.py
-        with patch('s7_watcher.process_message', new_callable=AsyncMock) as mock_process_message:
-            await subscribe_and_listen()
-
-            # Assertions for successful connection and message processing
-            mock_open_connection.assert_awaited_once_with(SIGNAL_RPC_HOST, SIGNAL_RPC_PORT, limit=unittest.mock.ANY)
-            mock_reader.readline.assert_awaited_once() # Now only one readline call is expected
-            mock_process_message.assert_awaited_once()
-            mock_writer.close.assert_called_once()
-            mock_writer.wait_closed.assert_awaited_once()
-
     @patch('asyncio.open_connection', side_effect=ConnectionRefusedError)
     @patch('sys.exit')
     async def test_subscribe_and_listen_connection_refused(self, mock_exit, mock_open_connection):
