@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
     
     steps:
       - name: Check out repository
@@ -70,7 +70,7 @@ jobs:
           release_name: Release ${{ github.sha }}
           body: |
             Automated release for commit ${{ github.sha }}.
-            Includes executables for Windows, macOS, and Linux.
+            Includes executables for Windows and macOS.
           draft: false
           prerelease: false
 
