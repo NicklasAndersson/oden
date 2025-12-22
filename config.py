@@ -1,3 +1,4 @@
+import sys
 import configparser
 import os
 
@@ -13,8 +14,8 @@ def get_config():
         raise Exception("Config file config.ini is missing required sections ([Vault], [Signal]).")
 
     # Read values
-    vault_path = config.get('Vault', 'Path')
-    inbox_path = config.get('Vault', 'Inbox')
+    vault_path = config.get('Vault', 'path')
+    inbox_path = config.get('Vault', 'inbox')
     signal_number = config.get('Signal', 'Number')
 
     # Expand user path for vault_path and inbox_path
@@ -32,8 +33,5 @@ try:
     SIGNAL_NUMBER = app_config['signal_number']
 except Exception as e:
     print(f"Error loading configuration: {e}")
-    # Provide default/fallback values or exit
-    VAULT_PATH = None
-    INBOX_PATH = None
-    SIGNAL_NUMBER = None
+    sys.exit(1)
 

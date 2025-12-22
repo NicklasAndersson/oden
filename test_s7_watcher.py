@@ -6,6 +6,7 @@ import config
 import importlib
 import io
 import warnings
+import sys
 
 # Import the main function and necessary configurations
 from s7_watcher import subscribe_and_listen, SIGNAL_RPC_HOST, SIGNAL_RPC_PORT
@@ -60,6 +61,24 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         import config
         import importlib
         importlib.reload(config)
+
+    @patch('sys.exit')
+    @patch('s7_watcher.os.makedirs') # Mock this to avoid file system interaction
+    @patch('s7_watcher.is_signal_cli_running', return_value=True) # Mock this to skip daemon start logic
+    def test_main_signal_number_placeholder_exit(self, mock_is_running, mock_makedirs, mock_exit):
+        # Override the return value of get_config for this test
+        self.mock_get_config.return_value['signal_number'] = "YOUR_SIGNAL_NUMBER"
+        # Reload config and s7_watcher to ensure the new value is picked up
+        importlib.reload(config)
+        import s7_watcher
+        reloaded_s7_watcher = importlib.reload(s7_watcher)
+        print(f"DEBUG: SIGNAL_NUMBER in reloaded s7_watcher: {reloaded_s7_watcher.SIGNAL_NUMBER}", file=sys.stderr)
+
+        with self.assertRaises(SystemExit) as cm:
+            reloaded_s7_watcher.main() # Call the reloaded main
+        self.assertEqual(cm.exception.code, 1)
+        mock_exit.assert_called_once_with(1)
+        self.assertIn("ERROR: Please update 'Number' in config.ini with your Signal number.", self.mock_stderr.getvalue())
 
     @patch('asyncio.open_connection')
     async def test_subscribe_and_listen_success(self, mock_open_connection):
