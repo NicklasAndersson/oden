@@ -244,7 +244,7 @@ async def process_message(obj, reader, writer):
             f"# {group_title}\n",
             f"TNR: {dt.strftime('%d%H%M')}\n",
             f"Avsändare: {sender_display}\n",
-            f"Grupp: #{group_title}\n",
+            f"Grupp: [[{group_title}]]\n",
             f"Grupp id: {group_id}\n",
         ])
         if lat is not None and lon is not None:

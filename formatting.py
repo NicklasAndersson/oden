@@ -17,7 +17,7 @@ def _format_phone_number(number_str):
     """Säkerställer att ett telefonnummer formateras med prefixet 'tel-'."""
     if not number_str:
         return None
-    return f" #tel-{number_str.lstrip('+')}"
+    return f" [[{number_str}]]"
 
 
 def create_message_filename(dt, source_name, source_number):
