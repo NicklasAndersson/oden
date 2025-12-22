@@ -18,9 +18,9 @@ sequenceDiagram
     
     Note over Processor: Behandlar meddelandet
     Processor-->>Signal: Hämtar ev. stor bilaga (getAttachment)
-    Signal-->>-Processor: Returnerar bilaga (base64)
+    Signal-->>Processor: Returnerar bilaga (base64)
     
-    Processor->>+Valv: Skriver/bifogar .md-fil med metadata
+    Processor->>Valv: Skriver/bifogar .md-fil med metadata
     Processor->>Valv: Sparar bilagor i undermapp
     
     deactivate Processor
@@ -35,10 +35,10 @@ sequenceDiagram
     
     Note over Processor: Tolkar kommandot
     Processor->>Valv: Läser svarsfil (t.ex. /responses/help.md)
-    Valv-->>-Processor: Returnerar innehåll
+    Valv-->>Processor: Returnerar innehåll
     
-    Processor->>+Signal: Skickar svar (send-anrop via JSON-RPC)
-    Signal->>-Externt: Levererar svar till användaren
+    Processor->>Signal: Skickar svar (send-anrop via JSON-RPC)
+    Signal->>Externt: Levererar svar till användaren
     
     deactivate Processor
     deactivate Watcher
