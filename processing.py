@@ -6,6 +6,7 @@ import base64
 import re
 from urllib.parse import urlparse, parse_qs
 
+from config import REGEX_PATTERNS
 from formatting import (
     get_message_filepath,
     format_sender_display,
@@ -16,6 +17,32 @@ from formatting import (
 # ==============================================================================
 # MESSAGE PROCESSING
 # ==============================================================================
+
+def _apply_regex_links(text):
+    """
+    Applies regex patterns from configuration to text and converts matches to [[...]] links.
+    Avoids linking text that is already inside [[...]].
+    """
+    if not text or not REGEX_PATTERNS:
+        return text
+    
+    # Find all existing [[...]] patterns to avoid double-linking
+    existing_links = set(re.findall(r'\[\[([^\]]+)\]\]', text))
+    
+    for pattern_name, pattern in REGEX_PATTERNS.items():
+        try:
+            # Find all matches
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                matched_text = match.group(0)
+                # Only link if it's not already in an existing link
+                if matched_text not in existing_links:
+                    text = text.replace(matched_text, f"[[{matched_text}]]", 1)
+                    existing_links.add(matched_text)
+        except Exception as e:
+            print(f"WARNING: Error applying regex pattern '{pattern_name}': {e}", file=sys.stderr)
+    
+    return text
 
 def _extract_message_details(envelope):
     """
@@ -256,7 +283,9 @@ async def process_message(obj, reader, writer):
 
     if msg: # Only add message header if there's actual text message
         content_parts.append("\n## Meddelande\n")
-        content_parts.append(msg.strip())
+        # Apply regex linking to the message
+        linked_msg = _apply_regex_links(msg.strip())
+        content_parts.append(linked_msg)
 
     if attachment_links:
         content_parts.append("\n## Bilagor\n")
