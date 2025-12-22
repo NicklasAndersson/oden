@@ -1,6 +1,18 @@
-Starta signal-cli
-```./signal-cli-0.13.22/bin/signal-cli -u +46766861234 daemon --tcp 127.0.0.1:7583 ```
+# Oden S7 Watcher
 
-Kör watcher
-```python3 s7_watcher.py```
+## Starta signal-cli
+
+```bash
+./signal-cli-0.13.22/bin/signal-cli -u <ditt-nummer> daemon --tcp 127.0.0.1:7583
+```
+
+## Kör watcher
+
+```bash
+python3 s7_watcher.py
+```
+
+## Konfiguration
+
+Redigera `config.ini` enligt HOW_TO_RUN.md. Se till att tidszon och regex är korrekt inställda för din miljö.
 
