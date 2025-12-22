@@ -8,7 +8,7 @@ Follow these three steps to get the application running:
 
 1.  **Download the Correct Executable**
     - From the latest release, download the `s7_watcher-release.zip` file.
-    - Unzip the file. You will find executables for Linux, macOS, and Windows. Use the one that matches your operating system.
+    - Unzip the file. You will find executables for macOS, and Windows. Use the one that matches your operating system.
 
 2.  **Create `config.ini`**
     - In the same directory where you placed the executable, create a new file named `config.ini`.
