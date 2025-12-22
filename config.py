@@ -17,12 +17,18 @@ def get_config():
     vault_path = config.get('Vault', 'path')
     inbox_path = config.get('Vault', 'inbox')
     signal_number = config.get('Signal', 'Number')
+    
+    # Read regex patterns if available
+    regex_patterns = {}
+    if config.has_section('Regex'):
+        regex_patterns = dict(config.items('Regex'))
 
     # Expand user path for vault_path and inbox_path
     return {
         'vault_path': os.path.expanduser(vault_path),
         'inbox_path': os.path.expanduser(inbox_path),
-        'signal_number': signal_number
+        'signal_number': signal_number,
+        'regex_patterns': regex_patterns
     }
 
 # Load configuration on import
@@ -31,6 +37,7 @@ try:
     VAULT_PATH = app_config['vault_path']
     INBOX_PATH = app_config['inbox_path']
     SIGNAL_NUMBER = app_config['signal_number']
+    REGEX_PATTERNS = app_config['regex_patterns']
 except Exception as e:
     print(f"Error loading configuration: {e}")
     sys.exit(1)
