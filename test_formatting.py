@@ -1,22 +1,24 @@
-import unittest
-import os
 import datetime
+import os
+import unittest
 from unittest.mock import patch
+
 import config
 import importlib
+
 from formatting import (
-    get_safe_group_dir_path,
     _format_phone_number,
+    _format_quote,
     create_message_filename,
     format_sender_display,
     get_message_filepath,
-    _format_quote
+    get_safe_group_dir_path,
 )
 
 class TestFormatting(unittest.TestCase):
 
     def setUp(self):
-        # Patch config.get_config to return a dummy configuration
+        # Mock configuration
         self.patcher_get_config = patch('config.get_config')
         self.mock_get_config = self.patcher_get_config.start()
         self.mock_get_config.return_value = {
@@ -24,9 +26,6 @@ class TestFormatting(unittest.TestCase):
             'inbox_path': 'mock_inbox',
             'signal_number': 'mock_signal_number'
         }
-        # Reload config module to apply the mock
-        import config
-        import importlib
         importlib.reload(config)
 
         # Patch formatting.VAULT_PATH
@@ -36,9 +35,6 @@ class TestFormatting(unittest.TestCase):
     def tearDown(self):
         self.patcher_get_config.stop()
         self.patcher_vault_path.stop()
-        # Reload config module again to clean up the mock
-        import config
-        import importlib
         importlib.reload(config)
 
     def test_get_safe_group_dir_path(self):

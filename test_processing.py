@@ -1,19 +1,18 @@
-import unittest
-from unittest.mock import patch, mock_open, AsyncMock
-import os
 import asyncio
 import json
+import os
+import unittest
+from unittest.mock import AsyncMock, mock_open, patch
+
 import config
 import importlib
-from processing import (
-    _extract_message_details,
-    process_message
-)
+
+from processing import _extract_message_details, process_message
 
 class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
-        # Patch config.get_config to return a dummy configuration
+        # Mock configuration
         self.patcher_get_config = patch('config.get_config')
         self.mock_get_config = self.patcher_get_config.start()
         self.mock_get_config.return_value = {
@@ -21,9 +20,6 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             'inbox_path': 'mock_inbox',
             'signal_number': 'mock_signal_number'
         }
-        # Reload config module to apply the mock
-        import config
-        import importlib
         importlib.reload(config)
 
         # Patch formatting.VAULT_PATH
@@ -33,9 +29,6 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         self.patcher_get_config.stop()
         self.patcher_vault_path.stop()
-        # Reload config module again to clean up the mock
-        import config
-        import importlib
         importlib.reload(config)
 
     def test_extract_message_details_data_message(self):
@@ -76,7 +69,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 1765890600000, # GMT: Tuesday 16 December 2025 13:10:00
+                "timestamp": 1765890600000,
                 "dataMessage": {
                     "message": "Hello world",
                     "groupV2": {"name": "Test Group", "id": "group123"}
@@ -143,7 +136,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 1765890600000, # GMT: Tuesday 16 December 2025 13:10:00
+                "timestamp": 1765890600000,
                 "dataMessage": {
                     "message": "Another message",
                     "groupV2": {"name": "Test Group", "id": "group123"}
