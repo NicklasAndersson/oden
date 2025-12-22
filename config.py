@@ -1,6 +1,7 @@
 import sys
 import configparser
 import os
+import zoneinfo
 
 def get_config():
     """
@@ -22,13 +23,25 @@ def get_config():
     regex_patterns = {}
     if config.has_section('Regex'):
         regex_patterns = dict(config.items('Regex'))
+    
+    # Read timezone if available, defaults to Europe/Stockholm
+    timezone_str = 'Europe/Stockholm'
+    if config.has_section('Timezone'):
+        timezone_str = config.get('Timezone', 'timezone', fallback='Europe/Stockholm')
+    
+    try:
+        timezone = zoneinfo.ZoneInfo(timezone_str)
+    except Exception as e:
+        print(f"Warning: Invalid timezone '{timezone_str}': {e}. Using Europe/Stockholm", file=sys.stderr)
+        timezone = zoneinfo.ZoneInfo('Europe/Stockholm')
 
     # Expand user path for vault_path and inbox_path
     return {
         'vault_path': os.path.expanduser(vault_path),
         'inbox_path': os.path.expanduser(inbox_path),
         'signal_number': signal_number,
-        'regex_patterns': regex_patterns
+        'regex_patterns': regex_patterns,
+        'timezone': timezone
     }
 
 # Load configuration on import
@@ -38,6 +51,7 @@ try:
     INBOX_PATH = app_config['inbox_path']
     SIGNAL_NUMBER = app_config['signal_number']
     REGEX_PATTERNS = app_config['regex_patterns']
+    TIMEZONE = app_config['timezone']
 except Exception as e:
     print(f"Error loading configuration: {e}")
     sys.exit(1)
