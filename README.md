@@ -16,3 +16,7 @@ python3 s7_watcher.py
 
 Redigera `config.ini` enligt HOW_TO_RUN.md. Se till att tidszon och regex är korrekt inställda för din miljö.
 
+## Flödesdiagram
+
+[Flödesdiagram för applikationen](Flow.md)
+
