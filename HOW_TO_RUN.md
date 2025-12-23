@@ -2,21 +2,33 @@
 
 Oden S7 Watcher is a utility that monitors a directory for new files and processes them based on your configuration.
 
-## Getting Started
+## Installation and Setup
 
-Follow these three steps to get the application running:
+Follow these steps to get the application running.
 
-1. **Download the Correct Executable**
-   - From the latest release, download the `s7_watcher-release.zip` file.
-   - Unzip the file. You will find executables for macOS and Windows. Use the one that matches your operating system.
+### 1. Run the Installation Script (macOS)
 
-2. **Edit `config.ini`**
-   - In the same directory as the executable, you will find a file named `config.ini` (included in the release package).
-   - Edit the values in this file to match your setup. See the **Configuration** section below for details.
+If you are on macOS, the easiest way to get started is to use the interactive installation script.
 
-3. **Run the Application**
-   - Open a terminal (or Command Prompt on Windows) and navigate to the directory.
-   - Follow the instructions in the **Running the Application** section below.
+1.  Open a terminal.
+2.  Navigate to the directory where you unzipped the release file.
+3.  Run the script:
+    ```bash
+    ./install_mac.sh
+    ```
+This script will check for dependencies (like Java) and guide you through connecting your Signal account.
+
+### 2. Manual Setup (Windows)
+
+For Windows, a similar script is not yet available. You will need to set up `signal-cli` manually. Please refer to the official `signal-cli` documentation for instructions on how to either [register a new number](https://github.com/AsamK/signal-cli/wiki/Register-a-new-signal-account) or [link an existing device](https://github.com/AsamK/signal-cli/wiki/Link-a-second-device).
+
+### 3. Edit `config.ini`
+
+After setting up Signal, you need to configure Oden. In the same directory as the executable, you will find a file named `config.ini`. Edit the values in this file to match your setup. See the **Configuration** section below for details.
+
+### 4. Run the Application
+
+Once your setup and configuration are complete, you can run the application. See the **Running the Application** section below for instructions.
 
 ## Configuration (`config.ini`)
 
