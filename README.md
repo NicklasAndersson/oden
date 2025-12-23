@@ -1,32 +1,32 @@
 # Oden S7 Watcher
 
-## For Users (Recommended Usage)
+## För Användare (Rekommenderad Användning)
 
-If you simply want to run the application, you should download the latest release, not clone this repository.
+Om du bara vill köra applikationen bör du ladda ner den senaste releasen, inte klona detta repo.
 
-1.  Go to the **[Releases Page](../../releases)**.
-2.  Download the `s7_watcher-release.zip` file from the most recent release.
-3.  Unzip the package and follow the instructions in the `HOW_TO_RUN.md` file you will find inside.
+1.  Gå till **[Releases-sidan](../../releases)**.
+2.  Ladda ner `s7_watcher-release.zip`-filen från den senaste releasen.
+3.  Packa upp paketet och följ instruktionerna i `HOW_TO_RUN.md`-filen som du hittar inuti.
 
 ---
 
-## For Developers
+## För Utvecklare
 
-This README is for developers who have cloned the repository to build from source or contribute. If you are an end-user, please see the section above.
+Denna README är för utvecklare som har klonat repot för att bygga från källkod eller bidra. Om du är slutanvändare, se avsnittet ovan.
 
-For instructions on running the pre-packaged release, please see `HOW_TO_RUN.md`.
+För instruktioner om hur man kör den förpaketerade releasen, se `HOW_TO_RUN.md`.
 
 ## Installation (macOS)
 
-For a quick setup on macOS, run the interactive installation script. This will help you install dependencies and link your Signal account.
+För en snabb installation på macOS, kör det interaktiva installationsskriptet. Det hjälper dig att installera beroenden och länka ditt Signal-konto.
 
 ```bash
 ./install_mac.sh
 ```
 
-## Manual Operation
+## Manuell Hantering
 
-These steps describe how to run the components manually after setup.
+Dessa steg beskriver hur man kör komponenterna manuellt efter installation.
 
 ### Starta signal-cli
 
