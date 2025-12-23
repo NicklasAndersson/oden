@@ -20,7 +20,7 @@ This script will check for dependencies (like Java) and guide you through connec
 
 ### 2. Manual Setup (Windows)
 
-For Windows, a similar script is not yet available. You will need to set up `signal-cli` manually. Please refer to the official `signal-cli` documentation for instructions on how to either [register a new number](https://github.com/AsamK/signal-cli/wiki/Register-a-new-signal-account) or [link an existing device](https://github.com/AsamK/signal-cli/wiki/Link-a-second-device).
+Unfortunately, an automated installation script for Windows is not yet available. We apologize for the inconvenience. Windows users will need to set up `signal-cli` manually. Please refer to the official `signal-cli` documentation for instructions on how to either [register a new number](https://github.com/AsamK/signal-cli/wiki/Register-a-new-signal-account) or [link an existing device](https://github.com/AsamK/signal-cli/wiki/Link-a-second-device).
 
 ### 3. Edit `config.ini`
 
