@@ -1,42 +1,42 @@
 # Oden S7 Watcher
 
-Oden S7 Watcher is a utility that monitors a directory for new files and processes them based on your configuration.
+Oden S7 Watcher är ett verktyg som övervakar en mapp för nya filer och bearbetar dem baserat på din konfiguration.
 
-## Installation and Setup
+## Installation och Inställningar
 
-Follow these steps to get the application running.
+Följ dessa steg för att få applikationen att köra.
 
-### 1. Run the Installation Script (macOS)
+### 1. Kör Installationsskriptet (macOS)
 
-If you are on macOS, the easiest way to get started is to use the interactive installation script.
+Om du använder macOS är det enklaste sättet att komma igång att använda det interaktiva installationsskriptet.
 
-1.  Open a terminal.
-2.  Navigate to the directory where you unzipped the release file.
-3.  Run the script:
+1.  Öppna en terminal.
+2.  Navigera till mappen där du packade upp release-filen.
+3.  Kör skriptet:
     ```bash
     ./install_mac.sh
     ```
-This script will check for dependencies (like Java) and guide you through connecting your Signal account.
+Detta skript kommer att kontrollera beroenden (som Java) och guida dig genom att ansluta ditt Signal-konto.
 
-### 2. Manual Setup (Windows)
+### 2. Manuell Installation (Windows)
 
-Unfortunately, an automated installation script for Windows is not yet available. We apologize for the inconvenience. Windows users will need to set up `signal-cli` manually. Please refer to the official `signal-cli` documentation for instructions on how to either [register a new number](https://github.com/AsamK/signal-cli/wiki/Register-a-new-signal-account) or [link an existing device](https://github.com/AsamK/signal-cli/wiki/Link-a-second-device).
+Tyvärr finns ett automatiserat installationsskript för Windows ännu inte tillgängligt. Vi ber om ursäkt för besväret. Windows-användare måste installera `signal-cli` manuellt. Vänligen se den officiella `signal-cli`-dokumentationen för instruktioner om hur man antingen [registrerar ett nytt nummer](https://github.com/AsamK/signal-cli/wiki/Register-a-new-signal-account) eller [länkar en befintlig enhet](https://github.com/AsamK/signal-cli/wiki/Link-a-second-device).
 
-### 3. Edit `config.ini`
+### 3. Redigera `config.ini`
 
-After setting up Signal, you need to configure Oden. In the same directory as the executable, you will find a file named `config.ini`. Edit the values in this file to match your setup. See the **Configuration** section below for details.
+Efter att ha konfigurerat Signal måste du konfigurera Oden. I samma mapp som den körbara filen hittar du en fil med namnet `config.ini`. Redigera värdena i den här filen för att matcha din installation. Se avsnittet **Konfiguration** nedan för detaljer.
 
-### 4. Run the Application
+### 4. Kör Applikationen
 
-Once your setup and configuration are complete, you can run the application. See the **Running the Application** section below for instructions.
+När din installation och konfiguration är klar kan du köra applikationen. Se avsnittet **Köra Applikationen** nedan för instruktioner.
 
-## Configuration (`config.ini`)
+## Konfiguration (`config.ini`)
 
-The application requires a `config.ini` file to be present in the same directory. This file contains the necessary settings for the application to function correctly.
+Applikationen kräver att en `config.ini`-fil finns i samma mapp. Denna fil innehåller de nödvändiga inställningarna för att applikationen ska fungera korrekt.
 
-### Template
+### Mall
 
-Your `config.ini` should look like this:
+Din `config.ini` bör se ut så här:
 
 ```ini
 [Vault]
@@ -52,40 +52,40 @@ registration_number = [A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}
 timezone = Europe/Stockholm
 ```
 
-### Settings Explained
+### Förklaring av Inställningar
 
 - `[Vault]`
-  - **path**: The full path to the root directory of your Obsidian vault.
+  - **path**: Den fullständiga sökvägen till rotmappen för ditt Obsidian-valv.
 
 - `[Regex]`
-  - List of regex patterns used to automatically create `[[...]]` links in markdown files.
-  - **registration_number**: Pattern for Swedish car registration numbers (e.g., ABC12D).
-  - You can add more patterns by adding new lines with `pattern_name = regex_pattern`.
+  - Lista över regex-mönster som används för att automatiskt skapa `[[...]]`-länkar i markdown-filer.
+  - **registration_number**: Mönster för svenska registreringsnummer (t.ex. ABC12D).
+  - Du kan lägga till fler mönster genom att lägga till nya rader med `mönsternamn = regex_mönster`.
 
 - `[Timezone]`
-  - **timezone**: The timezone for timestamps. Use standard timezone names like `Europe/Stockholm` for Sweden, `Europe/London` for UK, etc.
+  - **timezone**: Tidszonen för tidsstämplar. Använd standardnamn för tidszoner som `Europe/Stockholm` för Sverige, `Europe/London` för Storbritannien, etc.
 
-## Running the Application
+## Köra Applikationen
 
-Once your executable is in place and `config.ini` is configured, you can run the application.
+När din körbara fil är på plats och `config.ini` är konfigurerad kan du köra applikationen.
 
-### On macOS or Linux
+### På macOS eller Linux
 
-1. **Make the file executable:**
+1. **Gör filen körbar:**
 
    ```bash
    chmod +x ./s7_watcher
    ```
 
-2. **Run the watcher:**
+2. **Kör watchern:**
 
    ```bash
    ./s7_watcher
    ```
 
-### On Windows
+### På Windows
 
-Run the executable directly from the Command Prompt or PowerShell.
+Kör den körbara filen direkt från Command Prompt eller PowerShell.
 
 ```powershell
 .\s7_watcher.exe
