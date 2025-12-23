@@ -27,10 +27,6 @@ The application requires a `config.ini` file to be present in the same directory
 Your `config.ini` should look like this:
 
 ```ini
-[DEFAULT]
-log_level = INFO
-data_path = ./data
-
 [Vault]
 path = ./vault
 
@@ -45,10 +41,6 @@ timezone = Europe/Stockholm
 ```
 
 ### Settings Explained
-
-- `[DEFAULT]`
-  - **log_level**: Logging level (e.g., INFO, DEBUG).
-  - **data_path**: Path to data directory.
 
 - `[Vault]`
   - **path**: The full path to the root directory of your Obsidian vault.
