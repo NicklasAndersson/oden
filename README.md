@@ -37,11 +37,7 @@ Dessa steg beskriver hur man kör komponenterna manuellt efter installation.
 ### Kör watcher
 
 ```bash
-# På macOS/Linux
-./s7_watcher
-
-# På Windows
-.\s7_watcher.exe
+python3 s7_watcher.py
 ```
 
 ## Konfiguration
