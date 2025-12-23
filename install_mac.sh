@@ -39,13 +39,26 @@ if ! command -v brew &> /dev/null; then
         echo "The script will continue after the installer finishes."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         
-        # After installation, check again.
+        # After installation, check again and try to configure the shell
+        BREW_PATH=""
+        if [ -x "/opt/homebrew/bin/brew" ]; then
+            BREW_PATH="/opt/homebrew/bin/brew"
+        elif [ -x "/usr/local/bin/brew" ]; then
+            BREW_PATH="/usr/local/bin/brew"
+        fi
+
+        if [ -n "$BREW_PATH" ]; then
+            echo "Homebrew executable found at $BREW_PATH. Configuring shell for this session..."
+            eval "$($BREW_PATH shellenv)"
+        fi
+
         if ! command -v brew &> /dev/null; then
             echo -e "${C_YELLOW}Homebrew was installed, but the 'brew' command is not available in this terminal session yet.${C_RESET}"
-            echo "Please open a NEW terminal window and re-run this script to continue."
+            echo "The installer should have given you instructions to add it to your PATH."
+            echo "Please run those commands, then open a NEW terminal window and re-run this script to continue."
             exit 1
         else
-            echo -e "${C_GREEN}Homebrew successfully installed.${C_RESET}"
+            echo -e "${C_GREEN}Homebrew successfully installed and configured for this session.${C_RESET}"
             HOMEBREW_INSTALLED=true
         fi
     else
