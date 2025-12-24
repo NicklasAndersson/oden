@@ -4,9 +4,9 @@
 
 Om du bara vill köra applikationen bör du ladda ner den senaste releasen, inte klona detta repo.
 
-1.  Gå till **[Releases-sidan](../../releases)**.
-2.  Ladda ner `s7_watcher-release.zip`-filen från den senaste releasen.
-3.  Packa upp paketet och följ instruktionerna i `HOW_TO_RUN.md`-filen som du hittar inuti.
+1. Gå till **[Releases-sidan](../../releases)**.
+2. Ladda ner `s7_watcher-release.zip`-filen från den senaste releasen.
+3. Packa upp paketet och följ instruktionerna i `HOW_TO_RUN.md`-filen som du hittar inuti.
 
 ---
 
@@ -47,4 +47,3 @@ Redigera `config.ini` enligt HOW_TO_RUN.md. Se till att tidszon och regex är ko
 ## Flödesdiagram
 
 [Flödesdiagram för applikationen](Flow.md)
-

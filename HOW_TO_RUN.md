@@ -10,12 +10,14 @@ Följ dessa steg för att få applikationen att köra.
 
 Om du använder macOS är det enklaste sättet att komma igång att använda det interaktiva installationsskriptet.
 
-1.  Öppna en terminal.
-2.  Navigera till mappen där du packade upp release-filen.
-3.  Kör skriptet:
+1. Öppna en terminal.
+2. Navigera till mappen där du packade upp release-filen.
+3. Kör skriptet:
+
     ```bash
     ./install_mac.sh
     ```
+
 Detta skript kommer att kontrollera beroenden (som Java) och guida dig genom att ansluta ditt Signal-konto.
 
 ### 2. Manuell Installation (Windows)
