@@ -284,6 +284,119 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(empty_message, mock_reader, mock_writer)
         mock_open.assert_not_called()
 
+    @patch('processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
+    @patch('builtins.open', new_callable=mock_open)
+    async def test_process_message_append_plus_plus_success(self, mock_open, mock_find_latest):
+        """Tests that a '++' message successfully appends to a recent file."""
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe", "sourceNumber": "+123", "timestamp": 123,
+                "dataMessage": {
+                    "message": "++ adding more details",
+                    "groupV2": {"name": "My Group"}
+                }
+            }
+        }
+        mock_reader, mock_writer = AsyncMock(), AsyncMock()
+        
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_find_latest.assert_called_once()
+        mock_open.assert_called_once_with('/mock_vault/My Group/recent_file.md', 'a', encoding='utf-8')
+        
+        handle = mock_open()
+        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+        self.assertIn("\n---\n", written_content)
+        self.assertIn("adding more details", written_content)
+
+    @patch('processing._find_latest_file_for_sender', return_value=None)
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('sys.stderr', new_callable=io.StringIO)
+    async def test_process_message_append_plus_plus_failure(self, mock_stderr, mock_open, mock_find_latest):
+        """Tests that a '++' message fails gracefully when no recent file is found."""
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe", "sourceNumber": "+123", "timestamp": 123,
+                "dataMessage": {
+                    "message": "++ this should fail",
+                    "groupV2": {"name": "My Group"}
+                }
+            }
+        }
+        mock_reader, mock_writer = AsyncMock(), AsyncMock()
+        
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_find_latest.assert_called_once()
+        mock_open.assert_not_called()
+        self.assertIn("APPEND FAILED", mock_stderr.getvalue())
+
+    @patch('processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
+    @patch('builtins.open', new_callable=mock_open)
+    async def test_process_message_append_on_reply_success(self, mock_open, mock_find_latest):
+        """Tests that replying to a recent message from self triggers an append."""
+        now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
+        five_mins_ago_ts_ms = now_ts_ms - (5 * 60 * 1000)
+
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe", "sourceNumber": "+123", "timestamp": now_ts_ms,
+                "dataMessage": {
+                    "message": "This is an addition",
+                    "groupV2": {"name": "My Group"},
+                    "quote": {
+                        "id": five_mins_ago_ts_ms,
+                        "author": "+123", # Same author
+                        "text": "Original message"
+                    }
+                }
+            }
+        }
+        mock_reader, mock_writer = AsyncMock(), AsyncMock()
+        
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_find_latest.assert_called_once()
+        mock_open.assert_called_once_with('/mock_vault/My Group/recent_file.md', 'a', encoding='utf-8')
+        handle = mock_open()
+        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+        self.assertIn("This is an addition", written_content)
+
+    @patch('processing._find_latest_file_for_sender')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('os.path.exists', return_value=False)
+    @patch('os.makedirs')
+    @patch('formatting.VAULT_PATH', 'mock_vault')
+    async def test_process_message_append_on_reply_fallback(self, mock_makedirs, mock_exists, mock_open, mock_find_latest):
+        """Tests that replying to an old message or other user falls back to new message creation."""
+        now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
+        old_ts_ms = now_ts_ms - (40 * 60 * 1000) # 40 minutes ago
+
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe", "sourceNumber": "+123", "timestamp": now_ts_ms,
+                "dataMessage": {
+                    "message": "This should be a new file",
+                    "groupV2": {"name": "My Group"},
+                    "quote": {
+                        "id": old_ts_ms, # Too old
+                        "author": "+123",
+                        "text": "Very old message"
+                    }
+                }
+            }
+        }
+        mock_reader, mock_writer = AsyncMock(), AsyncMock()
+        
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        # Assert that append logic was NOT used, and it fell through to normal processing
+        mock_find_latest.assert_not_called()
+        mock_open.assert_called_once() # Called once for the new file
+        self.assertIn("This should be a new file", mock_open().write.call_args.args[0])
+        # Check that the quote is still formatted, since it's a normal reply
+        self.assertIn("> **Svarar på", mock_open().write.call_args.args[0])
+
 
 
 if __name__ == '__main__':

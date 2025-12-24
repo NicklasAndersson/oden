@@ -12,11 +12,69 @@ from formatting import (
     format_sender_display,
     _format_quote,
     create_message_filename,
+    get_safe_group_dir_path,
 )
 
 # ==============================================================================
 # MESSAGE PROCESSING
 # ==============================================================================
+
+def _find_latest_file_for_sender(group_dir, source_name, source_number):
+    """
+    Finds the most recent file by a given sender in a group directory,
+    if it's not older than 30 minutes.
+    """
+    latest_file = None
+    latest_time = datetime.datetime.min.replace(tzinfo=TIMEZONE)
+    
+    # Construct a pattern to identify files from this sender
+    # This is fragile, but mirrors the logic in create_message_filename
+    sender_id_parts = []
+    if source_number:
+        sender_id_parts.append(source_number.lstrip('+'))
+    if source_name:
+        sender_id_parts.append(source_name.replace('/', '_')) # Basic sanitization
+    
+    sender_pattern = "*" + re.sub(r'[^\w\-_\.]', '_', "-".join(sender_id_parts)) + ".md"
+
+    try:
+        now = datetime.datetime.now(TIMEZONE)
+        candidate_files = [f for f in os.listdir(group_dir) if f.endswith('.md')]
+
+        for filename in candidate_files:
+            # Check if the file belongs to the sender
+            if not re.search(sender_pattern.replace('*',''), filename, re.IGNORECASE):
+                 continue
+
+            try:
+                # Extract DDHHMM from filename like "DDHHMM-..."
+                ts_str = filename.split('-')[0]
+                day = int(ts_str[0:2])
+                hour = int(ts_str[2:4])
+                minute = int(ts_str[4:6])
+
+                # Reconstruct the file's datetime
+                file_dt = now.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # Handle month/year rollovers
+                if file_dt > now:
+                    # If the file's date is in the future, it must be from the previous month
+                    file_dt -= datetime.timedelta(days=now.day) # Go to start of month approx.
+                    # This is imperfect but should work for a 30-min window
+
+                if (now - file_dt) < datetime.timedelta(minutes=30):
+                    if latest_file is None or file_dt > latest_time:
+                        latest_time = file_dt
+                        latest_file = os.path.join(group_dir, filename)
+
+            except (ValueError, IndexError):
+                continue # Ignore files with non-matching name format
+    
+    except FileNotFoundError:
+        return None # Group directory doesn't exist
+
+    return latest_file
+
 
 def _apply_regex_links(text):
     """
@@ -143,7 +201,66 @@ async def process_message(obj, reader, writer):
         return
 
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
+    source_name = envelope.get("sourceName")
+    source_number = envelope.get("sourceNumber") or envelope.get("source")
+    dm = envelope.get("dataMessage", {})
+    quote = dm.get("quote")
+    now = datetime.datetime.now(TIMEZONE)
 
+    # --- Append Logic ---
+    # Determine if this message is an append command, either by '++' or by replying to self.
+    is_plus_plus_append = msg and msg.strip().startswith('++')
+    is_reply_append = False
+    if quote and quote.get("author") == source_number:
+        quote_ts = quote.get("id", 0)
+        quote_dt = datetime.datetime.fromtimestamp(quote_ts / 1000.0, tz=TIMEZONE)
+        if (now - quote_dt) < datetime.timedelta(minutes=30):
+            is_reply_append = True
+
+    if is_plus_plus_append or is_reply_append:
+        if not group_title or not (source_name or source_number):
+            print("ERROR: Cannot append message, missing group or source.", file=sys.stderr)
+            return
+
+        group_dir = get_safe_group_dir_path(group_title)
+        latest_file = _find_latest_file_for_sender(group_dir, source_name, source_number)
+
+        if latest_file:
+            content_to_append = []
+            # Strip '++' prefix if it exists
+            new_text = msg.strip().lstrip('++').strip() if is_plus_plus_append else msg.strip()
+            
+            if new_text:
+                content_to_append.append("\n" + _apply_regex_links(new_text))
+
+            if attachments:
+                # This is complex. For now, let's just add a note about the attachment.
+                # A full implementation would reuse the attachment handling logic.
+                content_to_append.append("\n**Tillägg med bilagor:**")
+                for att in attachments:
+                    content_to_append.append(f"- {att.get('filename', 'Okänd fil')}")
+
+            if content_to_append:
+                with open(latest_file, "a", encoding="utf-8") as f:
+                    f.write("\n---\n")
+                    f.write("\n".join(content_to_append))
+                print(f"APPENDED (reply or ++) TO: {latest_file}", file=sys.stderr)
+            else:
+                print(f"INFO: Ignoring empty append message.", file=sys.stderr)
+
+        else:
+            print(f"APPEND FAILED: No recent file (<30min) found for sender.", file=sys.stderr)
+            # As a fallback, process it as a new message but without the append command/quote
+            if is_reply_append:
+                quote = None # Unset quote to prevent it being formatted in the new file
+        
+        if is_plus_plus_append:
+            return # Always stop processing for '++' messages
+        elif is_reply_append and latest_file:
+            return # Stop processing if we successfully appended to a file on reply
+        # If reply-append fails, let it fall through to be processed as a new message.
+
+    # --- Handle Standard Commands (#) ---
     if msg and msg.strip().startswith('#'):
         command = msg.strip()[1:]
         if not command:
@@ -173,22 +290,17 @@ async def process_message(obj, reader, writer):
         print("Skipping message: Not a group message.", file=sys.stderr)
         return
 
-    # Extract potential quote from the dataMessage
-    dm = envelope.get("dataMessage", {})
-    quote = dm.get("quote")
-    source_name = envelope.get("sourceName")
-    source_number = envelope.get("sourceNumber") or envelope.get("source")
-
-    ts_ms = envelope.get("timestamp")
+    # ts_ms is already fetched, re-use 'now' from above
     dt = (
-        datetime.datetime.fromtimestamp(ts_ms / 1000.0, tz=TIMEZONE)
-        if ts_ms
-        else datetime.datetime.now(TIMEZONE)
+        datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=TIMEZONE)
+        if envelope.get("timestamp")
+        else now
     )
 
     path = get_message_filepath(group_title, dt, source_name, source_number)
     group_dir = os.path.dirname(path)
     os.makedirs(group_dir, exist_ok=True)
+
 
     file_exists = os.path.exists(path)
 
