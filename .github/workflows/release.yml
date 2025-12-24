@@ -2,8 +2,8 @@ name: Build and Release Executable
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -69,10 +69,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: release-${{ github.sha }}
-          release_name: Release ${{ github.sha }}
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
           body: |
-            Automated release for commit ${{ github.sha }}.
+            Automated release for tag ${{ github.ref_name }}.
             Includes executables for Windows and macOS.
           draft: false
           prerelease: false
