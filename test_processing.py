@@ -11,26 +11,6 @@ from processing import _extract_message_details, process_message
 
 class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
-    def setUp(self):
-        # Mock configuration
-        self.patcher_get_config = patch('config.get_config')
-        self.mock_get_config = self.patcher_get_config.start()
-        self.mock_get_config.return_value = {
-            'vault_path': 'mock_vault',
-            'inbox_path': 'mock_inbox',
-            'signal_number': 'mock_signal_number'
-        }
-        importlib.reload(config)
-
-        # Patch formatting.VAULT_PATH
-        self.patcher_vault_path = patch('formatting.VAULT_PATH', 'mock_vault')
-        self.patcher_vault_path.start()
-
-    def tearDown(self):
-        self.patcher_get_config.stop()
-        self.patcher_vault_path.stop()
-        importlib.reload(config)
-
     def test_extract_message_details_data_message(self):
         envelope = {
             "dataMessage": {
@@ -59,17 +39,24 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(group_id, "group456")
         self.assertEqual(attachments, [])
 
+    @patch('processing.REGEX_PATTERNS', {"reg": r'\bREG\d{3}\b'})
+    def test_apply_regex_links(self):
+        from processing import _apply_regex_links
+        text = "This is a test for REG123 and also REG456. This should not be linked: [[REG789]]."
+        expected = "This is a test for [[REG123]] and also [[REG456]]. This should not be linked: [[REG789]]."
+        self.assertEqual(_apply_regex_links(text), expected)
+
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('config.VAULT_PATH', 'vault')
+    @patch('processing.VAULT_PATH', 'mock_vault')
     async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 1765890600000,
+                "timestamp": 1765890600000, # A fixed timestamp
                 "dataMessage": {
                     "message": "Hello world",
                     "groupV2": {"name": "Test Group", "id": "group123"}
@@ -81,8 +68,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_writer = AsyncMock()
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
+        mock_open.assert_called_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
@@ -91,11 +78,61 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Avsändare: John Doe ( [[+123]])", written_content)
         self.assertIn("## Meddelande", written_content)
         self.assertIn("Hello world", written_content)
+    
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('os.makedirs')
+    @patch('os.path.exists')
+    @patch('processing.VAULT_PATH', 'mock_vault')
+    async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
+        mock_exists.return_value = False
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe",
+                "sourceNumber": "+123",
+                "timestamp": 1765890600000,
+                "dataMessage": {
+                    "message": "Here is an image",
+                    "groupV2": {"name": "Attachment Group", "id": "group123"},
+                    "attachments": [{
+                        "contentType": "image/jpeg",
+                        "filename": "test.jpg",
+                        "id": "att1",
+                        "size": 1234,
+                        "data": "aGVsbG8gd29ybGQ=" # "hello world" in base64
+                    }]
+                }
+            }
+        }
+
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        # Check that the attachment subdirectory was created
+        attachment_dir = os.path.join("mock_vault", "Attachment Group", "161410_161410-123-John_Doe")
+        mock_makedirs.assert_any_call(attachment_dir, exist_ok=True)
+
+        # Check that the markdown file and the attachment file were opened for writing
+        md_path = os.path.join("mock_vault", "Attachment Group", "161410-123-John_Doe.md")
+        att_path = os.path.join(attachment_dir, "1_test.jpg")
+        
+        # Check calls to open
+        mock_open_mock.assert_any_call(md_path, "a", encoding="utf-8")
+        mock_open_mock.assert_any_call(att_path, "wb")
+
+        # Check content of markdown file
+        handle = mock_open_mock()
+        written_content = "".join(call.args[0] for call in handle.write.call_args_list if call.args[0].strip() != "---\n")
+        self.assertIn("## Bilagor", written_content)
+        self.assertIn("![[161410_161410-123-John_Doe/1_test.jpg]]", written_content)
+
+        # Check content of attachment file
+        handle.write.assert_any_call(b'hello world')
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('config.VAULT_PATH', 'vault')
+    @patch('processing.VAULT_PATH', 'mock_vault')
     async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -114,12 +151,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_writer = AsyncMock()
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Maps Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("mock_vault", "Maps Group", "161410-456-Jane_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_with(os.path.join("mock_vault", "Maps Group"), exist_ok=True)
+        mock_open.assert_called_with(os.path.join("mock_vault", "Maps Group", "161410-456-Jane_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
-        
         
         self.assertIn("---\nlocations: \"\"\n---\n\n", written_content)
         self.assertIn("[Position](geo:59.514828,17.767852)\n", written_content)
@@ -129,7 +165,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('config.VAULT_PATH', 'vault')
+    @patch('processing.VAULT_PATH', 'mock_vault')
     async def test_process_message_append_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = True
         message_obj = {
@@ -148,8 +184,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_writer = AsyncMock()
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_makedirs.assert_called_once_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
-        mock_open.assert_called_once_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
+        mock_makedirs.assert_called_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
+        mock_open.assert_called_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
         
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
@@ -218,6 +254,34 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         mock_exists.assert_called_once_with("responses/foo.md")
         mock_send_reply.assert_not_awaited()
+
+    @patch('builtins.open', new_callable=mock_open)
+    async def test_process_message_skip_conditions(self, mock_open):
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+        
+        # Test skipping non-group message
+        non_group_message = {
+            "envelope": {
+                "sourceName": "John Doe", "timestamp": 123,
+                "dataMessage": {"message": "Hello"}
+            }
+        }
+        await process_message(non_group_message, mock_reader, mock_writer)
+        mock_open.assert_not_called()
+
+        mock_open.reset_mock()
+
+        # Test skipping message with no content and no attachments
+        empty_message = {
+            "envelope": {
+                "sourceName": "John Doe", "timestamp": 123,
+                "dataMessage": {"groupV2": {"name": "Test Group"}}
+            }
+        }
+        await process_message(empty_message, mock_reader, mock_writer)
+        mock_open.assert_not_called()
+
 
 
 if __name__ == '__main__':
