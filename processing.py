@@ -167,6 +167,49 @@ async def _get_attachment_data(attachment_id, reader, writer):
         print(f"ERROR calling getAttachment for ID {attachment_id}: {e}", file=sys.stderr)
         return None
 
+async def _save_attachments(attachments, group_dir, dt, source_name, source_number, reader, writer):
+    """Saves attachments to a subdirectory and returns a list of markdown links."""
+    attachment_links = []
+    if not attachments:
+        return attachment_links
+
+    # Create a unique subdirectory for attachments for this specific message entry
+    attachment_subdir_name = dt.strftime("%Y%m%d%H%M%S") + "_" + create_message_filename(dt, source_name, source_number).replace(".md", "")
+    attachment_dir = os.path.join(group_dir, attachment_subdir_name)
+    os.makedirs(attachment_dir, exist_ok=True)
+
+    for i, attachment in enumerate(attachments):
+        data = attachment.get("data")
+        filename = attachment.get("filename") or attachment.get("id")
+        attachment_id = attachment.get("id")
+        
+        if not data and attachment_id:
+            print(f"Attempting to fetch attachment data for ID: {attachment_id}", file=sys.stderr)
+            retrieved_data = await _get_attachment_data(attachment_id, reader, writer)
+            if retrieved_data:
+                data = retrieved_data
+                print(f"Successfully fetched data for attachment ID: {attachment_id}", file=sys.stderr)
+            else:
+                print(f"Failed to fetch data for attachment ID: {attachment_id}", file=sys.stderr)
+
+        if data and filename:
+            try:
+                decoded_data = base64.b64decode(data)
+                safe_filename = f"{i+1}_{filename}"
+                attachment_filepath = os.path.join(attachment_dir, safe_filename)
+                with open(attachment_filepath, "wb") as f:
+                    f.write(decoded_data)
+                
+                relative_path = os.path.relpath(attachment_filepath, group_dir)
+                attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}]]")
+                print(f"Saved attachment: {attachment_filepath}", file=sys.stderr)
+            except Exception as e:
+                print(f"ERROR: Could not save attachment {filename}. Error: {e}", file=sys.stderr)
+        else:
+            missing_parts = [p for p, v in [("data", data), ("filename", filename)] if not v]
+            print(f"WARNING: Attachment missing {' and '.join(missing_parts)}: {attachment}", file=sys.stderr)
+    
+    return attachment_links
 
 async def _send_reply(group_id, message, writer):
     """Sends a reply message to a given group ID via signal-cli JSON-RPC."""
@@ -208,7 +251,6 @@ async def process_message(obj, reader, writer):
     now = datetime.datetime.now(TIMEZONE)
 
     # --- Append Logic ---
-    # Determine if this message is an append command, either by '++' or by replying to self.
     is_plus_plus_append = msg and msg.strip().startswith('++')
     is_reply_append = False
     if quote and quote.get("author") == source_number:
@@ -227,18 +269,20 @@ async def process_message(obj, reader, writer):
 
         if latest_file:
             content_to_append = []
-            # Strip '++' prefix if it exists
-            new_text = msg.strip().lstrip('++').strip() if is_plus_plus_append else msg.strip()
+            
+            new_text = ""
+            if msg:
+                new_text = msg.strip().lstrip('++').strip() if is_plus_plus_append else msg.strip()
             
             if new_text:
                 content_to_append.append("\n" + _apply_regex_links(new_text))
 
             if attachments:
-                # This is complex. For now, let's just add a note about the attachment.
-                # A full implementation would reuse the attachment handling logic.
-                content_to_append.append("\n**Tillägg med bilagor:**")
-                for att in attachments:
-                    content_to_append.append(f"- {att.get('filename', 'Okänd fil')}")
+                original_group_dir = os.path.dirname(latest_file)
+                attachment_links = await _save_attachments(attachments, original_group_dir, now, source_name, source_number, reader, writer)
+                if attachment_links:
+                    content_to_append.append("\n## Bilagor\n")
+                    content_to_append.extend(attachment_links)
 
             if content_to_append:
                 with open(latest_file, "a", encoding="utf-8") as f:
@@ -250,24 +294,18 @@ async def process_message(obj, reader, writer):
 
         else:
             print(f"APPEND FAILED: No recent file (<30min) found for sender.", file=sys.stderr)
-            # As a fallback, process it as a new message but without the append command/quote
             if is_reply_append:
-                quote = None # Unset quote to prevent it being formatted in the new file
+                quote = None
         
-        if is_plus_plus_append:
-            return # Always stop processing for '++' messages
-        elif is_reply_append and latest_file:
-            return # Stop processing if we successfully appended to a file on reply
-        # If reply-append fails, let it fall through to be processed as a new message.
+        if is_plus_plus_append or (is_reply_append and latest_file):
+            return
 
     # --- Handle Standard Commands (#) ---
     if msg and msg.strip().startswith('#'):
         command = msg.strip()[1:]
         if not command:
             return
-
         response_filepath = os.path.join("responses", f"{command}.md")
-        
         if os.path.exists(response_filepath):
             try:
                 with open(response_filepath, "r", encoding="utf-8") as f:
@@ -278,7 +316,6 @@ async def process_message(obj, reader, writer):
                 print(f"ERROR: Could not process #{command} command: {e}", file=sys.stderr)
         else:
             print(f"No response file found for command: #{command}", file=sys.stderr)
-
         return
 
     # If no message body and no attachments, skip.
@@ -289,8 +326,7 @@ async def process_message(obj, reader, writer):
     if not group_title:
         print("Skipping message: Not a group message.", file=sys.stderr)
         return
-
-    # ts_ms is already fetched, re-use 'now' from above
+    
     dt = (
         datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=TIMEZONE)
         if envelope.get("timestamp")
@@ -301,83 +337,25 @@ async def process_message(obj, reader, writer):
     group_dir = os.path.dirname(path)
     os.makedirs(group_dir, exist_ok=True)
 
-
     file_exists = os.path.exists(path)
 
-    # Check for Google Maps link and extract coordinates early
     lat, lon = None, None
     if msg:
         maps_url_match = re.search(r"https://maps\.google\.com/maps\?q=([\d.-]+)%2C([\d.-]+)", msg)
         if maps_url_match:
             lat, lon = maps_url_match.groups()
 
-    # --- Handle Attachments ---
-    attachment_links = []
-    if attachments:
-        # Create a unique subdirectory for attachments for this specific message entry
-        # Using the message timestamp (up to second) for the attachment folder name
-        attachment_subdir_name = dt.strftime("%Y%m%d%H%M%S") + "_" + create_message_filename(dt, source_name, source_number).replace(".md", "")
-        attachment_dir = os.path.join(group_dir, attachment_subdir_name)
-        os.makedirs(attachment_dir, exist_ok=True)
-
-        for i, attachment in enumerate(attachments):
-            data = attachment.get("data")
-            # Use 'filename' if available, otherwise fallback to 'id'
-            filename = attachment.get("filename") or attachment.get("id")
-            attachment_id = attachment.get("id") # Get the attachment ID for potential retrieval
-            
-            if not data and attachment_id: # If data is missing but we have an ID, try to fetch it
-                print(f"Attempting to fetch attachment data for ID: {attachment_id}", file=sys.stderr)
-                retrieved_data = await _get_attachment_data(attachment_id, reader, writer)
-                if retrieved_data:
-                    data = retrieved_data
-                    print(f"Successfully fetched data for attachment ID: {attachment_id}", file=sys.stderr)
-                else:
-                    print(f"Failed to fetch data for attachment ID: {attachment_id}", file=sys.stderr)
-
-            if data and filename:
-                try:
-                    decoded_data = base64.b64decode(data)
-                    # Create a safe filename for the attachment to avoid issues with special characters
-                    safe_filename = f"{i+1}_{filename}" # Prefix with index to ensure uniqueness
-                    attachment_filepath = os.path.join(attachment_dir, safe_filename)
-
-                    with open(attachment_filepath, "wb") as f:
-                        f.write(decoded_data)
-                    
-                    # Generate Markdown link for the attachment
-                    # Obsidian relative path link for attachments
-                    relative_path = os.path.relpath(attachment_filepath, group_dir)
-                    attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}]]")
-                    print(f"Saved attachment: {attachment_filepath}", file=sys.stderr)
-                except Exception as e:
-                    print(f"ERROR: Could not save attachment {filename}. Error: {e}", file=sys.stderr)
-            else:
-                missing_parts = []
-                if not data:
-                    missing_parts.append("data")
-                if not filename:
-                    missing_parts.append("filename")
-                print(f"WARNING: Attachment missing {' and '.join(missing_parts)}: {attachment}", file=sys.stderr)
-
+    attachment_links = await _save_attachments(attachments, group_dir, dt, source_name, source_number, reader, writer)
 
     # --- Prepare content for Markdown file ---
     content_parts = []
     if file_exists:
-        # File exists, so we just append the new message with a separator.
-        content_parts.append("\n---\n")  # Markdown horizontal rule for separation
+        content_parts.append("\n---\n")
     else:
-        # File doesn't exist, create it with the full header.
         sender_display = format_sender_display(source_name, source_number)
         
-        # Add properties block if coordinates are found
         if lat is not None and lon is not None:
-            content_parts.extend([
-                "---",
-                "locations: \"\"",
-                "---",
-                "" # Ensure a newline after the properties block
-            ])
+            content_parts.extend(["---", "locations: \"\"", "---", ""])
 
         content_parts.extend([
             f"# {group_title}\n",
@@ -389,13 +367,11 @@ async def process_message(obj, reader, writer):
         if lat is not None and lon is not None:
             content_parts.append(f"[Position](geo:{lat},{lon})\n")
 
-
     if quote:
         content_parts.extend(_format_quote(quote))
 
-    if msg: # Only add message header if there's actual text message
+    if msg:
         content_parts.append("\n## Meddelande\n")
-        # Apply regex linking to the message
         linked_msg = _apply_regex_links(msg.strip())
         content_parts.append(linked_msg)
 
@@ -403,10 +379,8 @@ async def process_message(obj, reader, writer):
         content_parts.append("\n## Bilagor\n")
         content_parts.extend(attachment_links)
     
-    content_parts.append("") # Ensure a final newline
+    content_parts.append("")
 
-
-    # Open in append mode, which creates the file if it doesn't exist.
     with open(path, "a", encoding="utf-8") as f:
         f.write("\n".join(content_parts))
 
