@@ -49,7 +49,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('processing.VAULT_PATH', 'mock_vault')
+    @patch('formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -82,7 +82,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('processing.VAULT_PATH', 'mock_vault')
+    @patch('formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
         mock_exists.return_value = False
         message_obj = {
@@ -109,7 +109,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(message_obj, mock_reader, mock_writer)
 
         # Check that the attachment subdirectory was created
-        attachment_dir = os.path.join("mock_vault", "Attachment Group", "161410_161410-123-John_Doe")
+        attachment_dir = os.path.join("mock_vault", "Attachment Group", "20251216141000_161410-123-John_Doe")
         mock_makedirs.assert_any_call(attachment_dir, exist_ok=True)
 
         # Check that the markdown file and the attachment file were opened for writing
@@ -122,9 +122,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         # Check content of markdown file
         handle = mock_open_mock()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list if call.args[0].strip() != "---\n")
+        written_content = "".join(
+            call.args[0] for call in handle.write.call_args_list if isinstance(call.args[0], str)
+        )
         self.assertIn("## Bilagor", written_content)
-        self.assertIn("![[161410_161410-123-John_Doe/1_test.jpg]]", written_content)
+        self.assertIn("![[20251216141000_161410-123-John_Doe/1_test.jpg]]", written_content)
 
         # Check content of attachment file
         handle.write.assert_any_call(b'hello world')
@@ -132,7 +134,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('processing.VAULT_PATH', 'mock_vault')
+    @patch('formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -165,7 +167,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('processing.VAULT_PATH', 'mock_vault')
+    @patch('formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_append_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = True
         message_obj = {
