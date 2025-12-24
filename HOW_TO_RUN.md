@@ -32,6 +32,18 @@ Efter att ha konfigurerat Signal måste du konfigurera Oden. I samma mapp som de
 
 När din installation och konfiguration är klar kan du köra applikationen. Se avsnittet **Köra Applikationen** nedan för instruktioner.
 
+## Funktioner
+
+### Komplettera rapporter
+
+Det finns två sätt att lägga till information i en rapport som du nyligen har skickat:
+
+1.  **Svara på ditt eget meddelande:** Om du svarar på ett av dina egna meddelanden kommer texten i ditt svar att läggas till i den ursprungliga filen, förutsatt att det ursprungliga meddelandet inte är äldre än 30 minuter.
+
+2.  **Använd kommandot `++`:** Om du skickar ett meddelande som börjar med `++`, kommer dess innehåll att läggas till i det senaste meddelandet du skickade (även här inom 30 minuter).
+
+Detta gör det möjligt att enkelt lägga till fler detaljer, korrigeringar eller bilagor i en rapport i efterhand.
+
 ## Konfiguration (`config.ini`)
 
 Applikationen kräver att en `config.ini`-fil finns i samma mapp. Denna fil innehåller de nödvändiga inställningarna för att applikationen ska fungera korrekt.
