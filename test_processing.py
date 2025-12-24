@@ -399,6 +399,44 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         # Check that the quote is still formatted, since it's a normal reply
         self.assertIn("> **Svarar på", mock_open().write.call_args.args[0])
 
+    @patch('processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
+    @patch('processing._save_attachments', new_callable=AsyncMock, return_value=["![[new_attachment.jpg]]"])
+    @patch('builtins.open', new_callable=mock_open)
+    async def test_process_message_append_reply_with_attachment_only(self, mock_open, mock_save_attachments, mock_find_latest):
+        """Tests the user's bug report: replying with only an attachment should append it."""
+        now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
+        one_min_ago_ts_ms = now_ts_ms - (1 * 60 * 1000)
+
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe", "sourceNumber": "+123", "timestamp": now_ts_ms,
+                "dataMessage": {
+                    "message": None, # NO TEXT MESSAGE
+                    "groupV2": {"name": "My Group"},
+                    "attachments": [{"id": "att1", "filename": "new.jpg"}],
+                    "quote": {
+                        "id": one_min_ago_ts_ms,
+                        "author": "+123", # Same author
+                        "text": "Original message"
+                    }
+                }
+            }
+        }
+        mock_reader, mock_writer = AsyncMock(), AsyncMock()
+        
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        # Assert that the append logic was triggered
+        mock_find_latest.assert_called_once()
+        mock_save_attachments.assert_awaited_once()
+
+        # Assert that the file was appended to with the new attachment link
+        mock_open.assert_called_once_with('/mock_vault/My Group/recent_file.md', 'a', encoding='utf-8')
+        handle = mock_open()
+        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+        self.assertIn("## Bilagor", written_content)
+        self.assertIn("![[new_attachment.jpg]]", written_content)
+
 
 
 if __name__ == '__main__':
