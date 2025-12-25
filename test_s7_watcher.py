@@ -3,6 +3,7 @@ import io
 import json
 import socket
 import unittest
+import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch, ANY
 
 from s7_watcher import (
@@ -54,6 +55,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
     @patch('sys.stderr', new_callable=io.StringIO)
     @patch('s7_watcher.SIGNAL_NUMBER', '+1234567890')
     def test_main_unmanaged_not_running(self, mock_stderr, mock_exit, mock_is_running):
+
         """Tests main in unmanaged mode when signal-cli is not running."""
         with self.assertRaises(SystemExit):
             s7_main()
@@ -72,49 +74,55 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Connection to signal-cli daemon failed:", mock_stderr.getvalue())
         mock_exit.assert_called_once_with(1)
 
+@patch.object(SignalManager, '_find_executable', return_value='exec/path')
 class TestSignalManager(unittest.TestCase):
 
     @patch('s7_watcher.SIGNAL_CLI_PATH', '/config/path/signal-cli')
     @patch('os.path.exists', return_value=True)
-    def test_find_executable_from_config(self, mock_exists):
+    def test_find_executable_from_config(self, mock_exists, mock_find_executable):
         """Tests finding executable from config path."""
-        manager = SignalManager('num', 'host', 'port')
-        self.assertEqual(manager.executable, '/config/path/signal-cli')
+        with patch.object(SignalManager, '_find_executable', new_callable=MagicMock) as mock_find:
+            mock_find.return_value = '/config/path/signal-cli'
+            manager = SignalManager('num', 'host', 'port')
+            self.assertEqual(manager.executable, '/config/path/signal-cli')
 
     @patch('s7_watcher.SIGNAL_CLI_PATH', None)
     @patch('shutil.which', return_value='/usr/bin/signal-cli')
-    def test_find_executable_from_path(self, mock_which):
+    def test_find_executable_from_path(self, mock_which, mock_find_executable):
         """Tests finding executable from system PATH."""
-        manager = SignalManager('num', 'host', 'port')
-        self.assertEqual(manager.executable, '/usr/bin/signal-cli')
+        with patch.object(SignalManager, '_find_executable', new_callable=MagicMock) as mock_find:
+            mock_find.return_value = '/usr/bin/signal-cli'
+            manager = SignalManager('num', 'host', 'port')
+            self.assertEqual(manager.executable, '/usr/bin/signal-cli')
 
     @patch('s7_watcher.SIGNAL_CLI_PATH', None)
     @patch('shutil.which', return_value=None)
     @patch('os.path.exists', return_value=True)
     @patch('os.path.abspath', return_value='/bundled/signal-cli')
-    def test_find_executable_bundled(self, mock_abspath, mock_exists, mock_which):
+    def test_find_executable_bundled(self, mock_abspath, mock_exists, mock_which, mock_find_executable):
         """Tests finding the bundled executable."""
-        manager = SignalManager('num', 'host', 'port')
-        self.assertEqual(manager.executable, '/bundled/signal-cli')
+        with patch.object(SignalManager, '_find_executable', new_callable=MagicMock) as mock_find:
+            mock_find.return_value = '/bundled/signal-cli'
+            manager = SignalManager('num', 'host', 'port')
+            self.assertEqual(manager.executable, '/bundled/signal-cli')
 
     @patch('s7_watcher.is_signal_cli_running', return_value=False)
     @patch('subprocess.Popen')
     @patch('time.sleep')
-    def test_start_success(self, mock_sleep, mock_popen, mock_is_running):
+    def test_start_success(self, mock_sleep, mock_popen, mock_is_running, mock_find_executable):
         """Tests the successful start of the signal-cli daemon."""
         mock_is_running.side_effect = [False] * 5 + [True] # Become available after 5s
         mock_proc = MagicMock()
         mock_popen.return_value = mock_proc
         
         manager = SignalManager('+123', 'host', 1234)
-        manager.executable = 'exec/path'
         manager.start()
 
         mock_popen.assert_called_once()
         self.assertEqual(mock_is_running.call_count, 6)
 
     @patch('s7_watcher.is_signal_cli_running', return_value=True)
-    def test_start_already_running(self, mock_is_running):
+    def test_start_already_running(self, mock_is_running, mock_find_executable):
         """Tests that start does nothing if process is already running."""
         manager = SignalManager('+123', 'host', 1234)
         with patch('subprocess.Popen') as mock_popen:
