@@ -68,7 +68,8 @@ class SignalManager:
             self.executable,
             "-u", self.number,
             "daemon",
-            "--tcp", f"{self.host}:{self.port}"
+            "--tcp", f"{self.host}:{self.port}",
+            "--receive-mode", "on-connection"
         ]
         
         print(f"Starting signal-cli: {' '.join(command)}", file=sys.stderr)
