@@ -55,3 +55,4 @@ htmlcov/
 .settings
 .ropeproject
 GEMINI.md
+.gemini/settings.json
