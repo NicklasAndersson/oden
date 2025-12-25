@@ -8,12 +8,25 @@ import time
 import socket
 import shutil
 
-from config import VAULT_PATH, SIGNAL_NUMBER, SIGNAL_CLI_PATH
+from config import (
+    VAULT_PATH, 
+    SIGNAL_NUMBER, 
+    SIGNAL_CLI_PATH, 
+    UNMANAGED_SIGNAL_CLI, 
+    SIGNAL_CLI_HOST, 
+    SIGNAL_CLI_PORT
+)
 from processing import process_message
 
-# Configuration for signal-cli RPC
-SIGNAL_RPC_HOST = os.environ.get("SIGNAL_RPC_HOST", "127.0.0.1")
-SIGNAL_RPC_PORT = int(os.environ.get("SIGNAL_RPC_PORT", "7583"))
+def is_signal_cli_running(host, port):
+    """Checks if the signal-cli RPC server is reachable."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.settimeout(1)
+            s.connect((host, port))
+            return True
+        except (socket.error, ConnectionRefusedError):
+            return False
 
 class SignalManager:
     """Manages the signal-cli subprocess."""
@@ -47,7 +60,7 @@ class SignalManager:
 
     def start(self):
         """Starts the signal-cli daemon."""
-        if self.is_running():
+        if is_signal_cli_running(self.host, self.port):
             print("signal-cli is already running.", file=sys.stderr)
             return
 
@@ -63,7 +76,7 @@ class SignalManager:
         
         # Poll for up to 15 seconds for the daemon to start
         for i in range(15):
-            if self.is_running():
+            if is_signal_cli_running(self.host, self.port):
                 print("signal-cli started successfully.", file=sys.stderr)
                 return
             time.sleep(1)
@@ -92,29 +105,18 @@ class SignalManager:
             self.process = None
             print("signal-cli stopped.", file=sys.stderr)
 
-    def is_running(self):
-        """Checks if the signal-cli RPC server is reachable."""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.settimeout(1)
-                s.connect((self.host, self.port))
-                return True
-            except (socket.error, ConnectionRefusedError):
-                return False
-
-
 # ==============================================================================
 # DAEMON/LISTENER
 # ==============================================================================
 
-async def subscribe_and_listen():
+async def subscribe_and_listen(host, port):
     """Connects to signal-cli via TCP socket, subscribes to messages, and processes them."""
-    print(f"Connecting to signal-cli at {SIGNAL_RPC_HOST}:{SIGNAL_RPC_PORT}...", file=sys.stderr)
+    print(f"Connecting to signal-cli at {host}:{port}...", file=sys.stderr)
     
     reader = None
     writer = None
     try:
-        reader, writer = await asyncio.open_connection(SIGNAL_RPC_HOST, SIGNAL_RPC_PORT, limit=1024 * 1024 * 100) # 100 MB limit
+        reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100) # 100 MB limit
         print("Connection successful. Waiting for messages...", file=sys.stderr)
         
         while not reader.at_eof():
@@ -155,23 +157,31 @@ def main():
         print("ERROR: Please set your signal number in config.ini", file=sys.stderr)
         sys.exit(1)
 
-    signal_manager = SignalManager(SIGNAL_NUMBER, SIGNAL_RPC_HOST, SIGNAL_RPC_PORT)
-    
-    try:
-        signal_manager.start()
-        asyncio.run(subscribe_and_listen())
-    except (KeyboardInterrupt, SystemExit):
-        print("\nExiting on user request.", file=sys.stderr)
-    except Exception as e:
-        print(f"\nAn unexpected error occurred: {e}", file=sys.stderr)
-    finally:
-        signal_manager.stop()
-        print("s7_watcher shut down.", file=sys.stderr)
-    
-    # The process should exit cleanly from the try-except-finally block.
-    # If an exception occurred, it is caught and logged.
-    # If the event loop finishes, it proceeds here.
-    sys.exit(0)
+    if UNMANAGED_SIGNAL_CLI:
+        if not is_signal_cli_running(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT):
+            print("signal-cli is not running. Please start it manually.", file=sys.stderr)
+            sys.exit(1)
+        print("Running in unmanaged mode. Assuming signal-cli is already running.", file=sys.stderr)
+        try:
+            asyncio.run(subscribe_and_listen(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+        except (KeyboardInterrupt, SystemExit):
+            print("\nExiting on user request.", file=sys.stderr)
+        except Exception as e:
+            print(f"\nAn unexpected error occurred: {e}", file=sys.stderr)
+        sys.exit(0)
+    else:
+        signal_manager = SignalManager(SIGNAL_NUMBER, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT)
+        try:
+            signal_manager.start()
+            asyncio.run(subscribe_and_listen(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+        except (KeyboardInterrupt, SystemExit):
+            print("\nExiting on user request.", file=sys.stderr)
+        except Exception as e:
+            print(f"\nAn unexpected error occurred: {e}", file=sys.stderr)
+        finally:
+            signal_manager.stop()
+            print("s7_watcher shut down.", file=sys.stderr)
+        sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ Tyvärr finns ett automatiserat installationsskript för Windows ännu inte till
 
 Efter att ha konfigurerat Signal måste du konfigurera Oden. I samma mapp som den körbara filen hittar du en fil med namnet `config.ini`. Redigera värdena i den här filen för att matcha din installation. Se avsnittet **Konfiguration** nedan för detaljer.
 
-### 4. Kör Applikationen
+### 4. Köra Applikationen
 
 När din installation och konfiguration är klar kan du köra applikationen. Se avsnittet **Köra Applikationen** nedan för instruktioner.
 
@@ -56,6 +56,17 @@ Din `config.ini` bör se ut så här:
 [Vault]
 path = ./vault
 
+[Signal]
+# Ditt Signal-telefonnummer (t.ex. +46701234567)
+number = YOUR_SIGNAL_NUMBER
+# Sökväg till signal-cli-binären (valfritt, t.ex. /usr/local/bin/signal-cli)
+# signal_cli_path = 
+# Sätt till 'true' om du själv hanterar signal-cli-processen (valfritt, standard är 'false')
+# unmanaged_signal_cli = false
+# Host och port för signal-cli RPC (valfritt, standard är 127.0.0.1 och 7583)
+# host = 127.0.0.1
+# port = 7583
+
 [Regex]
 # Lista med regex som används för att automatiskt länka [[]] i markdown-filer
 # Registreringsnummer (t.ex. ABC12D)
@@ -70,6 +81,13 @@ timezone = Europe/Stockholm
 
 - `[Vault]`
   - **path**: Den fullständiga sökvägen till rotmappen för ditt Obsidian-valv.
+
+- `[Signal]`
+  - **number**: Ditt registrerade Signal-telefonnummer, inklusive landskod (t.ex. `+46701234567`).
+  - **signal_cli_path**: (Valfritt) Den fullständiga sökvägen till din `signal-cli` körbara fil. Använd detta om `signal-cli` inte finns i din PATH eller i den medföljande katalogen.
+  - **unmanaged_signal_cli**: (Valfritt, standard `false`) Om `true`, kommer s7_watcher *inte* att försöka starta eller stoppa `signal-cli` daemonen. Du förväntas hantera `signal-cli` daemonen själv.
+  - **host**: (Valfritt, standard `127.0.0.1`) IP-adressen eller värdnamnet där `signal-cli` RPC-servern lyssnar.
+  - **port**: (Valfritt, standard `7583`) Portnumret där `signal-cli` RPC-servern lyssnar.
 
 - `[Regex]`
   - Lista över regex-mönster som används för att automatiskt skapa `[[...]]`-länkar i markdown-filer.
@@ -93,9 +111,19 @@ När din körbara fil är på plats och `config.ini` är konfigurerad kan du kö
 
 2. **Kör watchern:**
 
-   ```bash
-   ./s7_watcher
-   ```
+   - **Om `unmanaged_signal_cli` är `false` (standard, s7_watcher hanterar `signal-cli`):**
+     ```bash
+     ./s7_watcher
+     ```
+   - **Om `unmanaged_signal_cli` är `true` (du hanterar `signal-cli` själv):**
+     Se till att din `signal-cli` daemon körs i förväg:
+     ```bash
+     /path/to/signal-cli-executable -u YOUR_SIGNAL_NUMBER daemon --tcp YOUR_HOST:YOUR_PORT &
+     ```
+     Byt ut `/path/to/signal-cli-executable`, `YOUR_SIGNAL_NUMBER`, `YOUR_HOST`, och `YOUR_PORT` med dina faktiska värden. Sedan kan du starta s7_watcher:
+     ```bash
+     ./s7_watcher
+     ```
 
 ### På Windows
 
