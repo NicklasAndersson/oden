@@ -16,30 +16,6 @@ Denna README är för utvecklare som har klonat repot för att bygga från käll
 
 För instruktioner om hur man kör den förpaketerade releasen, se `HOW_TO_RUN.md`.
 
-## Installation (macOS)
-
-För en snabb installation på macOS, kör det interaktiva installationsskriptet. Det hjälper dig att installera beroenden och länka ditt Signal-konto.
-
-```bash
-./install_mac.sh
-```
-
-## Manuell Hantering
-
-Dessa steg beskriver hur man kör komponenterna manuellt efter installation.
-
-### Starta signal-cli
-
-```bash
-./signal-cli-0.13.22/bin/signal-cli -u <ditt-nummer> daemon --tcp 127.0.0.1:7583
-```
-
-### Kör watcher
-
-```bash
-python3 s7_watcher.py
-```
-
 ## Funktioner
 
 ### Komplettera rapporter
@@ -54,7 +30,7 @@ Detta gör det möjligt att enkelt lägga till fler detaljer, korrigeringar elle
 
 ## Konfiguration
 
-Redigera `config.ini` enligt HOW_TO_RUN.md. Se till att tidszon och regex är korrekt inställda för din miljö.
+Redigera `config.ini` enligt `HOW_TO_RUN.md`. Se till att tidszon, regex och Signal-relaterade inställningar är korrekt inställda för din miljö.
 
 ## Flödesdiagram
 
