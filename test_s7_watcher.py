@@ -1,54 +1,34 @@
 import asyncio
 import io
 import json
-import socket
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from s7_watcher import (
     SIGNAL_RPC_HOST,
     SIGNAL_RPC_PORT,
-    is_signal_cli_running,
     subscribe_and_listen,
-    main as s7_main
+    main as s7_main,
+    SignalManager
 )
 
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
 
-    @patch('s7_watcher.is_signal_cli_running', return_value=True)
+    @patch('s7_watcher.SignalManager')
     @patch('s7_watcher.subscribe_and_listen', new_callable=AsyncMock)
-    @patch('asyncio.run')
-    def test_main_success(self, mock_asyncio_run, mock_subscribe, mock_is_running):
-        """Tests that main runs the async loop if signal-cli is running."""
-        s7_main()
-        mock_is_running.assert_called_once()
-        mock_subscribe.assert_called_once()
-        mock_asyncio_run.assert_called_once()
-
-    @patch('s7_watcher.is_signal_cli_running', return_value=False)
-    @patch('sys.exit', side_effect=SystemExit)
-    @patch('asyncio.run')
-    def test_main_signal_cli_not_running(self, mock_asyncio_run, mock_exit, mock_is_running):
-        """Tests that main exits if signal-cli is not running."""
-        with self.assertRaises(SystemExit):
+    @patch('s7_watcher.SIGNAL_NUMBER', '+1234567890')
+    def test_main_success(self, mock_subscribe, mock_signal_manager_class):
+        """Tests that main starts SignalManager and runs the async loop."""
+        mock_manager_instance = mock_signal_manager_class.return_value
+        
+        with self.assertRaises(SystemExit) as cm:
             s7_main()
-        mock_is_running.assert_called_once()
-        mock_asyncio_run.assert_not_called()
-        mock_exit.assert_called_once_with(1)
 
-    @patch('socket.socket')
-    def test_is_signal_cli_running(self, mock_socket_class):
-        """Tests the is_signal_cli_running helper function."""
-        mock_sock_instance = MagicMock()
-        mock_socket_class.return_value.__enter__.return_value = mock_sock_instance
-
-        # Case 1: Connection succeeds
-        mock_sock_instance.connect.side_effect = None
-        self.assertTrue(is_signal_cli_running('host', 'port'))
-
-        # Case 2: Connection fails
-        mock_sock_instance.connect.side_effect = ConnectionRefusedError
-        self.assertFalse(is_signal_cli_running('host', 'port'))
+        self.assertEqual(cm.exception.code, 0)
+        mock_signal_manager_class.assert_called_once_with('+1234567890', SIGNAL_RPC_HOST, SIGNAL_RPC_PORT)
+        mock_manager_instance.start.assert_called_once()
+        mock_subscribe.assert_called_once()
+        mock_manager_instance.stop.assert_called_once()
 
     @patch('asyncio.open_connection', side_effect=ConnectionRefusedError)
     @patch('sys.exit', side_effect=SystemExit)
@@ -117,4 +97,3 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

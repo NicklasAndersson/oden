@@ -11,11 +11,13 @@ def get_config():
     config.read('config.ini')
 
     # Basic error handling
-    if not config.has_section('Vault'):
-        raise Exception("Config file config.ini is missing required sections ([Vault]).")
+    if not all(config.has_section(s) for s in ['Vault', 'Signal']):
+        raise Exception("Config file config.ini is missing required sections ([Vault], [Signal]).")
 
     # Read values
     vault_path = config.get('Vault', 'path')
+    signal_number = config.get('Signal', 'number')
+    signal_cli_path = config.get('Signal', 'signal_cli_path', fallback=None)
     
     # Read regex patterns if available
     regex_patterns = {}
@@ -36,6 +38,8 @@ def get_config():
     # Expand user path for vault_path and inbox_path
     return {
         'vault_path': os.path.expanduser(vault_path),
+        'signal_number': signal_number,
+        'signal_cli_path': os.path.expanduser(signal_cli_path) if signal_cli_path else None,
         'regex_patterns': regex_patterns,
         'timezone': timezone
     }
@@ -44,6 +48,8 @@ def get_config():
 try:
     app_config = get_config()
     VAULT_PATH = app_config['vault_path']
+    SIGNAL_NUMBER = app_config['signal_number']
+    SIGNAL_CLI_PATH = app_config['signal_cli_path']
     REGEX_PATTERNS = app_config['regex_patterns']
     TIMEZONE = app_config['timezone']
 except Exception as e:

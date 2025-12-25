@@ -6,25 +6,102 @@ import asyncio
 import subprocess
 import time
 import socket
+import shutil
 
-from config import VAULT_PATH
+from config import VAULT_PATH, SIGNAL_NUMBER, SIGNAL_CLI_PATH
 from processing import process_message
 
 # Configuration for signal-cli RPC
 SIGNAL_RPC_HOST = os.environ.get("SIGNAL_RPC_HOST", "127.0.0.1")
 SIGNAL_RPC_PORT = int(os.environ.get("SIGNAL_RPC_PORT", "7583"))
 
-def is_signal_cli_running(host, port):
-    """
-    Checks if signal-cli RPC server is reachable.
-    """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.settimeout(1)
-            s.connect((host, port))
-            return True
-        except (socket.error, ConnectionRefusedError):
-            return False
+class SignalManager:
+    """Manages the signal-cli subprocess."""
+
+    def __init__(self, number, host, port):
+        self.number = number
+        self.host = host
+        self.port = port
+        self.process = None
+        self.executable = self._find_executable()
+
+    def _find_executable(self):
+        """Finds the signal-cli executable."""
+        if SIGNAL_CLI_PATH:
+            if os.path.exists(SIGNAL_CLI_PATH):
+                print(f"Found signal-cli from config: {SIGNAL_CLI_PATH}", file=sys.stderr)
+                return SIGNAL_CLI_PATH
+            else:
+                print(f"Warning: Configured signal_cli_path '{SIGNAL_CLI_PATH}' does not exist.", file=sys.stderr)
+
+        if (path := shutil.which("signal-cli")):
+            print(f"Found signal-cli in PATH: {path}", file=sys.stderr)
+            return path
+        
+        bundled_path = "./signal-cli-0.13.22/bin/signal-cli"
+        if os.path.exists(bundled_path):
+            print(f"Found bundled signal-cli: {bundled_path}", file=sys.stderr)
+            return os.path.abspath(bundled_path)
+
+        raise FileNotFoundError("signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in config.ini.")
+
+    def start(self):
+        """Starts the signal-cli daemon."""
+        if self.is_running():
+            print("signal-cli is already running.", file=sys.stderr)
+            return
+
+        command = [
+            self.executable,
+            "-u", self.number,
+            "daemon",
+            "--tcp", f"{self.host}:{self.port}"
+        ]
+        
+        print(f"Starting signal-cli: {' '.join(command)}", file=sys.stderr)
+        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        # Poll for up to 15 seconds for the daemon to start
+        for i in range(15):
+            if self.is_running():
+                print("signal-cli started successfully.", file=sys.stderr)
+                return
+            time.sleep(1)
+
+        # If it's still not running, get output and raise error
+        self.process.kill()
+        stdout, stderr = self.process.communicate()
+        print("Failed to start signal-cli daemon within 15 seconds.", file=sys.stderr)
+        if stdout:
+            print(f"Stdout: {stdout.decode()}", file=sys.stderr)
+        if stderr:
+            print(f"Stderr: {stderr.decode()}", file=sys.stderr)
+        raise RuntimeError("Could not start signal-cli.")
+
+
+    def stop(self):
+        """Stops the signal-cli daemon."""
+        if self.process:
+            print("Stopping signal-cli...", file=sys.stderr)
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                print("signal-cli did not terminate gracefully, killing.", file=sys.stderr)
+                self.process.kill()
+            self.process = None
+            print("signal-cli stopped.", file=sys.stderr)
+
+    def is_running(self):
+        """Checks if the signal-cli RPC server is reachable."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.settimeout(1)
+                s.connect((self.host, self.port))
+                return True
+            except (socket.error, ConnectionRefusedError):
+                return False
+
 
 # ==============================================================================
 # DAEMON/LISTENER
@@ -62,8 +139,7 @@ async def subscribe_and_listen():
 
     except ConnectionRefusedError as e:
         print(f"\nConnection to signal-cli daemon failed: {e}", file=sys.stderr)
-        print("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket, for example:", file=sys.stderr)
-        print(f"  signal-cli -u YOUR_SIGNAL_NUMBER jsonrpc --tcp {SIGNAL_RPC_HOST}:{SIGNAL_RPC_PORT}", file=sys.stderr)
+        print("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket.", file=sys.stderr)
         sys.exit(1)
     finally:
         if writer:
@@ -72,23 +148,30 @@ async def subscribe_and_listen():
         print("\nConnection closed.", file=sys.stderr)
 
 def main():
-    """Sets up the vault path, ensures signal-cli is running, and starts the async listener."""
+    """Sets up the vault path, starts signal-cli, and begins listening."""
     print("Starting s7_watcher...", file=sys.stderr)
 
+    if SIGNAL_NUMBER == "YOUR_SIGNAL_NUMBER":
+        print("ERROR: Please set your signal number in config.ini", file=sys.stderr)
+        sys.exit(1)
 
-    if not is_signal_cli_running(SIGNAL_RPC_HOST, SIGNAL_RPC_PORT):
-            print("Failed to ensure signal-cli is running. Exiting.", file=sys.stderr)
-            sys.exit(1)
-    else:
-        print("signal-cli daemon is already running.", file=sys.stderr)
+    signal_manager = SignalManager(SIGNAL_NUMBER, SIGNAL_RPC_HOST, SIGNAL_RPC_PORT)
     
     try:
+        signal_manager.start()
         asyncio.run(subscribe_and_listen())
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         print("\nExiting on user request.", file=sys.stderr)
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}", file=sys.stderr)
-        sys.exit(1)
+    finally:
+        signal_manager.stop()
+        print("s7_watcher shut down.", file=sys.stderr)
+    
+    # The process should exit cleanly from the try-except-finally block.
+    # If an exception occurred, it is caught and logged.
+    # If the event loop finishes, it proceeds here.
+    sys.exit(0)
 
 
 if __name__ == "__main__":
