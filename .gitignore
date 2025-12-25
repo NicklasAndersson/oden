@@ -1,7 +1,57 @@
 signal-cli-0.13.22/
 vault/*
 .DS_Store
-__pycache__/*
-dist/*
-build/*
-.gemeni/*
+__pycache__/
+dist/
+build/
+.gemeni/
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyd
+*.pyo
+
+# Distribution / packaging
+.Python
+env/
+venv/
+.venv/
+bin/
+lib/
+include/
+share/
+*.egg-info/
+.eggs/
+wheels/
+*.whl
+
+# Tests
+.pytest_cache/
+.coverage
+.mypy_cache/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+tmp/
+.env
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Python-specific build artifacts
+htmlcov/
+.tox/
+.nox/
+
+# Miscellaneous
+.project
+.settings
+.ropeproject
+GEMINI.md
