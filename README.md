@@ -1,5 +1,5 @@
 # Oden S7 Watcher
-
+![logotyp](logo_small.jpg)
 ## För Användare (Rekommenderad Användning)
 
 Om du bara vill köra applikationen bör du ladda ner den senaste releasen, inte klona detta repo.
