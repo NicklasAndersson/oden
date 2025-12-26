@@ -14,7 +14,7 @@ C_YELLOW='\033[0;33m'
 
 # --- Helper Functions ---
 function print_header() {
-    echo -e "\n${C_BLUE}${C_BOLD}--- $1 ---${C_RESET}"
+    echo -e "\n${C_BLUE}${C_BOLD}---  ---${C_RESET}"
 }
 
 # --- Banner ---
@@ -174,7 +174,7 @@ if [ $? -eq 0 ] && [ -n "$EXISTING_ACCOUNT_OUTPUT" ]; then
     read -p "Do you want to keep using this account? (Y/n): " KEEP_ACCOUNT
     if [[ -z "$KEEP_ACCOUNT" || "$KEEP_ACCOUNT" =~ ^[Yy]$ ]]; then
         echo -e "\n${C_GREEN}Great! Your existing Signal setup is ready to use.${C_RESET}"
-        echo "Setup is complete. Please see HOW_TO_RUN.md for instructions on how to run the application."
+        echo "Setup is complete. Please see docs/HOW_TO_RUN.md for instructions on how to run the application."
         exit 0
     else
         echo "Proceeding with re-configuration..."
@@ -312,6 +312,6 @@ case $choice in
 esac
 
 echo
-echo "Setup is complete. Please see HOW_TO_RUN.md for instructions on how to run the application."
+echo "Setup is complete. Please see docs/HOW_TO_RUN.md for instructions on how to run the application."
 echo
 

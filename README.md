@@ -1,12 +1,12 @@
 # Oden S7 Watcher
-![logotyp](logo_small.jpg)
+![logotyp](images/logo_small.jpg)
 ## För Användare (Rekommenderad Användning)
 
 Om du bara vill köra applikationen bör du ladda ner den senaste releasen, inte klona detta repo.
 
 1. Gå till **[Releases-sidan](../../releases)**.
 2. Ladda ner `s7_watcher-release.zip`-filen från den senaste releasen.
-3. Packa upp paketet och följ instruktionerna i `HOW_TO_RUN.md`-filen som du hittar inuti.
+3. Packa upp paketet och följ instruktionerna i `docs/HOW_TO_RUN.md`-filen som du hittar inuti.
 
 ---
 
@@ -14,7 +14,7 @@ Om du bara vill köra applikationen bör du ladda ner den senaste releasen, inte
 
 Denna README är för utvecklare som har klonat repot för att bygga från källkod eller bidra. Om du är slutanvändare, se avsnittet ovan.
 
-För instruktioner om hur man kör den förpaketerade releasen, se `HOW_TO_RUN.md`.
+För instruktioner om hur man kör den förpaketerade releasen, se `docs/HOW_TO_RUN.md`.
 
 ## Funktioner
 
@@ -30,8 +30,8 @@ Detta gör det möjligt att enkelt lägga till fler detaljer, korrigeringar elle
 
 ## Konfiguration
 
-Redigera `config.ini` enligt `HOW_TO_RUN.md`. Se till att tidszon, regex och Signal-relaterade inställningar är korrekt inställda för din miljö.
+Redigera `config.ini` enligt `docs/HOW_TO_RUN.md`. Se till att tidszon, regex och Signal-relaterade inställningar är korrekt inställda för din miljö.
 
 ## Flödesdiagram
 
-[Flödesdiagram för applikationen](Flow.md)
+[Flödesdiagram för applikationen](docs/Flow.md)
