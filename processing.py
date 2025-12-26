@@ -6,7 +6,7 @@ import base64
 import re
 from urllib.parse import urlparse, parse_qs
 
-from config import REGEX_PATTERNS, TIMEZONE
+from config import REGEX_PATTERNS, TIMEZONE, APPEND_WINDOW_MINUTES
 from formatting import (
     get_message_filepath,
     format_sender_display,
@@ -21,8 +21,7 @@ from formatting import (
 
 def _find_latest_file_for_sender(group_dir, source_name, source_number):
     """
-    Finds the most recent file by a given sender in a group directory,
-    if it's not older than 30 minutes.
+    Finds the most recent file by a given sender in a group directory.
     """
     latest_file = None
     latest_time = datetime.datetime.min.replace(tzinfo=TIMEZONE)
@@ -62,7 +61,7 @@ def _find_latest_file_for_sender(group_dir, source_name, source_number):
                     file_dt -= datetime.timedelta(days=now.day) # Go to start of month approx.
                     # This is imperfect but should work for a 30-min window
 
-                if (now - file_dt) < datetime.timedelta(minutes=30):
+                if (now - file_dt) < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES):
                     if latest_file is None or file_dt > latest_time:
                         latest_time = file_dt
                         latest_file = os.path.join(group_dir, filename)
@@ -259,19 +258,37 @@ async def process_message(obj, reader, writer):
     # --- Append Logic ---
     is_plus_plus_append = msg and msg.strip().startswith('++')
     is_reply_append = False
-    if quote and quote.get("author") == source_number:
+    if quote:
         quote_ts = quote.get("id", 0)
         quote_dt = datetime.datetime.fromtimestamp(quote_ts / 1000.0, tz=TIMEZONE)
-        if (now - quote_dt) < datetime.timedelta(minutes=30):
+        if (now - quote_dt) < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES):
             is_reply_append = True
 
     if is_plus_plus_append or is_reply_append:
-        if not group_title or not (source_name or source_number):
-            print("ERROR: Cannot append message, missing group or source.", file=sys.stderr)
+        if not group_title:
+            print("ERROR: Cannot append message, missing group.", file=sys.stderr)
             return
 
         group_dir = get_safe_group_dir_path(group_title)
-        latest_file = _find_latest_file_for_sender(group_dir, source_name, source_number)
+
+        # Determine whose file to append to
+        if is_reply_append:
+            # For replies, find the file of the *quoted author*
+            append_target_number = quote.get("author")
+            append_target_name = None # Name isn't available in the quote object
+            if not append_target_number:
+                 print("ERROR: Cannot append reply, quote author number is missing.", file=sys.stderr)
+                 return
+        else:
+            # For '++', find the file of the *current sender*
+            append_target_number = source_number
+            append_target_name = source_name
+        
+        if not (append_target_name or append_target_number):
+             print("ERROR: Cannot append message, missing target user details.", file=sys.stderr)
+             return
+
+        latest_file = _find_latest_file_for_sender(group_dir, append_target_name, append_target_number)
 
         if latest_file:
             content_to_append = []
@@ -299,10 +316,18 @@ async def process_message(obj, reader, writer):
                 print(f"INFO: Ignoring empty append message.", file=sys.stderr)
 
         else:
-            print(f"APPEND FAILED: No recent file (<30min) found for sender.", file=sys.stderr)
+            print(f"APPEND FAILED: No recent file found for sender.", file=sys.stderr)
             if is_reply_append:
-                quote = None
+                # If reply-append fails, it should be treated as a new message,
+                # but with the quote intact.
+                quote = dm.get("quote")
+            else:
+                # If ++ append fails, we just process it as a new message without the ++
+                if msg:
+                    msg = msg.strip().lstrip('++').strip()
         
+        # If the append was successful (or a ++ which always consumes the message), we are done.
+        # If a reply-append fails, we continue on to process it as a new message.
         if is_plus_plus_append or (is_reply_append and latest_file):
             return
 

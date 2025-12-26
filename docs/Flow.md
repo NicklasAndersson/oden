@@ -22,7 +22,7 @@ sequenceDiagram
         Note over Processor: IGNORERAR meddelandet
         Processor-->>Watcher: Avbryter processen (gör inget)
 
-    else Är "++" eller "Svar på eget" (<30 min)?
+    else Är "++" eller Svar på meddelande (<30 min)?
         Processor->>Valv: Söker senaste fil för avsändare
         
         alt Fil hittades
@@ -88,11 +88,14 @@ sequenceDiagram
 
 Vissa meddelanden som börjar med specifika prefix hanteras på ett unikt sätt.
 
+*   **Svara på meddelande:**
+    1.  En användare svarar på ett meddelande i gruppen (oavsett vem som skrev originalet).
+    2.  Om originalmeddelandet är mindre än 30 minuter gammalt, tolkar `processing.py` detta som en signal att lägga till i en befintlig rapport.
+    3.  Systemet letar efter den senaste filen som skapats av *svararen* (den som skriver det nya meddelandet) och lägger till det nya innehållet där.
+
 *   **Lägg till i föregående (`++`):**
-    1.  En användare skickar ett meddelande som börjar med `++`.
-    2.  `processing.py` identifierar prefixet och letar efter den senaste filen som skapats av samma användare i samma grupp inom de senaste 30 minuterna.
-    3.  Om en nylig fil hittas, läggs innehållet i `++`-meddelandet till i slutet av den befintliga filen.
-    4.  Om ingen nylig fil hittas, ignoreras `++`-prefixet och meddelandet behandlas som ett vanligt meddelande (Flöde 1), men utan `++`-prefixet.
+    1.  En användare skickar ett meddelande som börjar med `++`. Detta fungerar som ett alternativ till att svara, och letar också efter den senaste filen från avsändaren inom 30 minuter att lägga till i.
+    2.  Om ingen nylig fil hittas, behandlas meddelandet som ett vanligt meddelande (Flöde 1), men utan `++`-prefixet.
 
 *   **Ignorera meddelande (`--`):**
     1.  En användare skickar ett meddelande som börjar med `--`.

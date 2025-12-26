@@ -26,6 +26,11 @@ def get_config():
     regex_patterns = {}
     if config.has_section('Regex'):
         regex_patterns = dict(config.items('Regex'))
+
+    # Read settings if available
+    append_window_minutes = 30
+    if config.has_section('Settings'):
+        append_window_minutes = config.getint('Settings', 'append_window_minutes', fallback=30)
     
     # Read timezone if available, defaults to Europe/Stockholm
     timezone_str = 'Europe/Stockholm'
@@ -47,7 +52,8 @@ def get_config():
         'signal_cli_host': signal_cli_host,
         'signal_cli_port': signal_cli_port,
         'regex_patterns': regex_patterns,
-        'timezone': timezone
+        'timezone': timezone,
+        'append_window_minutes': append_window_minutes
     }
 
 # Load configuration on import
@@ -61,6 +67,7 @@ try:
     SIGNAL_CLI_PORT = app_config['signal_cli_port']
     REGEX_PATTERNS = app_config['regex_patterns']
     TIMEZONE = app_config['timezone']
+    APPEND_WINDOW_MINUTES = app_config['append_window_minutes']
 except Exception as e:
     print(f"Error loading configuration: {e}")
     sys.exit(1)
