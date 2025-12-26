@@ -10,35 +10,40 @@ sequenceDiagram
     participant Processor as processing.py
     participant Valv as Vault (Filsystem)
 
-    Note over Externt, Valv: Flöde för ett vanligt meddelande
+    Note over Externt, Valv: Hantering av inkommande meddelande
 
-    Externt->>+Signal: Skickar meddelande (text/bilaga/plats)
+    Externt->>+Signal: Skickar meddelande
     Signal->>+Watcher: Förmedlar meddelande (JSON via TCP)
-    Watcher->>+Processor: Anropar process_message() med JSON-data
+    Watcher->>+Processor: Anropar process_message()
     
-    Note over Processor: Behandlar meddelandet
-    Processor-->>Signal: Hämtar ev. stor bilaga (getAttachment)
-    Signal-->>Processor: Returnerar bilaga (base64)
+    Note over Processor: Analyserar prefix och typ
     
-    Processor->>Valv: Skriver/bifogar .md-fil med metadata
-    Processor->>Valv: Sparar bilagor i undermapp
-    
-    deactivate Processor
-    deactivate Watcher
-    deactivate Signal
-    
-    Note over Externt, Valv: Flöde för ett kommando
+    alt Börjar med "--"? (Ignorera)
+        Note over Processor: IGNORERAR meddelandet
+        Processor-->>Watcher: Avbryter processen (gör inget)
 
-    Externt->>+Signal: Skickar kommando (t.ex. "#help")
-    Signal->>+Watcher: Förmedlar meddelande (JSON via TCP)
-    Watcher->>+Processor: Anropar process_message() med JSON-data
-    
-    Note over Processor: Tolkar kommandot
-    Processor->>Valv: Läser svarsfil (t.ex. /responses/help.md)
-    Valv-->>Processor: Returnerar innehåll
-    
-    Processor->>Signal: Skickar svar (send-anrop via JSON-RPC)
-    Signal->>Externt: Levererar svar till användaren
+    else Är "++" eller "Svar på eget" (<30 min)?
+        Processor->>Valv: Söker senaste fil för avsändare
+        
+        alt Fil hittades
+            Processor->>Valv: APPEND: Lägger till text/bilaga i befintlig fil
+        else Ingen fil hittades
+            Note over Processor: Hanteras som vanligt meddelande
+            Processor->>Valv: WRITE: Skapar ny .md-fil
+        end
+
+    else Är Kommando (t.ex. "#help")?
+        Processor->>Valv: Läser svarsfil (t.ex. /responses/help.md)
+        Valv-->>Processor: Returnerar innehåll
+        Processor->>Signal: Skickar svar (send-anrop)
+        Signal->>Externt: Levererar svar
+
+    else Vanligt Meddelande
+        Processor-->>Signal: Hämtar ev. stor bilaga (getAttachment)
+        Signal-->>Processor: Returnerar bilaga (base64)
+        Processor->>Valv: WRITE: Skapar/bifogar .md-fil
+        Processor->>Valv: Sparar bilagor i undermapp
+    end
     
     deactivate Processor
     deactivate Watcher
@@ -78,3 +83,18 @@ sequenceDiagram
 5.  Om filen finns, läses dess innehåll in.
 6.  Processorn gör ett `send`-anrop till `signal-cli`:s API med innehållet från svarsfilen.
 7.  `signal-cli` skickar innehållet som ett vanligt Signal-meddelande tillbaka till gruppen som en respons.
+
+### Flöde 3: Särskilda Meddelanden
+
+Vissa meddelanden som börjar med specifika prefix hanteras på ett unikt sätt.
+
+*   **Lägg till i föregående (`++`):**
+    1.  En användare skickar ett meddelande som börjar med `++`.
+    2.  `processing.py` identifierar prefixet och letar efter den senaste filen som skapats av samma användare i samma grupp inom de senaste 30 minuterna.
+    3.  Om en nylig fil hittas, läggs innehållet i `++`-meddelandet till i slutet av den befintliga filen.
+    4.  Om ingen nylig fil hittas, ignoreras `++`-prefixet och meddelandet behandlas som ett vanligt meddelande (Flöde 1), men utan `++`-prefixet.
+
+*   **Ignorera meddelande (`--`):**
+    1.  En användare skickar ett meddelande som börjar med `--`.
+    2.  `processing.py` identifierar prefixet och avbryter omedelbart all vidare bearbetning.
+    3.  Meddelandet ignoreras helt och sparas inte i valvet. Detta är användbart för informella kommentarer eller sidoanteckningar i en grupp som inte ska arkiveras.

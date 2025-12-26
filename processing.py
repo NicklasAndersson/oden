@@ -244,6 +244,12 @@ async def process_message(obj, reader, writer):
         return
 
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
+    
+    # If message starts with '--', ignore it.
+    if msg and msg.strip().startswith('--'):
+        print("Skipping message: Starts with '--'.", file=sys.stderr)
+        return
+
     source_name = envelope.get("sourceName")
     source_number = envelope.get("sourceNumber") or envelope.get("source")
     dm = envelope.get("dataMessage", {})
