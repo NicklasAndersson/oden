@@ -14,7 +14,7 @@ C_YELLOW='\033[0;33m'
 
 # --- Helper Functions ---
 function print_header() {
-    echo -e "\n${C_BLUE}${C_BOLD}--- $1 ---${C_RESET}"
+    echo -e "\n${C_BLUE}${C_BOLD}---  ---${C_RESET}"
 }
 
 # --- Banner ---
