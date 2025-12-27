@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import sys
 import json
 import os
@@ -11,10 +10,12 @@ import shutil
 from config import (
     VAULT_PATH, 
     SIGNAL_NUMBER, 
+    DISPLAY_NAME,
     SIGNAL_CLI_PATH, 
     UNMANAGED_SIGNAL_CLI, 
     SIGNAL_CLI_HOST, 
-    SIGNAL_CLI_PORT
+    SIGNAL_CLI_PORT,
+    SIGNAL_CLI_LOG_FILE
 )
 from processing import process_message
 
@@ -37,6 +38,7 @@ class SignalManager:
         self.port = port
         self.process = None
         self.executable = self._find_executable()
+        self.log_file_handle = None
 
     def _find_executable(self):
         """Finds the signal-cli executable."""
@@ -73,7 +75,23 @@ class SignalManager:
         ]
         
         print(f"Starting signal-cli: {' '.join(command)}", file=sys.stderr)
-        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        if SIGNAL_CLI_LOG_FILE:
+            try:
+                self.log_file_handle = open(SIGNAL_CLI_LOG_FILE, 'a')
+                stdout_target = self.log_file_handle
+                stderr_target = self.log_file_handle
+                print(f"Redirecting signal-cli output to {SIGNAL_CLI_LOG_FILE}", file=sys.stderr)
+            except IOError as e:
+                print(f"WARNING: Could not open log file {SIGNAL_CLI_LOG_FILE}: {e}. Logging to stderr.", file=sys.stderr)
+                stdout_target = subprocess.PIPE
+                stderr_target = subprocess.PIPE
+        else:
+            stdout_target = subprocess.PIPE
+            stderr_target = subprocess.PIPE
+
+
+        self.process = subprocess.Popen(command, stdout=stdout_target, stderr=stderr_target)
         
         # Poll for up to 15 seconds for the daemon to start
         for i in range(15):
@@ -84,12 +102,17 @@ class SignalManager:
 
         # If it's still not running, get output and raise error
         self.process.kill()
-        stdout, stderr = self.process.communicate()
-        print("Failed to start signal-cli daemon within 15 seconds.", file=sys.stderr)
-        if stdout:
-            print(f"Stdout: {stdout.decode()}", file=sys.stderr)
-        if stderr:
-            print(f"Stderr: {stderr.decode()}", file=sys.stderr)
+        # Only try to communicate if pipes were used
+        if stdout_target == subprocess.PIPE:
+            stdout, stderr = self.process.communicate()
+            print("Failed to start signal-cli daemon within 15 seconds.", file=sys.stderr)
+            if stdout:
+                print(f"Stdout: {stdout.decode()}", file=sys.stderr)
+            if stderr:
+                print(f"Stderr: {stderr.decode()}", file=sys.stderr)
+        else:
+            print("Failed to start signal-cli daemon within 15 seconds. Check log file for details.", file=sys.stderr)
+
         raise RuntimeError("Could not start signal-cli.")
 
 
@@ -105,10 +128,37 @@ class SignalManager:
                 self.process.kill()
             self.process = None
             print("signal-cli stopped.", file=sys.stderr)
+        if self.log_file_handle:
+            self.log_file_handle.close()
+            self.log_file_handle = None
 
 # ==============================================================================
 # DAEMON/LISTENER
 # ==============================================================================
+
+async def update_profile(writer, display_name):
+    """Sends a JSON-RPC request to update the profile name."""
+    if not display_name:
+        return
+
+    request_id = f"update-profile-{int(time.time())}"
+    json_request = {
+        "jsonrpc": "2.0",
+        "method": "updateProfile",
+        "params": {"name": display_name},
+        "id": request_id,
+    }
+    request_str = json.dumps(json_request) + "\n"
+
+    try:
+        print(f"Attempting to update profile name to '{display_name}'...", file=sys.stderr)
+        writer.write(request_str.encode('utf-8'))
+        await writer.drain()
+        # Note: We are not waiting for a response here to avoid blocking.
+        # The update is "fire and forget".
+        print("Profile name update request sent.", file=sys.stderr)
+    except Exception as e:
+        print(f"ERROR sending updateProfile request: {e}", file=sys.stderr)
 
 async def subscribe_and_listen(host, port):
     """Connects to signal-cli via TCP socket, subscribes to messages, and processes them."""
@@ -119,6 +169,8 @@ async def subscribe_and_listen(host, port):
     try:
         reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100) # 100 MB limit
         print("Connection successful. Waiting for messages...", file=sys.stderr)
+
+        await update_profile(writer, DISPLAY_NAME)
         
         while not reader.at_eof():
             line = await reader.readline()
@@ -134,7 +186,9 @@ async def subscribe_and_listen(host, port):
                 if data.get("method") == "receive" and (params := data.get("params")):
                     await process_message(params, reader, writer)
                 else:
-                    print(f"DEBUG: Received non-message data: {data}", file=sys.stderr)
+                    # Log other responses if they are not the response to our updateProfile request
+                    if not (isinstance(data, dict) and data.get("id", "").startswith("update-profile-")):
+                         print(f"DEBUG: Received non-message data: {data}", file=sys.stderr)
             except json.JSONDecodeError:
                 print(f"ERROR: Received non-JSON message: {message_str}", file=sys.stderr)
             except Exception as e:
