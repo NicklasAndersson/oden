@@ -6,7 +6,7 @@ import base64
 import re
 from urllib.parse import urlparse, parse_qs
 
-from config import REGEX_PATTERNS, TIMEZONE, APPEND_WINDOW_MINUTES
+from config import REGEX_PATTERNS, TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS
 from formatting import (
     get_message_filepath,
     format_sender_display,
@@ -243,6 +243,10 @@ async def process_message(obj, reader, writer):
         return
 
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
+
+    if group_title and group_title in IGNORED_GROUPS:
+        print(f"Skipping message from ignored group: {group_title}", file=sys.stderr)
+        return
     
     # If message starts with '--', ignore it.
     if msg and msg.strip().startswith('--'):
