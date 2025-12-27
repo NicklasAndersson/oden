@@ -390,7 +390,7 @@ async def process_message(obj, reader, writer):
 
         content_parts.extend([
             f"# {group_title}\n",
-            f"TNR: {dt.strftime('%d%H%M')}\n",
+            f"TNR: {dt.strftime('%d%H%M')} ({dt.isoformat()})\n",
             f"Avsändare: {sender_display}\n",
             f"Grupp: [[{group_title}]]\n",
             f"Grupp id: {group_id}\n",
