@@ -438,6 +438,26 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("![[new_attachment.jpg]]", written_content)
 
 
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('sys.stderr', new_callable=io.StringIO)
+    async def test_process_message_ignore_double_dash(self, mock_stderr, mock_open):
+        """Tests that a message starting with '--' is ignored."""
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe", "sourceNumber": "+123", "timestamp": 123,
+                "dataMessage": {
+                    "message": "-- This is a comment and should be ignored.",
+                    "groupV2": {"name": "My Group"}
+                }
+            }
+        }
+        mock_reader, mock_writer = AsyncMock(), AsyncMock()
+        
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_open.assert_not_called()
+        self.assertIn("Skipping message: Starts with '--'.", mock_stderr.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main()
