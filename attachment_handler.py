@@ -96,7 +96,6 @@ async def save_attachments(
                 with open(attachment_filepath, "wb") as f:
                     f.write(decoded_data)
                 
-                relative_path = os.path.relpath(attachment_filepath, group_dir)
                 attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}]]")
                 logger.info(f"Saved attachment: {attachment_filepath}")
             except Exception as e:

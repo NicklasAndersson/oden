@@ -79,9 +79,17 @@ def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], sou
                 # Handle month/year rollovers
                 if file_dt > now:
                     # If the file's date is in the future, it must be from the previous month
-                    # Subtract one day worth of seconds and recalculate to get previous month
-                    file_dt = (file_dt - datetime.timedelta(days=31)).replace(day=day)
-                    # If this still fails, skip the file
+                    # Calculate previous month safely
+                    prev_month = now.month - 1 if now.month > 1 else 12
+                    prev_year = now.year if now.month > 1 else now.year - 1
+                    
+                    try:
+                        file_dt = now.replace(year=prev_year, month=prev_month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                    except ValueError:
+                        # Day doesn't exist in previous month either, skip this file
+                        continue
+                    
+                    # If still in the future (shouldn't happen), skip the file
                     if file_dt > now:
                         continue
 
