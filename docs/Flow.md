@@ -71,8 +71,8 @@ sequenceDiagram
    * Om en bilaga är för stor för att ha skickats med direkt i JSON, görs ett anrop tillbaka till `signal-cli` för att hämta den.
    * Textinnehållet analyseras för specifika mönster (definierade i `config.ini`) som automatiskt omvandlas till Obsidian-länkar (`[[länk]]`).
    * En sökväg till en Markdown-fil bestäms baserat på gruppnamn och datum.
-5. Processorn sparar bilagor i en unik undermapp i valtet.
-6. Processorn skriver eller lägger till det formaterade innehållet (metadata, text, länkar till bilagor) i rätt `.md`-fil i valtet.
+5. Processorn sparar bilagor i en unik undermapp i valvet.
+6. Processorn skriver eller lägger till det formaterade innehållet (metadata, text, länkar till bilagor) i rätt `.md`-fil i valvet.
 
 ### Flöde 2: Kommando
 
