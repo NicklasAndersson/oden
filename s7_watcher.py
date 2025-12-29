@@ -105,7 +105,9 @@ def main() -> None:
     logger.info("Starting s7_watcher...")
 
     if SIGNAL_NUMBER == "YOUR_SIGNAL_NUMBER":
-        logger.error("Please set your signal number in config.ini")
+        logger.error("❌ Signal number not configured!")
+        logger.error("Please update 'number' in config.ini with your Signal phone number")
+        logger.error("Example: number = +46701234567")
         sys.exit(1)
 
     if UNMANAGED_SIGNAL_CLI:
