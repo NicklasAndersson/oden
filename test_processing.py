@@ -198,31 +198,6 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("\n---\n", written_content)
         self.assertIn("## Meddelande", written_content)
-        self.assertIn("Another message", written_content)mock_exists.return_value = True
-        message_obj = {
-            "envelope": {
-                "sourceName": "John Doe",
-                "sourceNumber": "+123",
-                "timestamp": 1765890600000,
-                "dataMessage": {
-                    "message": "Another message",
-                    "groupV2": {"name": "Test Group", "id": "group123"}
-                }
-            }
-        }
-
-        mock_reader = AsyncMock()
-        mock_writer = AsyncMock()
-        await process_message(message_obj, mock_reader, mock_writer)
-
-        mock_makedirs.assert_called_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
-        mock_open.assert_called_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
-        
-        handle = mock_open()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
-
-        self.assertIn("\n---\n", written_content)
-        self.assertIn("## Meddelande", written_content)
         self.assertIn("Another message", written_content)
 
     @patch('processing._send_reply')
@@ -340,8 +315,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
     @patch('processing._find_latest_file_for_sender', return_value=None)
     @patch('builtins.open', new_callable=mock_open)
-    @patch('sys.stderr', new_callable=io.StringIO)
-    async def test_process_message_append_plus_plus_failure(self, mock_stderr, mock_open, mock_find_latest):
+    async def test_process_message_append_plus_plus_failure(self, mock_open, mock_find_latest):
         """Tests that a '++' message fails gracefully when no recent file is found."""
         message_obj = {
             "envelope": {
@@ -354,11 +328,12 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         }
         mock_reader, mock_writer = AsyncMock(), AsyncMock()
         
-        await process_message(message_obj, mock_reader, mock_writer)
+        with self.assertLogs('processing', level='INFO') as log:
+            await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_find_latest.assert_called_once()
-        mock_open.assert_not_called()
-        self.assertIn("APPEND FAILED", mock_stderr.getvalue())
+            mock_find_latest.assert_called_once()
+            mock_open.assert_not_called()
+            self.assertTrue(any("APPEND FAILED" in message for message in log.output))
 
     @patch('processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
     @patch('builtins.open', new_callable=mock_open)
@@ -466,8 +441,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
 
     @patch('builtins.open', new_callable=mock_open)
-    @patch('sys.stderr', new_callable=io.StringIO)
-    async def test_process_message_ignore_double_dash(self, mock_stderr, mock_open):
+    async def test_process_message_ignore_double_dash(self, mock_open):
         """Tests that a message starting with '--' is ignored."""
         message_obj = {
             "envelope": {
@@ -480,10 +454,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         }
         mock_reader, mock_writer = AsyncMock(), AsyncMock()
         
-        await process_message(message_obj, mock_reader, mock_writer)
+        with self.assertLogs('processing', level='DEBUG') as log:
+            await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_open.assert_not_called()
-        self.assertIn("Skipping message: Starts with '--'.", mock_stderr.getvalue())
+            mock_open.assert_not_called()
+            self.assertTrue(any("Skipping message: Starts with '--'." in message for message in log.output))
 
 
 if __name__ == '__main__':
