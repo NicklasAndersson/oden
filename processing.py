@@ -27,19 +27,22 @@ logger = logging.getLogger(__name__)
 def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], source_number: Optional[str]) -> Optional[str]:
     """
     Finds the most recent file by a given sender in a group directory.
+    Returns the path to the most recent file within APPEND_WINDOW_MINUTES, or None.
     """
     latest_file = None
     latest_time = datetime.datetime.min.replace(tzinfo=TIMEZONE)
     
-    # Construct a pattern to identify files from this sender
-    # This is fragile, but mirrors the logic in create_message_filename
+    # Construct sender identifier for matching filenames
     sender_id_parts = []
     if source_number:
         sender_id_parts.append(source_number.lstrip('+'))
     if source_name:
-        sender_id_parts.append(source_name.replace('/', '_')) # Basic sanitization
+        sender_id_parts.append(source_name.replace('/', '_'))
     
-    sender_pattern = "*" + re.sub(r'[^\w\-_\.]', '_', "-".join(sender_id_parts)) + ".md"
+    if not sender_id_parts:
+        return None
+    
+    sender_pattern = re.sub(r'[^\w\-_\.]', '_', "-".join(sender_id_parts))
 
     try:
         now = datetime.datetime.now(TIMEZONE)
@@ -47,36 +50,56 @@ def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], sou
 
         for filename in candidate_files:
             # Check if the file belongs to the sender
-            if not re.search(sender_pattern.replace('*',''), filename, re.IGNORECASE):
-                 continue
+            if sender_pattern not in filename:
+                continue
 
             try:
                 # Extract DDHHMM from filename like "DDHHMM-..."
                 ts_str = filename.split('-')[0]
+                if len(ts_str) != 6:
+                    continue
+                
                 day = int(ts_str[0:2])
                 hour = int(ts_str[2:4])
                 minute = int(ts_str[4:6])
 
-                # Reconstruct the file's datetime
-                file_dt = now.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                # Validate extracted values
+                if not (1 <= day <= 31 and 0 <= hour <= 23 and 0 <= minute <= 59):
+                    continue
+
+                # Reconstruct the file's datetime using current month/year as base
+                try:
+                    file_dt = now.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                except ValueError:
+                    # Handle invalid day for this month (e.g., day 31 in February)
+                    continue
                 
                 # Handle month/year rollovers
                 if file_dt > now:
                     # If the file's date is in the future, it must be from the previous month
-                    file_dt -= datetime.timedelta(days=now.day) # Go to start of month approx.
-                    # This is imperfect but should work for a 30-min window
+                    # Subtract one day worth of seconds and recalculate to get previous month
+                    file_dt = (file_dt - datetime.timedelta(days=31)).replace(day=day)
+                    # If this still fails, skip the file
+                    if file_dt > now:
+                        continue
 
-                if (now - file_dt) < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES):
+                # Check if the file is within the append window
+                time_diff = now - file_dt
+                if time_diff < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES):
                     if latest_file is None or file_dt > latest_time:
                         latest_time = file_dt
                         latest_file = os.path.join(group_dir, filename)
+                        logger.debug(f"Found candidate file: {filename} (age: {time_diff})")
 
-            except (ValueError, IndexError):
-                continue # Ignore files with non-matching name format
+            except (ValueError, IndexError) as e:
+                logger.debug(f"Skipping file {filename}: {e}")
+                continue
     
     except FileNotFoundError:
-        return None # Group directory doesn't exist
+        return None
 
+    if latest_file:
+        logger.debug(f"Selected latest file for sender: {latest_file}")
     return latest_file
 
 
