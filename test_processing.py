@@ -86,6 +86,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('os.path.exists')
     @patch('formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
+        """Tests that attachments are properly saved and linked in the message file."""
         mock_exists.return_value = False
         message_obj = {
             "envelope": {
@@ -171,7 +172,33 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('os.path.exists')
     @patch('formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_append_file(self, mock_exists, mock_makedirs, mock_open):
+        """Tests that a new message is appended to an existing file."""
         mock_exists.return_value = True
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe",
+                "sourceNumber": "+123",
+                "timestamp": 1765890600000,
+                "dataMessage": {
+                    "message": "Another message",
+                    "groupV2": {"name": "Test Group", "id": "group123"}
+                }
+            }
+        }
+
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_makedirs.assert_called_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
+        mock_open.assert_called_with(os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8")
+        
+        handle = mock_open()
+        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+
+        self.assertIn("\n---\n", written_content)
+        self.assertIn("## Meddelande", written_content)
+        self.assertIn("Another message", written_content)mock_exists.return_value = True
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
