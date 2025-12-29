@@ -17,6 +17,8 @@ from formatting import (
     create_message_filename,
     get_safe_group_dir_path,
 )
+from attachment_handler import save_attachments
+from link_formatter import apply_regex_links
 
 logger = logging.getLogger(__name__)
 
@@ -105,29 +107,10 @@ def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], sou
 
 def _apply_regex_links(text: Optional[str]) -> Optional[str]:
     """
-    Applies regex patterns from configuration to text and converts matches to [[...]] links.
-    Avoids linking text that is already inside [[...]].
+    Wrapper function for backward compatibility.
+    Use apply_regex_links from link_formatter module instead.
     """
-    if not text or not REGEX_PATTERNS:
-        return text
-    
-    # Find all existing [[...]] patterns to avoid double-linking
-    existing_links = set(re.findall(r'\[\[([^\]]+)\]\]', text))
-    
-    for pattern_name, pattern in REGEX_PATTERNS.items():
-        try:
-            # Find all matches
-            matches = re.finditer(pattern, text)
-            for match in matches:
-                matched_text = match.group(0)
-                # Only link if it's not already in an existing link
-                if matched_text not in existing_links:
-                    text = text.replace(matched_text, f"[[{matched_text}]]", 1)
-                    existing_links.add(matched_text)
-        except Exception as e:
-            logger.warning(f"Error applying regex pattern '{pattern_name}': {e}")
-    
-    return text
+    return apply_regex_links(text)
 
 def _extract_message_details(envelope: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Optional[str], List[Dict[str, Any]]]:
     """
@@ -159,84 +142,18 @@ def _extract_message_details(envelope: Dict[str, Any]) -> Tuple[Optional[str], O
 
 async def _get_attachment_data(attachment_id: str, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[str]:
     """
-    Makes a JSON-RPC call to signal-cli to get attachment data by ID.
-    Returns base64 encoded data if successful, otherwise None.
+    Wrapper function for backward compatibility.
+    Use _get_attachment_data from attachment_handler module instead.
     """
-    request_id = datetime.datetime.now().microsecond # Simple unique ID for the request
-    json_request = {
-        "jsonrpc": "2.0",
-        "method": "getAttachment",
-        "params": {
-            "id": attachment_id
-        },
-        "id": request_id
-    }
-    request_str = json.dumps(json_request) + "\n"
-
-    try:
-        writer.write(request_str.encode('utf-8'))
-        await writer.drain()
-
-        # Read response line by line until our request_id is matched
-        response_line = await reader.readline() # Assume response is on one line for now
-        if not response_line:
-            logger.error(f"No response for getAttachment request {request_id}")
-            return None
-        
-        response = json.loads(response_line.decode('utf-8').strip())
-        
-        if response.get("id") == request_id and "result" in response:
-            return response["result"].get("data")
-        else:
-            logger.error(f"Invalid or unmatched response for getAttachment: {response}")
-            return None
-    except Exception as e:
-        logger.error(f"ERROR calling getAttachment for ID {attachment_id}: {e}")
-        return None
+    from attachment_handler import _get_attachment_data as get_attachment_data_impl
+    return await get_attachment_data_impl(attachment_id, reader, writer)
 
 async def _save_attachments(attachments: List[Dict[str, Any]], group_dir: str, dt: datetime.datetime, source_name: Optional[str], source_number: Optional[str], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> List[str]:
-    """Saves attachments to a subdirectory and returns a list of markdown links."""
-    attachment_links = []
-    if not attachments:
-        return attachment_links
-
-    # Create a unique subdirectory for attachments for this specific message entry
-    attachment_subdir_name = dt.strftime("%Y%m%d%H%M%S") + "_" + create_message_filename(dt, source_name, source_number).replace(".md", "")
-    attachment_dir = os.path.join(group_dir, attachment_subdir_name)
-    os.makedirs(attachment_dir, exist_ok=True)
-
-    for i, attachment in enumerate(attachments):
-        data = attachment.get("data")
-        filename = attachment.get("filename") or attachment.get("id")
-        attachment_id = attachment.get("id")
-        
-        if not data and attachment_id:
-            logger.info(f"Attempting to fetch attachment data for ID: {attachment_id}")
-            retrieved_data = await _get_attachment_data(attachment_id, reader, writer)
-            if retrieved_data:
-                data = retrieved_data
-                logger.info(f"Successfully fetched data for attachment ID: {attachment_id}")
-            else:
-                logger.warning(f"Failed to fetch data for attachment ID: {attachment_id}")
-
-        if data and filename:
-            try:
-                decoded_data = base64.b64decode(data)
-                safe_filename = f"{i+1}_{filename}"
-                attachment_filepath = os.path.join(attachment_dir, safe_filename)
-                with open(attachment_filepath, "wb") as f:
-                    f.write(decoded_data)
-                
-                relative_path = os.path.relpath(attachment_filepath, group_dir)
-                attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}]]")
-                logger.info(f"Saved attachment: {attachment_filepath}")
-            except Exception as e:
-                logger.error(f"Could not save attachment {filename}. Error: {e}")
-        else:
-            missing_parts = [p for p, v in [("data", data), ("filename", filename)] if not v]
-            logger.warning(f"Attachment missing {' and '.join(missing_parts)}: {attachment}")
-    
-    return attachment_links
+    """
+    Wrapper function for backward compatibility.
+    Use save_attachments from attachment_handler module instead.
+    """
+    return await save_attachments(attachments, group_dir, dt, source_name, source_number, reader, writer)
 
 async def _send_reply(group_id: str, message: str, writer: asyncio.StreamWriter) -> None:
     """Sends a reply message to a given group ID via signal-cli JSON-RPC."""
