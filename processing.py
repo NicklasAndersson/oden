@@ -5,6 +5,7 @@ import datetime
 import base64
 import re
 import asyncio
+import logging
 from typing import Optional, List, Tuple, Dict, Any
 from urllib.parse import urlparse, parse_qs
 
@@ -16,6 +17,8 @@ from formatting import (
     create_message_filename,
     get_safe_group_dir_path,
 )
+
+logger = logging.getLogger(__name__)
 
 # ==============================================================================
 # MESSAGE PROCESSING
@@ -99,7 +102,7 @@ def _apply_regex_links(text: Optional[str]) -> Optional[str]:
                     text = text.replace(matched_text, f"[[{matched_text}]]", 1)
                     existing_links.add(matched_text)
         except Exception as e:
-            print(f"WARNING: Error applying regex pattern '{pattern_name}': {e}", file=sys.stderr)
+            logger.warning(f"Error applying regex pattern '{pattern_name}': {e}")
     
     return text
 
@@ -154,7 +157,7 @@ async def _get_attachment_data(attachment_id: str, reader: asyncio.StreamReader,
         # Read response line by line until our request_id is matched
         response_line = await reader.readline() # Assume response is on one line for now
         if not response_line:
-            print(f"ERROR: No response for getAttachment request {request_id}", file=sys.stderr)
+            logger.error(f"No response for getAttachment request {request_id}")
             return None
         
         response = json.loads(response_line.decode('utf-8').strip())
@@ -162,10 +165,10 @@ async def _get_attachment_data(attachment_id: str, reader: asyncio.StreamReader,
         if response.get("id") == request_id and "result" in response:
             return response["result"].get("data")
         else:
-            print(f"ERROR: Invalid or unmatched response for getAttachment: {response}", file=sys.stderr)
+            logger.error(f"Invalid or unmatched response for getAttachment: {response}")
             return None
     except Exception as e:
-        print(f"ERROR calling getAttachment for ID {attachment_id}: {e}", file=sys.stderr)
+        logger.error(f"ERROR calling getAttachment for ID {attachment_id}: {e}")
         return None
 
 async def _save_attachments(attachments: List[Dict[str, Any]], group_dir: str, dt: datetime.datetime, source_name: Optional[str], source_number: Optional[str], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> List[str]:
@@ -185,13 +188,13 @@ async def _save_attachments(attachments: List[Dict[str, Any]], group_dir: str, d
         attachment_id = attachment.get("id")
         
         if not data and attachment_id:
-            print(f"Attempting to fetch attachment data for ID: {attachment_id}", file=sys.stderr)
+            logger.info(f"Attempting to fetch attachment data for ID: {attachment_id}")
             retrieved_data = await _get_attachment_data(attachment_id, reader, writer)
             if retrieved_data:
                 data = retrieved_data
-                print(f"Successfully fetched data for attachment ID: {attachment_id}", file=sys.stderr)
+                logger.info(f"Successfully fetched data for attachment ID: {attachment_id}")
             else:
-                print(f"Failed to fetch data for attachment ID: {attachment_id}", file=sys.stderr)
+                logger.warning(f"Failed to fetch data for attachment ID: {attachment_id}")
 
         if data and filename:
             try:
@@ -203,12 +206,12 @@ async def _save_attachments(attachments: List[Dict[str, Any]], group_dir: str, d
                 
                 relative_path = os.path.relpath(attachment_filepath, group_dir)
                 attachment_links.append(f"![[{attachment_subdir_name}/{safe_filename}]]")
-                print(f"Saved attachment: {attachment_filepath}", file=sys.stderr)
+                logger.info(f"Saved attachment: {attachment_filepath}")
             except Exception as e:
-                print(f"ERROR: Could not save attachment {filename}. Error: {e}", file=sys.stderr)
+                logger.error(f"Could not save attachment {filename}. Error: {e}")
         else:
             missing_parts = [p for p, v in [("data", data), ("filename", filename)] if not v]
-            print(f"WARNING: Attachment missing {' and '.join(missing_parts)}: {attachment}", file=sys.stderr)
+            logger.warning(f"Attachment missing {' and '.join(missing_parts)}: {attachment}")
     
     return attachment_links
 
@@ -229,9 +232,9 @@ async def _send_reply(group_id: str, message: str, writer: asyncio.StreamWriter)
     try:
         writer.write(request_str.encode('utf-8'))
         await writer.drain()
-        print(f"Sent reply to {group_id}", file=sys.stderr)
+        logger.info(f"Sent reply to {group_id}")
     except Exception as e:
-        print(f"ERROR sending reply to {group_id}: {e}", file=sys.stderr)
+        logger.error(f"ERROR sending reply to {group_id}: {e}")
 
 
 
@@ -247,12 +250,12 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
 
     if group_title and group_title in IGNORED_GROUPS:
-        print(f"Skipping message from ignored group: {group_title}", file=sys.stderr)
+        logger.info(f"Skipping message from ignored group: {group_title}")
         return
     
     # If message starts with '--', ignore it.
     if msg and msg.strip().startswith('--'):
-        print("Skipping message: Starts with '--'.", file=sys.stderr)
+        logger.info("Skipping message: Starts with '--'.")
         return
 
     source_name = envelope.get("sourceName")
@@ -272,7 +275,7 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
 
     if is_plus_plus_append or is_reply_append:
         if not group_title:
-            print("ERROR: Cannot append message, missing group.", file=sys.stderr)
+            logger.error("Cannot append message, missing group.")
             return
 
         group_dir = get_safe_group_dir_path(group_title)
@@ -283,7 +286,7 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
             append_target_number = quote.get("author")
             append_target_name = None # Name isn't available in the quote object
             if not append_target_number:
-                 print("ERROR: Cannot append reply, quote author number is missing.", file=sys.stderr)
+                 logger.error("Cannot append reply, quote author number is missing.")
                  return
         else:
             # For '++', find the file of the *current sender*
@@ -291,7 +294,7 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
             append_target_name = source_name
         
         if not (append_target_name or append_target_number):
-             print("ERROR: Cannot append message, missing target user details.", file=sys.stderr)
+             logger.error("Cannot append message, missing target user details.")
              return
 
         latest_file = _find_latest_file_for_sender(group_dir, append_target_name, append_target_number)
@@ -317,12 +320,12 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
                 with open(latest_file, "a", encoding="utf-8") as f:
                     f.write("\n---\n")
                     f.write("\n".join(content_to_append))
-                print(f"APPENDED (reply or ++) TO: {latest_file}", file=sys.stderr)
+                logger.info(f"APPENDED (reply or ++) TO: {latest_file}")
             else:
-                print(f"INFO: Ignoring empty append message.", file=sys.stderr)
+                logger.info("Ignoring empty append message.")
 
         else:
-            print(f"APPEND FAILED: No recent file found for sender.", file=sys.stderr)
+            logger.info("APPEND FAILED: No recent file found for sender.")
             if is_reply_append:
                 # If reply-append fails, it should be treated as a new message,
                 # but with the quote intact.
@@ -348,20 +351,20 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
                 with open(response_filepath, "r", encoding="utf-8") as f:
                     response_text = f.read()
                 await _send_reply(group_id, response_text, writer)
-                print(f"Sent '{command}' response.", file=sys.stderr)
+                logger.info(f"Sent '{command}' response.")
             except Exception as e:
-                print(f"ERROR: Could not process #{command} command: {e}", file=sys.stderr)
+                logger.error(f"Could not process #{command} command: {e}")
         else:
-            print(f"No response file found for command: #{command}", file=sys.stderr)
+            logger.info(f"No response file found for command: #{command}")
         return
 
     # If no message body and no attachments, skip.
     if not msg and not attachments:
-        print("Skipping message: No message body and no attachments.", file=sys.stderr)
+        logger.info("Skipping message: No message body and no attachments.")
         return
     
     if not group_title:
-        print("Skipping message: Not a group message.", file=sys.stderr)
+        logger.info("Skipping message: Not a group message.")
         return
     
     dt = (
@@ -422,4 +425,4 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
         f.write("\n".join(content_parts))
 
     action = "APPENDED TO" if file_exists else "WROTE"
-    print(f"{action}: {path}", file=sys.stderr)
+    logger.info(f"{action}: {path}")

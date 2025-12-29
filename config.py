@@ -2,6 +2,7 @@ import sys
 import configparser
 import os
 import zoneinfo
+import logging
 
 def get_config():
     """
@@ -48,6 +49,13 @@ def get_config():
         print(f"Warning: Invalid timezone '{timezone_str}': {e}. Using Europe/Stockholm", file=sys.stderr)
         timezone = zoneinfo.ZoneInfo('Europe/Stockholm')
 
+    # Read logging level if available, defaults to INFO
+    log_level_str = config.get('Logging', 'level', fallback='INFO')
+    try:
+        log_level = getattr(logging, log_level_str.upper())
+    except AttributeError:
+        log_level = logging.INFO
+
     # Expand user path for vault_path and inbox_path
     return {
         'vault_path': os.path.expanduser(vault_path),
@@ -61,7 +69,8 @@ def get_config():
         'timezone': timezone,
         'append_window_minutes': append_window_minutes,
         'ignored_groups': ignored_groups,
-        'signal_cli_log_file': signal_cli_log_file
+        'signal_cli_log_file': signal_cli_log_file,
+        'log_level': log_level
     }
 
 # Load configuration on import
@@ -79,6 +88,7 @@ try:
     APPEND_WINDOW_MINUTES = app_config['append_window_minutes']
     IGNORED_GROUPS = app_config['ignored_groups']
     SIGNAL_CLI_LOG_FILE = app_config['signal_cli_log_file']
+    LOG_LEVEL = app_config['log_level']
 except Exception as e:
     print(f"Error loading configuration: {e}")
     sys.exit(1)
