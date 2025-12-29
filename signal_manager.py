@@ -4,13 +4,11 @@ Signal-cli process manager.
 Handles starting, stopping, and monitoring the signal-cli daemon process.
 """
 import os
-import sys
 import subprocess
 import time
 import socket
 import shutil
 import logging
-from typing import Optional
 
 from config import SIGNAL_CLI_PATH, SIGNAL_CLI_LOG_FILE
 

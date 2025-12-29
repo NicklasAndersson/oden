@@ -4,7 +4,6 @@ import json
 import socket
 import unittest
 import subprocess
-import logging
 from unittest.mock import AsyncMock, MagicMock, patch, ANY
 
 from s7_watcher import (
@@ -61,6 +60,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
                 s7_main()
             
             self.assertTrue(any("signal-cli is not running" in message for message in log.output))
+        mock_exit.assert_called_once_with(1)
 
     @patch('asyncio.open_connection', side_effect=ConnectionRefusedError)
     @patch('sys.exit', side_effect=SystemExit)
@@ -72,6 +72,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
             
             self.assertTrue(any("Connection to signal-cli daemon failed" in message for message in log.output))
         mock_open_connection.assert_awaited_once_with('host', 1234, limit=ANY)
+        mock_exit.assert_called_once_with(1)
 
 @patch.object(SignalManager, '_find_executable', return_value='exec/path')
 class TestSignalManager(unittest.TestCase):
