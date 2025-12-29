@@ -4,6 +4,8 @@ import json
 import datetime
 import base64
 import re
+import asyncio
+from typing import Optional, List, Tuple, Dict, Any
 from urllib.parse import urlparse, parse_qs
 
 from config import REGEX_PATTERNS, TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS
@@ -19,7 +21,7 @@ from formatting import (
 # MESSAGE PROCESSING
 # ==============================================================================
 
-def _find_latest_file_for_sender(group_dir, source_name, source_number):
+def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], source_number: Optional[str]) -> Optional[str]:
     """
     Finds the most recent file by a given sender in a group directory.
     """
@@ -75,7 +77,7 @@ def _find_latest_file_for_sender(group_dir, source_name, source_number):
     return latest_file
 
 
-def _apply_regex_links(text):
+def _apply_regex_links(text: Optional[str]) -> Optional[str]:
     """
     Applies regex patterns from configuration to text and converts matches to [[...]] links.
     Avoids linking text that is already inside [[...]].
@@ -101,7 +103,7 @@ def _apply_regex_links(text):
     
     return text
 
-def _extract_message_details(envelope):
+def _extract_message_details(envelope: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Optional[str], List[Dict[str, Any]]]:
     """
     Helper to extract message content, group title, and group id from an envelope.
     Handles both incoming data messages and outgoing sync messages.
@@ -129,7 +131,7 @@ def _extract_message_details(envelope):
     return None, None, None, []
 
 
-async def _get_attachment_data(attachment_id, reader, writer):
+async def _get_attachment_data(attachment_id: str, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[str]:
     """
     Makes a JSON-RPC call to signal-cli to get attachment data by ID.
     Returns base64 encoded data if successful, otherwise None.
@@ -166,7 +168,7 @@ async def _get_attachment_data(attachment_id, reader, writer):
         print(f"ERROR calling getAttachment for ID {attachment_id}: {e}", file=sys.stderr)
         return None
 
-async def _save_attachments(attachments, group_dir, dt, source_name, source_number, reader, writer):
+async def _save_attachments(attachments: List[Dict[str, Any]], group_dir: str, dt: datetime.datetime, source_name: Optional[str], source_number: Optional[str], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> List[str]:
     """Saves attachments to a subdirectory and returns a list of markdown links."""
     attachment_links = []
     if not attachments:
@@ -210,7 +212,7 @@ async def _save_attachments(attachments, group_dir, dt, source_name, source_numb
     
     return attachment_links
 
-async def _send_reply(group_id, message, writer):
+async def _send_reply(group_id: str, message: str, writer: asyncio.StreamWriter) -> None:
     """Sends a reply message to a given group ID via signal-cli JSON-RPC."""
     request_id = f"send-{datetime.datetime.now().microsecond}"
     json_request = {
@@ -233,7 +235,7 @@ async def _send_reply(group_id, message, writer):
 
 
 
-async def process_message(obj, reader, writer):
+async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     """
     Parses a signal message object and writes it to a markdown file, including attachments.
     If a file for that sender already exists from the same minute, appends the new message.

@@ -6,6 +6,7 @@ import subprocess
 import time
 import socket
 import shutil
+from typing import Optional
 
 from config import (
     VAULT_PATH, 
@@ -19,7 +20,7 @@ from config import (
 )
 from processing import process_message
 
-def is_signal_cli_running(host, port):
+def is_signal_cli_running(host: str, port: int) -> bool:
     """Checks if the signal-cli RPC server is reachable."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
@@ -32,7 +33,7 @@ def is_signal_cli_running(host, port):
 class SignalManager:
     """Manages the signal-cli subprocess."""
 
-    def __init__(self, number, host, port):
+    def __init__(self, number: str, host: str, port: int) -> None:
         self.number = number
         self.host = host
         self.port = port
@@ -40,7 +41,7 @@ class SignalManager:
         self.executable = self._find_executable()
         self.log_file_handle = None
 
-    def _find_executable(self):
+    def _find_executable(self) -> str:
         """Finds the signal-cli executable."""
         if SIGNAL_CLI_PATH:
             if os.path.exists(SIGNAL_CLI_PATH):
@@ -60,7 +61,7 @@ class SignalManager:
 
         raise FileNotFoundError("signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in config.ini.")
 
-    def start(self):
+    def start(self) -> None:
         """Starts the signal-cli daemon."""
         if is_signal_cli_running(self.host, self.port):
             print("signal-cli is already running.", file=sys.stderr)
@@ -116,7 +117,7 @@ class SignalManager:
         raise RuntimeError("Could not start signal-cli.")
 
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops the signal-cli daemon."""
         if self.process:
             print("Stopping signal-cli...", file=sys.stderr)
@@ -136,7 +137,7 @@ class SignalManager:
 # DAEMON/LISTENER
 # ==============================================================================
 
-async def update_profile(writer, display_name):
+async def update_profile(writer: asyncio.StreamWriter, display_name: Optional[str]) -> None:
     """Sends a JSON-RPC request to update the profile name."""
     if not display_name:
         return
@@ -160,7 +161,7 @@ async def update_profile(writer, display_name):
     except Exception as e:
         print(f"ERROR sending updateProfile request: {e}", file=sys.stderr)
 
-async def subscribe_and_listen(host, port):
+async def subscribe_and_listen(host: str, port: int) -> None:
     """Connects to signal-cli via TCP socket, subscribes to messages, and processes them."""
     print(f"Connecting to signal-cli at {host}:{port}...", file=sys.stderr)
     
@@ -204,7 +205,7 @@ async def subscribe_and_listen(host, port):
             await writer.wait_closed()
         print("\nConnection closed.", file=sys.stderr)
 
-def main():
+def main() -> None:
     """Sets up the vault path, starts signal-cli, and begins listening."""
     print("Starting s7_watcher...", file=sys.stderr)
 
