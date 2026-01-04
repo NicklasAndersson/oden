@@ -4,51 +4,58 @@ Det här dokumentet beskriver flödet för hur ett inkommande Signal-meddelande 
 
 ```mermaid
 sequenceDiagram
-    participant Externt as Användare (Externt)
-    participant Signal as signal-cli
-    participant Watcher as s7_watcher.py
-    participant Processor as processing.py
-    participant Valv as Vault (Filsystem)
+    participant Användare
+    participant signal-cli
+    participant s7_watcher.py as Watcher
+    participant processing.py as Processor
+    participant Vault
 
-    Note over Externt, Valv: Hantering av inkommande meddelande
+    Användare->>signal-cli: Skickar meddelande
+    signal-cli->>Watcher: Förmedlar meddelande (JSON)
+    Watcher->>Processor: process_message()
 
-    Externt->>+Signal: Skickar meddelande
-    Signal->>+Watcher: Förmedlar meddelande (JSON via TCP)
-    Watcher->>+Processor: Anropar process_message()
+    activate Processor
+
+    alt Meddelande börjar med --
+        Processor-->>Watcher: Ignorerar meddelandet
     
-    Note over Processor: Analyserar prefix och typ
-    
-    alt Börjar med "--"? (Ignorera)
-        Note over Processor: IGNORERAR meddelandet
-        Processor-->>Watcher: Avbryter processen (gör inget)
-
-    else Är "++" eller Svar på meddelande (<30 min)?
-        Processor->>Valv: Söker senaste fil för avsändare
+    else Meddelande är ett svar eller börjar med ++
+        Processor->>Vault: Finns en nylig fil från avsändaren?
         
-        alt Fil hittades
-            Processor->>Valv: APPEND: Lägger till text/bilaga i befintlig fil
-        else Ingen fil hittades
-            Note over Processor: Hanteras som vanligt meddelande
-            Processor->>Valv: WRITE: Skapar ny .md-fil
+        alt Ja (filen är < 30 min gammal)
+            Vault-->>Processor: Ja, här är sökvägen
+            opt Innehåller bilaga
+                Processor->>signal-cli: Hämta bilaga
+                signal-cli-->>Processor: Returnerar bilaga
+                Processor->>Vault: Sparar bilaga
+            end
+            Processor->>Vault: Lägger till text i befintlig fil
+        
+        else Nej (ingen nylig fil)
+            Note over Processor: Hanteras som ett vanligt meddelande
+            opt Innehåller bilaga
+                Processor->>signal-cli: Hämta bilaga
+                signal-cli-->>Processor: Returnerar bilaga
+                Processor->>Vault: Sparar bilaga
+            end
+            Processor->>Vault: Skapar ny .md-fil
         end
 
-    else Är Kommando (t.ex. "#help")?
-        Processor->>Valv: Läser svarsfil (t.ex. /responses/help.md)
-        Valv-->>Processor: Returnerar innehåll
-        Processor->>Signal: Skickar svar (send-anrop)
-        Signal->>Externt: Levererar svar
-
-    else Vanligt Meddelande
-        Processor-->>Signal: Hämtar ev. stor bilaga (getAttachment)
-        Signal-->>Processor: Returnerar bilaga (base64)
-        Processor->>Valv: WRITE: Skapar/bifogar .md-fil
-        Processor->>Valv: Sparar bilagor i undermapp
-    end
+    else Meddelande börjar med # (kommando)
+        Processor->>Vault: Läser svarsfil från /responses
+        Vault-->>Processor: Returnerar filinnehåll
+        Processor->>signal-cli: Skickar svar till gruppen
+        signal-cli->>Användare: Visar svar
     
+    else Vanligt meddelande
+        opt Innehåller bilaga
+            Processor->>signal-cli: Hämta bilaga
+            signal-cli-->>Processor: Returnerar bilaga
+            Processor->>Vault: Sparar bilaga i undermapp
+        end
+        Processor->>Vault: Skapar ny .md-fil med metadata och text
+    end
     deactivate Processor
-    deactivate Watcher
-    deactivate Signal
-
 ```
 
 ## Detaljerad beskrivning
