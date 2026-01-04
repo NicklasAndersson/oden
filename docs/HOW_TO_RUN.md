@@ -1,6 +1,9 @@
+> [!NOTE]
+> Denna guide är avsedd för att köra en **paketerad release** av Oden. Om du är en utvecklare som arbetar med källkoden, vänligen se `README.md` i repots rot.
+
 # Oden S7 Watcher
 
-Oden S7 Watcher är ett verktyg som övervakar en mapp för nya filer och bearbetar dem baserat på din konfiguration.
+Oden S7 Watcher är ett verktyg som tar emot och bearbetar **Signal-meddelanden** baserat på din konfiguration.
 
 ## Installation och Inställningar
 
@@ -38,7 +41,7 @@ När din installation och konfiguration är klar kan du köra applikationen. Se 
 
 Det finns två sätt att lägga till information i en rapport som du nyligen har skickat:
 
-1.  **Svara på ditt eget meddelande:** Om du svarar på ett av dina egna meddelanden kommer texten i ditt svar att läggas till i den ursprungliga filen, förutsatt att det ursprungliga meddelandet inte är äldre än 30 minuter.
+1.  **Svara på ett meddelande:** Om du svarar på ett meddelande i gruppen (oavsett vem som skrev originalet), kommer texten i ditt svar att läggas till i din senast skapade rapport, förutsatt att den inte är äldre än 30 minuter.
 
 2.  **Använd kommandot `++`:** Om du skickar ett meddelande som börjar med `++`, kommer dess innehåll att läggas till i det senaste meddelandet du skickade (även här inom 30 minuter).
 

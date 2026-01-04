@@ -1,1 +1,1 @@
-This is a placeholder for the ok message.
+Mottaget.
