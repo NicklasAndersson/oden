@@ -6,7 +6,7 @@
 
 Denna README är för utvecklare som har klonat repot för att bygga från källkod eller bidra.
 
-För instruktioner om hur man kör en förpaketerad release, se `docs/HOW_TO_RUN.md`.
+För instruktioner om hur man kör en förpaketerad release, se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md).
 
 ### Funktioner
 
@@ -20,8 +20,8 @@ Detta gör det möjligt att enkelt lägga till fler detaljer, korrigeringar elle
 
 ## Konfiguration
 
-Redigera `config.ini` enligt `docs/HOW_TO_RUN.md`. Se till att tidszon, regex och Signal-relaterade inställningar är korrekt inställda för din miljö.
+Redigera `config.ini` enligt [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md). Se till att tidszon, regex och Signal-relaterade inställningar är korrekt inställda för din miljö.
 
 ## Flödesdiagram
 
-[Flödesdiagram för applikationen](docs/Flow.md)
+[Flödesdiagram för applikationen](./docs/Flow.md)
