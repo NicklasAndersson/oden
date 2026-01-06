@@ -23,9 +23,25 @@ Om du använder macOS är det enklaste sättet att komma igång att använda det
 
 Detta skript kommer att kontrollera beroenden (som Java) och guida dig genom att ansluta ditt Signal-konto.
 
-### 2. Manuell Installation (Windows)
+### 2. Kör Installationsskriptet (Windows)
 
-Tyvärr finns ett automatiserat installationsskript för Windows ännu inte tillgängligt. Vi ber om ursäkt för besväret. Windows-användare måste installera `signal-cli` manuellt. Vänligen se den officiella `signal-cli`-dokumentationen för instruktioner om hur man antingen [registrerar ett nytt nummer](https://github.com/AsamK/signal-cli/wiki/Register-a-new-signal-account) eller [länkar en befintlig enhet](https://github.com/AsamK/signal-cli/wiki/Link-a-second-device).
+Om du använder Windows, använd det interaktiva installationsskriptet för PowerShell.
+
+1.  **Öppna PowerShell:** Högerklicka på Start-menyn och välj "PowerShell" eller "Terminal".
+2.  **Navigera till mappen:** Gå till mappen där du packade upp release-filen.
+    ```powershell
+    cd "C:\vägen\till\din\mapp"
+    ```
+3.  **Kör skriptet:**
+    ```powershell
+    .\install_windows.ps1
+    ```
+
+> **Note:** Om du får ett felmeddelande om att skript inte får köras på systemet, kan du behöva ändra din "Execution Policy". Du kan göra detta för den aktuella processen genom att köra:
+> `Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process`
+> Kör sedan installationsskriptet igen.
+
+Detta skript kommer att kontrollera beroenden (som Java) och guida dig genom att ansluta ditt Signal-konto.
 
 ### 3. Redigera `config.ini`
 
