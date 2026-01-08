@@ -7,18 +7,38 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
         python-version: "3.10"
-    - name: Install package
+    - name: Install ruff
+      run: pip install ruff
+    - name: Run ruff linter
+      run: ruff check .
+    - name: Run ruff formatter check
+      run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    - name: Install package with test dependencies
       run: |
         pip install -e .
-    - name: Run tests
+        pip install pytest pytest-cov
+    - name: Run tests with coverage
       run: |
-        python -m unittest discover -s tests
+        pytest --cov=oden --cov-report=xml --cov-report=term-missing
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false

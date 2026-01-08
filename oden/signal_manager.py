@@ -3,14 +3,15 @@ Signal-cli process manager.
 
 Handles starting, stopping, and monitoring the signal-cli daemon process.
 """
+
+import logging
 import os
+import shutil
+import socket
 import subprocess
 import time
-import socket
-import shutil
-import logging
 
-from oden.config import SIGNAL_CLI_PATH, SIGNAL_CLI_LOG_FILE
+from oden.config import SIGNAL_CLI_LOG_FILE, SIGNAL_CLI_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def is_signal_cli_running(host: str, port: int) -> bool:
             s.settimeout(1)
             s.connect((host, port))
             return True
-        except (socket.error, ConnectionRefusedError):
+        except (OSError, ConnectionRefusedError):
             return False
 
 
@@ -46,16 +47,18 @@ class SignalManager:
             else:
                 logger.warning(f"Configured signal_cli_path '{SIGNAL_CLI_PATH}' does not exist.")
 
-        if (path := shutil.which("signal-cli")):
+        if path := shutil.which("signal-cli"):
             logger.info(f"Found signal-cli in PATH: {path}")
             return path
-        
+
         bundled_path = "./signal-cli-0.13.22/bin/signal-cli"
         if os.path.exists(bundled_path):
             logger.info(f"Found bundled signal-cli: {bundled_path}")
             return os.path.abspath(bundled_path)
 
-        raise FileNotFoundError("signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in config.ini.")
+        raise FileNotFoundError(
+            "signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in config.ini."
+        )
 
     def start(self) -> None:
         """Starts the signal-cli daemon."""
@@ -65,21 +68,24 @@ class SignalManager:
 
         command = [
             self.executable,
-            "-u", self.number,
+            "-u",
+            self.number,
             "daemon",
-            "--tcp", f"{self.host}:{self.port}",
-            "--receive-mode", "on-connection"
+            "--tcp",
+            f"{self.host}:{self.port}",
+            "--receive-mode",
+            "on-connection",
         ]
-        
+
         logger.info(f"Starting signal-cli: {' '.join(command)}")
 
         if SIGNAL_CLI_LOG_FILE:
             try:
-                self.log_file_handle = open(SIGNAL_CLI_LOG_FILE, 'a')
+                self.log_file_handle = open(SIGNAL_CLI_LOG_FILE, "a")  # noqa: SIM115
                 stdout_target = self.log_file_handle
                 stderr_target = self.log_file_handle
                 logger.info(f"Redirecting signal-cli output to {SIGNAL_CLI_LOG_FILE}")
-            except IOError as e:
+            except OSError as e:
                 logger.warning(f"Could not open log file {SIGNAL_CLI_LOG_FILE}: {e}. Logging to stderr.")
                 stdout_target = subprocess.PIPE
                 stderr_target = subprocess.PIPE
@@ -88,9 +94,9 @@ class SignalManager:
             stderr_target = subprocess.PIPE
 
         self.process = subprocess.Popen(command, stdout=stdout_target, stderr=stderr_target)
-        
+
         # Poll for up to 15 seconds for the daemon to start
-        for i in range(15):
+        for _ in range(15):
             if is_signal_cli_running(self.host, self.port):
                 logger.info("signal-cli started successfully.")
                 return

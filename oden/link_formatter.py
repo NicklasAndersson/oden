@@ -3,26 +3,26 @@ Link formatting for Signal message content.
 
 Applies regex patterns to text and converts matches to Obsidian-style links.
 """
+
 import logging
 import re
-from typing import Optional
 
 from oden.config import REGEX_PATTERNS
 
 logger = logging.getLogger(__name__)
 
 
-def apply_regex_links(text: Optional[str]) -> Optional[str]:
+def apply_regex_links(text: str | None) -> str | None:
     """
     Applies regex patterns from configuration to text and converts matches to [[...]] links.
     Avoids linking text that is already inside [[...]].
     """
     if not text or not REGEX_PATTERNS:
         return text
-    
+
     # Find all existing [[...]] patterns to avoid double-linking
-    existing_links = set(re.findall(r'\[\[([^\]]+)\]\]', text))
-    
+    existing_links = set(re.findall(r"\[\[([^\]]+)\]\]", text))
+
     for pattern_name, pattern in REGEX_PATTERNS.items():
         try:
             # Find all matches
@@ -35,5 +35,5 @@ def apply_regex_links(text: Optional[str]) -> Optional[str]:
                     existing_links.add(matched_text)
         except Exception as e:
             logger.warning(f"Error applying regex pattern '{pattern_name}': {e}")
-    
+
     return text

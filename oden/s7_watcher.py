@@ -3,28 +3,21 @@ Signal-cli listener and message processor.
 
 Main entry point that connects to signal-cli daemon and processes incoming messages.
 """
-import sys
-import json
-import asyncio
-import logging
-import time
-from typing import Optional
 
-from oden.config import (
-    SIGNAL_NUMBER, 
-    DISPLAY_NAME,
-    SIGNAL_CLI_HOST, 
-    SIGNAL_CLI_PORT,
-    UNMANAGED_SIGNAL_CLI,
-    LOG_LEVEL
-)
-from oden.signal_manager import SignalManager, is_signal_cli_running
+import asyncio
+import json
+import logging
+import sys
+import time
+
+from oden.config import DISPLAY_NAME, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, UNMANAGED_SIGNAL_CLI
 from oden.processing import process_message
+from oden.signal_manager import SignalManager, is_signal_cli_running
 
 logger = logging.getLogger(__name__)
 
 
-async def update_profile(writer: asyncio.StreamWriter, display_name: Optional[str]) -> None:
+async def update_profile(writer: asyncio.StreamWriter, display_name: str | None) -> None:
     """Sends a JSON-RPC request to update the profile name."""
     if not display_name:
         return
@@ -40,7 +33,7 @@ async def update_profile(writer: asyncio.StreamWriter, display_name: Optional[st
 
     try:
         logger.info(f"Attempting to update profile name to '{display_name}'...")
-        writer.write(request_str.encode('utf-8'))
+        writer.write(request_str.encode("utf-8"))
         await writer.drain()
         # Note: We are not waiting for a response here to avoid blocking.
         # The update is "fire and forget".
@@ -52,24 +45,24 @@ async def update_profile(writer: asyncio.StreamWriter, display_name: Optional[st
 async def subscribe_and_listen(host: str, port: int) -> None:
     """Connects to signal-cli via TCP socket, subscribes to messages, and processes them."""
     logger.info(f"Connecting to signal-cli at {host}:{port}...")
-    
+
     reader = None
     writer = None
     try:
-        reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100) # 100 MB limit
+        reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100)  # 100 MB limit
         logger.info("Connection successful. Waiting for messages...")
 
         await update_profile(writer, DISPLAY_NAME)
-        
+
         while not reader.at_eof():
             line = await reader.readline()
             if not line:
                 break
-            
-            message_str = line.decode('utf-8').strip()
+
+            message_str = line.decode("utf-8").strip()
             if not message_str:
                 continue
-                
+
             try:
                 data = json.loads(message_str)
                 if data.get("method") == "receive" and (params := data.get("params")):
@@ -77,7 +70,7 @@ async def subscribe_and_listen(host: str, port: int) -> None:
                 else:
                     # Log other responses if they are not the response to our updateProfile request
                     if not (isinstance(data, dict) and data.get("id", "").startswith("update-profile-")):
-                         logger.debug(f"Received non-message data: {data}")
+                        logger.debug(f"Received non-message data: {data}")
             except json.JSONDecodeError:
                 logger.error(f"Received non-JSON message: {message_str}")
             except Exception as e:
@@ -97,11 +90,8 @@ async def subscribe_and_listen(host: str, port: int) -> None:
 def main() -> None:
     """Sets up the vault path, starts signal-cli, and begins listening."""
     # Configure logging
-    logging.basicConfig(
-        level=LOG_LEVEL,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
     logger.info("Starting s7_watcher...")
 
     if SIGNAL_NUMBER == "YOUR_SIGNAL_NUMBER":

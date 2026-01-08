@@ -1,23 +1,19 @@
-import os
-import sys
-import json
-import datetime
-import base64
-import re
 import asyncio
+import datetime
+import json
 import logging
-from typing import Optional, List, Tuple, Dict, Any
-from urllib.parse import urlparse, parse_qs
+import os
+import re
+from typing import Any
 
-from oden.config import REGEX_PATTERNS, TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS
+from oden.attachment_handler import save_attachments
+from oden.config import APPEND_WINDOW_MINUTES, IGNORED_GROUPS, TIMEZONE
 from oden.formatting import (
-    get_message_filepath,
-    format_sender_display,
     _format_quote,
-    create_message_filename,
+    format_sender_display,
+    get_message_filepath,
     get_safe_group_dir_path,
 )
-from oden.attachment_handler import save_attachments
 from oden.link_formatter import apply_regex_links
 
 logger = logging.getLogger(__name__)
@@ -26,29 +22,30 @@ logger = logging.getLogger(__name__)
 # MESSAGE PROCESSING
 # ==============================================================================
 
-def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], source_number: Optional[str]) -> Optional[str]:
+
+def _find_latest_file_for_sender(group_dir: str, source_name: str | None, source_number: str | None) -> str | None:
     """
     Finds the most recent file by a given sender in a group directory.
     Returns the path to the most recent file within APPEND_WINDOW_MINUTES, or None.
     """
     latest_file = None
     latest_time = datetime.datetime.min.replace(tzinfo=TIMEZONE)
-    
+
     # Construct sender identifier for matching filenames
     sender_id_parts = []
     if source_number:
-        sender_id_parts.append(source_number.lstrip('+'))
+        sender_id_parts.append(source_number.lstrip("+"))
     if source_name:
-        sender_id_parts.append(source_name.replace('/', '_'))
-    
+        sender_id_parts.append(source_name.replace("/", "_"))
+
     if not sender_id_parts:
         return None
-    
-    sender_pattern = re.sub(r'[^\w\-_\.]', '_', "-".join(sender_id_parts))
+
+    sender_pattern = re.sub(r"[^\w\-_\.]", "_", "-".join(sender_id_parts))
 
     try:
         now = datetime.datetime.now(TIMEZONE)
-        candidate_files = [f for f in os.listdir(group_dir) if f.endswith('.md')]
+        candidate_files = [f for f in os.listdir(group_dir) if f.endswith(".md")]
 
         for filename in candidate_files:
             # Check if the file belongs to the sender
@@ -57,10 +54,10 @@ def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], sou
 
             try:
                 # Extract DDHHMM from filename like "DDHHMM-..."
-                ts_str = filename.split('-')[0]
+                ts_str = filename.split("-")[0]
                 if len(ts_str) != 6:
                     continue
-                
+
                 day = int(ts_str[0:2])
                 hour = int(ts_str[2:4])
                 minute = int(ts_str[4:6])
@@ -75,36 +72,39 @@ def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], sou
                 except ValueError:
                     # Handle invalid day for this month (e.g., day 31 in February)
                     continue
-                
+
                 # Handle month/year rollovers
                 if file_dt > now:
                     # If the file's date is in the future, it must be from the previous month
                     # Calculate previous month safely
                     prev_month = now.month - 1 if now.month > 1 else 12
                     prev_year = now.year if now.month > 1 else now.year - 1
-                    
+
                     try:
-                        file_dt = now.replace(year=prev_year, month=prev_month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                        file_dt = now.replace(
+                            year=prev_year, month=prev_month, day=day, hour=hour, minute=minute, second=0, microsecond=0
+                        )
                     except ValueError:
                         # Day doesn't exist in previous month either, skip this file
                         continue
-                    
+
                     # If still in the future (shouldn't happen), skip the file
                     if file_dt > now:
                         continue
 
                 # Check if the file is within the append window
                 time_diff = now - file_dt
-                if time_diff < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES):
-                    if latest_file is None or file_dt > latest_time:
-                        latest_time = file_dt
-                        latest_file = os.path.join(group_dir, filename)
-                        logger.debug(f"Found candidate file: {filename} (age: {time_diff})")
+                if time_diff < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES) and (
+                    latest_file is None or file_dt > latest_time
+                ):
+                    latest_time = file_dt
+                    latest_file = os.path.join(group_dir, filename)
+                    logger.debug(f"Found candidate file: {filename} (age: {time_diff})")
 
             except (ValueError, IndexError) as e:
                 logger.debug(f"Skipping file {filename}: {e}")
                 continue
-    
+
     except FileNotFoundError:
         return None
 
@@ -113,14 +113,17 @@ def _find_latest_file_for_sender(group_dir: str, source_name: Optional[str], sou
     return latest_file
 
 
-def _apply_regex_links(text: Optional[str]) -> Optional[str]:
+def _apply_regex_links(text: str | None) -> str | None:
     """
     Wrapper function for backward compatibility.
     Use apply_regex_links from link_formatter module instead.
     """
     return apply_regex_links(text)
 
-def _extract_message_details(envelope: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Optional[str], List[Dict[str, Any]]]:
+
+def _extract_message_details(
+    envelope: dict[str, Any],
+) -> tuple[str | None, str | None, str | None, list[dict[str, Any]]]:
     """
     Helper to extract message content, group title, and group id from an envelope.
     Handles both incoming data messages and outgoing sync messages.
@@ -132,7 +135,7 @@ def _extract_message_details(envelope: Dict[str, Any]) -> Tuple[Optional[str], O
             dm.get("message") or dm.get("body"),
             group_meta.get("name") or group_meta.get("title") or group_meta.get("groupName"),
             group_meta.get("id") or group_meta.get("groupId"),
-            dm.get("attachments", [])
+            dm.get("attachments", []),
         )
 
     if "syncMessage" in envelope:
@@ -142,26 +145,39 @@ def _extract_message_details(envelope: Dict[str, Any]) -> Tuple[Optional[str], O
             sent.get("message"),
             group_info.get("groupName") or group_info.get("title") or group_info.get("name"),
             group_info.get("groupId"),
-            sent.get("attachments", [])
+            sent.get("attachments", []),
         )
 
     return None, None, None, []
 
 
-async def _get_attachment_data(attachment_id: str, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Optional[str]:
+async def _get_attachment_data(
+    attachment_id: str, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+) -> str | None:
     """
     Wrapper function for backward compatibility.
     Use _get_attachment_data from attachment_handler module instead.
     """
     from attachment_handler import _get_attachment_data as get_attachment_data_impl
+
     return await get_attachment_data_impl(attachment_id, reader, writer)
 
-async def _save_attachments(attachments: List[Dict[str, Any]], group_dir: str, dt: datetime.datetime, source_name: Optional[str], source_number: Optional[str], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> List[str]:
+
+async def _save_attachments(
+    attachments: list[dict[str, Any]],
+    group_dir: str,
+    dt: datetime.datetime,
+    source_name: str | None,
+    source_number: str | None,
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+) -> list[str]:
     """
     Wrapper function for backward compatibility.
     Use save_attachments from attachment_handler module instead.
     """
     return await save_attachments(attachments, group_dir, dt, source_name, source_number, reader, writer)
+
 
 async def _send_reply(group_id: str, message: str, writer: asyncio.StreamWriter) -> None:
     """Sends a reply message to a given group ID via signal-cli JSON-RPC."""
@@ -169,24 +185,20 @@ async def _send_reply(group_id: str, message: str, writer: asyncio.StreamWriter)
     json_request = {
         "jsonrpc": "2.0",
         "method": "send",
-        "params": {
-            "groupId": group_id,
-            "message": message
-        },
-        "id": request_id
+        "params": {"groupId": group_id, "message": message},
+        "id": request_id,
     }
     request_str = json.dumps(json_request) + "\n"
 
     try:
-        writer.write(request_str.encode('utf-8'))
+        writer.write(request_str.encode("utf-8"))
         await writer.drain()
         logger.info(f"Sent reply to {group_id}")
     except Exception as e:
         logger.error(f"ERROR sending reply to {group_id}: {e}")
 
 
-
-async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     """
     Parses a signal message object and writes it to a markdown file, including attachments.
     If a file for that sender already exists from the same minute, appends the new message.
@@ -200,9 +212,9 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
     if group_title and group_title in IGNORED_GROUPS:
         logger.info(f"Skipping message from ignored group: {group_title}")
         return
-    
+
     # If message starts with '--', ignore it.
-    if msg and msg.strip().startswith('--'):
+    if msg and msg.strip().startswith("--"):
         logger.info("Skipping message: Starts with '--'.")
         return
 
@@ -213,7 +225,7 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
     now = datetime.datetime.now(TIMEZONE)
 
     # --- Append Logic ---
-    is_plus_plus_append = msg and msg.strip().startswith('++')
+    is_plus_plus_append = msg and msg.strip().startswith("++")
     is_reply_append = False
     if quote:
         quote_ts = quote.get("id", 0)
@@ -232,34 +244,36 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
         if is_reply_append:
             # For replies, find the file of the *quoted author*
             append_target_number = quote.get("author")
-            append_target_name = None # Name isn't available in the quote object
+            append_target_name = None  # Name isn't available in the quote object
             if not append_target_number:
-                 logger.error("Cannot append reply, quote author number is missing.")
-                 return
+                logger.error("Cannot append reply, quote author number is missing.")
+                return
         else:
             # For '++', find the file of the *current sender*
             append_target_number = source_number
             append_target_name = source_name
-        
+
         if not (append_target_name or append_target_number):
-             logger.error("Cannot append message, missing target user details.")
-             return
+            logger.error("Cannot append message, missing target user details.")
+            return
 
         latest_file = _find_latest_file_for_sender(group_dir, append_target_name, append_target_number)
 
         if latest_file:
             content_to_append = []
-            
+
             new_text = ""
             if msg:
-                new_text = msg.strip().lstrip('++').strip() if is_plus_plus_append else msg.strip()
-            
+                new_text = msg.strip().removeprefix("++").strip() if is_plus_plus_append else msg.strip()
+
             if new_text:
                 content_to_append.append("\n" + _apply_regex_links(new_text))
 
             if attachments:
                 original_group_dir = os.path.dirname(latest_file)
-                attachment_links = await _save_attachments(attachments, original_group_dir, now, source_name, source_number, reader, writer)
+                attachment_links = await _save_attachments(
+                    attachments, original_group_dir, now, source_name, source_number, reader, writer
+                )
                 if attachment_links:
                     content_to_append.append("\n## Bilagor\n")
                     content_to_append.extend(attachment_links)
@@ -281,22 +295,22 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
             else:
                 # If ++ append fails, we just process it as a new message without the ++
                 if msg:
-                    msg = msg.strip().lstrip('++').strip()
-        
+                    msg = msg.strip().removeprefix("++").strip()
+
         # If the append was successful (or a ++ which always consumes the message), we are done.
         # If a reply-append fails, we continue on to process it as a new message.
         if is_plus_plus_append or (is_reply_append and latest_file):
             return
 
     # --- Handle Standard Commands (#) ---
-    if msg and msg.strip().startswith('#'):
+    if msg and msg.strip().startswith("#"):
         command = msg.strip()[1:]
         if not command:
             return
         response_filepath = os.path.join("responses", f"{command}.md")
         if os.path.exists(response_filepath):
             try:
-                with open(response_filepath, "r", encoding="utf-8") as f:
+                with open(response_filepath, encoding="utf-8") as f:
                     response_text = f.read()
                 await _send_reply(group_id, response_text, writer)
                 logger.info(f"Sent '{command}' response.")
@@ -310,11 +324,11 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
     if not msg and not attachments:
         logger.info("Skipping message: No message body and no attachments.")
         return
-    
+
     if not group_title:
         logger.info("Skipping message: Not a group message.")
         return
-    
+
     dt = (
         datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=TIMEZONE)
         if envelope.get("timestamp")
@@ -341,17 +355,19 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
         content_parts.append("\n---\n")
     else:
         sender_display = format_sender_display(source_name, source_number)
-        
-        if lat is not None and lon is not None:
-            content_parts.extend(["---", "locations: \"\"", "---", ""])
 
-        content_parts.extend([
-            f"# {group_title}\n",
-            f"TNR: {dt.strftime('%d%H%M')} ({dt.isoformat()})\n",
-            f"Avsändare: {sender_display}\n",
-            f"Grupp: [[{group_title}]]\n",
-            f"Grupp id: {group_id}\n",
-        ])
+        if lat is not None and lon is not None:
+            content_parts.extend(["---", 'locations: ""', "---", ""])
+
+        content_parts.extend(
+            [
+                f"# {group_title}\n",
+                f"TNR: {dt.strftime('%d%H%M')} ({dt.isoformat()})\n",
+                f"Avsändare: {sender_display}\n",
+                f"Grupp: [[{group_title}]]\n",
+                f"Grupp id: {group_id}\n",
+            ]
+        )
         if lat is not None and lon is not None:
             content_parts.append(f"[Position](geo:{lat},{lon})\n")
 
@@ -366,7 +382,7 @@ async def process_message(obj: Dict[str, Any], reader: asyncio.StreamReader, wri
     if attachment_links:
         content_parts.append("\n## Bilagor\n")
         content_parts.extend(attachment_links)
-    
+
     content_parts.append("")
 
     with open(path, "a", encoding="utf-8") as f:
