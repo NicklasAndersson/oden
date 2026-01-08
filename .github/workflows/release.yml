@@ -31,7 +31,7 @@ jobs:
         run: pyinstaller --onefile --name s7_watcher oden/s7_watcher.py
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: s7_watcher-${{ matrix.os }}
           path: |
