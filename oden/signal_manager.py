@@ -10,7 +10,7 @@ import socket
 import shutil
 import logging
 
-from config import SIGNAL_CLI_PATH, SIGNAL_CLI_LOG_FILE
+from oden.config import SIGNAL_CLI_PATH, SIGNAL_CLI_LOG_FILE
 
 logger = logging.getLogger(__name__)
 

@@ -25,9 +25,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
+          pip install -e .
 
       - name: Build executable with PyInstaller
-        run: pyinstaller --onefile --name s7_watcher s7_watcher.py
+        run: pyinstaller --onefile --name s7_watcher oden/s7_watcher.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -61,7 +62,8 @@ jobs:
           cp docs/Flow.md release_package/docs/
           cp images/logo_small.jpg release_package/images/
           cp config.ini release_package/
-          cp install_mac.sh release_package/
+          cp scripts/install_mac.sh release_package/
+          cp scripts/install_windows.ps1 release_package/
           cp README.md release_package/
           cp -r responses release_package/
           zip -r s7_watcher-release.zip release_package/

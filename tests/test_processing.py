@@ -6,10 +6,10 @@ import datetime
 import unittest
 from unittest.mock import AsyncMock, mock_open, patch
 
-import config
+import oden.config as config
 import importlib
 
-from processing import _extract_message_details, process_message
+from oden.processing import _extract_message_details, process_message
 
 class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
@@ -41,9 +41,9 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(group_id, "group456")
         self.assertEqual(attachments, [])
 
-    @patch('processing.REGEX_PATTERNS', {"reg": r'\bREG\d{3}\b'})
+    @patch('oden.processing.REGEX_PATTERNS', {"reg": r'\bREG\d{3}\b'})
     def test_apply_regex_links(self):
-        from processing import _apply_regex_links
+        from oden.processing import _apply_regex_links
         text = "This is a test for REG123 and also REG456. This should not be linked: [[REG789]]."
         expected = "This is a test for [[REG123]] and also [[REG456]]. This should not be linked: [[REG789]]."
         self.assertEqual(_apply_regex_links(text), expected)
@@ -51,7 +51,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('formatting.VAULT_PATH', 'mock_vault')
+    @patch('oden.formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -84,7 +84,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('formatting.VAULT_PATH', 'mock_vault')
+    @patch('oden.formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
         """Tests that attachments are properly saved and linked in the message file."""
         mock_exists.return_value = False
@@ -137,7 +137,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('formatting.VAULT_PATH', 'mock_vault')
+    @patch('oden.formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -170,7 +170,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('formatting.VAULT_PATH', 'mock_vault')
+    @patch('oden.formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_append_file(self, mock_exists, mock_makedirs, mock_open):
         """Tests that a new message is appended to an existing file."""
         mock_exists.return_value = True
@@ -200,7 +200,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("## Meddelande", written_content)
         self.assertIn("Another message", written_content)
 
-    @patch('processing._send_reply')
+    @patch('oden.processing._send_reply')
     @patch('builtins.open', new_callable=mock_open, read_data="HELP_TEXT")
     @patch('os.path.exists', return_value=True)
     async def test_process_message_command_exists(self, mock_exists, mock_open, mock_send_reply):
@@ -221,7 +221,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_open.assert_called_once_with("responses/help.md", "r", encoding="utf-8")
         mock_send_reply.assert_awaited_once_with("group123", "HELP_TEXT", mock_writer)
 
-    @patch('processing._send_reply')
+    @patch('oden.processing._send_reply')
     @patch('builtins.open', new_callable=mock_open, read_data="OK_TEXT")
     @patch('os.path.exists', return_value=True)
     async def test_process_message_command_exists_ok(self, mock_exists, mock_open, mock_send_reply):
@@ -242,7 +242,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_open.assert_called_once_with("responses/ok.md", "r", encoding="utf-8")
         mock_send_reply.assert_awaited_once_with("group123", "OK_TEXT", mock_writer)
 
-    @patch('processing._send_reply')
+    @patch('oden.processing._send_reply')
     @patch('os.path.exists', return_value=False)
     async def test_process_message_command_not_exists(self, mock_exists, mock_send_reply):
         message_obj = {
@@ -288,7 +288,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(empty_message, mock_reader, mock_writer)
         mock_open.assert_not_called()
 
-    @patch('processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
+    @patch('oden.processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
     @patch('builtins.open', new_callable=mock_open)
     async def test_process_message_append_plus_plus_success(self, mock_open, mock_find_latest):
         """Tests that a '++' message successfully appends to a recent file."""
@@ -313,7 +313,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("\n---\n", written_content)
         self.assertIn("adding more details", written_content)
 
-    @patch('processing._find_latest_file_for_sender', return_value=None)
+    @patch('oden.processing._find_latest_file_for_sender', return_value=None)
     @patch('builtins.open', new_callable=mock_open)
     async def test_process_message_append_plus_plus_failure(self, mock_open, mock_find_latest):
         """Tests that a '++' message fails gracefully when no recent file is found."""
@@ -335,7 +335,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             mock_open.assert_not_called()
             self.assertTrue(any("APPEND FAILED" in message for message in log.output))
 
-    @patch('processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
+    @patch('oden.processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
     @patch('builtins.open', new_callable=mock_open)
     async def test_process_message_append_on_reply_success(self, mock_open, mock_find_latest):
         """Tests that replying to a recent message from self triggers an append."""
@@ -366,11 +366,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
         self.assertIn("This is an addition", written_content)
 
-    @patch('processing._find_latest_file_for_sender')
+    @patch('oden.processing._find_latest_file_for_sender')
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.path.exists', return_value=False)
     @patch('os.makedirs')
-    @patch('formatting.VAULT_PATH', 'mock_vault')
+    @patch('oden.formatting.VAULT_PATH', 'mock_vault')
     async def test_process_message_append_on_reply_fallback(self, mock_makedirs, mock_exists, mock_open, mock_find_latest):
         """Tests that replying to an old message or other user falls back to new message creation."""
         now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
@@ -401,8 +401,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         # Check that the quote is still formatted, since it's a normal reply
         self.assertIn("> **Svarar på", mock_open().write.call_args.args[0])
 
-    @patch('processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
-    @patch('processing._save_attachments', new_callable=AsyncMock, return_value=["![[new_attachment.jpg]]"])
+    @patch('oden.processing._find_latest_file_for_sender', return_value='/mock_vault/My Group/recent_file.md')
+    @patch('oden.processing._save_attachments', new_callable=AsyncMock, return_value=["![[new_attachment.jpg]]"])
     @patch('builtins.open', new_callable=mock_open)
     async def test_process_message_append_reply_with_attachment_only(self, mock_open, mock_save_attachments, mock_find_latest):
         """Tests the user's bug report: replying with only an attachment should append it."""

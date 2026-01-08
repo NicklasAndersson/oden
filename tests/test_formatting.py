@@ -3,10 +3,10 @@ import os
 import unittest
 from unittest.mock import patch
 
-import config
+import oden.config as config
 import importlib
 
-from formatting import (
+from oden.formatting import (
     _format_phone_number,
     _format_quote,
     create_message_filename,
@@ -17,7 +17,7 @@ from formatting import (
 
 class TestFormatting(unittest.TestCase):
 
-    @patch('formatting.VAULT_PATH', 'mock_vault')
+    @patch('oden.formatting.VAULT_PATH', 'mock_vault')
     def test_get_safe_group_dir_path(self):
         self.assertEqual(get_safe_group_dir_path("My Awesome Group"), os.path.join("mock_vault", "My Awesome Group"))
         self.assertEqual(get_safe_group_dir_path("Group/With/Slashes"), os.path.join("mock_vault", "Group_With_Slashes"))
@@ -42,7 +42,7 @@ class TestFormatting(unittest.TestCase):
         self.assertEqual(format_sender_display(None, "+123"), " [[+123]]")
         self.assertEqual(format_sender_display(None, None), "Okänd")
 
-    @patch('formatting.VAULT_PATH', 'mock_vault')
+    @patch('oden.formatting.VAULT_PATH', 'mock_vault')
     def test_get_message_filepath(self):
         dt = datetime.datetime(2025, 12, 18, 10, 30)
         # Test with safe group name
