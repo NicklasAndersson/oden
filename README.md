@@ -27,10 +27,29 @@ oden/
 pip install -e .
 
 # Kör tester
-python -m unittest discover -s tests
+pytest
+
+# Kör tester med coverage
+pytest --cov=oden
 
 # Kör applikationen
 python -m oden
+```
+
+### Kodkvalitet
+
+Projektet använder [Ruff](https://docs.astral.sh/ruff/) för linting och formattering:
+
+```bash
+# Installera pre-commit hooks (kör en gång)
+pip install pre-commit
+pre-commit install
+
+# Manuell linting
+ruff check .
+
+# Manuell formattering
+ruff format .
 ```
 
 ### Funktioner

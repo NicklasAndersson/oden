@@ -6,8 +6,8 @@ Det här dokumentet beskriver flödet för hur ett inkommande Signal-meddelande 
 sequenceDiagram
     participant Användare
     participant signal-cli
-    participant s7_watcher.py as Watcher
-    participant processing.py as Processor
+    participant oden/s7_watcher.py as Watcher
+    participant oden/processing.py as Processor
     participant Vault
 
     Användare->>signal-cli: Skickar meddelande
