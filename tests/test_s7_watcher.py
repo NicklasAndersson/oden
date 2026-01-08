@@ -54,7 +54,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
     @patch('oden.s7_watcher.SIGNAL_NUMBER', '+1234567890')
     def test_main_unmanaged_not_running(self, mock_exit, mock_is_running):
         """Tests main in unmanaged mode when signal-cli is not running."""
-        with self.assertLogs('s7_watcher', level='ERROR') as log:
+        with self.assertLogs('oden.s7_watcher', level='ERROR') as log:
             with self.assertRaises(SystemExit):
                 s7_main()
             
@@ -65,7 +65,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
     @patch('sys.exit', side_effect=SystemExit)
     async def test_subscribe_and_listen_connection_refused(self, mock_exit, mock_open_connection):
         """Tests that a connection refusal is handled gracefully and exits."""
-        with self.assertLogs('s7_watcher', level='ERROR') as log:
+        with self.assertLogs('oden.s7_watcher', level='ERROR') as log:
             with self.assertRaises(SystemExit):
                 await subscribe_and_listen('host', 1234)
             

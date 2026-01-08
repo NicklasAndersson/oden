@@ -328,7 +328,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         }
         mock_reader, mock_writer = AsyncMock(), AsyncMock()
         
-        with self.assertLogs('processing', level='INFO') as log:
+        with self.assertLogs('oden.processing', level='INFO') as log:
             await process_message(message_obj, mock_reader, mock_writer)
 
             mock_find_latest.assert_called_once()
@@ -454,7 +454,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         }
         mock_reader, mock_writer = AsyncMock(), AsyncMock()
         
-        with self.assertLogs('processing', level='DEBUG') as log:
+        with self.assertLogs('oden.processing', level='DEBUG') as log:
             await process_message(message_obj, mock_reader, mock_writer)
 
             mock_open.assert_not_called()
