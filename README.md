@@ -8,6 +8,31 @@ Denna README är för utvecklare som har klonat repot för att bygga från käll
 
 För instruktioner om hur man kör en förpaketerad release, se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md).
 
+### Projektstruktur
+
+```text
+oden/
+├── oden/           # Python-paket med källkod
+├── tests/          # Enhetstester
+├── scripts/        # Installationsskript (macOS/Windows)
+├── docs/           # Dokumentation
+├── responses/      # Svarsmallar för kommandon
+└── images/         # Bilder
+```
+
+### Installation för utveckling
+
+```bash
+# Installera paketet i utvecklingsläge
+pip install -e .
+
+# Kör tester
+python -m unittest discover -s tests
+
+# Kör applikationen
+python -m oden
+```
+
 ### Funktioner
 
 Det finns två sätt att lägga till information i en rapport som du nyligen har skickat:

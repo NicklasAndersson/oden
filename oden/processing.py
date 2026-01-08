@@ -9,16 +9,16 @@ import logging
 from typing import Optional, List, Tuple, Dict, Any
 from urllib.parse import urlparse, parse_qs
 
-from config import REGEX_PATTERNS, TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS
-from formatting import (
+from oden.config import REGEX_PATTERNS, TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS
+from oden.formatting import (
     get_message_filepath,
     format_sender_display,
     _format_quote,
     create_message_filename,
     get_safe_group_dir_path,
 )
-from attachment_handler import save_attachments
-from link_formatter import apply_regex_links
+from oden.attachment_handler import save_attachments
+from oden.link_formatter import apply_regex_links
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Optional
 
-from config import REGEX_PATTERNS
+from oden.config import REGEX_PATTERNS
 
 logger = logging.getLogger(__name__)
 

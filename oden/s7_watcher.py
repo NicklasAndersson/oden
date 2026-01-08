@@ -10,7 +10,7 @@ import logging
 import time
 from typing import Optional
 
-from config import (
+from oden.config import (
     SIGNAL_NUMBER, 
     DISPLAY_NAME,
     SIGNAL_CLI_HOST, 
@@ -18,8 +18,8 @@ from config import (
     UNMANAGED_SIGNAL_CLI,
     LOG_LEVEL
 )
-from signal_manager import SignalManager, is_signal_cli_running
-from processing import process_message
+from oden.signal_manager import SignalManager, is_signal_cli_running
+from oden.processing import process_message
 
 logger = logging.getLogger(__name__)
 

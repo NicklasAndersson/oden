@@ -2,7 +2,7 @@ import os
 import re
 import datetime
 from typing import Optional, Dict, Any, List
-from config import VAULT_PATH
+from oden.config import VAULT_PATH
 
 # ==============================================================================
 # FILENAME AND CONTENT FORMATTING

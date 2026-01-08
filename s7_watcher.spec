@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['s7_watcher.py'],
+    ['oden/s7_watcher.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['oden.config', 'oden.processing', 'oden.formatting', 'oden.link_formatter', 'oden.attachment_handler', 'oden.signal_manager'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
