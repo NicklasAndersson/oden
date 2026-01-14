@@ -43,11 +43,28 @@ Om du använder Windows, använd det interaktiva installationsskriptet för Powe
 
 Detta skript kommer att kontrollera beroenden (som Java) och guida dig genom att ansluta ditt Signal-konto.
 
-### 3. Redigera `config.ini`
+### 3. Kör Installationsskriptet (Linux/Ubuntu)
+
+Om du använder Ubuntu eller en annan Debian-baserad Linux-distribution, använd det interaktiva installationsskriptet.
+
+1. **Öppna en terminal.**
+2. **Navigera till mappen** där du packade upp release-filen.
+3. **Gör skriptet körbart och kör det:**
+
+    ```bash
+    chmod +x ./install_linux.sh
+    sudo ./install_linux.sh
+    ```
+
+> **Note:** Skriptet kan kräva sudo-rättigheter för att installera beroenden som Java och qrencode via `apt`.
+
+Detta skript kommer att kontrollera beroenden (som Java) och guida dig genom att ansluta ditt Signal-konto.
+
+### 4. Redigera `config.ini`
 
 Efter att ha konfigurerat Signal måste du konfigurera Oden. I samma mapp som den körbara filen hittar du en fil med namnet `config.ini`. Redigera värdena i den här filen för att matcha din installation. Se avsnittet **Konfiguration** nedan för detaljer.
 
-### 4. Köra Applikationen
+### 5. Köra Applikationen
 
 När din installation och konfiguration är klar kan du köra applikationen. Se avsnittet **Köra Applikationen** nedan för instruktioner.
 
