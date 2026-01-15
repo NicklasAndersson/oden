@@ -3,4 +3,4 @@
 Oden S7 Watcher - A tool for receiving and processing Signal messages
 """
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
