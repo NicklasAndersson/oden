@@ -235,13 +235,13 @@ case $choice in
         REGISTER_OUTPUT=$($SIGNAL_CLI_EXEC -u "$PHONE_NUMBER" register $VERIFY_FLAG 2>&1)
 
         if [ $? -ne 0 ]; then
-            CAPTCHA_URL=$(echo "$REGISTER_OUTPUT" | grep 'captcha:')
-            if [[ -n "$CAPTCHA_URL" ]]; then
-                echo -e "\n${C_RED}Registration requires a CAPTCHA to be solved.${C_RESET}"
-                echo "1. Open this URL in your browser: ${C_BOLD}${CAPTCHA_URL}${C_RESET}"
-                echo "2. Solve the puzzle."
-                echo "3. You will get a token that starts with 'signal-captcha://'"
-                read -p "4. Paste the entire 'signal-captcha://...' token here: " CAPTCHA_TOKEN
+            if echo "$REGISTER_OUTPUT" | grep -qi 'captcha'; then
+                echo -e "\n${C_YELLOW}Registration requires a CAPTCHA to be solved.${C_RESET}"
+                echo "1. Open this URL in your browser: ${C_BOLD}https://signalcaptchas.org/registration/generate.html${C_RESET}"
+                echo "2. Solve the captcha puzzle."
+                echo "3. Right-click on 'Open Signal' and copy the link."
+                echo "4. The link starts with 'signalcaptcha://'"
+                read -p "Paste the entire signalcaptcha:// link here: " CAPTCHA_TOKEN
                 
                 if [ -z "$CAPTCHA_TOKEN" ]; then
                    echo -e "${C_RED}Error: CAPTCHA token cannot be empty.${C_RESET}"

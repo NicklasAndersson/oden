@@ -195,14 +195,15 @@ switch ($choice) {
         $registerOutput = & $SIGNAL_CLI_EXEC -u "$phoneNumber" register $verifyFlag 2>&1
 
         if ($LASTEXITCODE -ne 0) {
-            $captchaUrl = $registerOutput | Select-String 'captcha:'
-            if ($captchaUrl) {
+            $captchaRequired = $registerOutput | Select-String -Pattern 'captcha' -CaseSensitive:$false
+            if ($captchaRequired) {
                 Write-Host ""
-                Write-Host "Registration requires a CAPTCHA to be solved." -ForegroundColor $C_RED
-                Write-Host "1. Open this URL in your browser: $($captchaUrl -replace 'captcha:','')"
-                Write-Host "2. Solve the puzzle."
-                Write-Host "3. You will get a token that starts with 'signal-captcha://'"
-                $captchaToken = Read-Host "4. Paste the entire 'signal-captcha://...' token here"
+                Write-Host "Registration requires a CAPTCHA to be solved." -ForegroundColor $C_YELLOW
+                Write-Host "1. Open this URL in your browser: https://signalcaptchas.org/registration/generate.html"
+                Write-Host "2. Solve the captcha puzzle."
+                Write-Host "3. Right-click on 'Open Signal' and copy the link."
+                Write-Host "4. The link starts with 'signalcaptcha://'"
+                $captchaToken = Read-Host "Paste the entire signalcaptcha:// link here"
                 
                 if ([string]::IsNullOrEmpty($captchaToken)) {
                    Write-Host "Error: CAPTCHA token cannot be empty." -ForegroundColor $C_RED
