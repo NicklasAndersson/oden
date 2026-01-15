@@ -31,11 +31,11 @@ Print-Header "Step 1: Checking Dependencies"
 
 # 1. Check for Java
 function Check-Java {
-    Write-Host "Checking for Java 17+... " -NoNewline
+    Write-Host "Checking for Java 21+... " -NoNewline
     $javaPath = Get-Command java -ErrorAction SilentlyContinue
     if (-not $javaPath) {
         Write-Host "Not found." -ForegroundColor $C_RED
-        Write-Host "Java is required. Please download and install Java 17+ (Temurin) from:"
+        Write-Host "Java is required. Please download and install Java 21+ (Temurin) from:"
         Write-Host "https://adoptium.net/temurin/releases/"
         Write-Host "After installation, please re-run this script."
         exit 1
@@ -46,9 +46,9 @@ function Check-Java {
     $javaVersion = $javaVersionString -replace '.*version "(.*)".*', '$1'
     $javaMajorVersion = ($javaVersion.Split('.'))[0]
 
-    if ([int]$javaMajorVersion -lt 17) {
-        Write-Host "Found version $javaVersion, but need 17+." -ForegroundColor $C_RED
-        Write-Host "Error: Your Java version is too old. signal-cli requires Java 17 or higher."
+    if ([int]$javaMajorVersion -lt 21) {
+        Write-Host "Found version $javaVersion, but need 21+." -ForegroundColor $C_RED
+        Write-Host "Error: Your Java version is too old. signal-cli 0.13.x requires Java 21 or higher."
         Write-Host "Please update or install a newer version from https://adoptium.net/"
         exit 1
     } else {
@@ -60,17 +60,21 @@ Check-Java # Initial call to the java check function
 # --- Setup: Find signal-cli ---
 Print-Header "Locating signal-cli"
 
+$SIGNAL_CLI_VERSION = "0.13.22"
+$SIGNAL_CLI_DIR = ".\signal-cli-$SIGNAL_CLI_VERSION"
+
 $signalCliPath = Get-Command signal-cli -ErrorAction SilentlyContinue
 if ($signalCliPath) {
     $SIGNAL_CLI_EXEC = $signalCliPath.Source
     Write-Host "Found signal-cli in your PATH at: $SIGNAL_CLI_EXEC" -ForegroundColor $C_GREEN
-} elseif (Test-Path ".\signal-cli-0.13.22\bin\signal-cli.bat") {
-    $SIGNAL_CLI_EXEC = ".\signal-cli-0.13.22\bin\signal-cli.bat"
+} elseif (Test-Path "$SIGNAL_CLI_DIR\bin\signal-cli.bat") {
+    $SIGNAL_CLI_EXEC = "$SIGNAL_CLI_DIR\bin\signal-cli.bat"
     Write-Host "Found bundled signal-cli at: $SIGNAL_CLI_EXEC" -ForegroundColor $C_GREEN
 } else {
     Write-Host "Could not automatically find signal-cli." -ForegroundColor $C_YELLOW
-    $useCustomPath = Read-Host "Do you have another installation of signal-cli you would like to use? (y/N)"
-    if ($useCustomPath -eq 'y') {
+    $hasInstall = Read-Host "Do you have an existing signal-cli installation? (y/N)"
+    
+    if ($hasInstall -eq 'y') {
         $customPath = Read-Host "Please enter the full path to your signal-cli executable (signal-cli.bat or signal-cli.exe)"
         if (Test-Path $customPath) {
             $SIGNAL_CLI_EXEC = $customPath
@@ -80,8 +84,29 @@ if ($signalCliPath) {
             exit 1
         }
     } else {
-        Write-Host "Error: signal-cli executable not found. Exiting." -ForegroundColor $C_RED
-        exit 1
+        Write-Host "Downloading signal-cli $SIGNAL_CLI_VERSION..."
+        $downloadUrl = "https://github.com/AsamK/signal-cli/releases/download/v$SIGNAL_CLI_VERSION/signal-cli-$SIGNAL_CLI_VERSION.tar.gz"
+        $tarFile = "signal-cli.tar.gz"
+        
+        try {
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $tarFile -UseBasicParsing
+        } catch {
+            Write-Host "Error: Failed to download signal-cli." -ForegroundColor $C_RED
+            Write-Host $_.Exception.Message
+            exit 1
+        }
+        
+        Write-Host "Extracting signal-cli..."
+        tar -xzf $tarFile
+        Remove-Item $tarFile
+        
+        if (Test-Path "$SIGNAL_CLI_DIR\bin\signal-cli.bat") {
+            $SIGNAL_CLI_EXEC = "$SIGNAL_CLI_DIR\bin\signal-cli.bat"
+            Write-Host "signal-cli installed successfully at: $SIGNAL_CLI_EXEC" -ForegroundColor $C_GREEN
+        } else {
+            Write-Host "Error: Extraction failed or unexpected directory structure." -ForegroundColor $C_RED
+            exit 1
+        }
     }
 }
 
