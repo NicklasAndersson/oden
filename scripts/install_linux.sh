@@ -100,61 +100,49 @@ elif [ -f "${SIGNAL_CLI_DIR}/bin/signal-cli" ]; then
     echo -e "${C_GREEN}Found bundled signal-cli at: $SIGNAL_CLI_EXEC${C_RESET}"
 else
     echo -e "${C_YELLOW}Could not automatically find signal-cli.${C_RESET}"
-    echo "Options:"
-    echo "  1) Download signal-cli ${SIGNAL_CLI_VERSION} automatically"
-    echo "  2) Specify a custom path to an existing installation"
-    echo "  3) Exit"
-    echo
-    read -p "Enter your choice (1, 2, or 3): " SIGNAL_CLI_CHOICE
+    read -p "Do you have an existing signal-cli installation? (y/N): " HAS_INSTALL
     
-    case $SIGNAL_CLI_CHOICE in
-        1)
-            echo "Downloading signal-cli ${SIGNAL_CLI_VERSION}..."
-            DOWNLOAD_URL="https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
-            
-            # Check for curl or wget
-            if command -v curl &> /dev/null; then
-                curl -L -o signal-cli.tar.gz "$DOWNLOAD_URL"
-            elif command -v wget &> /dev/null; then
-                wget -O signal-cli.tar.gz "$DOWNLOAD_URL"
-            else
-                echo -e "${C_RED}Error: Neither curl nor wget found. Please install one of them.${C_RESET}"
-                exit 1
-            fi
-            
-            if [ $? -ne 0 ]; then
-                echo -e "${C_RED}Error: Failed to download signal-cli.${C_RESET}"
-                exit 1
-            fi
-            
-            echo "Extracting signal-cli..."
-            tar -xzf signal-cli.tar.gz
-            rm signal-cli.tar.gz
-            
-            if [ -f "${SIGNAL_CLI_DIR}/bin/signal-cli" ]; then
-                chmod +x "${SIGNAL_CLI_DIR}/bin/signal-cli"
-                SIGNAL_CLI_EXEC="${SIGNAL_CLI_DIR}/bin/signal-cli"
-                echo -e "${C_GREEN}signal-cli installed successfully at: $SIGNAL_CLI_EXEC${C_RESET}"
-            else
-                echo -e "${C_RED}Error: Extraction failed or unexpected directory structure.${C_RESET}"
-                exit 1
-            fi
-            ;;
-        2)
-            read -p "Please enter the full path to your signal-cli executable: " CUSTOM_PATH
-            if [ -f "$CUSTOM_PATH" ]; then
-                SIGNAL_CLI_EXEC="$CUSTOM_PATH"
-                echo -e "${C_GREEN}Using signal-cli at: $SIGNAL_CLI_EXEC${C_RESET}"
-            else
-                echo -e "${C_RED}Error: File not found at '$CUSTOM_PATH'. Exiting.${C_RESET}"
-                exit 1
-            fi
-            ;;
-        *)
-            echo "Exiting."
-            exit 0
-            ;;
-    esac
+    if [[ "$HAS_INSTALL" =~ ^[Yy]$ ]]; then
+        read -p "Please enter the full path to your signal-cli executable: " CUSTOM_PATH
+        if [ -f "$CUSTOM_PATH" ]; then
+            SIGNAL_CLI_EXEC="$CUSTOM_PATH"
+            echo -e "${C_GREEN}Using signal-cli at: $SIGNAL_CLI_EXEC${C_RESET}"
+        else
+            echo -e "${C_RED}Error: File not found at '$CUSTOM_PATH'. Exiting.${C_RESET}"
+            exit 1
+        fi
+    else
+        echo "Downloading signal-cli ${SIGNAL_CLI_VERSION}..."
+        DOWNLOAD_URL="https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
+        
+        # Check for curl or wget
+        if command -v curl &> /dev/null; then
+            curl -L -o signal-cli.tar.gz "$DOWNLOAD_URL"
+        elif command -v wget &> /dev/null; then
+            wget -O signal-cli.tar.gz "$DOWNLOAD_URL"
+        else
+            echo -e "${C_RED}Error: Neither curl nor wget found. Please install one of them.${C_RESET}"
+            exit 1
+        fi
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${C_RED}Error: Failed to download signal-cli.${C_RESET}"
+            exit 1
+        fi
+        
+        echo "Extracting signal-cli..."
+        tar -xzf signal-cli.tar.gz
+        rm signal-cli.tar.gz
+        
+        if [ -f "${SIGNAL_CLI_DIR}/bin/signal-cli" ]; then
+            chmod +x "${SIGNAL_CLI_DIR}/bin/signal-cli"
+            SIGNAL_CLI_EXEC="${SIGNAL_CLI_DIR}/bin/signal-cli"
+            echo -e "${C_GREEN}signal-cli installed successfully at: $SIGNAL_CLI_EXEC${C_RESET}"
+        else
+            echo -e "${C_RED}Error: Extraction failed or unexpected directory structure.${C_RESET}"
+            exit 1
+        fi
+    fi
 fi
 
 

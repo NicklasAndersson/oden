@@ -137,16 +137,20 @@ fi
 # --- Setup: Find signal-cli ---
 print_header "Locating signal-cli"
 
+SIGNAL_CLI_VERSION="0.13.22"
+SIGNAL_CLI_DIR="./signal-cli-${SIGNAL_CLI_VERSION}"
+
 if command -v signal-cli &> /dev/null; then
     SIGNAL_CLI_EXEC=$(command -v signal-cli)
     echo -e "${C_GREEN}Found signal-cli in your PATH at: $SIGNAL_CLI_EXEC${C_RESET}"
-elif [ -f "./signal-cli-0.13.22/bin/signal-cli" ]; then
-    SIGNAL_CLI_EXEC="./signal-cli-0.13.22/bin/signal-cli"
+elif [ -f "${SIGNAL_CLI_DIR}/bin/signal-cli" ]; then
+    SIGNAL_CLI_EXEC="${SIGNAL_CLI_DIR}/bin/signal-cli"
     echo -e "${C_GREEN}Found bundled signal-cli at: $SIGNAL_CLI_EXEC${C_RESET}"
 else
     echo -e "${C_YELLOW}Could not automatically find signal-cli.${C_RESET}"
-    read -p "Do you have another installation of signal-cli you would like to use? (y/N): " USE_CUSTOM_PATH
-    if [[ "$USE_CUSTOM_PATH" =~ ^[Yy]$ ]]; then
+    read -p "Do you have an existing signal-cli installation? (y/N): " HAS_INSTALL
+    
+    if [[ "$HAS_INSTALL" =~ ^[Yy]$ ]]; then
         read -p "Please enter the full path to your signal-cli executable: " CUSTOM_PATH
         if [ -f "$CUSTOM_PATH" ]; then
             SIGNAL_CLI_EXEC="$CUSTOM_PATH"
@@ -156,8 +160,28 @@ else
             exit 1
         fi
     else
-        echo -e "${C_RED}Error: signal-cli executable not found. Exiting.${C_RESET}"
-        exit 1
+        echo "Downloading signal-cli ${SIGNAL_CLI_VERSION}..."
+        DOWNLOAD_URL="https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
+        
+        curl -L -o signal-cli.tar.gz "$DOWNLOAD_URL"
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${C_RED}Error: Failed to download signal-cli.${C_RESET}"
+            exit 1
+        fi
+        
+        echo "Extracting signal-cli..."
+        tar -xzf signal-cli.tar.gz
+        rm signal-cli.tar.gz
+        
+        if [ -f "${SIGNAL_CLI_DIR}/bin/signal-cli" ]; then
+            chmod +x "${SIGNAL_CLI_DIR}/bin/signal-cli"
+            SIGNAL_CLI_EXEC="${SIGNAL_CLI_DIR}/bin/signal-cli"
+            echo -e "${C_GREEN}signal-cli installed successfully at: $SIGNAL_CLI_EXEC${C_RESET}"
+        else
+            echo -e "${C_RED}Error: Extraction failed or unexpected directory structure.${C_RESET}"
+            exit 1
+        fi
     fi
 fi
 
