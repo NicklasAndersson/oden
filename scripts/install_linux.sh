@@ -237,10 +237,10 @@ case $choice in
         if [ $? -ne 0 ]; then
             if echo "$REGISTER_OUTPUT" | grep -qi 'captcha'; then
                 echo -e "\n${C_YELLOW}Registration requires a CAPTCHA to be solved.${C_RESET}"
-                echo "1. Open this URL in your browser: ${C_BOLD}https://signalcaptchas.org/registration/generate.html${C_RESET}"
+                echo -e "1. Open this URL in your browser: ${C_BOLD}https://signalcaptchas.org/registration/generate.html${C_RESET}"
                 echo "2. Solve the captcha puzzle."
                 echo "3. Right-click on 'Open Signal' and copy the link."
-                echo "4. The link starts with 'signalcaptcha://'"
+                echo -e "4. The link starts with ${C_BOLD}signalcaptcha://${C_RESET}"
                 read -p "Paste the entire signalcaptcha:// link here: " CAPTCHA_TOKEN
                 
                 if [ -z "$CAPTCHA_TOKEN" ]; then
