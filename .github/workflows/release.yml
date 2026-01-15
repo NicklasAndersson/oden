@@ -62,13 +62,12 @@ jobs:
         run: |
           mkdir -p release_package/docs release_package/images
           find artifacts -type f -name "s7_watcher*" -exec cp {} release_package/ \;
-          cp docs/HOW_TO_RUN.md release_package/docs/
           cp docs/Flow.md release_package/docs/
           cp images/logo_small.jpg release_package/images/
           cp config.ini release_package/
-          cp scripts/install_mac.sh release_package/
-          cp scripts/install_linux.sh release_package/
-          cp scripts/install_windows.ps1 release_package/
+          cp scripts/run_mac.sh release_package/
+          cp scripts/run_linux.sh release_package/
+          cp scripts/run_windows.ps1 release_package/
           cp README.md release_package/
           cp -r responses release_package/
           zip -r s7_watcher-${{ steps.version.outputs.VERSION }}-release.zip release_package/

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-01-15
+
+### Changed
+- **Unified run scripts**: Renamed `install_*` to `run_*` scripts that handle everything:
+  - Dependency installation (Java 21+, qrencode)
+  - signal-cli download and setup
+  - Signal account linking/registration
+  - Automatic config.ini generation based on user input
+  - Application startup
+- **Simplified documentation**: HOW_TO_RUN.md now just says "run the script"
+
+### Removed
+- Old install_mac.sh, install_linux.sh, install_windows.ps1 (replaced by run_* scripts)
+
 ## [0.3.2] - 2026-01-15
 
 ### Fixed

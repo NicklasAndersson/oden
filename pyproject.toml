@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oden"
-version = "0.3.2"
+version = "0.4.0"
 description = "Signal to Obsidian bridge - receives Signal messages and saves them as Markdown files"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -2,11 +2,25 @@
 
 ![logotyp](images/logo_small.jpg)
 
+Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidian-valv.
+
+## Snabbstart (Release)
+
+Ladda ner senaste releasen och kör skriptet för ditt OS:
+
+| OS | Kommando |
+|----|----------|
+| macOS | `./run_mac.sh` |
+| Linux | `./run_linux.sh` |
+| Windows | `.\run_windows.ps1` |
+
+Skriptet hanterar allt: beroenden, Signal-konfiguration och start.
+
+Se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) för mer info.
+
+---
+
 ## För Utvecklare
-
-Denna README är för utvecklare som har klonat repot för att bygga från källkod eller bidra.
-
-För instruktioner om hur man kör en förpaketerad release, se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md).
 
 ### Projektstruktur
 
@@ -14,7 +28,7 @@ För instruktioner om hur man kör en förpaketerad release, se [docs/HOW_TO_RUN
 oden/
 ├── oden/           # Python-paket med källkod
 ├── tests/          # Enhetstester
-├── scripts/        # Installationsskript (macOS/Windows)
+├── scripts/        # run_*.sh/ps1 skript för installation och körning
 ├── docs/           # Dokumentation
 ├── responses/      # Svarsmallar för kommandon
 └── images/         # Bilder
@@ -23,6 +37,14 @@ oden/
 ### Installation för utveckling
 
 ```bash
+# Klona repot
+git clone https://github.com/NicklasAndersson/oden.git
+cd oden
+
+# Skapa virtuell miljö
+python -m venv .venv
+source .venv/bin/activate  # På Windows: .venv\Scripts\activate
+
 # Installera paketet i utvecklingsläge
 pip install -e .
 
@@ -54,18 +76,25 @@ ruff format .
 
 ### Funktioner
 
-Det finns två sätt att lägga till information i en rapport som du nyligen har skickat:
-
-1. **Svara på ett meddelande:** Om du svarar på ett meddelande i gruppen (oavsett vem som skrev originalet), kommer texten i ditt svar att läggas till i din senast skapade rapport, förutsatt att den inte är äldre än 30 minuter.
-
-2. **Använd kommandot `++`:** Om du skickar ett meddelande som börjar med `++`, kommer dess innehåll att läggas till i det senaste meddelandet du skickade (även här inom 30 minuter).
-
-Detta gör det möjligt att enkelt lägga till fler detaljer, korrigeringar eller bilagor i en rapport i efterhand.
+- **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
+- **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten
 
 ## Konfiguration
 
-Redigera `config.ini` enligt [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md). Se till att tidszon, regex och Signal-relaterade inställningar är korrekt inställda för din miljö.
+`config.ini` skapas automatiskt av run-skripten, eller redigera manuellt:
 
-## Flödesdiagram
+```ini
+[Vault]
+path = /sökväg/till/obsidian-valv
 
-[Flödesdiagram för applikationen](./docs/Flow.md)
+[Signal]
+number = +46701234567
+
+[Timezone]
+timezone = Europe/Stockholm
+```
+
+## Dokumentation
+
+- [HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) - Körinstruktioner
+- [Flow.md](./docs/Flow.md) - Flödesdiagram
