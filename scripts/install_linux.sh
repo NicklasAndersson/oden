@@ -33,13 +33,13 @@ print_header "Step 1: Checking Dependencies"
 
 # 1. Check for Java
 function check_java() {
-    echo -n "Checking for Java 17+... "
+    echo -n "Checking for Java 21+... "
     if ! command -v java &> /dev/null; then
         echo -e "${C_RED}Not found.${C_RESET}"
-        read -p "Java is required. Install openjdk-17-jdk with apt? (Y/n): " INSTALL_JAVA
+        read -p "Java is required. Install openjdk-21-jdk with apt? (Y/n): " INSTALL_JAVA
         if [[ -z "$INSTALL_JAVA" || "$INSTALL_JAVA" =~ ^[Yy]$ ]]; then
-            echo "Installing openjdk-17-jdk (requires sudo)..."
-            sudo apt update && sudo apt install -y openjdk-17-jdk
+            echo "Installing openjdk-21-jdk (requires sudo)..."
+            sudo apt update && sudo apt install -y openjdk-21-jdk
             if [ $? -eq 0 ]; then
                 echo -e "${C_GREEN}Java installed successfully.${C_RESET}"
                 check_java # Re-run the check
@@ -55,10 +55,10 @@ function check_java() {
         JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
         JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION" | cut -d. -f1)
 
-        if [[ "$JAVA_MAJOR_VERSION" -lt 17 ]]; then
-            echo -e "${C_RED}Found version $JAVA_VERSION, but need 17+.${C_RESET}"
-            echo "Error: Your Java version is too old. signal-cli requires Java 17 or higher."
-            echo "Please update or install a newer version, e.g., via 'sudo apt install openjdk-17-jdk'"
+        if [[ "$JAVA_MAJOR_VERSION" -lt 21 ]]; then
+            echo -e "${C_RED}Found version $JAVA_VERSION, but need 21+.${C_RESET}"
+            echo "Error: Your Java version is too old. signal-cli 0.13.x requires Java 21 or higher."
+            echo "Please update or install a newer version, e.g., via 'sudo apt install openjdk-21-jdk'"
             exit 1
         else
             echo -e "${C_GREEN}OK (found version $JAVA_VERSION).${C_RESET}"

@@ -72,17 +72,21 @@ fi
 
 # 2. Check for Java
 function check_java() {
-    echo -n "Checking for Java 17+... "
+    echo -n "Checking for Java 21+... "
     if ! command -v java &> /dev/null; then
         echo -e "${C_RED}Not found.${C_RESET}"
         if $HOMEBREW_INSTALLED; then
-            read -p "Java is required. Install openjdk@17 with Homebrew? (Y/n): " INSTALL_JAVA
+            read -p "Java is required. Install openjdk@21 with Homebrew? (Y/n): " INSTALL_JAVA
             if [[ -z "$INSTALL_JAVA" || "$INSTALL_JAVA" =~ ^[Yy]$ ]]; then
-                echo "Installing openjdk@17..."
-                brew install openjdk@17
+                echo "Installing openjdk@21..."
+                brew install openjdk@21
                 # Attempt to add the new Java to the path for this script's execution
-                if [ -d "/usr/local/opt/openjdk@17/bin" ]; then
-                    export PATH="/usr/local/opt/openjdk@17/bin:$PATH"
+                if [ -d "/opt/homebrew/opt/openjdk@21/bin" ]; then
+                    export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
+                    echo -e "${C_GREEN}Java installed. Continuing script...${C_RESET}"
+                    check_java # Re-run the check
+                elif [ -d "/usr/local/opt/openjdk@21/bin" ]; then
+                    export PATH="/usr/local/opt/openjdk@21/bin:$PATH"
                     echo -e "${C_GREEN}Java installed. Continuing script...${C_RESET}"
                     check_java # Re-run the check
                 else
@@ -94,17 +98,17 @@ function check_java() {
                 exit 1
             fi
         else
-            echo "Error: Please install Java 17+ from https://adoptium.net/ (Temurin 17 or higher) and re-run this script."
+            echo "Error: Please install Java 21+ from https://adoptium.net/ (Temurin 21 or higher) and re-run this script."
             exit 1
         fi
     else
         JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
         JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION" | cut -d. -f1)
 
-        if [[ "$JAVA_MAJOR_VERSION" -lt 17 ]]; then
-            echo -e "${C_RED}Found version $JAVA_VERSION, but need 17+.${C_RESET}"
-            echo "Error: Your Java version is too old. signal-cli requires Java 17 or higher."
-            echo "Please update or install a newer version, e.g., via 'brew install openjdk@17' or from https://adoptium.net/"
+        if [[ "$JAVA_MAJOR_VERSION" -lt 21 ]]; then
+            echo -e "${C_RED}Found version $JAVA_VERSION, but need 21+.${C_RESET}"
+            echo "Error: Your Java version is too old. signal-cli 0.13.x requires Java 21 or higher."
+            echo "Please update or install a newer version, e.g., via 'brew install openjdk@21' or from https://adoptium.net/"
             exit 1
         else
             echo -e "${C_GREEN}OK (found version $JAVA_VERSION).${C_RESET}"
