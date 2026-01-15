@@ -54,6 +54,10 @@ jobs:
         with:
           path: artifacts
 
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Package release assets
         run: |
           mkdir -p release_package/docs release_package/images
@@ -67,12 +71,12 @@ jobs:
           cp scripts/install_windows.ps1 release_package/
           cp README.md release_package/
           cp -r responses release_package/
-          zip -r s7_watcher-release.zip release_package/
+          zip -r s7_watcher-${{ steps.version.outputs.VERSION }}-release.zip release_package/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./s7_watcher-release.zip
+          files: ./s7_watcher-${{ steps.version.outputs.VERSION }}-release.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
