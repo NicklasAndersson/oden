@@ -17,7 +17,12 @@ C_YELLOW='\033[0;33m'
 SIGNAL_CLI_VERSION="0.13.22"
 SIGNAL_CLI_DIR="./signal-cli-${SIGNAL_CLI_VERSION}"
 CONFIG_FILE="./config.ini"
-EXECUTABLE="./s7_watcher"
+# Try OS-specific binary first, fall back to generic name
+if [ -f "./s7_watcher_mac" ]; then
+    EXECUTABLE="./s7_watcher_mac"
+else
+    EXECUTABLE="./s7_watcher"
+fi
 
 # --- Helper Functions ---
 function print_header() {
@@ -345,16 +350,77 @@ fi
 # =============================================================================
 print_header "Step 5: Starting Oden"
 
-if [ ! -f "$EXECUTABLE" ]; then
-    print_error "Executable not found: $EXECUTABLE"
-    echo "Make sure s7_watcher is in the current directory."
-    exit 1
+# Try to run the binary if it exists
+if [ -f "$EXECUTABLE" ]; then
+    chmod +x "$EXECUTABLE"
+    
+    echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting ===${C_RESET}\n"
+    echo "Press Ctrl+C to stop."
+    echo ""
+    
+    # Try to execute the binary directly, but if it fails immediately (e.g., cannot execute binary file),
+    # the error will be visible and we can fall back to Python
+    "$EXECUTABLE"
+    EXIT_CODE=$?
+    
+    # If binary execution failed (130 = Ctrl+C, which is expected for user interrupt), fall back to Python
+    # This handles the "cannot execute binary file" error case
+    if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
+        print_warning "Binary execution failed with exit code $EXIT_CODE"
+        print_warning "Trying Python fallback..."
+        
+        # Check if Python is available
+        if ! command -v python3 &> /dev/null; then
+            print_error "Python 3 is required but not found."
+            print_error "Please install Python 3.10+ from https://www.python.org/"
+            exit 1
+        fi
+        
+        # Check if oden package exists
+        if [ ! -d "./oden" ]; then
+            print_error "Oden source code not found."
+            print_error "This may be a binary-only release. Please report this issue."
+            exit 1
+        fi
+        
+        # Run using Python
+        echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting (Python mode) ===${C_RESET}\n"
+        echo "Press Ctrl+C to stop."
+        echo ""
+        exec python3 -m oden
+    fi
+    exit $EXIT_CODE
+else
+    # No binary found, try Python directly
+    print_warning "Executable not found: $EXECUTABLE"
+    print_warning "Trying to run from Python source..."
+    
+    # Check if Python is available
+    if ! command -v python3 &> /dev/null; then
+        print_error "Python 3 is required but not found."
+        print_error "Please install Python 3.10+ from https://www.python.org/"
+        exit 1
+    fi
+    
+    # Check if oden package exists
+    if [ ! -d "./oden" ]; then
+        print_error "Oden source code not found."
+        print_error "Please make sure you have the complete Oden package."
+        exit 1
+    fi
+    
+    # Install dependencies if needed
+    if ! python3 -c "import oden" 2>/dev/null; then
+        print_warning "Installing Python dependencies..."
+        python3 -m pip install --quiet -e . || {
+            print_error "Failed to install dependencies."
+            exit 1
+        }
+    fi
+    
+    # Run using Python
+    echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting (Python mode) ===${C_RESET}\n"
+    echo "Press Ctrl+C to stop."
+    echo ""
+    exec python3 -m oden
 fi
-
-chmod +x "$EXECUTABLE"
-
-echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting ===${C_RESET}\n"
-echo "Press Ctrl+C to stop."
-echo ""
-
-exec "$EXECUTABLE"

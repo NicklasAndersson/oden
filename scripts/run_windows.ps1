@@ -13,7 +13,12 @@ $C_YELLOW = "Yellow"
 $SIGNAL_CLI_VERSION = "0.13.22"
 $SIGNAL_CLI_DIR = ".\signal-cli-$SIGNAL_CLI_VERSION"
 $CONFIG_FILE = ".\config.ini"
-$EXECUTABLE = ".\s7_watcher.exe"
+# Try OS-specific binary first, fall back to generic name
+if (Test-Path ".\s7_watcher_windows.exe") {
+    $EXECUTABLE = ".\s7_watcher_windows.exe"
+} else {
+    $EXECUTABLE = ".\s7_watcher.exe"
+}
 
 # --- Helper Functions ---
 function Print-Header {
@@ -293,17 +298,109 @@ timezone = $timezone
 # =============================================================================
 Print-Header "Step 5: Starting Oden"
 
-if (-not (Test-Path $EXECUTABLE)) {
-    Print-Error "Executable not found: $EXECUTABLE"
-    Write-Host "Make sure s7_watcher.exe is in the current directory."
-    Read-Host "Press Enter to exit"
-    exit 1
+# Try to run the binary if it exists
+if (Test-Path $EXECUTABLE) {
+    Write-Host ""
+    Write-Host "=== Oden is starting ===" -ForegroundColor $C_GREEN
+    Write-Host ""
+    Write-Host "Press Ctrl+C to stop."
+    Write-Host ""
+    
+    # Try to execute the binary
+    try {
+        & $EXECUTABLE
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        $exitCode = 1
+    }
+    
+    # If binary execution failed (and not user interrupt), fall back to Python
+    # -1073741510 is the Windows exit code for Ctrl+C interrupt (0xC000013A)
+    if ($exitCode -ne 0 -and $exitCode -ne -1073741510) {
+        Print-Warning "Binary execution failed with exit code $exitCode"
+        Print-Warning "Trying Python fallback..."
+        
+        # Check if Python is available
+        $pythonCmd = $null
+        if (Get-Command python -ErrorAction SilentlyContinue) {
+            $pythonCmd = "python"
+        }
+        elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
+            $pythonCmd = "python3"
+        }
+        
+        if (-not $pythonCmd) {
+            Print-Error "Python 3 is required but not found."
+            Print-Error "Please install Python 3.10+ from https://www.python.org/"
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
+        
+        # Check if oden package exists
+        if (-not (Test-Path ".\oden")) {
+            Print-Error "Oden source code not found."
+            Print-Error "This may be a binary-only release. Please report this issue."
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
+        
+        # Run using Python
+        Write-Host ""
+        Write-Host "=== Oden is starting (Python mode) ===" -ForegroundColor $C_GREEN
+        Write-Host ""
+        Write-Host "Press Ctrl+C to stop."
+        Write-Host ""
+        & $pythonCmd -m oden
+    }
+    exit $exitCode
 }
-
-Write-Host ""
-Write-Host "=== Oden is starting ===" -ForegroundColor $C_GREEN
-Write-Host ""
-Write-Host "Press Ctrl+C to stop."
-Write-Host ""
-
-& $EXECUTABLE
+else {
+    # No binary found, try Python directly
+    Print-Warning "Executable not found: $EXECUTABLE"
+    Print-Warning "Trying to run from Python source..."
+    
+    # Check if Python is available
+    $pythonCmd = $null
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        $pythonCmd = "python"
+    }
+    elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
+        $pythonCmd = "python3"
+    }
+    
+    if (-not $pythonCmd) {
+        Print-Error "Python 3 is required but not found."
+        Print-Error "Please install Python 3.10+ from https://www.python.org/"
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+    
+    # Check if oden package exists
+    if (-not (Test-Path ".\oden")) {
+        Print-Error "Oden source code not found."
+        Print-Error "Please make sure you have the complete Oden package."
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+    
+    # Install dependencies if needed
+    $importTest = & $pythonCmd -c "import oden" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Print-Warning "Installing Python dependencies..."
+        & $pythonCmd -m pip install --quiet -e .
+        if ($LASTEXITCODE -ne 0) {
+            Print-Error "Failed to install dependencies."
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
+    }
+    
+    # Run using Python
+    Write-Host ""
+    Write-Host "=== Oden is starting (Python mode) ===" -ForegroundColor $C_GREEN
+    Write-Host ""
+    Write-Host "Press Ctrl+C to stop."
+    Write-Host ""
+    & $pythonCmd -m oden
+}
