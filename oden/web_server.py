@@ -290,6 +290,106 @@ HTML_TEMPLATE = """
         .btn-danger:hover {
             background: #e57373;
         }
+        .btn-secondary {
+            background: #555;
+            color: #fff;
+        }
+        .btn-secondary:hover {
+            background: #666;
+        }
+        .group-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .group-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: #0d1421;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+        .group-item.ignored {
+            opacity: 0.6;
+            background: #1a1520;
+        }
+        .group-info {
+            flex: 1;
+        }
+        .group-name {
+            font-weight: 500;
+            color: #fff;
+        }
+        .group-meta {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 2px;
+        }
+        .toggle-ignore {
+            padding: 4px 10px;
+            font-size: 0.8em;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 1px solid #555;
+            background: transparent;
+            color: #888;
+            transition: all 0.2s;
+        }
+        .toggle-ignore:hover {
+            border-color: #ef5350;
+            color: #ef5350;
+        }
+        .toggle-ignore.ignored {
+            border-color: #4caf50;
+            color: #4caf50;
+        }
+        .toggle-ignore.ignored:hover {
+            background: rgba(76, 175, 80, 0.1);
+        }
+        .warning-banner {
+            background: rgba(255, 183, 77, 0.2);
+            border: 1px solid #ffb74d;
+            color: #ffb74d;
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+        .warning-banner.show {
+            display: flex;
+        }
+        .warning-banner .icon {
+            font-size: 1.2em;
+        }
+        .config-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .config-editor textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #0d1421;
+            color: #fff;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            resize: vertical;
+        }
+        .config-editor textarea:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+        .config-actions {
+            display: flex;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
@@ -329,7 +429,15 @@ HTML_TEMPLATE = """
             </div>
 
             <div class="card full-width">
-                <h2>🔗 Gå med i grupp</h2>
+                <h2>� Grupper</h2>
+                <div id="groups-container" class="group-list">
+                    <div class="empty-state">Laddar grupper...</div>
+                </div>
+                <div class="refresh-info">Klicka på "Ignorera" för att dölja gruppen. Kräver omstart.</div>
+            </div>
+
+            <div class="card full-width">
+                <h2>�🔗 Gå med i grupp</h2>
                 <form id="join-group-form">
                     <div class="form-group">
                         <label for="group-link">Grupplänk</label>
@@ -342,11 +450,27 @@ HTML_TEMPLATE = """
             </div>
 
             <div class="card full-width">
-                <h2>� Gruppinbjudningar</h2>
+                <h2>💾 Gruppinbjudningar</h2>
                 <div id="invitations-container" class="invitation-list">
                     <div class="empty-state">Laddar inbjudningar...</div>
                 </div>
                 <div class="refresh-info">Uppdateras automatiskt var 10:e sekund</div>
+            </div>
+
+            <div class="card full-width">
+                <h2>⚙️ Redigera config.ini</h2>
+                <div id="config-warning" class="warning-banner">
+                    <span class="icon">⚠️</span>
+                    <span>Konfigurationen har ändrats. Starta om Oden för att ändringarna ska börja gälla.</span>
+                </div>
+                <div class="config-editor">
+                    <textarea id="config-content" placeholder="Laddar config.ini..."></textarea>
+                    <div class="config-actions">
+                        <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()">Spara config</button>
+                        <button class="btn btn-secondary" onclick="loadConfig()">Återställ</button>
+                    </div>
+                </div>
+                <div id="config-message" class="message"></div>
             </div>
 
             <div class="card full-width">
@@ -527,6 +651,120 @@ HTML_TEMPLATE = """
 
         // Polling - refresh invitations every 10 seconds
         setInterval(fetchInvitations, 10000);
+
+        // Fetch and display groups
+        let currentIgnoredGroups = [];
+
+        async function fetchGroups() {
+            try {
+                const response = await fetch('/api/groups');
+                const data = await response.json();
+                const container = document.getElementById('groups-container');
+                currentIgnoredGroups = data.ignoredGroups || [];
+
+                if (!data.groups || data.groups.length === 0) {
+                    container.innerHTML = '<div class="empty-state">Inga grupper hittades</div>';
+                    return;
+                }
+
+                container.innerHTML = data.groups.map(group => {
+                    const isIgnored = currentIgnoredGroups.includes(group.name);
+                    return `
+                        <div class="group-item ${isIgnored ? 'ignored' : ''}" data-group-name="${escapeHtml(group.name)}">
+                            <div class="group-info">
+                                <div class="group-name">${escapeHtml(group.name)}</div>
+                                <div class="group-meta">${group.memberCount} medlemmar</div>
+                            </div>
+                            <button class="toggle-ignore ${isIgnored ? 'ignored' : ''}"
+                                    onclick="toggleIgnoreGroup('${escapeHtml(group.name)}')"
+                                    title="${isIgnored ? 'Sluta ignorera' : 'Ignorera grupp'}">
+                                ${isIgnored ? '✓ Ignorerad' : 'Ignorera'}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error fetching groups:', error);
+            }
+        }
+
+        async function toggleIgnoreGroup(groupName) {
+            try {
+                const response = await fetch('/api/toggle-ignore-group', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ groupName })
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Show restart warning
+                    document.getElementById('config-warning').classList.add('show');
+                    // Refresh groups list
+                    await fetchGroups();
+                    // Refresh config editor
+                    await loadConfig();
+                } else {
+                    alert(result.error || 'Något gick fel');
+                }
+            } catch (error) {
+                alert('Nätverksfel: ' + error.message);
+            }
+        }
+
+        // Config editor functions
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config-file');
+                const data = await response.json();
+                document.getElementById('config-content').value = data.content || '';
+            } catch (error) {
+                console.error('Error loading config:', error);
+                document.getElementById('config-content').value = '# Kunde inte ladda config.ini';
+            }
+        }
+
+        async function saveConfig() {
+            const content = document.getElementById('config-content').value;
+            const messageDiv = document.getElementById('config-message');
+            const saveBtn = document.getElementById('save-config-btn');
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Sparar...';
+
+            try {
+                const response = await fetch('/api/config-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    messageDiv.className = 'message success';
+                    messageDiv.textContent = 'Config sparad! Starta om Oden för att ändringarna ska börja gälla.';
+                    document.getElementById('config-warning').classList.add('show');
+                    // Refresh groups in case ignored_groups changed
+                    await fetchGroups();
+                } else {
+                    messageDiv.className = 'message error';
+                    messageDiv.textContent = result.error || 'Kunde inte spara config';
+                }
+            } catch (error) {
+                messageDiv.className = 'message error';
+                messageDiv.textContent = 'Nätverksfel: ' + error.message;
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Spara config';
+            }
+        }
+
+        // Initial fetch for groups and config
+        fetchGroups();
+        loadConfig();
+
+        // Polling - refresh groups every 30 seconds
+        setInterval(fetchGroups, 30000);
     </script>
 </body>
 </html>
@@ -712,6 +950,134 @@ async def decline_invitation_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
+async def groups_handler(request: web.Request) -> web.Response:
+    """Return list of groups the account is a member of."""
+    app_state = get_app_state()
+    groups = []
+    for group in app_state.groups:
+        # Only include groups where user is actually a member
+        if group.get("isMember", True) and not group.get("invitedToGroup", False):
+            groups.append(
+                {
+                    "id": group.get("id"),
+                    "name": group.get("name", "Okänd grupp"),
+                    "memberCount": len(group.get("members", [])),
+                }
+            )
+    return web.json_response({"groups": groups, "ignoredGroups": IGNORED_GROUPS})
+
+
+async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
+    """Toggle ignore status for a group by updating config.ini."""
+    try:
+        data = await request.json()
+        group_name = data.get("groupName", "").strip()
+
+        if not group_name:
+            return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
+
+        # Read current config
+        try:
+            with open("config.ini", encoding="utf-8") as f:
+                config_content = f.read()
+        except FileNotFoundError:
+            return web.json_response({"success": False, "error": "config.ini hittades inte"}, status=404)
+
+        # Parse to get current ignored groups
+        import configparser
+
+        config = configparser.RawConfigParser()
+        config.read_string(config_content)
+
+        ignored_groups = []
+        if config.has_section("Settings") and config.has_option("Settings", "ignored_groups"):
+            ignored_str = config.get("Settings", "ignored_groups")
+            ignored_groups = [g.strip() for g in ignored_str.split(",") if g.strip()]
+
+        # Toggle the group
+        if group_name in ignored_groups:
+            ignored_groups.remove(group_name)
+            action = "removed from"
+        else:
+            ignored_groups.append(group_name)
+            action = "added to"
+
+        # Update config
+        if not config.has_section("Settings"):
+            config.add_section("Settings")
+        config.set("Settings", "ignored_groups", ", ".join(ignored_groups))
+
+        # Write back
+        with open("config.ini", "w", encoding="utf-8") as f:
+            config.write(f)
+
+        logger.info(f"Group '{group_name}' {action} ignored_groups")
+        return web.json_response(
+            {
+                "success": True,
+                "message": f"Grupp '{group_name}' {action} ignorerade grupper",
+                "ignoredGroups": ignored_groups,
+            }
+        )
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error toggling ignore group: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def config_file_get_handler(request: web.Request) -> web.Response:
+    """Return the raw content of config.ini."""
+    try:
+        with open("config.ini", encoding="utf-8") as f:
+            content = f.read()
+        return web.json_response({"content": content})
+    except FileNotFoundError:
+        return web.json_response({"content": "", "error": "config.ini hittades inte"}, status=404)
+    except Exception as e:
+        return web.json_response({"content": "", "error": str(e)}, status=500)
+
+
+async def config_file_save_handler(request: web.Request) -> web.Response:
+    """Save new content to config.ini."""
+    try:
+        data = await request.json()
+        content = data.get("content", "")
+
+        if not content.strip():
+            return web.json_response({"success": False, "error": "Config kan inte vara tom"}, status=400)
+
+        # Validate by trying to parse it
+        import configparser
+
+        config = configparser.RawConfigParser()
+        try:
+            config.read_string(content)
+        except configparser.Error as e:
+            return web.json_response({"success": False, "error": f"Ogiltig INI-syntax: {e}"}, status=400)
+
+        # Check required sections
+        if not config.has_section("Vault") or not config.has_section("Signal"):
+            return web.json_response(
+                {"success": False, "error": "Config måste ha [Vault] och [Signal] sektioner"},
+                status=400,
+            )
+
+        # Write to file
+        with open("config.ini", "w", encoding="utf-8") as f:
+            f.write(content)
+
+        logger.info("config.ini updated via web GUI")
+        return web.json_response({"success": True, "message": "Config sparad"})
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error saving config: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
 def create_app() -> web.Application:
     """Create and configure the aiohttp application."""
     app = web.Application()
@@ -722,6 +1088,10 @@ def create_app() -> web.Application:
     app.router.add_get("/api/invitations", invitations_handler)
     app.router.add_post("/api/invitations/accept", accept_invitation_handler)
     app.router.add_post("/api/invitations/decline", decline_invitation_handler)
+    app.router.add_get("/api/groups", groups_handler)
+    app.router.add_post("/api/toggle-ignore-group", toggle_ignore_group_handler)
+    app.router.add_get("/api/config-file", config_file_get_handler)
+    app.router.add_post("/api/config-file", config_file_save_handler)
     return app
 
 

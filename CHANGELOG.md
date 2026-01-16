@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-01-16
+
+### Added
+- **Groups panel in Web GUI**: View all groups the account is a member of
+- **Ignore groups from GUI**: Toggle ignore status for groups directly from the web interface
+- **Config editor in Web GUI**: Edit config.ini directly in the browser with syntax validation
+- **Restart warning**: Shows warning banner when config changes require restart
+
+### Changed
+- Run scripts now update `signal_cli_path` in existing config.ini when user specifies a custom path
+
 ## [0.6.1] - 2026-01-16
 
 ### Fixed

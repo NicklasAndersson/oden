@@ -356,6 +356,26 @@ else
     if [ -n "$SIGNAL_NUMBER" ]; then
         sed -i '' "s/number = .*/number = $SIGNAL_NUMBER/" "$CONFIG_FILE"
     fi
+    # Update signal_cli_path if user specified a custom path
+    if [ -n "$SIGNAL_CLI_EXEC" ]; then
+        # Convert to absolute path if relative
+        if [[ "$SIGNAL_CLI_EXEC" == ./* ]]; then
+            SIGNAL_CLI_PATH="$(pwd)/${SIGNAL_CLI_EXEC#./}"
+        else
+            SIGNAL_CLI_PATH="$SIGNAL_CLI_EXEC"
+        fi
+        # Check if signal_cli_path exists (commented or not)
+        if grep -qE "^#?\s*signal_cli_path\s*=" "$CONFIG_FILE"; then
+            # Replace existing line (uncomment if needed)
+            sed -i '' "s|^#*\s*signal_cli_path\s*=.*|signal_cli_path = $SIGNAL_CLI_PATH|" "$CONFIG_FILE"
+        else
+            # Add after log_file line in [Signal] section
+            sed -i '' "/^log_file\s*=/a\\
+signal_cli_path = $SIGNAL_CLI_PATH
+" "$CONFIG_FILE"
+        fi
+        print_success "Updated signal_cli_path: $SIGNAL_CLI_PATH"
+    fi
 fi
 
 # =============================================================================

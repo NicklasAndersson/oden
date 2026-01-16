@@ -104,11 +104,20 @@ access_log = web_access.log
 
 Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0.1:8080`.
 
+![Web GUI - Översikt](images/gui.png)
+![Web GUI - Grupper](images/gui2.png)
+![Web GUI - Config Editor](images/gui3.png)
+
 **Funktioner:**
 - Visa aktuell konfiguration
 - Live-loggar (uppdateras var 3:e sekund)
 - Gå med i grupper via inbjudningslänk
 - Visa och hantera väntande gruppinbjudningar
+- **Visa alla grupper** kontot är med i
+- **Ignorera grupper** direkt från GUI (klicka "Ignorera")
+- **Redigera config.ini** direkt i webbläsaren
+
+**Obs:** Ändringar i config kräver omstart för att börja gälla.
 
 **Säkerhet:** Lyssnar endast på localhost - ingen autentisering krävs.
 
