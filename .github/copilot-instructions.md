@@ -83,6 +83,7 @@ A read-only web interface runs automatically at `http://127.0.0.1:8080` (localho
 - Tests are in `tests/` using pytest
 - Mock config values when testing: patch `oden.config.VAULT_PATH` etc.
 - Don't get stuck fixing difficult tests - note the issue and move on
+- **Terminal output**: Run commands directly without piping or redirection tricks like `2>&1`, `| tail`, `| head`, `echo $?` etc. Just run `python -m pytest -v` straight up.
 
 ## File Naming Convention
 Markdown files: `DDHHMM-{phone}-{name}.md` (e.g., `161430-46701234567-Nicklas.md`)

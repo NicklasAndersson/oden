@@ -12,6 +12,7 @@ from oden.signal_manager import SignalManager, is_signal_cli_running
 
 
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
+    @patch("oden.s7_watcher.WEB_ENABLED", False)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", False)
     @patch("oden.s7_watcher.SignalManager")
     @patch("oden.s7_watcher.subscribe_and_listen", new_callable=AsyncMock)
@@ -31,6 +32,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)
         mock_manager_instance.stop.assert_called_once()
 
+    @patch("oden.s7_watcher.WEB_ENABLED", False)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=True)
     @patch("oden.s7_watcher.subscribe_and_listen", new_callable=AsyncMock)
@@ -60,16 +62,14 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_exit.assert_called_once_with(1)
 
     @patch("asyncio.open_connection", side_effect=ConnectionRefusedError)
-    @patch("sys.exit", side_effect=SystemExit)
-    async def test_subscribe_and_listen_connection_refused(self, mock_exit, mock_open_connection):
-        """Tests that a connection refusal is handled gracefully and exits."""
+    async def test_subscribe_and_listen_connection_refused(self, mock_open_connection):
+        """Tests that a connection refusal is handled gracefully and re-raised."""
         with self.assertLogs("oden.s7_watcher", level="ERROR") as log:
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(ConnectionRefusedError):
                 await subscribe_and_listen("host", 1234)
 
             self.assertTrue(any("Connection to signal-cli daemon failed" in message for message in log.output))
         mock_open_connection.assert_awaited_once_with("host", 1234, limit=ANY)
-        mock_exit.assert_called_once_with(1)
 
 
 @patch.object(SignalManager, "_find_executable", return_value="exec/path")
