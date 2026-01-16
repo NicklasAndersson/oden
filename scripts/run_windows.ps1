@@ -311,8 +311,10 @@ if (Test-Path $EXECUTABLE) {
     }
     
     # If binary execution failed (and not user interrupt), fall back to Python
+    # -1073741510 is the Windows exit code for Ctrl+C interrupt (0xC000013A)
     if ($exitCode -ne 0 -and $exitCode -ne -1073741510) {
-        Print-Warning "Binary execution failed. Trying Python fallback..."
+        Print-Warning "Binary execution failed with exit code $exitCode"
+        Print-Warning "Trying Python fallback..."
         
         # Check if Python is available
         $pythonCmd = $null

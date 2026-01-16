@@ -353,13 +353,17 @@ if [ -f "$EXECUTABLE" ]; then
     echo "Press Ctrl+C to stop."
     echo ""
     
-    # Try to execute the binary, but capture failure
-    "$EXECUTABLE" 2>/dev/null
+    # Try to execute the binary, capture both output and exit code
+    BINARY_ERROR=$("$EXECUTABLE" 2>&1)
     EXIT_CODE=$?
     
-    # If binary execution failed, fall back to Python
+    # If binary execution failed (130 = Ctrl+C, which is expected for user interrupt), fall back to Python
     if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
-        print_warning "Binary execution failed. Trying Python fallback..."
+        print_warning "Binary execution failed with exit code $EXIT_CODE"
+        if [ -n "$BINARY_ERROR" ]; then
+            echo "Error message: $BINARY_ERROR" | head -3
+        fi
+        print_warning "Trying Python fallback..."
         
         # Check if Python is available
         if ! command -v python3 &> /dev/null; then
