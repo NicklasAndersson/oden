@@ -27,6 +27,7 @@ from oden.config import (
     TIMEZONE,
     UNMANAGED_SIGNAL_CLI,
     VAULT_PATH,
+    WEB_ACCESS_LOG,
     WEB_PORT,
 )
 from oden.log_buffer import get_log_buffer
@@ -734,7 +735,21 @@ async def start_web_server(port: int = 8080) -> web.AppRunner:
         The AppRunner instance (for cleanup).
     """
     app = create_app()
-    runner = web.AppRunner(app)
+
+    # Configure access logger to write to file instead of terminal
+    access_log: logging.Logger | None = None
+    if WEB_ACCESS_LOG:
+        access_log = logging.getLogger("aiohttp.access")
+        access_log.setLevel(logging.INFO)
+        # Remove any existing handlers to avoid duplicate output
+        access_log.handlers.clear()
+        access_log.propagate = False
+        # Add file handler
+        file_handler = logging.FileHandler(WEB_ACCESS_LOG)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+        access_log.addHandler(file_handler)
+
+    runner = web.AppRunner(app, access_log=access_log)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", port)
     await site.start()
