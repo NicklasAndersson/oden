@@ -12,11 +12,29 @@ import sys
 import time
 
 from oden import __version__
-from oden.config import DISPLAY_NAME, IGNORED_GROUPS, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, STARTUP_MESSAGE, TIMEZONE, UNMANAGED_SIGNAL_CLI
+from oden.config import DISPLAY_NAME, IGNORED_GROUPS, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, STARTUP_MESSAGE, TIMEZONE, UNMANAGED_SIGNAL_CLI, WEB_ENABLED, WEB_PORT
+from oden.log_buffer import get_log_buffer
 from oden.processing import process_message
 from oden.signal_manager import SignalManager, is_signal_cli_running
 
 logger = logging.getLogger(__name__)
+
+
+def configure_logging() -> None:
+    """Configure logging with both console output and in-memory buffer."""
+    root_logger = logging.getLogger()
+    root_logger.setLevel(LOG_LEVEL)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(LOG_LEVEL)
+    console_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    root_logger.addHandler(console_handler)
+
+    # In-memory log buffer for web GUI
+    log_buffer = get_log_buffer()
+    log_buffer.setLevel(LOG_LEVEL)
+    root_logger.addHandler(log_buffer)
 
 
 async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
@@ -203,7 +221,7 @@ async def subscribe_and_listen(host: str, port: int) -> None:
     except ConnectionRefusedError as e:
         logger.error(f"Connection to signal-cli daemon failed: {e}")
         logger.error("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket.")
-        sys.exit(1)
+        raise
     finally:
         if writer:
             writer.close()
@@ -211,10 +229,22 @@ async def subscribe_and_listen(host: str, port: int) -> None:
         logger.info("Connection closed.")
 
 
+async def run_all(host: str, port: int) -> None:
+    """Run signal-cli listener and optionally web server concurrently."""
+    tasks = [subscribe_and_listen(host, port)]
+
+    if WEB_ENABLED:
+        from oden.web_server import run_web_server
+        tasks.append(run_web_server(WEB_PORT))
+        logger.info(f"Web GUI enabled on port {WEB_PORT}")
+
+    await asyncio.gather(*tasks)
+
+
 def main() -> None:
     """Sets up the vault path, starts signal-cli, and begins listening."""
-    # Configure logging
-    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    # Configure logging with console and buffer handlers
+    configure_logging()
 
     logger.info("Starting s7_watcher...")
 
@@ -230,7 +260,7 @@ def main() -> None:
             sys.exit(1)
         logger.info("Running in unmanaged mode. Assuming signal-cli is already running.")
         try:
-            asyncio.run(subscribe_and_listen(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+            asyncio.run(run_all(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
         except (KeyboardInterrupt, SystemExit):
             logger.info("Exiting on user request.")
         except Exception as e:
@@ -240,7 +270,7 @@ def main() -> None:
         signal_manager = SignalManager(SIGNAL_NUMBER, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT)
         try:
             signal_manager.start()
-            asyncio.run(subscribe_and_listen(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+            asyncio.run(run_all(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
         except (KeyboardInterrupt, SystemExit):
             logger.info("Exiting on user request.")
         except Exception as e:

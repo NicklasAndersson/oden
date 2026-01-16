@@ -62,6 +62,13 @@ def get_config():
     except AttributeError:
         log_level = logging.INFO
 
+    # Read web server settings if available
+    web_enabled = True
+    web_port = 8080
+    if config.has_section("Web"):
+        web_enabled = config.getboolean("Web", "enabled", fallback=True)
+        web_port = config.getint("Web", "port", fallback=8080)
+
     # Expand user path for vault_path and inbox_path
     return {
         "vault_path": os.path.expanduser(vault_path),
@@ -78,6 +85,8 @@ def get_config():
         "startup_message": startup_message,
         "signal_cli_log_file": signal_cli_log_file,
         "log_level": log_level,
+        "web_enabled": web_enabled,
+        "web_port": web_port,
     }
 
 
@@ -98,6 +107,8 @@ try:
     STARTUP_MESSAGE = app_config["startup_message"]
     SIGNAL_CLI_LOG_FILE = app_config["signal_cli_log_file"]
     LOG_LEVEL = app_config["log_level"]
+    WEB_ENABLED = app_config["web_enabled"]
+    WEB_PORT = app_config["web_port"]
 except Exception as e:
     print(f"Error loading configuration: {e}")
     sys.exit(1)
