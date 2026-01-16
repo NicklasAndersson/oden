@@ -12,7 +12,19 @@ import sys
 import time
 
 from oden import __version__
-from oden.config import DISPLAY_NAME, IGNORED_GROUPS, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, STARTUP_MESSAGE, TIMEZONE, UNMANAGED_SIGNAL_CLI, WEB_ENABLED, WEB_PORT
+from oden.config import (
+    DISPLAY_NAME,
+    IGNORED_GROUPS,
+    LOG_LEVEL,
+    SIGNAL_CLI_HOST,
+    SIGNAL_CLI_PORT,
+    SIGNAL_NUMBER,
+    STARTUP_MESSAGE,
+    TIMEZONE,
+    UNMANAGED_SIGNAL_CLI,
+    WEB_ENABLED,
+    WEB_PORT,
+)
 from oden.log_buffer import get_log_buffer
 from oden.processing import process_message
 from oden.signal_manager import SignalManager, is_signal_cli_running
@@ -143,7 +155,7 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
             if IGNORED_GROUPS:
                 ignored_count = sum(1 for g in groups if g.get("name") in IGNORED_GROUPS)
                 logger.info(f"Ignored groups configured: {len(IGNORED_GROUPS)}, matched: {ignored_count}")
-            
+
             return groups
         else:
             logger.debug(f"Unexpected response for listGroups: {response}")
