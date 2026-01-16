@@ -353,16 +353,15 @@ if [ -f "$EXECUTABLE" ]; then
     echo "Press Ctrl+C to stop."
     echo ""
     
-    # Try to execute the binary, capture both output and exit code
-    BINARY_ERROR=$("$EXECUTABLE" 2>&1)
+    # Try to execute the binary directly, but if it fails immediately (e.g., cannot execute binary file),
+    # the error will be visible and we can fall back to Python
+    "$EXECUTABLE"
     EXIT_CODE=$?
     
     # If binary execution failed (130 = Ctrl+C, which is expected for user interrupt), fall back to Python
+    # This handles the "cannot execute binary file" error case
     if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
         print_warning "Binary execution failed with exit code $EXIT_CODE"
-        if [ -n "$BINARY_ERROR" ]; then
-            echo "Error message: $BINARY_ERROR" | head -3
-        fi
         print_warning "Trying Python fallback..."
         
         # Check if Python is available
