@@ -1,14 +1,17 @@
 """
 Web server for Oden GUI.
 
-Provides a simple read-only web interface for viewing config and logs.
+Provides a web interface for viewing config, logs, and sending commands.
 """
 
+import asyncio
+import json
 import logging
 
 from aiohttp import web
 
 from oden import __version__
+from oden.app_state import get_app_state
 from oden.config import (
     APPEND_WINDOW_MINUTES,
     DISPLAY_NAME,
@@ -180,6 +183,64 @@ HTML_TEMPLATE = """
             color: #666;
             padding: 40px;
         }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #888;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #0d1421;
+            color: #fff;
+            font-size: 0.95em;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: #4fc3f7;
+            color: #1a1a2e;
+        }
+        .btn-primary:hover {
+            background: #81d4fa;
+        }
+        .btn-primary:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .message {
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            display: none;
+        }
+        .message.success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4caf50;
+            color: #4caf50;
+            display: block;
+        }
+        .message.error {
+            background: rgba(239, 83, 80, 0.2);
+            border: 1px solid #ef5350;
+            color: #ef5350;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -216,6 +277,19 @@ HTML_TEMPLATE = """
                     <tr><th>Startup-meddelande</th><td id="startup-message">-</td></tr>
                     <tr><th>Ignorerade grupper</th><td id="ignored-groups">-</td></tr>
                 </table>
+            </div>
+
+            <div class="card full-width">
+                <h2>🔗 Gå med i grupp</h2>
+                <form id="join-group-form">
+                    <div class="form-group">
+                        <label for="group-link">Grupplänk</label>
+                        <input type="text" id="group-link" name="link" 
+                               placeholder="https://signal.group/#..." required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="join-btn">Gå med i grupp</button>
+                </form>
+                <div id="join-message" class="message"></div>
             </div>
 
             <div class="card full-width">
@@ -294,6 +368,46 @@ HTML_TEMPLATE = """
 
         // Polling - refresh logs every 3 seconds
         setInterval(fetchLogs, 3000);
+
+        // Join group form handling
+        document.getElementById('join-group-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const linkInput = document.getElementById('group-link');
+            const submitBtn = document.getElementById('join-btn');
+            const messageDiv = document.getElementById('join-message');
+            const link = linkInput.value.trim();
+
+            if (!link) return;
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Går med...';
+            messageDiv.className = 'message';
+            messageDiv.textContent = '';
+
+            try {
+                const response = await fetch('/api/join-group', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ link })
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    messageDiv.className = 'message success';
+                    messageDiv.textContent = result.message || 'Gick med i gruppen!';
+                    linkInput.value = '';
+                } else {
+                    messageDiv.className = 'message error';
+                    messageDiv.textContent = result.error || 'Kunde inte gå med i gruppen';
+                }
+            } catch (error) {
+                messageDiv.className = 'message error';
+                messageDiv.textContent = 'Nätverksfel: ' + error.message;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Gå med i grupp';
+            }
+        });
     </script>
 </body>
 </html>
@@ -335,12 +449,62 @@ async def logs_handler(request: web.Request) -> web.Response:
     return web.json_response(entries)
 
 
+async def join_group_handler(request: web.Request) -> web.Response:
+    """Handle request to join a Signal group via invite link."""
+    try:
+        data = await request.json()
+        link = data.get("link", "").strip()
+
+        if not link:
+            return web.json_response({"success": False, "error": "Ingen länk angiven"}, status=400)
+
+        if not link.startswith("https://signal.group/"):
+            return web.json_response(
+                {"success": False, "error": "Ogiltig länk. Måste börja med https://signal.group/"},
+                status=400,
+            )
+
+        app_state = get_app_state()
+        if not app_state.writer:
+            return web.json_response(
+                {"success": False, "error": "Inte ansluten till signal-cli"},
+                status=503,
+            )
+
+        # Send joinGroup request via JSON-RPC
+        request_id = app_state.get_next_request_id()
+        json_request = {
+            "jsonrpc": "2.0",
+            "method": "joinGroup",
+            "params": {"uri": link},
+            "id": request_id,
+        }
+
+        logger.info(f"Joining group via link: {link[:50]}...")
+        app_state.writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
+        await app_state.writer.drain()
+
+        # We don't wait for response since it comes async through the main listener
+        # Just return success that the request was sent
+        return web.json_response({
+            "success": True,
+            "message": "Förfrågan skickad. Kontrollera loggen för resultat.",
+        })
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error joining group: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
 def create_app() -> web.Application:
     """Create and configure the aiohttp application."""
     app = web.Application()
     app.router.add_get("/", index_handler)
     app.router.add_get("/api/config", config_handler)
     app.router.add_get("/api/logs", logs_handler)
+    app.router.add_post("/api/join-group", join_group_handler)
     return app
 
 
@@ -374,7 +538,3 @@ async def run_web_server(port: int = 8080) -> None:
         await asyncio.sleep(float("inf"))
     finally:
         await runner.cleanup()
-
-
-# Need to import asyncio at module level for run_web_server
-import asyncio  # noqa: E402

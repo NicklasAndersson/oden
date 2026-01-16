@@ -12,6 +12,7 @@ import sys
 import time
 
 from oden import __version__
+from oden.app_state import get_app_state
 from oden.config import (
     DISPLAY_NAME,
     IGNORED_GROUPS,
@@ -200,9 +201,14 @@ async def subscribe_and_listen(host: str, port: int) -> None:
 
     reader = None
     writer = None
+    app_state = get_app_state()
     try:
         reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100)  # 100 MB limit
         logger.info("Connection successful. Waiting for messages...")
+
+        # Share writer with web server for sending commands
+        app_state.writer = writer
+        app_state.reader = reader
 
         await update_profile(writer, DISPLAY_NAME)
         groups = await log_groups(reader, writer)
@@ -235,6 +241,9 @@ async def subscribe_and_listen(host: str, port: int) -> None:
         logger.error("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket.")
         raise
     finally:
+        # Clear shared state
+        app_state.writer = None
+        app_state.reader = None
         if writer:
             writer.close()
             await writer.wait_closed()
