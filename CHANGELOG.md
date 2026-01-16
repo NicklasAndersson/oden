@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-01-16
+
+### Fixed
+- **Regex patterns**: Use RawConfigParser to avoid interpolation issues with regex patterns in config.ini
+- **macOS Gatekeeper**: Automatically remove quarantine attribute from binary before execution
+- **Run scripts**: Read `signal_cli_path` from existing config.ini before prompting for installation
+
+### Changed
+- **Default display_name**: Run scripts now set `display_name = oden` by default
+
 ## [0.6.0] - 2026-01-16
 
 ### Added
