@@ -9,7 +9,8 @@ def get_config():
     """
     Reads configuration from config.ini and returns it as a dictionary.
     """
-    config = configparser.ConfigParser()
+    # Use RawConfigParser to avoid interpolation issues with regex patterns
+    config = configparser.RawConfigParser()
     config.read("config.ini")
 
     # Basic error handling
