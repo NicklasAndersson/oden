@@ -52,7 +52,7 @@ def configure_logging() -> None:
 
 async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
     """Sends a startup notification message based on STARTUP_MESSAGE config.
-    
+
     Args:
         writer: The asyncio StreamWriter for sending messages.
         groups: List of group dictionaries from listGroups (required if mode is 'all').
@@ -117,7 +117,7 @@ async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] 
 
 async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> list[dict]:
     """Fetches and logs all groups the account is a member of.
-    
+
     Returns:
         List of group dictionaries from signal-cli.
     """
@@ -256,6 +256,7 @@ async def run_all(host: str, port: int) -> None:
 
     if WEB_ENABLED:
         from oden.web_server import run_web_server
+
         tasks.append(run_web_server(WEB_PORT))
         logger.info(f"Web GUI enabled on port {WEB_PORT}")
 

@@ -241,6 +241,54 @@ HTML_TEMPLATE = """
             color: #ef5350;
             display: block;
         }
+        .invitation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .invitation-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #0d1421;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+        .invitation-info {
+            flex: 1;
+        }
+        .invitation-name {
+            font-weight: 500;
+            color: #fff;
+        }
+        .invitation-meta {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 4px;
+        }
+        .invitation-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85em;
+        }
+        .btn-success {
+            background: #4caf50;
+            color: #fff;
+        }
+        .btn-success:hover {
+            background: #66bb6a;
+        }
+        .btn-danger {
+            background: #ef5350;
+            color: #fff;
+        }
+        .btn-danger:hover {
+            background: #e57373;
+        }
     </style>
 </head>
 <body>
@@ -284,7 +332,7 @@ HTML_TEMPLATE = """
                 <form id="join-group-form">
                     <div class="form-group">
                         <label for="group-link">Grupplänk</label>
-                        <input type="text" id="group-link" name="link" 
+                        <input type="text" id="group-link" name="link"
                                placeholder="https://signal.group/#..." required>
                     </div>
                     <button type="submit" class="btn btn-primary" id="join-btn">Gå med i grupp</button>
@@ -293,7 +341,15 @@ HTML_TEMPLATE = """
             </div>
 
             <div class="card full-width">
-                <h2>📜 Logg</h2>
+                <h2>� Gruppinbjudningar</h2>
+                <div id="invitations-container" class="invitation-list">
+                    <div class="empty-state">Laddar inbjudningar...</div>
+                </div>
+                <div class="refresh-info">Uppdateras automatiskt var 10:e sekund</div>
+            </div>
+
+            <div class="card full-width">
+                <h2>�📜 Logg</h2>
                 <div class="logs" id="log-container">
                     <div class="empty-state">Laddar loggar...</div>
                 </div>
@@ -408,6 +464,68 @@ HTML_TEMPLATE = """
                 submitBtn.textContent = 'Gå med i grupp';
             }
         });
+
+        // Fetch and display group invitations
+        async function fetchInvitations() {
+            try {
+                const response = await fetch('/api/invitations');
+                const invitations = await response.json();
+                const container = document.getElementById('invitations-container');
+
+                if (!invitations || invitations.length === 0) {
+                    container.innerHTML = '<div class="empty-state">Inga väntande inbjudningar</div>';
+                    return;
+                }
+
+                container.innerHTML = invitations.map(inv => `
+                    <div class="invitation-item" data-group-id="${escapeHtml(inv.id)}">
+                        <div class="invitation-info">
+                            <div class="invitation-name">${escapeHtml(inv.name || 'Okänd grupp')}</div>
+                            <div class="invitation-meta">${inv.memberCount || '?'} medlemmar</div>
+                        </div>
+                        <div class="invitation-actions">
+                            <button class="btn btn-sm btn-success" onclick="handleInvitation('${escapeHtml(inv.id)}', 'accept')">Acceptera</button>
+                            <button class="btn btn-sm btn-danger" onclick="handleInvitation('${escapeHtml(inv.id)}', 'decline')">Avböj</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching invitations:', error);
+            }
+        }
+
+        async function handleInvitation(groupId, action) {
+            const item = document.querySelector(`[data-group-id="${groupId}"]`);
+            const buttons = item.querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            try {
+                const response = await fetch(`/api/invitations/${action}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ groupId })
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    item.style.opacity = '0.5';
+                    item.innerHTML = `<div class="invitation-info"><div class="invitation-name">${result.message}</div></div>`;
+                    setTimeout(() => fetchInvitations(), 2000);
+                } else {
+                    alert(result.error || 'Något gick fel');
+                    buttons.forEach(btn => btn.disabled = false);
+                }
+            } catch (error) {
+                alert('Nätverksfel: ' + error.message);
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        // Initial fetch
+        fetchInvitations();
+
+        // Polling - refresh invitations every 10 seconds
+        setInterval(fetchInvitations, 10000);
     </script>
 </body>
 </html>
@@ -486,15 +604,153 @@ async def join_group_handler(request: web.Request) -> web.Response:
 
         # We don't wait for response since it comes async through the main listener
         # Just return success that the request was sent
-        return web.json_response({
-            "success": True,
-            "message": "Förfrågan skickad. Kontrollera loggen för resultat.",
-        })
+        return web.json_response(
+            {
+                "success": True,
+                "message": "Förfrågan skickad. Kontrollera loggen för resultat.",
+            }
+        )
 
     except json.JSONDecodeError:
         return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error joining group: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def invitations_handler(request: web.Request) -> web.Response:
+    """Return list of pending group invitations."""
+    app_state = get_app_state()
+    if not app_state.writer or not app_state.reader:
+        return web.json_response([])
+
+    try:
+        # Send listGroups request via JSON-RPC
+        request_id = app_state.get_next_request_id()
+        json_request = {
+            "jsonrpc": "2.0",
+            "method": "listGroups",
+            "id": request_id,
+        }
+
+        app_state.writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
+        await app_state.writer.drain()
+
+        # Wait for response with timeout
+        response_line = await asyncio.wait_for(app_state.reader.readline(), timeout=5.0)
+        if not response_line:
+            return web.json_response([])
+
+        response = json.loads(response_line.decode("utf-8"))
+        if response.get("id") == request_id and "result" in response:
+            groups = response["result"]
+            # Filter to only pending invitations (where user is not a full member)
+            invitations = []
+            for group in groups:
+                # Check if user is a pending member (invited but not yet accepted)
+                if group.get("isMember") is False or group.get("invitedToGroup") is True:
+                    invitations.append(
+                        {
+                            "id": group.get("id"),
+                            "name": group.get("name", "Okänd grupp"),
+                            "memberCount": len(group.get("members", [])),
+                        }
+                    )
+            return web.json_response(invitations)
+
+        return web.json_response([])
+
+    except asyncio.TimeoutError:
+        logger.warning("Timeout waiting for listGroups response")
+        return web.json_response([])
+    except Exception as e:
+        logger.error(f"Error fetching invitations: {e}")
+        return web.json_response([])
+
+
+async def accept_invitation_handler(request: web.Request) -> web.Response:
+    """Accept a group invitation."""
+    try:
+        data = await request.json()
+        group_id = data.get("groupId", "").strip()
+
+        if not group_id:
+            return web.json_response({"success": False, "error": "Ingen grupp-ID angiven"}, status=400)
+
+        app_state = get_app_state()
+        if not app_state.writer:
+            return web.json_response(
+                {"success": False, "error": "Inte ansluten till signal-cli"},
+                status=503,
+            )
+
+        # Accept invitation by calling updateGroup with the group ID
+        request_id = app_state.get_next_request_id()
+        json_request = {
+            "jsonrpc": "2.0",
+            "method": "updateGroup",
+            "params": {"groupId": group_id},
+            "id": request_id,
+        }
+
+        logger.info(f"Accepting group invitation: {group_id[:20]}...")
+        app_state.writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
+        await app_state.writer.drain()
+
+        return web.json_response(
+            {
+                "success": True,
+                "message": "Inbjudan accepterad",
+            }
+        )
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error accepting invitation: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def decline_invitation_handler(request: web.Request) -> web.Response:
+    """Decline a group invitation."""
+    try:
+        data = await request.json()
+        group_id = data.get("groupId", "").strip()
+
+        if not group_id:
+            return web.json_response({"success": False, "error": "Ingen grupp-ID angiven"}, status=400)
+
+        app_state = get_app_state()
+        if not app_state.writer:
+            return web.json_response(
+                {"success": False, "error": "Inte ansluten till signal-cli"},
+                status=503,
+            )
+
+        # Decline invitation by calling quitGroup with the group ID
+        request_id = app_state.get_next_request_id()
+        json_request = {
+            "jsonrpc": "2.0",
+            "method": "quitGroup",
+            "params": {"groupId": group_id},
+            "id": request_id,
+        }
+
+        logger.info(f"Declining group invitation: {group_id[:20]}...")
+        app_state.writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
+        await app_state.writer.drain()
+
+        return web.json_response(
+            {
+                "success": True,
+                "message": "Inbjudan avböjd",
+            }
+        )
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error declining invitation: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
@@ -505,6 +761,9 @@ def create_app() -> web.Application:
     app.router.add_get("/api/config", config_handler)
     app.router.add_get("/api/logs", logs_handler)
     app.router.add_post("/api/join-group", join_group_handler)
+    app.router.add_get("/api/invitations", invitations_handler)
+    app.router.add_post("/api/invitations/accept", accept_invitation_handler)
+    app.router.add_post("/api/invitations/decline", decline_invitation_handler)
     return app
 
 

@@ -39,7 +39,9 @@ class LogBuffer(logging.Handler):
                 timestamp=datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S"),
                 level=record.levelname,
                 name=record.name,
-                message=self.format(record).split(" - ", 3)[-1] if " - " in self.format(record) else record.getMessage(),
+                message=self.format(record).split(" - ", 3)[-1]
+                if " - " in self.format(record)
+                else record.getMessage(),
             )
             self._buffer.append(entry)
         except Exception:
