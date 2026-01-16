@@ -12,16 +12,47 @@ import sys
 import time
 
 from oden import __version__
-from oden.config import DISPLAY_NAME, IGNORED_GROUPS, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, STARTUP_MESSAGE, TIMEZONE, UNMANAGED_SIGNAL_CLI
+from oden.app_state import get_app_state
+from oden.config import (
+    DISPLAY_NAME,
+    IGNORED_GROUPS,
+    LOG_LEVEL,
+    SIGNAL_CLI_HOST,
+    SIGNAL_CLI_PORT,
+    SIGNAL_NUMBER,
+    STARTUP_MESSAGE,
+    TIMEZONE,
+    UNMANAGED_SIGNAL_CLI,
+    WEB_ENABLED,
+    WEB_PORT,
+)
+from oden.log_buffer import get_log_buffer
 from oden.processing import process_message
 from oden.signal_manager import SignalManager, is_signal_cli_running
 
 logger = logging.getLogger(__name__)
 
 
+def configure_logging() -> None:
+    """Configure logging with both console output and in-memory buffer."""
+    root_logger = logging.getLogger()
+    root_logger.setLevel(LOG_LEVEL)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(LOG_LEVEL)
+    console_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    root_logger.addHandler(console_handler)
+
+    # In-memory log buffer for web GUI
+    log_buffer = get_log_buffer()
+    log_buffer.setLevel(LOG_LEVEL)
+    root_logger.addHandler(log_buffer)
+
+
 async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
     """Sends a startup notification message based on STARTUP_MESSAGE config.
-    
+
     Args:
         writer: The asyncio StreamWriter for sending messages.
         groups: List of group dictionaries from listGroups (required if mode is 'all').
@@ -86,10 +117,11 @@ async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] 
 
 async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> list[dict]:
     """Fetches and logs all groups the account is a member of.
-    
+
     Returns:
         List of group dictionaries from signal-cli.
     """
+    app_state = get_app_state()
     request_id = f"list-groups-{int(time.time())}"
     json_request = {
         "jsonrpc": "2.0",
@@ -111,6 +143,9 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
         response = json.loads(response_line.decode("utf-8"))
         if response.get("id") == request_id and "result" in response:
             groups = response["result"]
+            # Cache groups in app_state for web GUI access
+            app_state.update_groups(groups)
+
             if not groups:
                 logger.info("No groups found for this account.")
                 return []
@@ -125,7 +160,7 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
             if IGNORED_GROUPS:
                 ignored_count = sum(1 for g in groups if g.get("name") in IGNORED_GROUPS)
                 logger.info(f"Ignored groups configured: {len(IGNORED_GROUPS)}, matched: {ignored_count}")
-            
+
             return groups
         else:
             logger.debug(f"Unexpected response for listGroups: {response}")
@@ -170,9 +205,14 @@ async def subscribe_and_listen(host: str, port: int) -> None:
 
     reader = None
     writer = None
+    app_state = get_app_state()
     try:
         reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100)  # 100 MB limit
         logger.info("Connection successful. Waiting for messages...")
+
+        # Share writer with web server for sending commands
+        app_state.writer = writer
+        app_state.reader = reader
 
         await update_profile(writer, DISPLAY_NAME)
         groups = await log_groups(reader, writer)
@@ -203,18 +243,34 @@ async def subscribe_and_listen(host: str, port: int) -> None:
     except ConnectionRefusedError as e:
         logger.error(f"Connection to signal-cli daemon failed: {e}")
         logger.error("Please ensure signal-cli is running in JSON-RPC mode with a TCP socket.")
-        sys.exit(1)
+        raise
     finally:
+        # Clear shared state
+        app_state.writer = None
+        app_state.reader = None
         if writer:
             writer.close()
             await writer.wait_closed()
         logger.info("Connection closed.")
 
 
+async def run_all(host: str, port: int) -> None:
+    """Run signal-cli listener and optionally web server concurrently."""
+    tasks = [subscribe_and_listen(host, port)]
+
+    if WEB_ENABLED:
+        from oden.web_server import run_web_server
+
+        tasks.append(run_web_server(WEB_PORT))
+        logger.info(f"Web GUI enabled on port {WEB_PORT}")
+
+    await asyncio.gather(*tasks)
+
+
 def main() -> None:
     """Sets up the vault path, starts signal-cli, and begins listening."""
-    # Configure logging
-    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    # Configure logging with console and buffer handlers
+    configure_logging()
 
     logger.info("Starting s7_watcher...")
 
@@ -230,7 +286,7 @@ def main() -> None:
             sys.exit(1)
         logger.info("Running in unmanaged mode. Assuming signal-cli is already running.")
         try:
-            asyncio.run(subscribe_and_listen(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+            asyncio.run(run_all(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
         except (KeyboardInterrupt, SystemExit):
             logger.info("Exiting on user request.")
         except Exception as e:
@@ -240,7 +296,7 @@ def main() -> None:
         signal_manager = SignalManager(SIGNAL_NUMBER, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT)
         try:
             signal_manager.start()
-            asyncio.run(subscribe_and_listen(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+            asyncio.run(run_all(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
         except (KeyboardInterrupt, SystemExit):
             logger.info("Exiting on user request.")
         except Exception as e:

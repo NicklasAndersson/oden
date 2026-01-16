@@ -8,11 +8,13 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 signal-cli daemon (TCP:7583) → s7_watcher.py → processing.py → Markdown files in vault/
 ```
 
-- **s7_watcher.py**: Entry point. Manages signal-cli subprocess, TCP connection, startup tasks (profile update, group logging, startup message)
+- **s7_watcher.py**: Entry point. Manages signal-cli subprocess, TCP connection, startup tasks (profile update, group logging, startup message), web GUI
 - **processing.py**: Core logic. Parses messages, handles commands (`#help`), append mode (`++`), file I/O
-- **config.py**: Loads `config.ini`, exports constants like `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE`
+- **config.py**: Loads `config.ini`, exports constants like `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE`, `WEB_ENABLED`, `WEB_PORT`
 - **formatting.py**: Filename sanitization, path generation, display formatting
 - **signal_manager.py**: Starts/stops the signal-cli subprocess
+- **web_server.py**: aiohttp web server for read-only GUI (config & logs)
+- **log_buffer.py**: In-memory log buffer for web GUI display
 
 ## Key Patterns
 
@@ -39,14 +41,31 @@ from oden.config import VAULT_PATH, SIGNAL_NUMBER, TIMEZONE, IGNORED_GROUPS
 
 ## Development
 
+### Environment Setup
+macOS uses externally-managed Python (PEP 668), so use a virtual environment:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+The `.venv/` directory is gitignored.
+
 ### Commands
 ```bash
+source .venv/bin/activate # Activate virtual environment (required)
 pip install -e .          # Install in dev mode
 pytest                    # Run tests
 pytest --cov=oden         # With coverage
 ruff check . && ruff format .  # Lint and format
 python -m oden            # Run application
 ```
+
+### Web GUI
+A read-only web interface runs automatically at `http://127.0.0.1:8080` (localhost only, no auth).
+- Shows current config and live logs (polls every 3 seconds)
+- Configure in `config.ini` under `[Web]` section: `enabled` and `port`
+- API endpoints: `GET /api/config`, `GET /api/logs`
 
 ### Versioning
 - `__version__` in `oden/__init__.py` is set to `0.0.0-dev`
@@ -64,6 +83,7 @@ python -m oden            # Run application
 - Tests are in `tests/` using pytest
 - Mock config values when testing: patch `oden.config.VAULT_PATH` etc.
 - Don't get stuck fixing difficult tests - note the issue and move on
+- **Terminal output**: Run commands directly without piping or redirection tricks like `2>&1`, `| tail`, `| head`, `echo $?` etc. Just run `python -m pytest -v` straight up.
 
 ## File Naming Convention
 Markdown files: `DDHHMM-{phone}-{name}.md` (e.g., `161430-46701234567-Nicklas.md`)
