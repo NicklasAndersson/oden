@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-01-16
+
+### Added
+- **Configurable startup message**: New `startup_message` setting with options:
+  - `self` (default): Send startup message to yourself only
+  - `all`: Send startup message to all non-ignored groups
+  - `off`: Disable startup message entirely
+
 ## [0.5.0] - 2026-01-16
 
 ### Added

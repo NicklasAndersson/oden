@@ -12,39 +12,84 @@ import sys
 import time
 
 from oden import __version__
-from oden.config import DISPLAY_NAME, IGNORED_GROUPS, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, TIMEZONE, UNMANAGED_SIGNAL_CLI
+from oden.config import DISPLAY_NAME, IGNORED_GROUPS, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, STARTUP_MESSAGE, TIMEZONE, UNMANAGED_SIGNAL_CLI
 from oden.processing import process_message
 from oden.signal_manager import SignalManager, is_signal_cli_running
 
 logger = logging.getLogger(__name__)
 
 
-async def send_startup_message(writer: asyncio.StreamWriter) -> None:
-    """Sends a startup notification message to the configured Signal number."""
+async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
+    """Sends a startup notification message based on STARTUP_MESSAGE config.
+    
+    Args:
+        writer: The asyncio StreamWriter for sending messages.
+        groups: List of group dictionaries from listGroups (required if mode is 'all').
+    """
+    if STARTUP_MESSAGE == "off":
+        logger.info("Startup message disabled (startup_message=off)")
+        return
+
     now = datetime.datetime.now(TIMEZONE)
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
     message = f"🚀 Oden v{__version__} started\n📅 {timestamp}"
 
-    request_id = f"startup-{int(time.time())}"
-    json_request = {
-        "jsonrpc": "2.0",
-        "method": "send",
-        "params": {"recipient": [SIGNAL_NUMBER], "message": message},
-        "id": request_id,
-    }
-    request_str = json.dumps(json_request) + "\n"
-
     try:
-        logger.info(f"Sending startup message to {SIGNAL_NUMBER}...")
-        writer.write(request_str.encode("utf-8"))
-        await writer.drain()
-        logger.info("Startup message sent.")
+        if STARTUP_MESSAGE == "self":
+            # Send to self only
+            request_id = f"startup-{int(time.time())}"
+            json_request = {
+                "jsonrpc": "2.0",
+                "method": "send",
+                "params": {"recipient": [SIGNAL_NUMBER], "message": message},
+                "id": request_id,
+            }
+            logger.info(f"Sending startup message to {SIGNAL_NUMBER}...")
+            writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
+            await writer.drain()
+            logger.info("Startup message sent to self.")
+
+        elif STARTUP_MESSAGE == "all":
+            if not groups:
+                logger.warning("No groups available for startup message (startup_message=all)")
+                return
+
+            # Filter out ignored groups
+            active_groups = [g for g in groups if g.get("name") not in IGNORED_GROUPS]
+            if not active_groups:
+                logger.info("No active groups to send startup message to (all groups ignored)")
+                return
+
+            logger.info(f"Sending startup message to {len(active_groups)} group(s)...")
+            for group in active_groups:
+                group_id = group.get("id")
+                group_name = group.get("name", "Unknown")
+                if not group_id:
+                    continue
+
+                request_id = f"startup-{group_id}-{int(time.time())}"
+                json_request = {
+                    "jsonrpc": "2.0",
+                    "method": "send",
+                    "params": {"groupId": group_id, "message": message},
+                    "id": request_id,
+                }
+                writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
+                await writer.drain()
+                logger.info(f"  • Sent to group: {group_name}")
+
+            logger.info(f"Startup message sent to {len(active_groups)} group(s).")
+
     except Exception as e:
         logger.error(f"ERROR sending startup message: {e}")
 
 
-async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-    """Fetches and logs all groups the account is a member of."""
+async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> list[dict]:
+    """Fetches and logs all groups the account is a member of.
+    
+    Returns:
+        List of group dictionaries from signal-cli.
+    """
     request_id = f"list-groups-{int(time.time())}"
     json_request = {
         "jsonrpc": "2.0",
@@ -61,14 +106,14 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
         response_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
         if not response_line:
             logger.warning("No response received for listGroups request")
-            return
+            return []
 
         response = json.loads(response_line.decode("utf-8"))
         if response.get("id") == request_id and "result" in response:
             groups = response["result"]
             if not groups:
                 logger.info("No groups found for this account.")
-                return
+                return []
 
             logger.info(f"Account is member of {len(groups)} group(s):")
             for group in groups:
@@ -80,13 +125,18 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
             if IGNORED_GROUPS:
                 ignored_count = sum(1 for g in groups if g.get("name") in IGNORED_GROUPS)
                 logger.info(f"Ignored groups configured: {len(IGNORED_GROUPS)}, matched: {ignored_count}")
+            
+            return groups
         else:
             logger.debug(f"Unexpected response for listGroups: {response}")
+            return []
 
     except asyncio.TimeoutError:
         logger.warning("Timeout waiting for listGroups response")
+        return []
     except Exception as e:
         logger.error(f"ERROR fetching groups: {e}")
+        return []
 
 
 async def update_profile(writer: asyncio.StreamWriter, display_name: str | None) -> None:
@@ -125,8 +175,8 @@ async def subscribe_and_listen(host: str, port: int) -> None:
         logger.info("Connection successful. Waiting for messages...")
 
         await update_profile(writer, DISPLAY_NAME)
-        await log_groups(reader, writer)
-        await send_startup_message(writer)
+        groups = await log_groups(reader, writer)
+        await send_startup_message(writer, groups)
 
         while not reader.at_eof():
             line = await reader.readline()

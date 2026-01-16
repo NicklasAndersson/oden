@@ -34,10 +34,15 @@ def get_config():
     # Read settings if available
     append_window_minutes = 30
     ignored_groups = []
+    startup_message = "self"
     if config.has_section("Settings"):
         append_window_minutes = config.getint("Settings", "append_window_minutes", fallback=30)
         ignored_groups_str = config.get("Settings", "ignored_groups", fallback="")
         ignored_groups = [group.strip() for group in ignored_groups_str.split(",") if group.strip()]
+        startup_message = config.get("Settings", "startup_message", fallback="self").lower()
+        if startup_message not in ("self", "all", "off"):
+            print(f"Warning: Invalid startup_message '{startup_message}'. Using 'self'", file=sys.stderr)
+            startup_message = "self"
 
     # Read timezone if available, defaults to Europe/Stockholm
     timezone_str = "Europe/Stockholm"
@@ -70,6 +75,7 @@ def get_config():
         "timezone": timezone,
         "append_window_minutes": append_window_minutes,
         "ignored_groups": ignored_groups,
+        "startup_message": startup_message,
         "signal_cli_log_file": signal_cli_log_file,
         "log_level": log_level,
     }
@@ -89,6 +95,7 @@ try:
     TIMEZONE = app_config["timezone"]
     APPEND_WINDOW_MINUTES = app_config["append_window_minutes"]
     IGNORED_GROUPS = app_config["ignored_groups"]
+    STARTUP_MESSAGE = app_config["startup_message"]
     SIGNAL_CLI_LOG_FILE = app_config["signal_cli_log_file"]
     LOG_LEVEL = app_config["log_level"]
 except Exception as e:

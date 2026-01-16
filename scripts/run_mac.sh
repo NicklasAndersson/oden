@@ -304,9 +304,8 @@ if $NEEDS_CONFIG; then
     fi
     
     # Get timezone
-    CURRENT_TZ=$(systemsetup -gettimezone 2>/dev/null | awk '{print $3}' || echo "Europe/Stockholm")
-    read -p "Timezone (default: $CURRENT_TZ): " TIMEZONE
-    TIMEZONE=${TIMEZONE:-$CURRENT_TZ}
+    read -p "Timezone (default: Europe/Stockholm): " TIMEZONE
+    TIMEZONE=${TIMEZONE:-Europe/Stockholm}
     
     # Convert signal-cli path to absolute if relative
     if [[ "$SIGNAL_CLI_EXEC" == ./* ]]; then
