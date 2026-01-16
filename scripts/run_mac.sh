@@ -17,7 +17,12 @@ C_YELLOW='\033[0;33m'
 SIGNAL_CLI_VERSION="0.13.22"
 SIGNAL_CLI_DIR="./signal-cli-${SIGNAL_CLI_VERSION}"
 CONFIG_FILE="./config.ini"
-EXECUTABLE="./s7_watcher"
+# Try OS-specific binary first, fall back to generic name
+if [ -f "./s7_watcher_mac" ]; then
+    EXECUTABLE="./s7_watcher_mac"
+else
+    EXECUTABLE="./s7_watcher"
+fi
 
 # --- Helper Functions ---
 function print_header() {

@@ -13,7 +13,12 @@ $C_YELLOW = "Yellow"
 $SIGNAL_CLI_VERSION = "0.13.22"
 $SIGNAL_CLI_DIR = ".\signal-cli-$SIGNAL_CLI_VERSION"
 $CONFIG_FILE = ".\config.ini"
-$EXECUTABLE = ".\s7_watcher.exe"
+# Try OS-specific binary first, fall back to generic name
+if (Test-Path ".\s7_watcher_windows.exe") {
+    $EXECUTABLE = ".\s7_watcher_windows.exe"
+} else {
+    $EXECUTABLE = ".\s7_watcher.exe"
+}
 
 # --- Helper Functions ---
 function Print-Header {

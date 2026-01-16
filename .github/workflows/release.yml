@@ -30,13 +30,23 @@ jobs:
       - name: Build executable with PyInstaller
         run: pyinstaller --onefile --name s7_watcher oden/s7_watcher.py
 
+      - name: Rename binary for macOS
+        if: matrix.os == 'macos-latest'
+        run: mv dist/s7_watcher dist/s7_watcher_mac
+
+      - name: Rename binary for Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: mv dist/s7_watcher dist/s7_watcher_linux
+
+      - name: Rename binary for Windows
+        if: matrix.os == 'windows-latest'
+        run: mv dist/s7_watcher.exe dist/s7_watcher_windows.exe
+
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: s7_watcher-${{ matrix.os }}
-          path: |
-            dist/s7_watcher
-            dist/s7_watcher.exe
+          path: dist/s7_watcher*
           if-no-files-found: ignore
 
   package-and-release:
