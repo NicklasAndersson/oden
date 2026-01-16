@@ -619,53 +619,10 @@ async def join_group_handler(request: web.Request) -> web.Response:
 
 
 async def invitations_handler(request: web.Request) -> web.Response:
-    """Return list of pending group invitations."""
+    """Return list of pending group invitations from cached groups."""
     app_state = get_app_state()
-    if not app_state.writer or not app_state.reader:
-        return web.json_response([])
-
-    try:
-        # Send listGroups request via JSON-RPC
-        request_id = app_state.get_next_request_id()
-        json_request = {
-            "jsonrpc": "2.0",
-            "method": "listGroups",
-            "id": request_id,
-        }
-
-        app_state.writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
-        await app_state.writer.drain()
-
-        # Wait for response with timeout
-        response_line = await asyncio.wait_for(app_state.reader.readline(), timeout=5.0)
-        if not response_line:
-            return web.json_response([])
-
-        response = json.loads(response_line.decode("utf-8"))
-        if response.get("id") == request_id and "result" in response:
-            groups = response["result"]
-            # Filter to only pending invitations (where user is not a full member)
-            invitations = []
-            for group in groups:
-                # Check if user is a pending member (invited but not yet accepted)
-                if group.get("isMember") is False or group.get("invitedToGroup") is True:
-                    invitations.append(
-                        {
-                            "id": group.get("id"),
-                            "name": group.get("name", "Okänd grupp"),
-                            "memberCount": len(group.get("members", [])),
-                        }
-                    )
-            return web.json_response(invitations)
-
-        return web.json_response([])
-
-    except asyncio.TimeoutError:
-        logger.warning("Timeout waiting for listGroups response")
-        return web.json_response([])
-    except Exception as e:
-        logger.error(f"Error fetching invitations: {e}")
-        return web.json_response([])
+    invitations = app_state.get_pending_invitations()
+    return web.json_response(invitations)
 
 
 async def accept_invitation_handler(request: web.Request) -> web.Response:

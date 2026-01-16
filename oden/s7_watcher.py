@@ -121,6 +121,7 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
     Returns:
         List of group dictionaries from signal-cli.
     """
+    app_state = get_app_state()
     request_id = f"list-groups-{int(time.time())}"
     json_request = {
         "jsonrpc": "2.0",
@@ -142,6 +143,9 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
         response = json.loads(response_line.decode("utf-8"))
         if response.get("id") == request_id and "result" in response:
             groups = response["result"]
+            # Cache groups in app_state for web GUI access
+            app_state.update_groups(groups)
+
             if not groups:
                 logger.info("No groups found for this account.")
                 return []
