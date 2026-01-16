@@ -111,7 +111,16 @@ fi
 # =============================================================================
 print_header "Step 2: Setting up signal-cli"
 
-if command -v signal-cli &> /dev/null; then
+# First, check if config.ini already has a valid signal_cli_path
+EXISTING_CLI_PATH=""
+if [ -f "$CONFIG_FILE" ]; then
+    EXISTING_CLI_PATH=$(grep -E "^signal_cli_path\s*=" "$CONFIG_FILE" 2>/dev/null | sed 's/signal_cli_path\s*=\s*//' | xargs)
+fi
+
+if [ -n "$EXISTING_CLI_PATH" ] && [ -f "$EXISTING_CLI_PATH" ]; then
+    SIGNAL_CLI_EXEC="$EXISTING_CLI_PATH"
+    print_success "Found signal-cli from config: $SIGNAL_CLI_EXEC"
+elif command -v signal-cli &> /dev/null; then
     SIGNAL_CLI_EXEC=$(command -v signal-cli)
     print_success "Found signal-cli in PATH: $SIGNAL_CLI_EXEC"
 elif [ -f "${SIGNAL_CLI_DIR}/bin/signal-cli" ]; then

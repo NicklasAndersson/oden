@@ -84,43 +84,57 @@ if ([int]$javaMajorVersion -lt 21) {
 # =============================================================================
 Print-Header "Step 2: Setting up signal-cli"
 
-$signalCliPath = Get-Command signal-cli -ErrorAction SilentlyContinue
-if ($signalCliPath) {
-    $SIGNAL_CLI_EXEC = $signalCliPath.Source
-    Print-Success "Found signal-cli in PATH: $SIGNAL_CLI_EXEC"
-} elseif (Test-Path "$SIGNAL_CLI_DIR\bin\signal-cli.bat") {
-    $SIGNAL_CLI_EXEC = "$SIGNAL_CLI_DIR\bin\signal-cli.bat"
-    Print-Success "Found bundled signal-cli: $SIGNAL_CLI_EXEC"
+# First, check if config.ini already has a valid signal_cli_path
+$existingCliPath = $null
+if (Test-Path $CONFIG_FILE) {
+    $configContent = Get-Content $CONFIG_FILE -Raw
+    if ($configContent -match "(?m)^signal_cli_path\s*=\s*(.+)$") {
+        $existingCliPath = $matches[1].Trim()
+    }
+}
+
+if ($existingCliPath -and (Test-Path $existingCliPath)) {
+    $SIGNAL_CLI_EXEC = $existingCliPath
+    Print-Success "Found signal-cli from config: $SIGNAL_CLI_EXEC"
 } else {
-    Print-Warning "signal-cli not found."
-    $hasInstall = Read-Host "Do you have an existing signal-cli installation? (y/N)"
-    
-    if ($hasInstall -eq 'y') {
-        $customPath = Read-Host "Enter full path to signal-cli.bat"
-        if (Test-Path $customPath) {
-            $SIGNAL_CLI_EXEC = $customPath
-            Print-Success "Using: $SIGNAL_CLI_EXEC"
-        } else {
-            Print-Error "File not found. Exiting."
-            exit 1
-        }
-    } else {
-        Write-Host "Downloading signal-cli $SIGNAL_CLI_VERSION..."
-        $downloadUrl = "https://github.com/AsamK/signal-cli/releases/download/v$SIGNAL_CLI_VERSION/signal-cli-$SIGNAL_CLI_VERSION.tar.gz"
-        $tarFile = "signal-cli.tar.gz"
-        
-        try {
-            Invoke-WebRequest -Uri $downloadUrl -OutFile $tarFile -UseBasicParsing
-        } catch {
-            Print-Error "Failed to download signal-cli."
-            exit 1
-        }
-        
-        Write-Host "Extracting..."
-        tar -xzf $tarFile
-        Remove-Item $tarFile
+    $signalCliPath = Get-Command signal-cli -ErrorAction SilentlyContinue
+    if ($signalCliPath) {
+        $SIGNAL_CLI_EXEC = $signalCliPath.Source
+        Print-Success "Found signal-cli in PATH: $SIGNAL_CLI_EXEC"
+    } elseif (Test-Path "$SIGNAL_CLI_DIR\bin\signal-cli.bat") {
         $SIGNAL_CLI_EXEC = "$SIGNAL_CLI_DIR\bin\signal-cli.bat"
-        Print-Success "signal-cli installed: $SIGNAL_CLI_EXEC"
+        Print-Success "Found bundled signal-cli: $SIGNAL_CLI_EXEC"
+    } else {
+        Print-Warning "signal-cli not found."
+        $hasInstall = Read-Host "Do you have an existing signal-cli installation? (y/N)"
+        
+        if ($hasInstall -eq 'y') {
+            $customPath = Read-Host "Enter full path to signal-cli.bat"
+            if (Test-Path $customPath) {
+                $SIGNAL_CLI_EXEC = $customPath
+                Print-Success "Using: $SIGNAL_CLI_EXEC"
+            } else {
+                Print-Error "File not found. Exiting."
+                exit 1
+            }
+        } else {
+            Write-Host "Downloading signal-cli $SIGNAL_CLI_VERSION..."
+            $downloadUrl = "https://github.com/AsamK/signal-cli/releases/download/v$SIGNAL_CLI_VERSION/signal-cli-$SIGNAL_CLI_VERSION.tar.gz"
+            $tarFile = "signal-cli.tar.gz"
+            
+            try {
+                Invoke-WebRequest -Uri $downloadUrl -OutFile $tarFile -UseBasicParsing
+            } catch {
+                Print-Error "Failed to download signal-cli."
+                exit 1
+            }
+            
+            Write-Host "Extracting..."
+            tar -xzf $tarFile
+            Remove-Item $tarFile
+            $SIGNAL_CLI_EXEC = "$SIGNAL_CLI_DIR\bin\signal-cli.bat"
+            Print-Success "signal-cli installed: $SIGNAL_CLI_EXEC"
+        }
     }
 }
 
