@@ -358,6 +358,9 @@ print_header "Step 5: Starting Oden"
 if [ -f "$EXECUTABLE" ]; then
     chmod +x "$EXECUTABLE"
     
+    # Remove macOS quarantine attribute (Gatekeeper blocks unsigned binaries)
+    xattr -cr "$EXECUTABLE" 2>/dev/null
+    
     echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting ===${C_RESET}\n"
     echo "Press Ctrl+C to stop."
     echo ""
