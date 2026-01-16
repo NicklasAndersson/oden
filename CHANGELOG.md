@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-16
+
+### Added
+- **Startup notifications**: Sends a message to yourself when Oden starts, including version and timestamp
+- **Group logging**: Logs all groups the account is member of at startup, indicating which are ignored
+- **Complete default config**: Run scripts now generate config.ini with all options (commented where optional)
+- **Dynamic versioning**: Version is now injected from git tag during CI build
+
+## [0.4.1] - 2026-01-16
+
+### Added / Fixed
+- Add Python fallback for incompatible binaries and fix CI artifact overwrite
+- Update README and HOW_TO_RUN for new run scripts
+- Use echo -e for ANSI escape codes in captcha instructions
+
+See full commit history for more details.
+
 ## [0.4.0] - 2026-01-15
 
 ### Changed

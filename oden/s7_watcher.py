@@ -5,16 +5,88 @@ Main entry point that connects to signal-cli daemon and processes incoming messa
 """
 
 import asyncio
+import datetime
 import json
 import logging
 import sys
 import time
 
-from oden.config import DISPLAY_NAME, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, UNMANAGED_SIGNAL_CLI
+from oden import __version__
+from oden.config import DISPLAY_NAME, IGNORED_GROUPS, LOG_LEVEL, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, SIGNAL_NUMBER, TIMEZONE, UNMANAGED_SIGNAL_CLI
 from oden.processing import process_message
 from oden.signal_manager import SignalManager, is_signal_cli_running
 
 logger = logging.getLogger(__name__)
+
+
+async def send_startup_message(writer: asyncio.StreamWriter) -> None:
+    """Sends a startup notification message to the configured Signal number."""
+    now = datetime.datetime.now(TIMEZONE)
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    message = f"🚀 Oden v{__version__} started\n📅 {timestamp}"
+
+    request_id = f"startup-{int(time.time())}"
+    json_request = {
+        "jsonrpc": "2.0",
+        "method": "send",
+        "params": {"recipient": [SIGNAL_NUMBER], "message": message},
+        "id": request_id,
+    }
+    request_str = json.dumps(json_request) + "\n"
+
+    try:
+        logger.info(f"Sending startup message to {SIGNAL_NUMBER}...")
+        writer.write(request_str.encode("utf-8"))
+        await writer.drain()
+        logger.info("Startup message sent.")
+    except Exception as e:
+        logger.error(f"ERROR sending startup message: {e}")
+
+
+async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """Fetches and logs all groups the account is a member of."""
+    request_id = f"list-groups-{int(time.time())}"
+    json_request = {
+        "jsonrpc": "2.0",
+        "method": "listGroups",
+        "id": request_id,
+    }
+    request_str = json.dumps(json_request) + "\n"
+
+    try:
+        writer.write(request_str.encode("utf-8"))
+        await writer.drain()
+
+        # Wait for response with timeout
+        response_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+        if not response_line:
+            logger.warning("No response received for listGroups request")
+            return
+
+        response = json.loads(response_line.decode("utf-8"))
+        if response.get("id") == request_id and "result" in response:
+            groups = response["result"]
+            if not groups:
+                logger.info("No groups found for this account.")
+                return
+
+            logger.info(f"Account is member of {len(groups)} group(s):")
+            for group in groups:
+                group_name = group.get("name", "Unknown")
+                is_ignored = group_name in IGNORED_GROUPS
+                status = " (IGNORED)" if is_ignored else ""
+                logger.info(f"  • {group_name}{status}")
+
+            if IGNORED_GROUPS:
+                ignored_count = sum(1 for g in groups if g.get("name") in IGNORED_GROUPS)
+                logger.info(f"Ignored groups configured: {len(IGNORED_GROUPS)}, matched: {ignored_count}")
+        else:
+            logger.debug(f"Unexpected response for listGroups: {response}")
+
+    except asyncio.TimeoutError:
+        logger.warning("Timeout waiting for listGroups response")
+    except Exception as e:
+        logger.error(f"ERROR fetching groups: {e}")
 
 
 async def update_profile(writer: asyncio.StreamWriter, display_name: str | None) -> None:
@@ -53,6 +125,8 @@ async def subscribe_and_listen(host: str, port: int) -> None:
         logger.info("Connection successful. Waiting for messages...")
 
         await update_profile(writer, DISPLAY_NAME)
+        await log_groups(reader, writer)
+        await send_startup_message(writer)
 
         while not reader.at_eof():
             line = await reader.readline()

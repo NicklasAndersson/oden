@@ -27,6 +27,13 @@ jobs:
           pip install pyinstaller
           pip install -e .
 
+      - name: Set version from tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i.bak "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
+          cat oden/__init__.py
+        shell: bash
+
       - name: Build executable with PyInstaller
         run: pyinstaller --onefile --name s7_watcher oden/s7_watcher.py
 

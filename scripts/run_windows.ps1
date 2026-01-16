@@ -271,6 +271,10 @@ path = $vaultPath
 number = $SIGNAL_NUMBER
 signal_cli_path = $signalCliFullPath
 log_file = signal-cli.log
+#display_name = oden
+#unmanaged_signal_cli = false
+#host = 127.0.0.1
+#port = 7583
 
 [Regex]
 registration_number = [A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}
@@ -279,6 +283,7 @@ personal_number = [0-9]{6}[-]?[0-9]{4}
 
 [Settings]
 append_window_minutes = 30
+#ignored_groups = 
 
 [Timezone]
 timezone = $timezone
