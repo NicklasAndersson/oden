@@ -76,6 +76,7 @@ ruff format .
 
 ### Funktioner
 
+- **Web GUI** - Webbgränssnitt för att visa config, loggar och hantera gruppinbjudningar
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten
 
@@ -92,7 +93,24 @@ number = +46701234567
 
 [Timezone]
 timezone = Europe/Stockholm
+
+[Web]
+enabled = true
+port = 8080
+access_log = web_access.log
 ```
+
+## Web GUI
+
+Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0.1:8080`.
+
+**Funktioner:**
+- Visa aktuell konfiguration
+- Live-loggar (uppdateras var 3:e sekund)
+- Gå med i grupper via inbjudningslänk
+- Visa och hantera väntande gruppinbjudningar
+
+**Säkerhet:** Lyssnar endast på localhost - ingen autentisering krävs.
 
 ## Dokumentation
 

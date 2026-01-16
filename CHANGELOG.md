@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-01-16
+
+### Added
+- **Web GUI**: Built-in web interface at `http://127.0.0.1:8080`
+  - View current configuration
+  - Live log viewer (polls every 3 seconds)
+  - Join groups via invitation link
+  - View and accept/decline pending group invitations
+- **Web configuration options** in `config.ini`:
+  - `enabled`: Enable/disable web GUI (default: true)
+  - `port`: Port to listen on (default: 8080)
+  - `access_log`: File for HTTP request logging (separates from main log)
+
+### Changed
+- Logging refactored to support both console and in-memory buffer for web GUI
+- Connection errors now re-raise instead of calling sys.exit()
+
 ## [0.5.1] - 2026-01-16
 
 ### Added
