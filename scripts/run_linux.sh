@@ -49,6 +49,22 @@ echo "            (Linux/Ubuntu)                 "
 echo "==========================================="
 echo -e "${C_RESET}"
 
+# --- OS Check ---
+if [[ "$(uname)" != "Linux" ]]; then
+    print_warning "VARNING: Detta skript är avsett för Linux men du kör $(uname)."
+    if [[ "$(uname)" == "Darwin" ]]; then
+        print_warning "Använd run_mac.sh för macOS."
+    else
+        print_warning "Använd run_windows.ps1 för Windows."
+    fi
+    echo ""
+    read -p "Vill du fortsätta ändå? (y/N): " CONTINUE_ANYWAY
+    if [[ ! "$CONTINUE_ANYWAY" =~ ^[Yy]$ ]]; then
+        echo "Avbryter."
+        exit 1
+    fi
+fi
+
 # =============================================================================
 # STEP 1: Check Dependencies
 # =============================================================================
@@ -166,6 +182,15 @@ fi
 # =============================================================================
 print_header "Step 3: Signal Account Configuration"
 
+# Check for existing signal-cli state
+SIGNAL_STATE_DIR="$HOME/.local/share/signal-cli"
+if [ -d "$SIGNAL_STATE_DIR" ]; then
+    print_warning "OBS: Befintlig signal-cli data hittades i: $SIGNAL_STATE_DIR"
+    print_warning "Detta innehåller sparade konton och krypteringsnycklar från tidigare installationer."
+    echo -e "Om du vill börja helt från scratch, ta bort katalogen med: ${C_BOLD}rm -rf $SIGNAL_STATE_DIR${C_RESET}"
+    echo ""
+fi
+
 EXISTING_ACCOUNT_OUTPUT=$($SIGNAL_CLI_EXEC listAccounts 2>/dev/null)
 SIGNAL_NUMBER=""
 
@@ -192,7 +217,7 @@ if [ -z "$SIGNAL_NUMBER" ]; then
             read -p "Press Enter to generate QR code..."
             
             LINK_OUTPUT=$($SIGNAL_CLI_EXEC link -n "$DEVICE_NAME" 2>&1)
-            LINK_URI=$(echo "$LINK_OUTPUT" | grep 'tsdevice:')
+            LINK_URI=$(echo "$LINK_OUTPUT" | grep -o 'sgnl://linkdevice[^[:space:]]*')
             
             if [ -z "$LINK_URI" ]; then
                 print_error "Failed to generate link."

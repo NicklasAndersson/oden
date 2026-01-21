@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-01-21
+
+### Added
+- **OS detection in run scripts**: Warns if running macOS script on Linux or vice versa
+- **Signal state warning**: Alerts user if existing signal-cli data is found in `~/.local/share/signal-cli/`
+
+### Fixed
+- **Link device URI**: Updated to use new `sgnl://linkdevice` format instead of deprecated `tsdevice:`
+
 ## [0.7.1] - 2026-01-21
 
 ### Changed
