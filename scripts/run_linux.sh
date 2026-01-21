@@ -193,14 +193,41 @@ fi
 
 EXISTING_ACCOUNT_OUTPUT=$($SIGNAL_CLI_EXEC listAccounts 2>/dev/null)
 SIGNAL_NUMBER=""
+ACCOUNT_CHANGED=false
 
 if [ $? -eq 0 ] && [ -n "$EXISTING_ACCOUNT_OUTPUT" ]; then
-    SIGNAL_NUMBER=$(echo "$EXISTING_ACCOUNT_OUTPUT" | grep 'Number' | awk '{print $2}')
-    print_success "Found existing account: $SIGNAL_NUMBER"
-    read -p "Use this account? (Y/n): " KEEP_ACCOUNT
-    if [[ ! -z "$KEEP_ACCOUNT" && ! "$KEEP_ACCOUNT" =~ ^[Yy]$ ]]; then
-        SIGNAL_NUMBER=""
+    # Get all account numbers
+    ACCOUNT_NUMBERS=$(echo "$EXISTING_ACCOUNT_OUTPUT" | grep 'Number' | awk '{print $2}')
+    ACCOUNT_COUNT=$(echo "$ACCOUNT_NUMBERS" | wc -l | tr -d ' ')
+    
+    if [ "$ACCOUNT_COUNT" -gt 1 ]; then
+        echo "Found $ACCOUNT_COUNT existing accounts:"
+        i=1
+        while IFS= read -r num; do
+            echo "  $i) $num"
+            i=$((i+1))
+        done <<< "$ACCOUNT_NUMBERS"
+        echo "  $i) Link/register a new account"
+        read -p "Choose account (1-$i): " ACCOUNT_CHOICE
+        
+        if [ "$ACCOUNT_CHOICE" -eq "$i" ] 2>/dev/null; then
+            SIGNAL_NUMBER=""
+        elif [ "$ACCOUNT_CHOICE" -ge 1 ] && [ "$ACCOUNT_CHOICE" -lt "$i" ] 2>/dev/null; then
+            SIGNAL_NUMBER=$(echo "$ACCOUNT_NUMBERS" | sed -n "${ACCOUNT_CHOICE}p")
+            ACCOUNT_CHANGED=true
+        else
+            SIGNAL_NUMBER=$(echo "$ACCOUNT_NUMBERS" | head -1)
+        fi
+    else
+        SIGNAL_NUMBER=$(echo "$ACCOUNT_NUMBERS" | head -1)
+        print_success "Found existing account: $SIGNAL_NUMBER"
+        read -p "Use this account? (Y/n): " KEEP_ACCOUNT
+        if [[ ! -z "$KEEP_ACCOUNT" && ! "$KEEP_ACCOUNT" =~ ^[Yy]$ ]]; then
+            SIGNAL_NUMBER=""
+        fi
     fi
+    # Trim any whitespace/newlines
+    SIGNAL_NUMBER=$(echo "$SIGNAL_NUMBER" | tr -d '\n\r ' )
 fi
 
 if [ -z "$SIGNAL_NUMBER" ]; then
@@ -264,13 +291,18 @@ if [ -z "$SIGNAL_NUMBER" ]; then
                 print_warning "Link process exited with code $LINK_EXIT"
             fi
             
-            # Get the account number
+            # Get the account number (use the newest/last one after linking)
             sleep 2
             EXISTING_ACCOUNT_OUTPUT=$($SIGNAL_CLI_EXEC listAccounts 2>/dev/null)
-            SIGNAL_NUMBER=$(echo "$EXISTING_ACCOUNT_OUTPUT" | grep 'Number' | awk '{print $2}')
+            NEW_NUMBER=$(echo "$EXISTING_ACCOUNT_OUTPUT" | grep 'Number' | tail -1 | awk '{print $2}' | tr -d '\n\r ')
             
-            if [ -z "$SIGNAL_NUMBER" ]; then
+            if [ -n "$NEW_NUMBER" ]; then
+                SIGNAL_NUMBER="$NEW_NUMBER"
+                ACCOUNT_CHANGED=true
+            elif [ -z "$SIGNAL_NUMBER" ]; then
                 read -p "Enter your Signal phone number (e.g., +46701234567): " SIGNAL_NUMBER
+                SIGNAL_NUMBER=$(echo "$SIGNAL_NUMBER" | tr -d '\n\r ')
+                ACCOUNT_CHANGED=true
             fi
             print_success "Account linked!"
             ;;
@@ -392,9 +424,10 @@ EOF
     print_success "Configuration saved to $CONFIG_FILE"
 else
     print_success "Configuration already exists."
-    # Update signal number if needed
-    if [ -n "$SIGNAL_NUMBER" ]; then
-        sed -i "s/number = .*/number = $SIGNAL_NUMBER/" "$CONFIG_FILE"
+    # Update number if account changed or number is set
+    if [ -n "$SIGNAL_NUMBER" ] && ($ACCOUNT_CHANGED || ! grep -q "number = $SIGNAL_NUMBER" "$CONFIG_FILE"); then
+        sed -i "s|^number = .*|number = $SIGNAL_NUMBER|" "$CONFIG_FILE"
+        print_success "Updated Signal number: $SIGNAL_NUMBER"
     fi
 fi
 

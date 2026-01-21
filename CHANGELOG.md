@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-01-21
+
+### Fixed
+- **Multiple accounts**: Run scripts now handle multiple signal-cli accounts, letting user choose which to use
+- **Account switching**: Config.ini is now correctly updated when switching to a different account
+- **sed error**: Fixed "unescaped newline" error by trimming whitespace from phone numbers
+
 ## [0.8.1] - 2026-01-21
 
 ### Fixed
