@@ -18,6 +18,17 @@ Skriptet hanterar allt: beroenden, Signal-konfiguration och start.
 
 Se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) för mer info.
 
+### Signal-konto
+
+**Viktigt:** Använd inte ditt privata Signal-nummer! Skaffa ett dedikerat nummer för Oden (t.ex. ett billigt kontantkort eller VoIP-nummer).
+
+Det finns två sätt att konfigurera Signal:
+
+1. **Länka till befintligt konto** (Rekommenderat) - Koppla Oden som en länkad enhet till din telefon
+2. **Registrera nytt nummer** - Använd ett separat telefonnummer som kan ta emot SMS för verifiering
+
+⚠️ **Varning:** Om du registrerar ett nytt nummer utan att först ha det i Signal-appen på en telefon blir Oden den enda enheten för det numret. Detta kan orsaka problem med meddelandesynkronisering och krypteringsnycklar. Det rekommenderas att alltid länka till ett befintligt konto.
+
 ---
 
 ## För Utvecklare
