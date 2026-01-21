@@ -216,12 +216,32 @@ if [ -z "$SIGNAL_NUMBER" ]; then
             echo -e "On your phone: ${C_BOLD}Signal > Settings > Linked Devices > +${C_RESET}"
             read -p "Press Enter to generate QR code..."
             
-            LINK_OUTPUT=$($SIGNAL_CLI_EXEC link -n "$DEVICE_NAME" 2>&1)
-            LINK_URI=$(echo "$LINK_OUTPUT" | grep -o 'sgnl://linkdevice[^[:space:]]*')
+            # Create a temp file for the link output
+            LINK_FIFO=$(mktemp)
+            rm "$LINK_FIFO"  # Remove so we can use it as a named pipe marker
+            
+            # Run signal-cli link in background, capturing output
+            $SIGNAL_CLI_EXEC link -n "$DEVICE_NAME" > "${LINK_FIFO}.out" 2>&1 &
+            LINK_PID=$!
+            
+            # Wait for the URI to appear (max 30 seconds)
+            echo "Generating link..."
+            LINK_URI=""
+            for i in {1..30}; do
+                sleep 1
+                if [ -f "${LINK_FIFO}.out" ]; then
+                    LINK_URI=$(grep -o 'sgnl://linkdevice[^[:space:]]*' "${LINK_FIFO}.out" 2>/dev/null | head -1)
+                    if [ -n "$LINK_URI" ]; then
+                        break
+                    fi
+                fi
+            done
             
             if [ -z "$LINK_URI" ]; then
-                print_error "Failed to generate link."
-                echo "$LINK_OUTPUT"
+                print_error "Failed to generate link within 30 seconds."
+                kill $LINK_PID 2>/dev/null
+                cat "${LINK_FIFO}.out" 2>/dev/null
+                rm -f "${LINK_FIFO}.out"
                 exit 1
             fi
             
@@ -231,9 +251,21 @@ if [ -z "$SIGNAL_NUMBER" ]; then
                 echo -e "Link: ${C_BOLD}$LINK_URI${C_RESET}"
             fi
             
-            echo "Waiting for link to complete..."
-            # After linking, get the account number
-            sleep 3
+            echo ""
+            echo "Scan the QR code with your phone, then wait for linking to complete..."
+            echo "(This may take a minute)"
+            
+            # Wait for the link process to complete
+            wait $LINK_PID
+            LINK_EXIT=$?
+            rm -f "${LINK_FIFO}.out"
+            
+            if [ $LINK_EXIT -ne 0 ]; then
+                print_warning "Link process exited with code $LINK_EXIT"
+            fi
+            
+            # Get the account number
+            sleep 2
             EXISTING_ACCOUNT_OUTPUT=$($SIGNAL_CLI_EXEC listAccounts 2>/dev/null)
             SIGNAL_NUMBER=$(echo "$EXISTING_ACCOUNT_OUTPUT" | grep 'Number' | awk '{print $2}')
             
