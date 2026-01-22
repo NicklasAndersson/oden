@@ -253,6 +253,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(empty_message, mock_reader, mock_writer)
         mock_open.assert_not_called()
 
+    @patch("oden.processing.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("builtins.open", new_callable=mock_open)
     async def test_process_message_append_plus_plus_success(self, mock_open, mock_find_latest):
@@ -277,6 +278,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("\n---\n", written_content)
         self.assertIn("adding more details", written_content)
 
+    @patch("oden.processing.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value=None)
     @patch("builtins.open", new_callable=mock_open)
     async def test_process_message_append_plus_plus_failure(self, mock_open, mock_find_latest):

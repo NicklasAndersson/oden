@@ -89,7 +89,7 @@ ruff format .
 
 - **Web GUI** - Webbgränssnitt för att visa config, loggar och hantera gruppinbjudningar
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
-- **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten
+- **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten *(avstängt per default, aktiveras med `plus_plus_enabled = true` i config)*
 
 ## Konfiguration
 

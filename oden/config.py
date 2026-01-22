@@ -36,6 +36,7 @@ def get_config():
     append_window_minutes = 30
     ignored_groups = []
     startup_message = "self"
+    plus_plus_enabled = False
     if config.has_section("Settings"):
         append_window_minutes = config.getint("Settings", "append_window_minutes", fallback=30)
         ignored_groups_str = config.get("Settings", "ignored_groups", fallback="")
@@ -44,6 +45,7 @@ def get_config():
         if startup_message not in ("self", "all", "off"):
             print(f"Warning: Invalid startup_message '{startup_message}'. Using 'self'", file=sys.stderr)
             startup_message = "self"
+        plus_plus_enabled = config.getboolean("Settings", "plus_plus_enabled", fallback=False)
 
     # Read timezone if available, defaults to Europe/Stockholm
     timezone_str = "Europe/Stockholm"
@@ -86,6 +88,7 @@ def get_config():
         "append_window_minutes": append_window_minutes,
         "ignored_groups": ignored_groups,
         "startup_message": startup_message,
+        "plus_plus_enabled": plus_plus_enabled,
         "signal_cli_log_file": signal_cli_log_file,
         "log_level": log_level,
         "web_enabled": web_enabled,
@@ -109,6 +112,7 @@ try:
     APPEND_WINDOW_MINUTES = app_config["append_window_minutes"]
     IGNORED_GROUPS = app_config["ignored_groups"]
     STARTUP_MESSAGE = app_config["startup_message"]
+    PLUS_PLUS_ENABLED = app_config["plus_plus_enabled"]
     SIGNAL_CLI_LOG_FILE = app_config["signal_cli_log_file"]
     LOG_LEVEL = app_config["log_level"]
     WEB_ENABLED = app_config["web_enabled"]

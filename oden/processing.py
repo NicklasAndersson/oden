@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from oden.attachment_handler import save_attachments
-from oden.config import APPEND_WINDOW_MINUTES, IGNORED_GROUPS, TIMEZONE
+from oden.config import APPEND_WINDOW_MINUTES, IGNORED_GROUPS, PLUS_PLUS_ENABLED, TIMEZONE
 from oden.formatting import (
     _format_quote,
     format_sender_display,
@@ -225,7 +225,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     now = datetime.datetime.now(TIMEZONE)
 
     # --- Append Logic ---
-    is_plus_plus_append = msg and msg.strip().startswith("++")
+    is_plus_plus_append = PLUS_PLUS_ENABLED and msg and msg.strip().startswith("++")
     is_reply_append = False
     if quote:
         quote_ts = quote.get("id", 0)
