@@ -319,8 +319,14 @@ $OBSIDIAN_TEMPLATE = ".\obsidian-template\.obsidian"
 # Get vault path from config
 $vaultPathFromConfig = (Get-Content $CONFIG_FILE | Select-String "^path = (.*)").Matches.Groups[1].Value
 
-# Only ask if vault exists and doesn't already have .obsidian
-if ((Test-Path $vaultPathFromConfig) -and (-not (Test-Path "$vaultPathFromConfig\.obsidian")) -and (Test-Path $OBSIDIAN_TEMPLATE)) {
+# Create vault directory if it doesn't exist
+if (-not [string]::IsNullOrEmpty($vaultPathFromConfig) -and (-not (Test-Path $vaultPathFromConfig))) {
+    New-Item -ItemType Directory -Path $vaultPathFromConfig -Force | Out-Null
+    Print-Success "Skapade valv-mappen: $vaultPathFromConfig"
+}
+
+# Only ask if vault path is set and doesn't already have .obsidian
+if (-not [string]::IsNullOrEmpty($vaultPathFromConfig) -and (-not (Test-Path "$vaultPathFromConfig\.obsidian")) -and (Test-Path $OBSIDIAN_TEMPLATE)) {
     Print-Header "Obsidian Settings"
     Write-Host "Vi har en Obsidian-mall med forinstallerade plugins (bl.a. Map View for kartor)."
     Write-Host ""

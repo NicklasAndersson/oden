@@ -74,10 +74,15 @@ A read-only web interface runs automatically at `http://127.0.0.1:8080` (localho
 
 ### Release Process
 1. Update `CHANGELOG.md` with new version section
-2. Commit changes
-3. Create annotated tag: `git tag -a v0.5.0 -m "description"`
-4. Push: `git push origin main && git push origin v0.5.0`
-5. GitHub Actions builds binaries and creates release
+2. Commit changes to a feature branch
+3. Create a pull request to `main`
+4. Wait for required status checks to pass (2 checks required)
+5. Merge the pull request
+6. Create annotated tag on main: `git tag -a v0.5.0 -m "description"`
+7. Push tag: `git push origin v0.5.0`
+8. GitHub Actions builds binaries and creates release
+
+**Note:** Direct pushes to `main` are blocked by branch protection rules. All changes must go through pull requests with passing status checks.
 
 ## Testing Guidelines
 - Tests are in `tests/` using pytest

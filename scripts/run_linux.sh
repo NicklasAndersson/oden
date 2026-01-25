@@ -447,8 +447,14 @@ if [ -z "$VAULT_PATH" ] && [ -f "$CONFIG_FILE" ]; then
     VAULT_PATH=$(grep "^path = " "$CONFIG_FILE" | sed 's/^path = //')
 fi
 
-# Only ask if vault exists and doesn't already have .obsidian
-if [ -n "$VAULT_PATH" ] && [ -d "$VAULT_PATH" ] && [ ! -d "$VAULT_PATH/.obsidian" ] && [ -d "$OBSIDIAN_TEMPLATE" ]; then
+# Create vault directory if it doesn't exist
+if [ -n "$VAULT_PATH" ] && [ ! -d "$VAULT_PATH" ]; then
+    mkdir -p "$VAULT_PATH"
+    print_success "Skapade valv-mappen: $VAULT_PATH"
+fi
+
+# Only ask if vault path is set and doesn't already have .obsidian
+if [ -n "$VAULT_PATH" ] && [ ! -d "$VAULT_PATH/.obsidian" ] && [ -d "$OBSIDIAN_TEMPLATE" ]; then
     print_header "Obsidian Settings"
     echo "Vi har en Obsidian-mall med förinstallerade plugins (bl.a. Map View för kartor)."
     echo ""
