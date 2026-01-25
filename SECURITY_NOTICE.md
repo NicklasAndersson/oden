@@ -1,7 +1,7 @@
 # Security Notice: Secrets in Git History
 
 ## Issue
-The file `config.ini` containing a real Signal phone number (+46766866383) was committed to the repository in commit `9875aa1` (v0.8.3).
+The file `config.ini` containing a real Signal phone number was committed to the repository in commit `9875aa1` (v0.8.3).
 
 ## Current Status
 ✅ **Fixed for future commits:**
@@ -26,7 +26,7 @@ You have three options:
 #### Option 1: Change the Signal Number (Recommended)
 - Register a new Signal number for Oden
 - Update your local `config.ini` with the new number
-- The old number (+46766866383) in the Git history becomes obsolete
+- The old number in the Git history becomes obsolete
 
 #### Option 2: Rewrite Git History (Advanced)
 ⚠️ **Warning:** This will change commit hashes and break existing clones/forks.
