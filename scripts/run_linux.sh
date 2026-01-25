@@ -442,8 +442,13 @@ fi
 # =============================================================================
 OBSIDIAN_TEMPLATE="./obsidian-template/.obsidian"
 
+# Get vault path from config if not already set
+if [ -z "$VAULT_PATH" ] && [ -f "$CONFIG_FILE" ]; then
+    VAULT_PATH=$(grep "^path = " "$CONFIG_FILE" | sed 's/^path = //')
+fi
+
 # Only ask if vault exists and doesn't already have .obsidian
-if [ -d "$VAULT_PATH" ] && [ ! -d "$VAULT_PATH/.obsidian" ] && [ -d "$OBSIDIAN_TEMPLATE" ]; then
+if [ -n "$VAULT_PATH" ] && [ -d "$VAULT_PATH" ] && [ ! -d "$VAULT_PATH/.obsidian" ] && [ -d "$OBSIDIAN_TEMPLATE" ]; then
     print_header "Obsidian Settings"
     echo "Vi har en Obsidian-mall med förinstallerade plugins (bl.a. Map View för kartor)."
     echo ""
