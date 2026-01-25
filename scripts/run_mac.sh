@@ -381,15 +381,26 @@ fi
 # =============================================================================
 print_header "Step 4: Configuring Oden"
 
+# Template config is shipped with the release
+TEMPLATE_CONFIG="./config.ini.template"
+
 NEEDS_CONFIG=false
 if [ ! -f "$CONFIG_FILE" ]; then
     NEEDS_CONFIG=true
-elif grep -q "YOUR_SIGNAL_NUMBER" "$CONFIG_FILE"; then
+elif grep -q "+46XXXXXXXXX" "$CONFIG_FILE"; then
     NEEDS_CONFIG=true
 fi
 
 if $NEEDS_CONFIG; then
     echo "Setting up configuration..."
+    
+    # Copy template if it exists, otherwise we'll update in place
+    if [ -f "$TEMPLATE_CONFIG" ] && [ ! -f "$CONFIG_FILE" ]; then
+        cp "$TEMPLATE_CONFIG" "$CONFIG_FILE"
+    elif [ ! -f "$CONFIG_FILE" ]; then
+        print_error "config.ini.template not found. Please re-download the release."
+        exit 1
+    fi
     
     # Get vault path
     if [ -z "$VAULT_PATH" ]; then
@@ -409,32 +420,27 @@ if $NEEDS_CONFIG; then
         SIGNAL_CLI_PATH="$SIGNAL_CLI_EXEC"
     fi
     
-    # Create config.ini
-    cat > "$CONFIG_FILE" << EOF
-[Vault]
-path = $VAULT_PATH
-
-[Signal]
-number = $SIGNAL_NUMBER
-signal_cli_path = $SIGNAL_CLI_PATH
-log_file = signal-cli.log
-display_name = oden
-#unmanaged_signal_cli = false
-#host = 127.0.0.1
-#port = 7583
-
-[Regex]
-registration_number = [A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}
-phone_number = (\\+46|0)[1-9][0-9]{7,8}
-personal_number = [0-9]{6}[-]?[0-9]{4}
-
-[Settings]
-append_window_minutes = 30
-#ignored_groups = 
-
-[Timezone]
-timezone = $TIMEZONE
-EOF
+    # Update config values using sed
+    sed -i '' "s|^path = .*|path = $VAULT_PATH|" "$CONFIG_FILE"
+    sed -i '' "s|^number = .*|number = $SIGNAL_NUMBER|" "$CONFIG_FILE"
+    sed -i '' "s|^timezone = .*|timezone = $TIMEZONE|" "$CONFIG_FILE"
+    
+    # Uncomment and set signal_cli_path
+    if grep -qE "^#signal_cli_path" "$CONFIG_FILE"; then
+        sed -i '' "s|^#signal_cli_path = .*|signal_cli_path = $SIGNAL_CLI_PATH|" "$CONFIG_FILE"
+    elif grep -qE "^signal_cli_path" "$CONFIG_FILE"; then
+        sed -i '' "s|^signal_cli_path = .*|signal_cli_path = $SIGNAL_CLI_PATH|" "$CONFIG_FILE"
+    fi
+    
+    # Uncomment and set log_file
+    if grep -qE "^#log_file" "$CONFIG_FILE"; then
+        sed -i '' "s|^#log_file = .*|log_file = signal-cli.log|" "$CONFIG_FILE"
+    fi
+    
+    # Uncomment and set display_name
+    if grep -qE "^#display_name" "$CONFIG_FILE"; then
+        sed -i '' "s|^#display_name = .*|display_name = oden|" "$CONFIG_FILE"
+    fi
     
     print_success "Configuration saved to $CONFIG_FILE"
 else

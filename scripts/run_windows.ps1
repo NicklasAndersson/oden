@@ -251,15 +251,26 @@ if ([string]::IsNullOrEmpty($SIGNAL_NUMBER)) {
 # =============================================================================
 Print-Header "Step 4: Configuring Oden"
 
+# Template config is shipped with the release
+$TEMPLATE_CONFIG = ".\config.ini.template"
+
 $needsConfig = $false
 if (-not (Test-Path $CONFIG_FILE)) {
     $needsConfig = $true
-} elseif (Select-String -Path $CONFIG_FILE -Pattern "YOUR_SIGNAL_NUMBER" -Quiet) {
+} elseif (Select-String -Path $CONFIG_FILE -Pattern "\+46XXXXXXXXX" -Quiet) {
     $needsConfig = $true
 }
 
 if ($needsConfig) {
     Write-Host "Setting up configuration..."
+    
+    # Copy template if it exists, otherwise we'll update in place
+    if ((Test-Path $TEMPLATE_CONFIG) -and (-not (Test-Path $CONFIG_FILE))) {
+        Copy-Item $TEMPLATE_CONFIG $CONFIG_FILE
+    } elseif (-not (Test-Path $CONFIG_FILE)) {
+        Print-Error "config.ini.template not found. Please re-download the release."
+        exit 1
+    }
     
     # Get vault path
     Write-Host ""
@@ -276,34 +287,22 @@ if ($needsConfig) {
     $signalCliFullPath = (Resolve-Path $SIGNAL_CLI_EXEC -ErrorAction SilentlyContinue).Path
     if (-not $signalCliFullPath) { $signalCliFullPath = $SIGNAL_CLI_EXEC }
     
-    # Create config.ini
-    $configContent = @"
-[Vault]
-path = $vaultPath
-
-[Signal]
-number = $SIGNAL_NUMBER
-signal_cli_path = $signalCliFullPath
-log_file = signal-cli.log
-display_name = oden
-#unmanaged_signal_cli = false
-#host = 127.0.0.1
-#port = 7583
-
-[Regex]
-registration_number = [A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}
-phone_number = (\+46|0)[1-9][0-9]{7,8}
-personal_number = [0-9]{6}[-]?[0-9]{4}
-
-[Settings]
-append_window_minutes = 30
-#ignored_groups = 
-
-[Timezone]
-timezone = $timezone
-"@
+    # Update config values
+    $content = Get-Content $CONFIG_FILE -Raw
+    $content = $content -replace 'path = .*', "path = $vaultPath"
+    $content = $content -replace 'number = .*', "number = $SIGNAL_NUMBER"
+    $content = $content -replace 'timezone = .*', "timezone = $timezone"
     
-    $configContent | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
+    # Uncomment and set signal_cli_path
+    $content = $content -replace '#signal_cli_path = .*', "signal_cli_path = $signalCliFullPath"
+    
+    # Uncomment and set log_file
+    $content = $content -replace '#log_file = .*', "log_file = signal-cli.log"
+    
+    # Uncomment and set display_name
+    $content = $content -replace '#display_name = .*', "display_name = oden"
+    
+    $content | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     Print-Success "Configuration saved to $CONFIG_FILE"
 } else {
     Print-Success "Configuration already exists."

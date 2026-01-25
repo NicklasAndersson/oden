@@ -83,7 +83,7 @@ jobs:
           find artifacts -type f -name "s7_watcher*" -exec cp {} release_package/ \;
           cp docs/Flow.md release_package/docs/
           cp images/logo_small.jpg release_package/images/
-          cp config.ini release_package/
+          cp config.ini release_package/config.ini.template
           cp scripts/run_mac.sh release_package/
           cp scripts/run_linux.sh release_package/
           cp scripts/run_windows.ps1 release_package/

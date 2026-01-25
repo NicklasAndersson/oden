@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2026-01-25
+
+### Changed
+- **Complete config.ini template**: Release now includes a fully documented `config.ini.template` with all available options and descriptions. Run scripts use this template instead of generating config from scratch.
+- **Recommended software**: Added section to README with links to Signal Desktop, Obsidian, and Syncthing.
+
 ## [0.8.4] - 2026-01-25
 
 ### Changed
