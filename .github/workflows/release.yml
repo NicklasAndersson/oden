@@ -89,6 +89,7 @@ jobs:
           cp scripts/run_windows.ps1 release_package/
           cp README.md release_package/
           cp -r responses release_package/
+          cp -r obsidian-template release_package/
           zip -r s7_watcher-${{ steps.version.outputs.VERSION }}-release.zip release_package/
 
       - name: Create Release

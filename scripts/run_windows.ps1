@@ -312,6 +312,31 @@ if ($needsConfig) {
 }
 
 # =============================================================================
+# STEP 4.5: Obsidian Template (optional)
+# =============================================================================
+$OBSIDIAN_TEMPLATE = ".\obsidian-template\.obsidian"
+
+# Get vault path from config
+$vaultPathFromConfig = (Get-Content $CONFIG_FILE | Select-String "^path = (.*)").Matches.Groups[1].Value
+
+# Only ask if vault exists and doesn't already have .obsidian
+if ((Test-Path $vaultPathFromConfig) -and (-not (Test-Path "$vaultPathFromConfig\.obsidian")) -and (Test-Path $OBSIDIAN_TEMPLATE)) {
+    Print-Header "Obsidian Settings"
+    Write-Host "Vi har en Obsidian-mall med forinstallerade plugins (bl.a. Map View for kartor)."
+    Write-Host ""
+    $installObsidian = Read-Host "Vill du kopiera Obsidian-installningar till ditt valv? [J/n]"
+    if ([string]::IsNullOrEmpty($installObsidian)) { $installObsidian = "J" }
+    
+    if ($installObsidian -match "^[JjYy]$") {
+        Copy-Item -Path $OBSIDIAN_TEMPLATE -Destination "$vaultPathFromConfig\.obsidian" -Recurse
+        Print-Success "Obsidian-installningar kopierade till $vaultPathFromConfig\.obsidian"
+        Write-Host "Tips: Starta Obsidian och aktivera community plugins under Installningar > Community plugins"
+    } else {
+        Write-Host "Hoppade over Obsidian-installningar."
+    }
+}
+
+# =============================================================================
 # STEP 5: Run Application
 # =============================================================================
 Print-Header "Step 5: Starting Oden"

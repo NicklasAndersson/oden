@@ -473,6 +473,28 @@ signal_cli_path = $SIGNAL_CLI_PATH
 fi
 
 # =============================================================================
+# STEP 4.5: Obsidian Template (optional)
+# =============================================================================
+OBSIDIAN_TEMPLATE="./obsidian-template/.obsidian"
+
+# Only ask if vault exists and doesn't already have .obsidian
+if [ -d "$VAULT_PATH" ] && [ ! -d "$VAULT_PATH/.obsidian" ] && [ -d "$OBSIDIAN_TEMPLATE" ]; then
+    print_header "Obsidian Settings"
+    echo "Vi har en Obsidian-mall med förinstallerade plugins (bl.a. Map View för kartor)."
+    echo ""
+    read -p "Vill du kopiera Obsidian-inställningar till ditt valv? [J/n]: " INSTALL_OBSIDIAN
+    INSTALL_OBSIDIAN=${INSTALL_OBSIDIAN:-J}
+    
+    if [[ "$INSTALL_OBSIDIAN" =~ ^[JjYy]$ ]]; then
+        cp -r "$OBSIDIAN_TEMPLATE" "$VAULT_PATH/"
+        print_success "Obsidian-inställningar kopierade till $VAULT_PATH/.obsidian"
+        echo "Tips: Starta Obsidian och aktivera community plugins under Inställningar > Community plugins"
+    else
+        echo "Hoppade över Obsidian-inställningar."
+    fi
+fi
+
+# =============================================================================
 # STEP 5: Run Application
 # =============================================================================
 print_header "Step 5: Starting Oden"
