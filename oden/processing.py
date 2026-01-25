@@ -260,25 +260,33 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         latest_file = _find_latest_file_for_sender(group_dir, append_target_name, append_target_number)
 
         if latest_file:
-            content_to_append = []
-
             new_text = ""
             if msg:
                 new_text = msg.strip().removeprefix("++").strip() if is_plus_plus_append else msg.strip()
 
-            if new_text:
-                content_to_append.append("\n" + _apply_regex_links(new_text))
-
+            attachment_links = []
             if attachments:
                 original_group_dir = os.path.dirname(latest_file)
                 attachment_links = await _save_attachments(
                     attachments, original_group_dir, now, source_name, source_number, reader, writer
                 )
+
+            # Only append if there's actual content (text or attachments)
+            if new_text or attachment_links:
+                content_to_append = []
+
+                # Add TNR and sender info for the appended message
+                sender_display = format_sender_display(source_name, source_number)
+                content_to_append.append(f"\nTNR: {now.strftime('%d%H%M')} ({now.isoformat()})")
+                content_to_append.append(f"Avsändare: {sender_display}")
+
+                if new_text:
+                    content_to_append.append("\n" + _apply_regex_links(new_text))
+
                 if attachment_links:
                     content_to_append.append("\n## Bilagor\n")
                     content_to_append.extend(attachment_links)
 
-            if content_to_append:
                 with open(latest_file, "a", encoding="utf-8") as f:
                     f.write("\n---\n")
                     f.write("\n".join(content_to_append))
