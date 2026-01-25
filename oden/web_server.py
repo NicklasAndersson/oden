@@ -17,6 +17,7 @@ from oden.config import (
     DISPLAY_NAME,
     IGNORED_GROUPS,
     LOG_LEVEL,
+    PLUS_PLUS_ENABLED,
     REGEX_PATTERNS,
     SIGNAL_CLI_HOST,
     SIGNAL_CLI_LOG_FILE,
@@ -28,6 +29,7 @@ from oden.config import (
     UNMANAGED_SIGNAL_CLI,
     VAULT_PATH,
     WEB_ACCESS_LOG,
+    WEB_ENABLED,
     WEB_PORT,
 )
 from oden.log_buffer import get_log_buffer
@@ -792,9 +794,12 @@ async def config_handler(request: web.Request) -> web.Response:
         "append_window_minutes": APPEND_WINDOW_MINUTES,
         "startup_message": STARTUP_MESSAGE,
         "ignored_groups": IGNORED_GROUPS,
+        "plus_plus_enabled": PLUS_PLUS_ENABLED,
         "regex_patterns": REGEX_PATTERNS,
         "log_level": logging.getLevelName(LOG_LEVEL),
+        "web_enabled": WEB_ENABLED,
         "web_port": WEB_PORT,
+        "web_access_log": WEB_ACCESS_LOG,
     }
     return web.json_response(config_data)
 
