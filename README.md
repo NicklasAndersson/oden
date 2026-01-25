@@ -93,7 +93,7 @@ ruff format .
 
 ## Konfiguration
 
-`config.ini` skapas automatiskt av run-skripten, eller redigera manuellt:
+`config.ini` skapas automatiskt av run-skripten, eller kopiera från `config.ini.example` och redigera manuellt:
 
 ```ini
 [Vault]

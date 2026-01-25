@@ -51,7 +51,7 @@ Kör samma skript igen! Det hoppar över steg som redan är klara och startar ap
 
 ## Manuell konfiguration
 
-Om du behöver ändra inställningar, redigera `config.ini`:
+Om du behöver ändra inställningar, kopiera `config.ini.example` till `config.ini` och redigera:
 
 ```ini
 [Vault]

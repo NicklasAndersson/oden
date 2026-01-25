@@ -22,6 +22,5 @@ plus_plus_enabled = false
 timezone = Europe/Stockholm
 
 [Signal]
-number = +46766866383
+number = +46701234567
 log_file = signal-cli.log
-

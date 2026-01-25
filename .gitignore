@@ -42,6 +42,9 @@ wheels/
 tmp/
 .env
 
+# Configuration files with secrets
+config.ini
+
 # Jupyter Notebook
 .ipynb_checkpoints/
 
