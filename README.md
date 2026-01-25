@@ -136,3 +136,13 @@ Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0
 
 - [HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) - Körinstruktioner
 - [Flow.md](./docs/Flow.md) - Flödesdiagram
+
+## Rekommenderad programvara
+
+Oden fungerar bäst tillsammans med:
+
+| Programvara | Beskrivning | Länk |
+|-------------|-------------|------|
+| **Signal Desktop** | För att administrera grupper och se meddelanden | [signal.org/download](https://signal.org/download/) |
+| **Obsidian** | Markdown-editor för att läsa och organisera rapporter | [obsidian.md/download](https://obsidian.md/download) |
+| **Syncthing** | Synkronisera ditt Obsidian-valv mellan enheter | [syncthing.net/downloads](https://syncthing.net/downloads/) |
