@@ -17,11 +17,27 @@ C_YELLOW='\033[0;33m'
 SIGNAL_CLI_VERSION="0.13.22"
 SIGNAL_CLI_DIR="./signal-cli-${SIGNAL_CLI_VERSION}"
 CONFIG_FILE="./config.ini"
-# Try OS-specific binary first, fall back to generic name
-if [ -f "./s7_watcher_mac" ]; then
-    EXECUTABLE="./s7_watcher_mac"
+
+# Detect CPU architecture and select appropriate binary
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+    # Apple Silicon (M1/M2/M3)
+    if [ -f "./s7_watcher_mac_arm64" ]; then
+        EXECUTABLE="./s7_watcher_mac_arm64"
+    elif [ -f "./s7_watcher_mac" ]; then
+        EXECUTABLE="./s7_watcher_mac"
+    else
+        EXECUTABLE="./s7_watcher"
+    fi
 else
-    EXECUTABLE="./s7_watcher"
+    # Intel Mac (x86_64)
+    if [ -f "./s7_watcher_mac_intel" ]; then
+        EXECUTABLE="./s7_watcher_mac_intel"
+    elif [ -f "./s7_watcher_mac" ]; then
+        EXECUTABLE="./s7_watcher_mac"
+    else
+        EXECUTABLE="./s7_watcher"
+    fi
 fi
 
 # --- Helper Functions ---
@@ -48,6 +64,13 @@ echo "              Oden S7 Watcher              "
 echo "                 (macOS)                   "
 echo "==========================================="
 echo -e "${C_RESET}"
+
+# Show detected architecture
+if [ "$ARCH" = "arm64" ]; then
+    echo -e "Detected: ${C_GREEN}Apple Silicon (M1/M2/M3)${C_RESET}"
+else
+    echo -e "Detected: ${C_GREEN}Intel Mac${C_RESET}"
+fi
 
 # --- OS Check ---
 if [[ "$(uname)" != "Darwin" ]]; then

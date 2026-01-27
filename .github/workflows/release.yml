@@ -12,7 +12,15 @@ jobs:
       contents: read
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - os: macos-latest
+            artifact_name: s7_watcher_mac_arm64
+          - os: macos-13
+            artifact_name: s7_watcher_mac_intel
+          - os: windows-latest
+            artifact_name: s7_watcher_windows.exe
+          - os: ubuntu-latest
+            artifact_name: s7_watcher_linux
     
     steps:
       - name: Check out repository
@@ -39,9 +47,13 @@ jobs:
       - name: Build executable with PyInstaller
         run: pyinstaller --onefile --name s7_watcher oden/s7_watcher.py
 
-      - name: Rename binary for macOS
+      - name: Rename binary for macOS ARM64
         if: matrix.os == 'macos-latest'
-        run: mv dist/s7_watcher dist/s7_watcher_mac
+        run: mv dist/s7_watcher dist/s7_watcher_mac_arm64
+
+      - name: Rename binary for macOS Intel
+        if: matrix.os == 'macos-13'
+        run: mv dist/s7_watcher dist/s7_watcher_mac_intel
 
       - name: Rename binary for Linux
         if: matrix.os == 'ubuntu-latest'
