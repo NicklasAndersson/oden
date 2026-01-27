@@ -508,6 +508,15 @@ if [ -f "$EXECUTABLE" ]; then
             exit 1
         fi
         
+        # Install dependencies if needed
+        if ! python3 -c "import oden" 2>/dev/null; then
+            print_warning "Installing Python dependencies..."
+            python3 -m pip install --quiet -e . || {
+                print_error "Failed to install dependencies."
+                exit 1
+            }
+        fi
+        
         # Run using Python
         echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting (Python mode) ===${C_RESET}\n"
         echo "Press Ctrl+C to stop."

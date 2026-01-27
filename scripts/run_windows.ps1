@@ -394,6 +394,18 @@ if (Test-Path $EXECUTABLE) {
             exit 1
         }
         
+        # Install dependencies if needed
+        $importTest = & $pythonCmd -c "import oden" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Print-Warning "Installing Python dependencies..."
+            & $pythonCmd -m pip install --quiet -e .
+            if ($LASTEXITCODE -ne 0) {
+                Print-Error "Failed to install dependencies."
+                Read-Host "Press Enter to exit"
+                exit 1
+            }
+        }
+        
         # Run using Python
         Write-Host ""
         Write-Host "=== Oden is starting (Python mode) ===" -ForegroundColor $C_GREEN
