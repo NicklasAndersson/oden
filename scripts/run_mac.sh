@@ -533,10 +533,55 @@ if [ -f "$EXECUTABLE" ]; then
         print_warning "Binary execution failed with exit code $EXIT_CODE"
         print_warning "Trying Python fallback..."
         
-        # Check if Python is available
-        if ! command -v python3 &> /dev/null; then
+        # Check if Python is available and version is 3.10+
+        PYTHON_CMD=""
+        if command -v python3 &> /dev/null; then
+            PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+            PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+            PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+            
+            if [ "$PYTHON_MAJOR" -ge 3 ] && [ "$PYTHON_MINOR" -ge 10 ]; then
+                PYTHON_CMD="python3"
+            else
+                print_warning "Python $PYTHON_VERSION found, but Oden requires Python 3.10+"
+                if $HOMEBREW_INSTALLED; then
+                    read -p "Install Python 3.11 with Homebrew? (Y/n): " INSTALL_PYTHON
+                    if [[ -z "$INSTALL_PYTHON" || "$INSTALL_PYTHON" =~ ^[Yy]$ ]]; then
+                        brew install python@3.11
+                        if [ -x "/opt/homebrew/opt/python@3.11/bin/python3.11" ]; then
+                            PYTHON_CMD="/opt/homebrew/opt/python@3.11/bin/python3.11"
+                        elif [ -x "/usr/local/opt/python@3.11/bin/python3.11" ]; then
+                            PYTHON_CMD="/usr/local/opt/python@3.11/bin/python3.11"
+                        fi
+                    fi
+                else
+                    print_error "Please install Python 3.10+ from https://www.python.org/"
+                    exit 1
+                fi
+            fi
+        else
             print_error "Python 3 is required but not found."
-            print_error "Please install Python 3.10+ from https://www.python.org/"
+            if $HOMEBREW_INSTALLED; then
+                read -p "Install Python 3.11 with Homebrew? (Y/n): " INSTALL_PYTHON
+                if [[ -z "$INSTALL_PYTHON" || "$INSTALL_PYTHON" =~ ^[Yy]$ ]]; then
+                    brew install python@3.11
+                    if [ -x "/opt/homebrew/opt/python@3.11/bin/python3.11" ]; then
+                        PYTHON_CMD="/opt/homebrew/opt/python@3.11/bin/python3.11"
+                    elif [ -x "/usr/local/opt/python@3.11/bin/python3.11" ]; then
+                        PYTHON_CMD="/usr/local/opt/python@3.11/bin/python3.11"
+                    fi
+                else
+                    print_error "Python 3.10+ is required. Exiting."
+                    exit 1
+                fi
+            else
+                print_error "Please install Python 3.10+ from https://www.python.org/"
+                exit 1
+            fi
+        fi
+        
+        if [ -z "$PYTHON_CMD" ]; then
+            print_error "Could not find or install Python 3.10+. Exiting."
             exit 1
         fi
         
@@ -548,9 +593,9 @@ if [ -f "$EXECUTABLE" ]; then
         fi
         
         # Install dependencies if needed
-        if ! python3 -c "import oden" 2>/dev/null; then
+        if ! $PYTHON_CMD -c "import oden" 2>/dev/null; then
             print_warning "Installing Python dependencies..."
-            python3 -m pip install --quiet -e . || {
+            $PYTHON_CMD -m pip install --quiet -e . || {
                 print_error "Failed to install dependencies."
                 exit 1
             }
@@ -560,7 +605,7 @@ if [ -f "$EXECUTABLE" ]; then
         echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting (Python mode) ===${C_RESET}\n"
         echo "Press Ctrl+C to stop."
         echo ""
-        exec python3 -m oden
+        exec $PYTHON_CMD -m oden
     fi
     exit $EXIT_CODE
 else
@@ -568,10 +613,55 @@ else
     print_warning "Executable not found: $EXECUTABLE"
     print_warning "Trying to run from Python source..."
     
-    # Check if Python is available
-    if ! command -v python3 &> /dev/null; then
+    # Check if Python is available and version is 3.10+
+    PYTHON_CMD=""
+    if command -v python3 &> /dev/null; then
+        PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+        PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+        
+        if [ "$PYTHON_MAJOR" -ge 3 ] && [ "$PYTHON_MINOR" -ge 10 ]; then
+            PYTHON_CMD="python3"
+        else
+            print_warning "Python $PYTHON_VERSION found, but Oden requires Python 3.10+"
+            if $HOMEBREW_INSTALLED; then
+                read -p "Install Python 3.11 with Homebrew? (Y/n): " INSTALL_PYTHON
+                if [[ -z "$INSTALL_PYTHON" || "$INSTALL_PYTHON" =~ ^[Yy]$ ]]; then
+                    brew install python@3.11
+                    if [ -x "/opt/homebrew/opt/python@3.11/bin/python3.11" ]; then
+                        PYTHON_CMD="/opt/homebrew/opt/python@3.11/bin/python3.11"
+                    elif [ -x "/usr/local/opt/python@3.11/bin/python3.11" ]; then
+                        PYTHON_CMD="/usr/local/opt/python@3.11/bin/python3.11"
+                    fi
+                fi
+            else
+                print_error "Please install Python 3.10+ from https://www.python.org/"
+                exit 1
+            fi
+        fi
+    else
         print_error "Python 3 is required but not found."
-        print_error "Please install Python 3.10+ from https://www.python.org/"
+        if $HOMEBREW_INSTALLED; then
+            read -p "Install Python 3.11 with Homebrew? (Y/n): " INSTALL_PYTHON
+            if [[ -z "$INSTALL_PYTHON" || "$INSTALL_PYTHON" =~ ^[Yy]$ ]]; then
+                brew install python@3.11
+                if [ -x "/opt/homebrew/opt/python@3.11/bin/python3.11" ]; then
+                    PYTHON_CMD="/opt/homebrew/opt/python@3.11/bin/python3.11"
+                elif [ -x "/usr/local/opt/python@3.11/bin/python3.11" ]; then
+                    PYTHON_CMD="/usr/local/opt/python@3.11/bin/python3.11"
+                fi
+            else
+                print_error "Python 3.10+ is required. Exiting."
+                exit 1
+            fi
+        else
+            print_error "Please install Python 3.10+ from https://www.python.org/"
+            exit 1
+        fi
+    fi
+    
+    if [ -z "$PYTHON_CMD" ]; then
+        print_error "Could not find or install Python 3.10+. Exiting."
         exit 1
     fi
     
@@ -583,9 +673,9 @@ else
     fi
     
     # Install dependencies if needed
-    if ! python3 -c "import oden" 2>/dev/null; then
+    if ! $PYTHON_CMD -c "import oden" 2>/dev/null; then
         print_warning "Installing Python dependencies..."
-        python3 -m pip install --quiet -e . || {
+        $PYTHON_CMD -m pip install --quiet -e . || {
             print_error "Failed to install dependencies."
             exit 1
         }
@@ -595,5 +685,5 @@ else
     echo -e "\n${C_GREEN}${C_BOLD}=== Oden is starting (Python mode) ===${C_RESET}\n"
     echo "Press Ctrl+C to stop."
     echo ""
-    exec python3 -m oden
+    exec $PYTHON_CMD -m oden
 fi
