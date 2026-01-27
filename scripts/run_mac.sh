@@ -592,6 +592,19 @@ if [ -f "$EXECUTABLE" ]; then
             exit 1
         fi
         
+        # Create virtual environment if needed (PEP 668 - externally managed environments)
+        VENV_DIR="./.venv"
+        if [ ! -d "$VENV_DIR" ]; then
+            print_warning "Creating Python virtual environment..."
+            $PYTHON_CMD -m venv "$VENV_DIR" || {
+                print_error "Failed to create virtual environment."
+                exit 1
+            }
+        fi
+        
+        # Use the venv Python
+        PYTHON_CMD="$VENV_DIR/bin/python3"
+        
         # Install dependencies (always run to ensure aiohttp etc are installed)
         print_warning "Installing Python dependencies..."
         $PYTHON_CMD -m pip install -e . || {
@@ -676,6 +689,19 @@ else
         print_error "Please make sure you have the complete Oden package."
         exit 1
     fi
+    
+    # Create virtual environment if needed (PEP 668 - externally managed environments)
+    VENV_DIR="./.venv"
+    if [ ! -d "$VENV_DIR" ]; then
+        print_warning "Creating Python virtual environment..."
+        $PYTHON_CMD -m venv "$VENV_DIR" || {
+            print_error "Failed to create virtual environment."
+            exit 1
+        }
+    fi
+    
+    # Use the venv Python
+    PYTHON_CMD="$VENV_DIR/bin/python3"
     
     # Install dependencies (always run to ensure aiohttp etc are installed)
     print_warning "Installing Python dependencies..."
