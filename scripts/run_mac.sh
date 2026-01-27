@@ -592,13 +592,18 @@ if [ -f "$EXECUTABLE" ]; then
             exit 1
         fi
         
-        # Install dependencies if needed
-        if ! $PYTHON_CMD -c "import oden" 2>/dev/null; then
-            print_warning "Installing Python dependencies..."
-            $PYTHON_CMD -m pip install --quiet -e . || {
-                print_error "Failed to install dependencies."
-                exit 1
-            }
+        # Install dependencies (always run to ensure aiohttp etc are installed)
+        print_warning "Installing Python dependencies..."
+        $PYTHON_CMD -m pip install -e . || {
+            print_error "Failed to install dependencies."
+            exit 1
+        }
+        
+        # Verify aiohttp is installed
+        if ! $PYTHON_CMD -c "import aiohttp" 2>/dev/null; then
+            print_error "Failed to install aiohttp. Please run manually:"
+            print_error "  $PYTHON_CMD -m pip install aiohttp"
+            exit 1
         fi
         
         # Run using Python
@@ -672,13 +677,18 @@ else
         exit 1
     fi
     
-    # Install dependencies if needed
-    if ! $PYTHON_CMD -c "import oden" 2>/dev/null; then
-        print_warning "Installing Python dependencies..."
-        $PYTHON_CMD -m pip install --quiet -e . || {
-            print_error "Failed to install dependencies."
-            exit 1
-        }
+    # Install dependencies (always run to ensure aiohttp etc are installed)
+    print_warning "Installing Python dependencies..."
+    $PYTHON_CMD -m pip install -e . || {
+        print_error "Failed to install dependencies."
+        exit 1
+    }
+    
+    # Verify aiohttp is installed
+    if ! $PYTHON_CMD -c "import aiohttp" 2>/dev/null; then
+        print_error "Failed to install aiohttp. Please run manually:"
+        print_error "  $PYTHON_CMD -m pip install aiohttp"
+        exit 1
     fi
     
     # Run using Python
