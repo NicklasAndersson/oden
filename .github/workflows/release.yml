@@ -42,15 +42,10 @@ jobs:
           cat oden/__init__.py
         shell: bash
 
-      - name: Build universal binary for macOS
-        if: matrix.os == 'macos-latest'
-        run: pyinstaller --onefile --name s7_watcher --target-arch universal2 oden/s7_watcher.py
-
       - name: Build executable with PyInstaller
-        if: matrix.os != 'macos-latest'
         run: pyinstaller --onefile --name s7_watcher oden/s7_watcher.py
 
-      - name: Rename binary for macOS (universal)
+      - name: Rename binary for macOS (ARM64, runs on Intel via Rosetta 2)
         if: matrix.os == 'macos-latest'
         run: mv dist/s7_watcher dist/s7_watcher_mac
 
