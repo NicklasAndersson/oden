@@ -83,6 +83,12 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Set version in source
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
+          cat oden/__init__.py
+
       - name: Package release assets
         run: |
           mkdir -p release_package/docs release_package/images
