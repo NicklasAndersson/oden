@@ -98,13 +98,14 @@ function check_java() {
     if ! command -v java &> /dev/null; then
         print_error "Not found."
         if $HOMEBREW_INSTALLED; then
-            read -p "Install openjdk@21 with Homebrew? (Y/n): " INSTALL_JAVA
+            read -p "Install openjdk with Homebrew? (Y/n): " INSTALL_JAVA
             if [[ -z "$INSTALL_JAVA" || "$INSTALL_JAVA" =~ ^[Yy]$ ]]; then
-                brew install openjdk@21
-                if [ -d "/opt/homebrew/opt/openjdk@21/bin" ]; then
-                    export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
-                elif [ -d "/usr/local/opt/openjdk@21/bin" ]; then
-                    export PATH="/usr/local/opt/openjdk@21/bin:$PATH"
+                brew install openjdk
+                # Link it so java command works
+                if [ -d "/opt/homebrew/opt/openjdk/bin" ]; then
+                    export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+                elif [ -d "/usr/local/opt/openjdk/bin" ]; then
+                    export PATH="/usr/local/opt/openjdk/bin:$PATH"
                 fi
                 check_java
             else
@@ -120,8 +121,26 @@ function check_java() {
         JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION" | cut -d. -f1)
 
         if [[ "$JAVA_MAJOR_VERSION" -lt 21 ]]; then
-            print_error "Found version $JAVA_VERSION, but need 21+."
-            exit 1
+            print_warning "Found version $JAVA_VERSION, but signal-cli needs 21+."
+            if $HOMEBREW_INSTALLED; then
+                read -p "Install newer openjdk with Homebrew? (Y/n): " INSTALL_JAVA
+                if [[ -z "$INSTALL_JAVA" || "$INSTALL_JAVA" =~ ^[Yy]$ ]]; then
+                    brew install openjdk
+                    # Prefer the new version
+                    if [ -d "/opt/homebrew/opt/openjdk/bin" ]; then
+                        export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+                    elif [ -d "/usr/local/opt/openjdk/bin" ]; then
+                        export PATH="/usr/local/opt/openjdk/bin:$PATH"
+                    fi
+                    check_java
+                else
+                    print_error "Java 21+ is required for signal-cli. Exiting."
+                    exit 1
+                fi
+            else
+                print_error "Please install Java 21+ from https://adoptium.net/"
+                exit 1
+            fi
         else
             print_success "OK (version $JAVA_VERSION)"
         fi
