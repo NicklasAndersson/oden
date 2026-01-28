@@ -143,7 +143,7 @@ jobs:
           ls -la dist/
 
       - name: Upload macOS DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: oden-macos-dmg
           path: dist/Oden-*.dmg
@@ -218,7 +218,7 @@ jobs:
           cd ..
 
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: oden-linux
           path: Oden-*-linux.zip
@@ -292,7 +292,7 @@ jobs:
           Compress-Archive -Path "release-windows\*" -DestinationPath "Oden-$VERSION-windows.zip"
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: oden-windows
           path: Oden-*-windows.zip
