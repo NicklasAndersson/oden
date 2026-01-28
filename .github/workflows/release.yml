@@ -6,9 +6,10 @@ on:
       - 'v*'
 
 jobs:
-  # Build macOS Universal DMG with bundled JRE and signal-cli
+  # Build macOS DMG with bundled JRE and signal-cli
+  # Using macos-13 (Intel) for x86_64 build - works on Intel natively and Apple Silicon via Rosetta 2
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-13
     permissions:
       contents: read
 
@@ -37,14 +38,7 @@ jobs:
           pip install pyinstaller pillow
           pip install -e .
 
-      # Cache JRE downloads
-      - name: Cache JRE arm64
-        id: cache-jre-arm64
-        uses: actions/cache@v4
-        with:
-          path: build-dmg/jre-arm64
-          key: temurin-jre-25-macos-aarch64-v1
-
+      # Cache JRE download (x64 only for Intel build)
       - name: Cache JRE x64
         id: cache-jre-x64
         uses: actions/cache@v4
@@ -59,19 +53,7 @@ jobs:
           path: build-dmg/signal-cli
           key: signal-cli-0.13.23-v1
 
-      # Download JRE arm64
-      - name: Download JRE arm64
-        if: steps.cache-jre-arm64.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p build-dmg/jre-arm64
-          JRE_URL=$(curl -s "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=aarch64&image_type=jre&os=mac&vendor=eclipse" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['binary']['package']['link'])")
-          echo "Downloading JRE arm64 from: $JRE_URL"
-          curl -L -o jre-arm64.tar.gz "$JRE_URL"
-          tar -xzf jre-arm64.tar.gz -C build-dmg/jre-arm64 --strip-components=1
-          rm jre-arm64.tar.gz
-          rm -rf build-dmg/jre-arm64/man build-dmg/jre-arm64/legal
-
-      # Download JRE x64
+      # Download JRE x64 (for Intel build - works via Rosetta on Apple Silicon)
       - name: Download JRE x64
         if: steps.cache-jre-x64.outputs.cache-hit != 'true'
         run: |
@@ -105,13 +87,11 @@ jobs:
       # Copy dependencies to project root for PyInstaller
       - name: Prepare build files
         run: |
-          cp -r build-dmg/jre-arm64 .
           cp -r build-dmg/jre-x64 .
           cp -r build-dmg/signal-cli .
           mkdir -p oden/static
 
-      # Build with PyInstaller for universal2 (Intel + Apple Silicon)
-      # Note: target_arch='universal2' is set in s7_watcher.spec
+      # Build with PyInstaller (x86_64 on Intel runner)
       - name: Build macOS app bundle
         env:
           ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
@@ -125,7 +105,7 @@ jobs:
       - name: Create DMG
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
-          DMG_NAME="Oden-${VERSION}-macOS-universal.dmg"
+          DMG_NAME="Oden-${VERSION}-macOS.dmg"
 
           # Try with background
           create-dmg \
