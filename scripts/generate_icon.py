@@ -27,7 +27,7 @@ def load_source_image(images_dir: Path) -> Image.Image:
         "logo_small.jpg",
         "oden_1024.png",
     ]
-    
+
     for filename in logo_files:
         logo_path = images_dir / filename
         if logo_path.exists():
@@ -36,7 +36,7 @@ def load_source_image(images_dir: Path) -> Image.Image:
             # Convert to RGBA if needed
             if img.mode != "RGBA":
                 img = img.convert("RGBA")
-            
+
             # Crop to square from center if not already square
             width, height = img.size
             if width != height:
@@ -47,13 +47,10 @@ def load_source_image(images_dir: Path) -> Image.Image:
                 bottom = top + size
                 img = img.crop((left, top, right, bottom))
                 print(f"  Cropped to square: {size}x{size}")
-            
+
             return img
-    
-    raise FileNotFoundError(
-        f"No logo file found in {images_dir}. "
-        f"Please add one of: {', '.join(logo_files)}"
-    )
+
+    raise FileNotFoundError(f"No logo file found in {images_dir}. Please add one of: {', '.join(logo_files)}")
 
 
 def create_icon_from_logo(source: Image.Image, size: int) -> Image.Image:
