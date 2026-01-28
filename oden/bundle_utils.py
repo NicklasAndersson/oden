@@ -38,7 +38,7 @@ def is_bundled() -> bool:
 
 
 def get_bundled_java_path() -> str | None:
-    """Get path to bundled JRE based on architecture.
+    """Get path to bundled JRE based on platform and architecture.
 
     Returns:
         Path to the java executable if bundled JRE exists, None otherwise.
@@ -47,10 +47,14 @@ def get_bundled_java_path() -> str | None:
         return None
 
     bundle_path = get_bundle_path()
+    system = platform.system()
     arch = platform.machine()
 
-    # Map architecture names
-    if arch == "arm64":
+    # On macOS, we always bundle x64 JRE (works via Rosetta on Apple Silicon)
+    if system == "Darwin":
+        jre_dir = "jre-x64"
+    # On Windows/Linux, match the architecture
+    elif arch == "arm64":
         jre_dir = "jre-arm64"
     elif arch in ("x86_64", "AMD64"):
         jre_dir = "jre-x64"
