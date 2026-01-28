@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Bevarar kommentarer i config.ini**: När man klickar på Ignorera/Whitelist-knapparna bevaras nu alla kommentarer i konfigurationsfilen (tidigare försvann de)
+- **Windows-build**: Lagt till `tzdata` som dependency och robust fallback för tidszonshantering under PyInstaller-build
 
 ## [0.11.1] - 2026-01-28
 
