@@ -27,7 +27,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(group_id, "group456")
         self.assertEqual(attachments, [])
 
-    @patch("oden.link_formatter.REGEX_PATTERNS", {"reg": r"\bREG\d{3}\b"})
+    @patch("oden.config.REGEX_PATTERNS", {"reg": r"\bREG\d{3}\b"})
     def test_apply_regex_links(self):
         from oden.link_formatter import apply_regex_links
 
@@ -38,8 +38,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
-    @patch("oden.formatting.VAULT_PATH", "mock_vault")
-    @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
@@ -74,8 +74,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
-    @patch("oden.formatting.VAULT_PATH", "mock_vault")
-    @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
@@ -130,8 +130,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
-    @patch("oden.formatting.VAULT_PATH", "mock_vault")
-    @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
@@ -168,8 +168,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
-    @patch("oden.formatting.VAULT_PATH", "mock_vault")
-    @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_duplicate_creates_unique_file(self, mock_exists, mock_makedirs, mock_open):
@@ -365,7 +365,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.path.exists", return_value=False)
     @patch("os.makedirs")
-    @patch("oden.formatting.VAULT_PATH", "mock_vault")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_on_reply_fallback(

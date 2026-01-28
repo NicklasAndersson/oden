@@ -17,7 +17,7 @@ from oden.formatting import (
 
 
 class TestFormatting(unittest.TestCase):
-    @patch("oden.formatting.VAULT_PATH", "mock_vault")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
     def test_get_safe_group_dir_path(self):
         self.assertEqual(get_safe_group_dir_path("My Awesome Group"), os.path.join("mock_vault", "My Awesome Group"))
         self.assertEqual(
@@ -99,8 +99,8 @@ class TestFormatting(unittest.TestCase):
         self.assertEqual(format_sender_display(None, "+123"), " [[+123]]")
         self.assertEqual(format_sender_display(None, None), "Okänd")
 
-    @patch("oden.formatting.VAULT_PATH", "mock_vault")
-    @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.formatting.get_unique_filename", side_effect=lambda d, f: f)
     def test_get_message_filepath(self, mock_unique):
         dt = datetime.datetime(2025, 12, 18, 10, 30)

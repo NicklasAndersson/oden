@@ -4,7 +4,7 @@ import os
 import re
 from typing import Any
 
-from oden.config import APPEND_WINDOW_MINUTES, FILENAME_FORMAT, TIMEZONE, VAULT_PATH
+from oden import config as cfg
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def get_safe_group_dir_path(group_title: str) -> str:
     """Sanitizes a group title and returns the full path for the group's directory."""
     safe_title = re.sub(r"[^\w\-_\. ]", "_", group_title)
-    return os.path.join(VAULT_PATH, safe_title)
+    return os.path.join(cfg.VAULT_PATH, safe_title)
 
 
 def _format_phone_number(number_str: str | None) -> str | None:
@@ -65,7 +65,7 @@ def create_message_filename(
         Filename string (without suffix for duplicates - use get_unique_filename for that)
     """
     if filename_format is None:
-        filename_format = FILENAME_FORMAT
+        filename_format = cfg.FILENAME_FORMAT
 
     tnr = dt.strftime("%d%H%M")
 
@@ -185,8 +185,8 @@ def find_latest_file_by_fileid(group_dir: str, source_name: str | None, source_n
     sender_pattern = re.sub(r"[^\w\-_\.]", "_", "-".join(sender_id_parts))
 
     latest_file = None
-    latest_time = datetime.datetime.min.replace(tzinfo=TIMEZONE)
-    now = datetime.datetime.now(TIMEZONE)
+    latest_time = datetime.datetime.min.replace(tzinfo=cfg.TIMEZONE)
+    now = datetime.datetime.now(cfg.TIMEZONE)
 
     try:
         candidate_files = [f for f in os.listdir(group_dir) if f.endswith(".md")]
@@ -243,7 +243,7 @@ def find_latest_file_by_fileid(group_dir: str, source_name: str | None, source_n
 
             # Check if within append window
             time_diff = now - file_dt
-            if time_diff < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES) and (
+            if time_diff < datetime.timedelta(minutes=cfg.APPEND_WINDOW_MINUTES) and (
                 latest_file is None or file_dt > latest_time
             ):
                 latest_time = file_dt

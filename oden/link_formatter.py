@@ -7,7 +7,7 @@ Applies regex patterns to text and converts matches to Obsidian-style links.
 import logging
 import re
 
-from oden.config import REGEX_PATTERNS
+from oden import config as cfg
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +17,13 @@ def apply_regex_links(text: str | None) -> str | None:
     Applies regex patterns from configuration to text and converts matches to [[...]] links.
     Avoids linking text that is already inside [[...]].
     """
-    if not text or not REGEX_PATTERNS:
+    if not text or not cfg.REGEX_PATTERNS:
         return text
 
     # Find all existing [[...]] patterns to avoid double-linking
     existing_links = set(re.findall(r"\[\[([^\]]+)\]\]", text))
 
-    for pattern_name, pattern in REGEX_PATTERNS.items():
+    for pattern_name, pattern in cfg.REGEX_PATTERNS.items():
         try:
             # Find all matches
             matches = re.finditer(pattern, text)
