@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def _update_config_value(content: str, key: str, new_value: str) -> str:
     """Update a config value while preserving comments.
-    
+
     Handles both existing keys and adding new keys under [Settings].
     """
     # Pattern to match the key (possibly commented out)
