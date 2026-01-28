@@ -137,6 +137,8 @@ def save_config(config_dict: dict) -> None:
     config.set("Settings", "append_window_minutes", str(config_dict.get("append_window_minutes", 30)))
     config.set("Settings", "startup_message", config_dict.get("startup_message", "self"))
     config.set("Settings", "plus_plus_enabled", str(config_dict.get("plus_plus_enabled", False)).lower())
+    if config_dict.get("filename_format"):
+        config.set("Settings", "filename_format", config_dict["filename_format"])
     ignored_groups = config_dict.get("ignored_groups", [])
     if ignored_groups:
         if isinstance(ignored_groups, list):

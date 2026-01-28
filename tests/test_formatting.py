@@ -100,6 +100,7 @@ class TestFormatting(unittest.TestCase):
         self.assertEqual(format_sender_display(None, None), "Okänd")
 
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
+    @patch("oden.formatting.FILENAME_FORMAT", "classic")
     @patch("oden.formatting.get_unique_filename", side_effect=lambda d, f: f)
     def test_get_message_filepath(self, mock_unique):
         dt = datetime.datetime(2025, 12, 18, 10, 30)
