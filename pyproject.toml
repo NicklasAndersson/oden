@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 keywords = ["signal", "obsidian", "markdown", "messaging"]
-dependencies = ["aiohttp>=3.9.0", "qrcode>=7.4.0"]
+dependencies = ["aiohttp>=3.9.0", "qrcode>=7.4.0", "tzdata>=2024.1"]
 
 [project.scripts]
 oden = "oden.s7_watcher:main"

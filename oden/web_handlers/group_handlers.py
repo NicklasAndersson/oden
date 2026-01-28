@@ -21,23 +21,23 @@ def _update_config_value(content: str, key: str, new_value: str) -> str:
     Handles both existing keys and adding new keys under [Settings].
     """
     # Pattern to match the key (possibly commented out)
-    pattern = rf'^(#?\s*{re.escape(key)}\s*=\s*)(.*)$'
+    pattern = rf"^(#?\s*{re.escape(key)}\s*=\s*)(.*)$"
 
     if re.search(pattern, content, re.MULTILINE):
         # Key exists (possibly commented) - replace it
-        return re.sub(pattern, f'{key} = {new_value}', content, flags=re.MULTILINE)
+        return re.sub(pattern, f"{key} = {new_value}", content, flags=re.MULTILINE)
     else:
         # Key doesn't exist - add it under [Settings]
-        settings_pattern = r'(\[Settings\][^\[]*)'
+        settings_pattern = r"(\[Settings\][^\[]*)"
         match = re.search(settings_pattern, content, re.DOTALL)
         if match:
             settings_section = match.group(1)
             # Add the new key at the end of the settings section
-            new_settings = settings_section.rstrip() + f'\n{key} = {new_value}\n\n'
+            new_settings = settings_section.rstrip() + f"\n{key} = {new_value}\n\n"
             return content.replace(settings_section, new_settings)
         else:
             # No [Settings] section - add it
-            return content + f'\n[Settings]\n{key} = {new_value}\n'
+            return content + f"\n[Settings]\n{key} = {new_value}\n"
 
 
 async def groups_handler(request: web.Request) -> web.Response:

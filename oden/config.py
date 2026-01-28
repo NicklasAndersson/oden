@@ -6,6 +6,7 @@ directory creation and template copying on first run.
 """
 
 import configparser
+import datetime
 import logging
 import os
 import shutil
@@ -250,8 +251,13 @@ def get_config() -> dict:
     try:
         timezone = zoneinfo.ZoneInfo(timezone_str)
     except Exception as e:
-        print(f"Warning: Invalid timezone '{timezone_str}': {e}. Using Europe/Stockholm", file=sys.stderr)
-        timezone = zoneinfo.ZoneInfo("Europe/Stockholm")
+        print(f"Warning: Invalid timezone '{timezone_str}': {e}. Trying fallback...", file=sys.stderr)
+        try:
+            timezone = zoneinfo.ZoneInfo("Europe/Stockholm")
+        except Exception:
+            # Final fallback to UTC if tzdata is not available (e.g., during PyInstaller build)
+            print("Warning: tzdata not available, using UTC", file=sys.stderr)
+            timezone = datetime.timezone.utc
 
     # Read logging level if available, defaults to INFO
     log_level_str = config.get("Logging", "level", fallback="INFO")
