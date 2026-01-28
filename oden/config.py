@@ -65,10 +65,7 @@ def is_configured() -> bool:
 
         number = config.get("Signal", "number", fallback="")
         # Check if number is set and not placeholder
-        if not number or number == "+46XXXXXXXXX" or number.startswith("+46XXXX"):
-            return False
-
-        return True
+        return bool(number and number != "+46XXXXXXXXX" and not number.startswith("+46XXXX"))
     except Exception:
         return False
 

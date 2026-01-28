@@ -6,6 +6,7 @@ Supports bundled JRE and signal-cli for macOS .app distribution.
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 import platform
@@ -16,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from oden.config import ODEN_HOME, SIGNAL_CLI_LOG_FILE, SIGNAL_CLI_PATH, SIGNAL_DATA_PATH
+from oden.config import SIGNAL_CLI_LOG_FILE, SIGNAL_CLI_PATH, SIGNAL_DATA_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +261,7 @@ def get_existing_accounts() -> list[dict]:
                         if number and not any(a["number"] == number for a in accounts):
                             accounts.append({"number": number})
                 logger.info(f"Found {len(accounts)} accounts in {accounts_file}")
-            except (json_module.JSONDecodeError, IOError, KeyError) as e:
+            except (json_module.JSONDecodeError, OSError, KeyError) as e:
                 logger.warning(f"Error reading {accounts_file}: {e}")
 
     return accounts
@@ -413,10 +414,8 @@ class SignalLinker:
                 self.process.terminate()
                 await asyncio.wait_for(self.process.wait(), timeout=5.0)
             except (asyncio.TimeoutError, ProcessLookupError):
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     self.process.kill()
-                except ProcessLookupError:
-                    pass
             self.process = None
 
     def get_manual_instructions(self) -> str:

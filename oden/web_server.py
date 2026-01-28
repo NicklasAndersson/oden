@@ -6,6 +6,7 @@ and initial setup wizard for first-run configuration.
 """
 
 import asyncio
+import contextlib
 import io
 import json
 import logging
@@ -18,27 +19,11 @@ from aiohttp import web
 from oden import __version__
 from oden.app_state import get_app_state
 from oden.config import (
-    APPEND_WINDOW_MINUTES,
     CONFIG_FILE,
     DEFAULT_VAULT_PATH,
-    DISPLAY_NAME,
     IGNORED_GROUPS,
-    LOG_LEVEL,
     ODEN_HOME,
-    PLUS_PLUS_ENABLED,
-    REGEX_PATTERNS,
-    SIGNAL_CLI_HOST,
-    SIGNAL_CLI_LOG_FILE,
-    SIGNAL_CLI_PATH,
-    SIGNAL_CLI_PORT,
-    SIGNAL_NUMBER,
-    STARTUP_MESSAGE,
-    TIMEZONE,
-    UNMANAGED_SIGNAL_CLI,
-    VAULT_PATH,
     WEB_ACCESS_LOG,
-    WEB_ENABLED,
-    WEB_PORT,
     get_bundle_path,
     get_config,
     reload_config,
@@ -1512,12 +1497,6 @@ async def config_save_handler(request: web.Request) -> web.Response:
         logger.error(f"Error saving config via form: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
-    except json.JSONDecodeError:
-        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
-    except Exception as e:
-        logger.error(f"Error saving config: {e}")
-        return web.json_response({"success": False, "error": str(e)}, status=500)
-
 
 # =============================================================================
 # Setup Wizard Handlers (for first-run configuration)
@@ -1646,10 +1625,8 @@ async def setup_cancel_link_handler(request: web.Request) -> web.Response:
 
     if _link_task:
         _link_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await _link_task
-        except asyncio.CancelledError:
-            pass
         _link_task = None
 
     if _linker:

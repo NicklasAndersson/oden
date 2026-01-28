@@ -6,7 +6,6 @@ Creates a stylized "Ö" letter with Nordic colors (blue/yellow).
 Requires: Pillow (pip install Pillow)
 """
 
-import math
 import os
 import subprocess
 import sys
