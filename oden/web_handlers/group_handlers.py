@@ -22,7 +22,7 @@ def _update_config_value(content: str, key: str, new_value: str) -> str:
     """
     # Pattern to match the key (possibly commented out)
     pattern = rf'^(#?\s*{re.escape(key)}\s*=\s*)(.*)$'
-    
+
     if re.search(pattern, content, re.MULTILINE):
         # Key exists (possibly commented) - replace it
         return re.sub(pattern, f'{key} = {new_value}', content, flags=re.MULTILINE)
