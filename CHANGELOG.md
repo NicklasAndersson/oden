@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-01-28
+
+### Added
+
+- **Whitelist-knapp i GUI**: Ny knapp bredvid "Ignorera" för att enkelt lägga till/ta bort grupper från whitelist direkt i grupplistan
+- **Filnamnsformat i inställningar**: Dropdown i GUI för att välja filnamnsformat (Classic/TNR/TNR-namn)
+
+### Fixed
+
+- **Bevarar kommentarer i config.ini**: När man klickar på Ignorera/Whitelist-knapparna bevaras nu alla kommentarer i konfigurationsfilen (tidigare försvann de)
+
 ## [0.11.1] - 2026-01-28
 
 ### Changed
