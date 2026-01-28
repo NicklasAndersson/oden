@@ -110,12 +110,13 @@ jobs:
           cp -r build-dmg/signal-cli .
           mkdir -p oden/static
 
-      # Build with PyInstaller
+      # Build with PyInstaller for universal2 (Intel + Apple Silicon)
       - name: Build macOS app bundle
         env:
           ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          pyinstaller --clean --noconfirm s7_watcher.spec
+          # Build universal2 binary (both arm64 and x86_64)
+          pyinstaller --clean --noconfirm --target-architecture universal2 s7_watcher.spec
 
       # Create DMG
       - name: Install create-dmg

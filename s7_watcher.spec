@@ -57,6 +57,7 @@ icon_path = 'images/oden.icns' if os.path.exists('images/oden.icns') else None
 
 if is_macos:
     # macOS: Create .app bundle with --windowed --onedir
+    # Build universal2 (arm64 + x86_64) binary for both Intel and Apple Silicon Macs
     exe = EXE(
         pyz,
         a.scripts,
@@ -70,7 +71,7 @@ if is_macos:
         console=False,  # --windowed
         disable_windowed_traceback=False,
         argv_emulation=True,  # Better macOS integration
-        target_arch=None,  # Build for current arch, universal handled by build script
+        target_arch='universal2',  # Build for both Intel and Apple Silicon
         codesign_identity=os.environ.get('CODESIGN_IDENTITY'),
         entitlements_file=os.environ.get('ENTITLEMENTS_FILE'),
         icon=icon_path,
