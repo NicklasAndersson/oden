@@ -6,14 +6,8 @@ import os
 import re
 from typing import Any
 
+from oden import config as cfg
 from oden.attachment_handler import save_attachments
-from oden.config import (
-    APPEND_WINDOW_MINUTES,
-    IGNORED_GROUPS,
-    PLUS_PLUS_ENABLED,
-    TIMEZONE,
-    WHITELIST_GROUPS,
-)
 from oden.formatting import (
     _format_quote,
     create_fileid,
@@ -138,11 +132,11 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
 
     # Whitelist has priority: if set, only allow whitelisted groups
-    if WHITELIST_GROUPS:
-        if group_title and group_title not in WHITELIST_GROUPS:
+    if cfg.WHITELIST_GROUPS:
+        if group_title and group_title not in cfg.WHITELIST_GROUPS:
             logger.info(f"Skipping message: group '{group_title}' not in whitelist")
             return
-    elif group_title and group_title in IGNORED_GROUPS:
+    elif group_title and group_title in cfg.IGNORED_GROUPS:
         logger.info(f"Skipping message from ignored group: {group_title}")
         return
 
@@ -155,15 +149,15 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     source_number = envelope.get("sourceNumber") or envelope.get("source")
     dm = envelope.get("dataMessage", {})
     quote = dm.get("quote")
-    now = datetime.datetime.now(TIMEZONE)
+    now = datetime.datetime.now(cfg.TIMEZONE)
 
     # --- Append Logic ---
-    is_plus_plus_append = PLUS_PLUS_ENABLED and msg and msg.strip().startswith("++")
+    is_plus_plus_append = cfg.PLUS_PLUS_ENABLED and msg and msg.strip().startswith("++")
     is_reply_append = False
     if quote:
         quote_ts = quote.get("id", 0)
-        quote_dt = datetime.datetime.fromtimestamp(quote_ts / 1000.0, tz=TIMEZONE)
-        if (now - quote_dt) < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES):
+        quote_dt = datetime.datetime.fromtimestamp(quote_ts / 1000.0, tz=cfg.TIMEZONE)
+        if (now - quote_dt) < datetime.timedelta(minutes=cfg.APPEND_WINDOW_MINUTES):
             is_reply_append = True
 
     if is_plus_plus_append or is_reply_append:
@@ -271,7 +265,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         return
 
     dt = (
-        datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=TIMEZONE)
+        datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=cfg.TIMEZONE)
         if envelope.get("timestamp")
         else now
     )

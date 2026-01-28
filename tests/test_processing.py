@@ -40,6 +40,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
     @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -74,6 +76,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
     @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
         """Tests that attachments are properly saved and linked in the message file."""
         mock_exists.return_value = False
@@ -128,6 +132,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
     @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -164,6 +170,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
     @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_duplicate_creates_unique_file(self, mock_exists, mock_makedirs, mock_open):
         """Tests that a duplicate message creates a new file with suffix."""
         # First file exists, second doesn't (simulating -1 suffix)
@@ -197,6 +205,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.processing._send_reply")
     @patch("builtins.open", new_callable=mock_open, read_data="HELP_TEXT")
     @patch("os.path.exists", return_value=True)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_command_exists(self, mock_exists, mock_open, mock_send_reply):
         message_obj = {
             "envelope": {"dataMessage": {"message": "#help", "groupV2": {"name": "Test Group", "id": "group123"}}}
@@ -213,6 +223,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.processing._send_reply")
     @patch("builtins.open", new_callable=mock_open, read_data="OK_TEXT")
     @patch("os.path.exists", return_value=True)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_command_exists_ok(self, mock_exists, mock_open, mock_send_reply):
         message_obj = {
             "envelope": {"dataMessage": {"message": "#ok", "groupV2": {"name": "Test Group", "id": "group123"}}}
@@ -228,6 +240,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.processing._send_reply")
     @patch("os.path.exists", return_value=False)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_command_not_exists(self, mock_exists, mock_send_reply):
         message_obj = {
             "envelope": {"dataMessage": {"message": "#foo", "groupV2": {"name": "Test Group", "id": "group123"}}}
@@ -261,9 +275,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(empty_message, mock_reader, mock_writer)
         mock_open.assert_not_called()
 
-    @patch("oden.processing.PLUS_PLUS_ENABLED", True)
+    @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("builtins.open", new_callable=mock_open)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_plus_plus_success(self, mock_open, mock_find_latest):
         """Tests that a '++' message successfully appends to a recent file."""
         message_obj = {
@@ -286,9 +302,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("\n---\n", written_content)
         self.assertIn("adding more details", written_content)
 
-    @patch("oden.processing.PLUS_PLUS_ENABLED", True)
+    @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value=None)
     @patch("builtins.open", new_callable=mock_open)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_plus_plus_failure(self, mock_open, mock_find_latest):
         """Tests that a '++' message fails gracefully when no recent file is found."""
         message_obj = {
@@ -310,6 +328,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("builtins.open", new_callable=mock_open)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_on_reply_success(self, mock_open, mock_find_latest):
         """Tests that replying to a recent message from self triggers an append."""
         now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
@@ -346,6 +366,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.path.exists", return_value=False)
     @patch("os.makedirs")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_on_reply_fallback(
         self, mock_makedirs, mock_exists, mock_open, mock_find_latest
     ):
@@ -383,6 +405,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("oden.processing._save_attachments", new_callable=AsyncMock, return_value=["![[new_attachment.jpg]]"])
     @patch("builtins.open", new_callable=mock_open)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_reply_with_attachment_only(
         self, mock_open, mock_save_attachments, mock_find_latest
     ):
@@ -423,6 +447,8 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertIn("![[new_attachment.jpg]]", written_content)
 
     @patch("builtins.open", new_callable=mock_open)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_ignore_double_dash(self, mock_open):
         """Tests that a message starting with '--' is ignored."""
         message_obj = {

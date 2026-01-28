@@ -9,8 +9,9 @@ import re
 
 from aiohttp import web
 
+from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.config import CONFIG_FILE, IGNORED_GROUPS, WHITELIST_GROUPS, reload_config
+from oden.config import CONFIG_FILE, reload_config
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,9 @@ async def groups_handler(request: web.Request) -> web.Response:
                     "memberCount": len(group.get("members", [])),
                 }
             )
-    return web.json_response({"groups": groups, "ignoredGroups": IGNORED_GROUPS, "whitelistGroups": WHITELIST_GROUPS})
+    return web.json_response(
+        {"groups": groups, "ignoredGroups": cfg.IGNORED_GROUPS, "whitelistGroups": cfg.WHITELIST_GROUPS}
+    )
 
 
 async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
