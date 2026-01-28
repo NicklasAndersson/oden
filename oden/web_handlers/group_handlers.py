@@ -10,7 +10,7 @@ import re
 from aiohttp import web
 
 from oden.app_state import get_app_state
-from oden.config import IGNORED_GROUPS, WHITELIST_GROUPS, reload_config
+from oden.config import CONFIG_FILE, IGNORED_GROUPS, WHITELIST_GROUPS, reload_config
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +68,10 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
 
         # Read current config
         try:
-            with open("config.ini", encoding="utf-8") as f:
+            with open(CONFIG_FILE, encoding="utf-8") as f:
                 config_content = f.read()
         except FileNotFoundError:
-            return web.json_response({"success": False, "error": "config.ini hittades inte"}, status=404)
+            return web.json_response({"success": False, "error": f"{CONFIG_FILE} hittades inte"}, status=404)
 
         # Parse to get current ignored groups
         config = configparser.RawConfigParser()
@@ -95,7 +95,7 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
         config_content = _update_config_value(config_content, "ignored_groups", new_value)
 
         # Write back
-        with open("config.ini", "w", encoding="utf-8") as f:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             f.write(config_content)
 
         # Reload config to apply changes
@@ -128,10 +128,10 @@ async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
 
         # Read current config
         try:
-            with open("config.ini", encoding="utf-8") as f:
+            with open(CONFIG_FILE, encoding="utf-8") as f:
                 config_content = f.read()
         except FileNotFoundError:
-            return web.json_response({"success": False, "error": "config.ini hittades inte"}, status=404)
+            return web.json_response({"success": False, "error": f"{CONFIG_FILE} hittades inte"}, status=404)
 
         # Parse to get current whitelist groups
         config = configparser.RawConfigParser()
@@ -155,7 +155,7 @@ async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
         config_content = _update_config_value(config_content, "whitelist_groups", new_value)
 
         # Write back
-        with open("config.ini", "w", encoding="utf-8") as f:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             f.write(config_content)
 
         # Reload config to apply changes
