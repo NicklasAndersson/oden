@@ -141,6 +141,7 @@ Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0
 - Visa och hantera väntande gruppinbjudningar
 - **Visa alla grupper** kontot är med i
 - **Ignorera grupper** direkt från GUI (klicka "Ignorera")
+- **Whitelist-grupper** direkt från GUI (klicka "Whitelist" – om satt sparas endast dessa grupper)
 - **Redigera config.ini** direkt i webbläsaren
 
 **Obs:** Ändringar i config kräver omstart för att börja gälla.

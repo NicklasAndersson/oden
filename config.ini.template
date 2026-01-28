@@ -50,11 +50,21 @@ personal_number = [0-9]{6}[-]?[0-9]{4}
 # Efter denna tid skapas en ny fil istället
 append_window_minutes = 30
 
+# Filnamnsformat för rapporter:
+#   classic  = DDHHMM-telefon-namn.md (t.ex. 261427-46762320406-Nicklas.md)
+#   tnr      = TNR.md (t.ex. 261427.md, 261427-1.md vid duplikat)
+#   tnr-name = TNR-namn.md (t.ex. 261427-Nicklas.md, 261427-Nicklas-1.md vid duplikat)
+filename_format = classic
+
 # Startmeddelande vid programstart: self (egen grupp), all (alla grupper), off (inget)
 startup_message = self
 
 # Kommaseparerad lista med gruppnamn att ignorera (inga rapporter skapas)
 #ignored_groups = Testgrupp, Annan grupp
+
+# Kommaseparerad lista med gruppnamn som är tillåtna (endast dessa sparar rapporter)
+# Om satt ignoreras ignored_groups. Lämna tomt för att tillåta alla grupper.
+#whitelist_groups =
 
 # Aktivera ++ prefix för att fylla på i senaste rapport
 # Om true: meddelanden som börjar med ++ läggs till i senaste rapporten
