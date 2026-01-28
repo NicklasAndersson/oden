@@ -74,10 +74,23 @@ HTML_TEMPLATE = """
             color: #888;
             font-size: 0.9em;
         }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
         .status {
             display: flex;
             align-items: center;
             gap: 8px;
+        }
+        .btn-danger {
+            background: #dc3545;
+            border-color: #dc3545;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+            border-color: #bd2130;
         }
         .status-dot {
             width: 12px;
@@ -501,9 +514,14 @@ HTML_TEMPLATE = """
                 <h1>🛡️ Oden</h1>
                 <span class="version">v{{version}}</span>
             </div>
-            <div class="status">
-                <div class="status-dot"></div>
-                <span>Lyssnar</span>
+            <div class="header-actions">
+                <div class="status">
+                    <div class="status-dot"></div>
+                    <span>Lyssnar</span>
+                </div>
+                <button class="btn btn-danger" onclick="shutdownApp()" title="Stäng av Oden">
+                    ⏻ Stäng av
+                </button>
             </div>
         </header>
 
@@ -1107,6 +1125,27 @@ HTML_TEMPLATE = """
             }
         }
 
+        // Shutdown the application
+        async function shutdownApp() {
+            if (!confirm('Är du säker på att du vill stänga av Oden?')) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/shutdown', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('Stänger av Oden...', true);
+                    // Update UI to show shutdown state
+                    document.querySelector('.status-dot').style.background = '#888';
+                    document.querySelector('.status span').textContent = 'Stänger av...';
+                } else {
+                    showMessage('Kunde inte stänga av: ' + data.error, false);
+                }
+            } catch (error) {
+                showMessage('Fel vid avstängning: ' + error.message, false);
+            }
+        }
+
         // Attach form handlers
         document.getElementById('config-form').addEventListener('submit', saveConfigForm);
         document.getElementById('config-form-advanced').addEventListener('submit', saveConfigForm);
@@ -1498,6 +1537,28 @@ async def config_save_handler(request: web.Request) -> web.Response:
     except Exception as e:
         logger.error(f"Error saving config via form: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def shutdown_handler(request: web.Request) -> web.Response:
+    """Shutdown the application gracefully."""
+    logger.info("Shutdown requested via web GUI")
+
+    # Send response before shutting down
+    response = web.json_response({"success": True, "message": "Stänger av..."})
+
+    # Schedule shutdown after response is sent
+    async def delayed_shutdown():
+        await asyncio.sleep(0.5)  # Give time for response to be sent
+        logger.info("Initiating shutdown...")
+        # Raise SystemExit to trigger graceful shutdown
+        import os
+        import signal
+
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    asyncio.create_task(delayed_shutdown())
+
+    return response
 
 
 # =============================================================================
@@ -2312,6 +2373,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/config-file", config_file_get_handler)
         app.router.add_post("/api/config-file", config_file_save_handler)
         app.router.add_post("/api/config-save", config_save_handler)
+        app.router.add_post("/api/shutdown", shutdown_handler)
 
     return app
 
