@@ -61,6 +61,8 @@ ruff check . && ruff format .  # Lint and format
 python -m oden            # Run application
 ```
 
+**IMPORTANT:** Always run `ruff check . && ruff format .` before committing to fix lint errors.
+
 ### Web GUI
 A read-only web interface runs automatically at `http://127.0.0.1:8080` (localhost only, no auth).
 - Shows current config and live logs (polls every 3 seconds)
