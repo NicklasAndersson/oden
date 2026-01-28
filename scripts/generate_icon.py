@@ -1,109 +1,69 @@
 #!/usr/bin/env python3
 """
-Generate Oden app icon as PNG files and create .icns for macOS.
+Generate Oden app icon from logo image.
 
-Creates a stylized "Ö" letter with Nordic colors (blue/yellow).
+Converts the logo to all required sizes and creates .icns for macOS.
 Requires: Pillow (pip install Pillow)
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
 except ImportError:
     print("Installing Pillow...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "Pillow"])
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
 
 
-def create_oden_icon(size: int) -> Image.Image:
-    """Create the Oden icon at the specified size."""
-    # Colors - Nordic blue and gold
-    bg_color = (26, 26, 46)  # Dark blue (#1a1a2e)
-    primary_color = (79, 195, 247)  # Light blue (#4fc3f7)
-    accent_color = (255, 193, 7)  # Gold (#ffc107)
-
-    # Create image with rounded corners effect via circle mask
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-
-    # Draw rounded rectangle background
-    corner_radius = size // 5
-    draw.rounded_rectangle(
-        [(0, 0), (size - 1, size - 1)],
-        radius=corner_radius,
-        fill=bg_color,
+def load_source_image(images_dir: Path) -> Image.Image:
+    """Load the source logo image."""
+    # Try different logo file names
+    logo_files = [
+        "oden_logo.png",
+        "logo.png",
+        "logo_small.jpg",
+        "oden_1024.png",
+    ]
+    
+    for filename in logo_files:
+        logo_path = images_dir / filename
+        if logo_path.exists():
+            print(f"Using logo: {logo_path}")
+            img = Image.open(logo_path)
+            # Convert to RGBA if needed
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
+            
+            # Crop to square from center if not already square
+            width, height = img.size
+            if width != height:
+                size = min(width, height)
+                left = (width - size) // 2
+                top = (height - size) // 2
+                right = left + size
+                bottom = top + size
+                img = img.crop((left, top, right, bottom))
+                print(f"  Cropped to square: {size}x{size}")
+            
+            return img
+    
+    raise FileNotFoundError(
+        f"No logo file found in {images_dir}. "
+        f"Please add one of: {', '.join(logo_files)}"
     )
 
-    # Draw the "Ö" letter
-    font_size = int(size * 0.65)
 
-    # Try to use a nice font, fall back to default
-    font = None
-    font_paths = [
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/System/Library/Fonts/SFNSDisplay.ttf",
-        "/Library/Fonts/Arial Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    ]
-    for font_path in font_paths:
-        if os.path.exists(font_path):
-            try:
-                font = ImageFont.truetype(font_path, font_size)
-                break
-            except Exception:
-                continue
-
-    if font is None:
-        # Fall back to default font (smaller)
-        font = ImageFont.load_default()
-        font_size = size // 2
-
-    # Draw "Ö" centered
-    text = "Ö"
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-
-    x = (size - text_width) // 2
-    y = (size - text_height) // 2 - bbox[1]  # Adjust for font baseline
-
-    # Draw text shadow/glow
-    for offset in range(3, 0, -1):
-        alpha = 80 - offset * 20
-        shadow_color = (*accent_color[:3], alpha)
-        draw.text((x + offset, y + offset), text, font=font, fill=shadow_color)
-
-    # Draw main text
-    draw.text((x, y), text, font=font, fill=primary_color)
-
-    # Draw a subtle shield/rune decoration
-    shield_margin = size // 10
-    shield_top = size // 6
-    shield_points = [
-        (size // 2, shield_top),  # Top center
-        (size - shield_margin, shield_top + size // 8),  # Top right
-        (size - shield_margin, size - shield_margin - size // 6),  # Bottom right
-        (size // 2, size - shield_margin),  # Bottom center (point)
-        (shield_margin, size - shield_margin - size // 6),  # Bottom left
-        (shield_margin, shield_top + size // 8),  # Top left
-    ]
-
-    # Draw shield outline
-    outline_width = max(1, size // 64)
-    draw.line(
-        shield_points + [shield_points[0]],
-        fill=(*accent_color[:3], 60),
-        width=outline_width,
-    )
-
-    return img
+def create_icon_from_logo(source: Image.Image, size: int) -> Image.Image:
+    """Resize logo to specified size with high quality."""
+    # Use LANCZOS for high-quality downsampling
+    resized = source.resize((size, size), Image.Resampling.LANCZOS)
+    return resized
 
 
-def create_iconset(output_dir: Path) -> None:
+def create_iconset(source: Image.Image, output_dir: Path) -> Path:
     """Create all required icon sizes for macOS iconset."""
     sizes = [
         (16, "icon_16x16.png"),
@@ -125,12 +85,12 @@ def create_iconset(output_dir: Path) -> None:
 
     for size, filename in sizes:
         print(f"  Creating {filename} ({size}x{size})")
-        icon = create_oden_icon(size)
+        icon = create_icon_from_logo(source, size)
         icon.save(iconset_dir / filename, "PNG")
 
     # Also save a large PNG for other uses
     print("  Creating oden_1024.png")
-    large_icon = create_oden_icon(1024)
+    large_icon = create_icon_from_logo(source, 1024)
     large_icon.save(output_dir / "oden_1024.png", "PNG")
 
     return iconset_dir
@@ -169,8 +129,17 @@ def main():
     print("=== Oden Icon Generator ===")
     print()
 
+    # Load source logo
+    try:
+        source = load_source_image(images_dir)
+        print(f"  Source size: {source.size[0]}x{source.size[1]}")
+        print()
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     # Create iconset
-    iconset_dir = create_iconset(images_dir)
+    iconset_dir = create_iconset(source, images_dir)
 
     # Create .icns file
     icns_path = images_dir / "oden.icns"
