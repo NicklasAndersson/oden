@@ -111,12 +111,12 @@ jobs:
           mkdir -p oden/static
 
       # Build with PyInstaller for universal2 (Intel + Apple Silicon)
+      # Note: target_arch='universal2' is set in s7_watcher.spec
       - name: Build macOS app bundle
         env:
           ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          # Build universal2 binary (both arm64 and x86_64)
-          pyinstaller --clean --noconfirm --target-architecture universal2 s7_watcher.spec
+          pyinstaller --clean --noconfirm s7_watcher.spec
 
       # Create DMG
       - name: Install create-dmg
@@ -157,7 +157,7 @@ jobs:
           name: oden-macos-dmg
           path: dist/Oden-*.dmg
 
-  # Build Linux executable
+  # Build Linux executable and create release package
   build-linux:
     runs-on: ubuntu-latest
     permissions:
@@ -172,9 +172,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Set version from tag
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Set version in source
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${{ steps.version.outputs.VERSION }}
           sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
 
       - name: Install dependencies
@@ -186,13 +190,49 @@ jobs:
       - name: Build executable
         run: pyinstaller --onefile --name oden_linux oden/s7_watcher.py
 
+      - name: Download signal-cli
+        run: |
+          SIGNAL_CLI_VERSION="0.13.23"
+          curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
+          tar -xzf signal-cli.tar.gz
+          mv signal-cli-${SIGNAL_CLI_VERSION} signal-cli
+          rm signal-cli.tar.gz
+
+      - name: Create release package
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          mkdir -p release-linux
+          
+          # Copy binary
+          cp dist/oden_linux release-linux/
+          chmod +x release-linux/oden_linux
+          
+          # Copy signal-cli
+          cp -r signal-cli release-linux/
+          chmod +x release-linux/signal-cli/bin/signal-cli
+          
+          # Copy run script
+          cp scripts/run_linux.sh release-linux/
+          chmod +x release-linux/run_linux.sh
+          
+          # Copy responses directory
+          cp -r responses release-linux/
+          
+          # Copy docs
+          cp README.md release-linux/
+          
+          # Create zip
+          cd release-linux
+          zip -r "../Oden-${VERSION}-linux.zip" .
+          cd ..
+
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
           name: oden-linux
-          path: dist/oden_linux
+          path: Oden-*-linux.zip
 
-  # Build Windows executable
+  # Build Windows executable and create release package
   build-windows:
     runs-on: windows-latest
     permissions:
@@ -207,10 +247,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Set version from tag
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Set version in source
         shell: bash
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${{ steps.version.outputs.VERSION }}
           sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
 
       - name: Install dependencies
@@ -220,13 +265,46 @@ jobs:
           pip install -e .
 
       - name: Build executable
-        run: pyinstaller --onefile --name oden_windows.exe oden/s7_watcher.py
+        run: pyinstaller --onefile --name oden_windows oden/s7_watcher.py
+
+      - name: Download signal-cli
+        shell: bash
+        run: |
+          SIGNAL_CLI_VERSION="0.13.23"
+          curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
+          tar -xzf signal-cli.tar.gz
+          mv signal-cli-${SIGNAL_CLI_VERSION} signal-cli
+          rm signal-cli.tar.gz
+
+      - name: Create release package
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.version.outputs.VERSION }}"
+          New-Item -ItemType Directory -Path release-windows -Force
+          
+          # Copy binary
+          Copy-Item "dist\oden_windows.exe" "release-windows\"
+          
+          # Copy signal-cli
+          Copy-Item -Recurse "signal-cli" "release-windows\"
+          
+          # Copy run script
+          Copy-Item "scripts\run_windows.ps1" "release-windows\"
+          
+          # Copy responses directory
+          Copy-Item -Recurse "responses" "release-windows\"
+          
+          # Copy docs
+          Copy-Item "README.md" "release-windows\"
+          
+          # Create zip
+          Compress-Archive -Path "release-windows\*" -DestinationPath "Oden-$VERSION-windows.zip"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: oden-windows
-          path: dist/oden_windows.exe
+          path: Oden-*-windows.zip
 
   # Create release with all artifacts
   release:
@@ -246,50 +324,76 @@ jobs:
 
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Set version in source
+      - name: List downloaded artifacts
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
+          echo "Downloaded artifacts:"
+          find artifacts -type f -ls
 
-      - name: Package release assets
+      - name: Prepare release files
         run: |
-          mkdir -p release_package/docs release_package/images
-
-          # Copy binaries
-          find artifacts -type f \( -name "*.dmg" -o -name "oden_linux" -o -name "oden_windows.exe" \) -exec cp {} release_package/ \;
-
-          # Copy docs and resources
-          cp docs/Flow.md release_package/docs/
-          [ -f images/logo_small.jpg ] && cp images/logo_small.jpg release_package/images/ || true
-          cp config.ini release_package/config.ini.template
-          cp scripts/run_mac.sh release_package/
-          cp scripts/run_linux.sh release_package/
-          cp scripts/run_windows.ps1 release_package/
-          cp README.md release_package/
-          cp -r responses release_package/
-          cp -r obsidian-template release_package/
-          cp -r oden release_package/
-          cp pyproject.toml release_package/
-
-          # Create zip (excluding DMG which is separate)
-          cd release_package
-          zip -r ../oden-${{ steps.version.outputs.VERSION }}-source.zip . -x "*.dmg"
+          VERSION=${{ steps.version.outputs.VERSION }}
+          mkdir -p release_files
+          
+          # Copy macOS DMG
+          find artifacts/oden-macos-dmg -name "*.dmg" -exec cp {} release_files/ \;
+          
+          # Copy Linux zip
+          find artifacts/oden-linux -name "*.zip" -exec cp {} release_files/ \;
+          
+          # Copy Windows zip
+          find artifacts/oden-windows -name "*.zip" -exec cp {} release_files/ \;
+          
+          # Create source package for developers
+          mkdir -p source_package
+          cp -r oden source_package/
+          cp -r responses source_package/
+          cp -r obsidian-template source_package/
+          cp -r docs source_package/
+          cp pyproject.toml source_package/
+          cp README.md source_package/
+          cp CHANGELOG.md source_package/
+          cp LICENSE source_package/
+          
+          # Set version in source
+          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" source_package/oden/__init__.py
+          
+          cd source_package
+          zip -r "../release_files/Oden-${VERSION}-source.zip" .
           cd ..
-
-          # List what we have
-          ls -la release_package/
-          ls -la artifacts/
+          
+          # List release files
+          echo "Release files:"
+          ls -la release_files/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release_package/Oden-*.dmg
-            release_package/oden_linux
-            release_package/oden_windows.exe
-            oden-${{ steps.version.outputs.VERSION }}-source.zip
+            release_files/*
           generate_release_notes: true
+          body: |
+            ## Installation
+            
+            ### macOS (Apple Silicon & Intel)
+            1. Download `Oden-${{ steps.version.outputs.VERSION }}-macOS-universal.dmg`
+            2. Open the DMG and drag Oden to Applications
+            3. First launch: Right-click → Open (to bypass Gatekeeper)
+            
+            ### Linux
+            1. Download and extract `Oden-${{ steps.version.outputs.VERSION }}-linux.zip`
+            2. Run `./run_linux.sh` (will install Java if needed)
+            
+            ### Windows
+            1. Download and extract `Oden-${{ steps.version.outputs.VERSION }}-windows.zip`
+            2. Run `run_windows.ps1` in PowerShell (will install Java if needed)
+            
+            ### From Source
+            1. Download `Oden-${{ steps.version.outputs.VERSION }}-source.zip`
+            2. Install signal-cli and Java 21+
+            3. `pip install -e .` then `python -m oden`
+            
+            All packages include signal-cli bundled. The web-based setup wizard will guide you through configuration on first run.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

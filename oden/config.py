@@ -199,6 +199,16 @@ def get_config() -> dict:
     signal_number = config.get("Signal", "number", fallback="+46XXXXXXXXX")
     display_name = config.get("Signal", "display_name", fallback=None)
     signal_cli_path = config.get("Signal", "signal_cli_path", fallback=None)
+
+    # Check for signal-cli path from environment variable or .signal_cli_path file
+    # This allows run scripts to pass the path to the app
+    if not signal_cli_path:
+        signal_cli_path = os.environ.get("SIGNAL_CLI_PATH")
+    if not signal_cli_path:
+        signal_cli_path_file = ODEN_HOME / ".signal_cli_path"
+        if signal_cli_path_file.exists():
+            signal_cli_path = signal_cli_path_file.read_text().strip()
+
     unmanaged_signal_cli = config.getboolean("Signal", "unmanaged_signal_cli", fallback=False)
     signal_cli_host = config.get("Signal", "host", fallback="127.0.0.1")
     signal_cli_port = config.getint("Signal", "port", fallback=7583)

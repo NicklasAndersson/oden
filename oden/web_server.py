@@ -1486,10 +1486,12 @@ async def config_save_handler(request: web.Request) -> web.Response:
         reload_config()
         logger.info("Configuration reloaded (live reload)")
 
-        return web.json_response({
-            "success": True,
-            "message": "Konfiguration sparad och applicerad!",
-        })
+        return web.json_response(
+            {
+                "success": True,
+                "message": "Konfiguration sparad och applicerad!",
+            }
+        )
 
     except json.JSONDecodeError:
         return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
@@ -1530,25 +1532,30 @@ async def setup_status_handler(request: web.Request) -> web.Response:
 
     if include_accounts:
         from oden.signal_manager import get_existing_accounts
+
         existing_accounts = get_existing_accounts()
 
     if _linker is None:
-        return web.json_response({
-            "status": "idle",
-            "configured": False,
-            "oden_home": str(ODEN_HOME),
-            "default_vault": str(DEFAULT_VAULT_PATH),
-            "existing_accounts": existing_accounts,
-        })
+        return web.json_response(
+            {
+                "status": "idle",
+                "configured": False,
+                "oden_home": str(ODEN_HOME),
+                "default_vault": str(DEFAULT_VAULT_PATH),
+                "existing_accounts": existing_accounts,
+            }
+        )
 
-    return web.json_response({
-        "status": _linker.status,
-        "link_uri": _linker.link_uri,
-        "linked_number": _linker.linked_number,
-        "error": _linker.error,
-        "manual_instructions": _linker.get_manual_instructions() if _linker.status == "timeout" else None,
-        "existing_accounts": existing_accounts,
-    })
+    return web.json_response(
+        {
+            "status": _linker.status,
+            "link_uri": _linker.link_uri,
+            "linked_number": _linker.linked_number,
+            "error": _linker.error,
+            "manual_instructions": _linker.get_manual_instructions() if _linker.status == "timeout" else None,
+            "existing_accounts": existing_accounts,
+        }
+    )
 
 
 async def setup_start_link_handler(request: web.Request) -> web.Response:
@@ -1580,36 +1587,47 @@ async def setup_start_link_handler(request: web.Request) -> web.Response:
             img = qr.make_image(image_factory=qrcode.image.svg.SvgPathImage)
             svg_buffer = io.BytesIO()
             img.save(svg_buffer)
-            qr_svg = svg_buffer.getvalue().decode('utf-8')
+            qr_svg = svg_buffer.getvalue().decode("utf-8")
 
             # Start waiting for link in background
             _link_task = asyncio.create_task(_wait_for_link_background())
-            return web.json_response({
-                "success": True,
-                "link_uri": uri,
-                "qr_svg": qr_svg,
-                "status": "waiting",
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "link_uri": uri,
+                    "qr_svg": qr_svg,
+                    "status": "waiting",
+                }
+            )
         else:
-            return web.json_response({
-                "success": False,
-                "error": _linker.error or "Kunde inte starta länkning",
-                "status": "error",
-            }, status=500)
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": _linker.error or "Kunde inte starta länkning",
+                    "status": "error",
+                },
+                status=500,
+            )
 
     except FileNotFoundError as e:
-        return web.json_response({
-            "success": False,
-            "error": f"signal-cli hittades inte: {e}",
-            "status": "error",
-        }, status=500)
+        return web.json_response(
+            {
+                "success": False,
+                "error": f"signal-cli hittades inte: {e}",
+                "status": "error",
+            },
+            status=500,
+        )
     except Exception as e:
         logger.error(f"Error starting link: {e}")
-        return web.json_response({
-            "success": False,
-            "error": str(e),
-            "status": "error",
-        }, status=500)
+        return web.json_response(
+            {
+                "success": False,
+                "error": str(e),
+                "status": "error",
+            },
+            status=500,
+        )
 
 
 async def _wait_for_link_background():
@@ -1654,10 +1672,13 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
             logger.info(f"Using linked number from _linker: {signal_number}")
 
         if not signal_number or signal_number == "+46XXXXXXXXX":
-            return web.json_response({
-                "success": False,
-                "error": "Signal-nummer måste anges",
-            }, status=400)
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": "Signal-nummer måste anges",
+                },
+                status=400,
+            )
 
         # Expand and validate vault path
         vault_path = str(Path(vault_path).expanduser())
@@ -1681,11 +1702,13 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         save_config(config_dict)
         logger.info(f"Setup complete. Config saved to {CONFIG_FILE}")
 
-        return web.json_response({
-            "success": True,
-            "message": "Konfiguration sparad! Oden startar om...",
-            "config_path": str(CONFIG_FILE),
-        })
+        return web.json_response(
+            {
+                "success": True,
+                "message": "Konfiguration sparad! Oden startar om...",
+                "config_path": str(CONFIG_FILE),
+            }
+        )
 
     except json.JSONDecodeError:
         return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)

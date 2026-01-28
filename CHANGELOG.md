@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Previously only worked on Apple Silicon Macs
   - Intel Mac users saw "app is not supported on this mac" error
 
+### Changed
+
+- **Windows/Linux Release Packages**: Now include complete bundles with:
+  - Pre-bundled signal-cli (no manual download needed)
+  - Simplified run scripts that launch setup wizard
+  - `responses/` directory for help commands
+  
+- **Simplified Run Scripts**: Rewrote `run_linux.sh` and `run_windows.ps1`
+  - Scripts now only handle dependency checks (Java) and signal-cli setup
+  - All configuration moved to web-based setup wizard
+  - No more interactive prompts for Signal linking in terminal
+  
+- **Signal-cli Path Detection**: App now reads signal-cli path from:
+  1. Environment variable `SIGNAL_CLI_PATH`
+  2. File `~/.oden/.signal_cli_path` (written by run scripts)
+  3. Config file `signal_cli_path` setting
+
 ## [0.9.0] - 2026-01-28
 
 ### ✨ Highlights

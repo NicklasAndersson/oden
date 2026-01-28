@@ -1,24 +1,19 @@
 # ==============================================================================
 # Oden - Run Script for Windows
 # ==============================================================================
-# This script handles everything: installation, configuration, and running Oden.
+# This script installs dependencies and launches Oden.
+# All configuration is done through the web-based setup wizard.
 
 # --- Colors ---
 $C_RED = "Red"
 $C_GREEN = "Green"
 $C_BLUE = "Blue"
 $C_YELLOW = "Yellow"
+$C_WHITE = "White"
 
 # --- Configuration ---
-$SIGNAL_CLI_VERSION = "0.13.22"
-$SIGNAL_CLI_DIR = ".\signal-cli-$SIGNAL_CLI_VERSION"
-$CONFIG_FILE = ".\config.ini"
-# Try OS-specific binary first, fall back to generic name
-if (Test-Path ".\s7_watcher_windows.exe") {
-    $EXECUTABLE = ".\s7_watcher_windows.exe"
-} else {
-    $EXECUTABLE = ".\s7_watcher.exe"
-}
+$SIGNAL_CLI_VERSION = "0.13.23"
+$ODEN_CONFIG_DIR = "$env:USERPROFILE\.oden"
 
 # --- Helper Functions ---
 function Print-Header {
@@ -29,17 +24,22 @@ function Print-Header {
 
 function Print-Success {
     param([string]$Message)
-    Write-Host $Message -ForegroundColor $C_GREEN
+    Write-Host "[OK] $Message" -ForegroundColor $C_GREEN
 }
 
 function Print-Error {
     param([string]$Message)
-    Write-Host $Message -ForegroundColor $C_RED
+    Write-Host "[X] $Message" -ForegroundColor $C_RED
 }
 
 function Print-Warning {
     param([string]$Message)
-    Write-Host $Message -ForegroundColor $C_YELLOW
+    Write-Host "[!] $Message" -ForegroundColor $C_YELLOW
+}
+
+function Print-Info {
+    param([string]$Message)
+    Write-Host "[i] $Message" -ForegroundColor $C_BLUE
 }
 
 # --- Banner ---
@@ -49,419 +49,164 @@ Write-Host "                (Windows)                  " -ForegroundColor $C_BLU
 Write-Host "===========================================" -ForegroundColor $C_BLUE
 Write-Host ""
 
+# --- Find script directory ---
+$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Check for executable
+if (Test-Path "$SCRIPT_DIR\oden_windows.exe") {
+    $EXECUTABLE = "$SCRIPT_DIR\oden_windows.exe"
+} else {
+    Print-Error "Kunde inte hitta oden_windows.exe"
+    Print-Info "Se till att du kor detta skript fran release-paketet."
+    Read-Host "Tryck Enter for att avsluta"
+    exit 1
+}
+
 # =============================================================================
 # STEP 1: Check Dependencies
 # =============================================================================
-Print-Header "Step 1: Checking Dependencies"
+Print-Header "Steg 1: Kontrollerar beroenden"
 
 # Check for Java 21+
-Write-Host "Checking for Java 21+... " -NoNewline
+Write-Host "Kontrollerar Java 21+... " -NoNewline
 $javaPath = Get-Command java -ErrorAction SilentlyContinue
 if (-not $javaPath) {
-    Print-Error "Not found."
-    Write-Host "Please install Java 21+ from: https://adoptium.net/temurin/releases/"
-    Write-Host "After installation, restart this script."
-    Read-Host "Press Enter to exit"
+    Print-Error "Inte installerat."
+    Write-Host ""
+    Write-Host "Java 21+ kravs. Ladda ner fran:" -ForegroundColor $C_YELLOW
+    Write-Host "https://adoptium.net/temurin/releases/" -ForegroundColor $C_WHITE
+    Write-Host ""
+    Write-Host "Valj 'Windows x64' och 'JDK 21' eller nyare."
+    Read-Host "Tryck Enter for att avsluta"
     exit 1
 }
 
 $javaVersionOutput = & "java" -version 2>&1
 $javaVersionString = $javaVersionOutput | Select-String -Pattern "version"
-$javaVersion = $javaVersionString -replace '.*version "(.*)\".*', '$1'
-$javaMajorVersion = ($javaVersion.Split('.'))[0]
-
-if ([int]$javaMajorVersion -lt 21) {
-    Print-Error "Found version $javaVersion, but need 21+."
-    Write-Host "Please install Java 21+ from: https://adoptium.net/"
-    Read-Host "Press Enter to exit"
-    exit 1
+if ($javaVersionString -match '"([^"]+)"') {
+    $javaVersion = $matches[1]
+    $javaMajorVersion = ($javaVersion.Split('.'))[0]
+    
+    if ([int]$javaMajorVersion -lt 21) {
+        Print-Error "Hittade version $javaVersion, men behover 21+."
+        Write-Host "Ladda ner fran: https://adoptium.net/temurin/releases/"
+        Read-Host "Tryck Enter for att avsluta"
+        exit 1
+    } else {
+        Print-Success "Java $javaVersion"
+    }
 } else {
-    Print-Success "OK (version $javaVersion)"
+    Print-Warning "Kunde inte avgora Java-version, fortsatter..."
 }
 
 # =============================================================================
 # STEP 2: Setup signal-cli
 # =============================================================================
-Print-Header "Step 2: Setting up signal-cli"
+Print-Header "Steg 2: Kontrollerar signal-cli"
 
-# First, check if config.ini already has a valid signal_cli_path
-$existingCliPath = $null
-if (Test-Path $CONFIG_FILE) {
-    $configContent = Get-Content $CONFIG_FILE -Raw
-    if ($configContent -match "(?m)^signal_cli_path\s*=\s*(.+)$") {
-        $existingCliPath = $matches[1].Trim()
-    }
+$SIGNAL_CLI_EXEC = $null
+
+# 1. Check if bundled with release
+if (Test-Path "$SCRIPT_DIR\signal-cli\bin\signal-cli.bat") {
+    $SIGNAL_CLI_EXEC = "$SCRIPT_DIR\signal-cli\bin\signal-cli.bat"
+    Print-Success "Anvander medfoljande signal-cli"
 }
-
-if ($existingCliPath -and (Test-Path $existingCliPath)) {
-    $SIGNAL_CLI_EXEC = $existingCliPath
-    Print-Success "Found signal-cli from config: $SIGNAL_CLI_EXEC"
-} else {
-    $signalCliPath = Get-Command signal-cli -ErrorAction SilentlyContinue
-    if ($signalCliPath) {
-        $SIGNAL_CLI_EXEC = $signalCliPath.Source
-        Print-Success "Found signal-cli in PATH: $SIGNAL_CLI_EXEC"
-    } elseif (Test-Path "$SIGNAL_CLI_DIR\bin\signal-cli.bat") {
-        $SIGNAL_CLI_EXEC = "$SIGNAL_CLI_DIR\bin\signal-cli.bat"
-        Print-Success "Found bundled signal-cli: $SIGNAL_CLI_EXEC"
-    } else {
-        Print-Warning "signal-cli not found."
-        $hasInstall = Read-Host "Do you have an existing signal-cli installation? (y/N)"
-        
-        if ($hasInstall -eq 'y') {
-            $customPath = Read-Host "Enter full path to signal-cli.bat"
-            if (Test-Path $customPath) {
-                $SIGNAL_CLI_EXEC = $customPath
-                Print-Success "Using: $SIGNAL_CLI_EXEC"
-            } else {
-                Print-Error "File not found. Exiting."
-                exit 1
-            }
-        } else {
-            Write-Host "Downloading signal-cli $SIGNAL_CLI_VERSION..."
-            $downloadUrl = "https://github.com/AsamK/signal-cli/releases/download/v$SIGNAL_CLI_VERSION/signal-cli-$SIGNAL_CLI_VERSION.tar.gz"
-            $tarFile = "signal-cli.tar.gz"
-            
-            try {
-                Invoke-WebRequest -Uri $downloadUrl -OutFile $tarFile -UseBasicParsing
-            } catch {
-                Print-Error "Failed to download signal-cli."
-                exit 1
-            }
-            
-            Write-Host "Extracting..."
-            tar -xzf $tarFile
-            Remove-Item $tarFile
-            $SIGNAL_CLI_EXEC = "$SIGNAL_CLI_DIR\bin\signal-cli.bat"
-            Print-Success "signal-cli installed: $SIGNAL_CLI_EXEC"
-        }
-    }
+# 2. Check in PATH
+elseif (Get-Command signal-cli -ErrorAction SilentlyContinue) {
+    $SIGNAL_CLI_EXEC = (Get-Command signal-cli).Source
+    Print-Success "Hittade signal-cli i PATH: $SIGNAL_CLI_EXEC"
 }
-
-# =============================================================================
-# STEP 3: Configure Signal Account
-# =============================================================================
-Print-Header "Step 3: Signal Account Configuration"
-
-$existingAccountOutput = & $SIGNAL_CLI_EXEC listAccounts 2>$null
-$SIGNAL_NUMBER = ""
-
-if ($LASTEXITCODE -eq 0 -and $existingAccountOutput) {
-    $SIGNAL_NUMBER = $existingAccountOutput | Select-String -Pattern "Number" | ForEach-Object { ($_ -split ' ')[1] }
-    Print-Success "Found existing account: $SIGNAL_NUMBER"
-    $keepAccount = Read-Host "Use this account? (Y/n)"
-    if ($keepAccount -ne '' -and $keepAccount -ne 'y' -and $keepAccount -ne 'Y') {
-        $SIGNAL_NUMBER = ""
-    }
-}
-
-if ([string]::IsNullOrEmpty($SIGNAL_NUMBER)) {
-    Write-Host "How do you want to set up Signal?"
-    Write-Host "  1) Link to existing Signal account (Recommended)" -ForegroundColor $C_GREEN
-    Write-Host "  2) Register a new number" -ForegroundColor $C_YELLOW
-    $setupChoice = Read-Host "Choice (1 or 2)"
-
-    switch ($setupChoice) {
-        "1" {
-            Print-Header "Linking Account"
-            $deviceName = "Oden-$env:COMPUTERNAME"
-            Write-Host "On your phone: Signal > Settings > Linked Devices > +"
-            Read-Host "Press Enter to generate link..."
-            
-            $linkOutput = & $SIGNAL_CLI_EXEC link -n "$deviceName" 2>&1
-            $linkUri = $linkOutput | Select-String 'tsdevice:'
-            
-            if (-not $linkUri) {
-                Print-Error "Failed to generate link."
-                Write-Host $linkOutput
-                exit 1
-            }
-            
-            Write-Host ""
-            Write-Host "Copy this link and use it on your phone:" -ForegroundColor $C_GREEN
-            Write-Host $linkUri
-            Write-Host ""
-            
-            Write-Host "Waiting for link to complete..."
-            Start-Sleep -Seconds 3
-            $existingAccountOutput = & $SIGNAL_CLI_EXEC listAccounts 2>$null
-            $SIGNAL_NUMBER = $existingAccountOutput | Select-String -Pattern "Number" | ForEach-Object { ($_ -split ' ')[1] }
-            
-            if ([string]::IsNullOrEmpty($SIGNAL_NUMBER)) {
-                $SIGNAL_NUMBER = Read-Host "Enter your Signal phone number (e.g., +46701234567)"
-            }
-            Print-Success "Account linked!"
-        }
-        "2" {
-            Print-Header "Registering New Number"
-            Print-Warning "WARNING: Do NOT use your primary Signal number!"
-            $SIGNAL_NUMBER = Read-Host "Enter phone number (e.g., +46701234567)"
-            
-            if ([string]::IsNullOrEmpty($SIGNAL_NUMBER)) {
-                Print-Error "Phone number required."
-                exit 1
-            }
-            
-            $verifyMethod = Read-Host "Verification via (1) SMS or (2) Voice? [1]"
-            $verifyFlag = ""
-            if ($verifyMethod -eq "2") { $verifyFlag = "--voice" }
-            
-            $registerOutput = & $SIGNAL_CLI_EXEC -u "$SIGNAL_NUMBER" register $verifyFlag 2>&1
-            
-            if ($LASTEXITCODE -ne 0) {
-                $captchaRequired = $registerOutput | Select-String -Pattern 'captcha' -CaseSensitive:$false
-                if ($captchaRequired) {
-                    Print-Warning "CAPTCHA required."
-                    Write-Host "1. Open: https://signalcaptchas.org/registration/generate.html"
-                    Write-Host "2. Solve the captcha"
-                    Write-Host "3. Right-click 'Open Signal' and copy link"
-                    $captchaToken = Read-Host "Paste signalcaptcha:// link"
-                    
-                    $registerOutput = & $SIGNAL_CLI_EXEC -u "$SIGNAL_NUMBER" register $verifyFlag --captcha "$captchaToken" 2>&1
-                    if ($LASTEXITCODE -ne 0) {
-                        Print-Error "Registration failed."
-                        Write-Host $registerOutput
-                        exit 1
-                    }
-                } else {
-                    Print-Error "Registration failed."
-                    Write-Host $registerOutput
-                    exit 1
-                }
-            }
-            
-            $verifyCode = Read-Host "Enter verification code"
-            & $SIGNAL_CLI_EXEC -u "$SIGNAL_NUMBER" verify "$verifyCode"
-            
-            if ($LASTEXITCODE -ne 0) {
-                Print-Error "Verification failed."
-                exit 1
-            }
-            Print-Success "Number registered!"
-        }
-        default {
-            Print-Error "Invalid choice."
-            exit 1
-        }
-    }
-}
-
-# =============================================================================
-# STEP 4: Configure Oden (config.ini)
-# =============================================================================
-Print-Header "Step 4: Configuring Oden"
-
-# Template config is shipped with the release
-$TEMPLATE_CONFIG = ".\config.ini.template"
-
-$needsConfig = $false
-if (-not (Test-Path $CONFIG_FILE)) {
-    $needsConfig = $true
-} elseif (Select-String -Path $CONFIG_FILE -Pattern "\+46XXXXXXXXX" -Quiet) {
-    $needsConfig = $true
-}
-
-if ($needsConfig) {
-    Write-Host "Setting up configuration..."
-    
-    # Copy template if it exists, otherwise we'll update in place
-    if ((Test-Path $TEMPLATE_CONFIG) -and (-not (Test-Path $CONFIG_FILE))) {
-        Copy-Item $TEMPLATE_CONFIG $CONFIG_FILE
-    } elseif (-not (Test-Path $CONFIG_FILE)) {
-        Print-Error "config.ini.template not found. Please re-download the release."
-        exit 1
-    }
-    
-    # Get vault path
-    Write-Host ""
-    Write-Host "Where is your Obsidian vault?"
-    $vaultPath = Read-Host "Vault path (default: .\vault)"
-    if ([string]::IsNullOrEmpty($vaultPath)) { $vaultPath = ".\vault" }
-    
-    # Get timezone
-    $currentTz = (Get-TimeZone).Id
-    $timezone = Read-Host "Timezone (default: $currentTz)"
-    if ([string]::IsNullOrEmpty($timezone)) { $timezone = $currentTz }
-    
-    # Convert signal-cli path to absolute
-    $signalCliFullPath = (Resolve-Path $SIGNAL_CLI_EXEC -ErrorAction SilentlyContinue).Path
-    if (-not $signalCliFullPath) { $signalCliFullPath = $SIGNAL_CLI_EXEC }
-    
-    # Update config values
-    $content = Get-Content $CONFIG_FILE -Raw
-    $content = $content -replace 'path = .*', "path = $vaultPath"
-    $content = $content -replace 'number = .*', "number = $SIGNAL_NUMBER"
-    $content = $content -replace 'timezone = .*', "timezone = $timezone"
-    
-    # Uncomment and set signal_cli_path
-    $content = $content -replace '#signal_cli_path = .*', "signal_cli_path = $signalCliFullPath"
-    
-    # Uncomment and set log_file
-    $content = $content -replace '#log_file = .*', "log_file = signal-cli.log"
-    
-    # Uncomment and set display_name
-    $content = $content -replace '#display_name = .*', "display_name = oden"
-    
-    $content | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
-    Print-Success "Configuration saved to $CONFIG_FILE"
-} else {
-    Print-Success "Configuration already exists."
-    if (-not [string]::IsNullOrEmpty($SIGNAL_NUMBER)) {
-        (Get-Content $CONFIG_FILE) -replace 'number = .*', "number = $SIGNAL_NUMBER" | Set-Content $CONFIG_FILE
-    }
-}
-
-# =============================================================================
-# STEP 4.5: Obsidian Template (optional)
-# =============================================================================
-$OBSIDIAN_TEMPLATE = ".\obsidian-template\.obsidian"
-
-# Get vault path from config
-$vaultPathFromConfig = (Get-Content $CONFIG_FILE | Select-String "^path = (.*)").Matches.Groups[1].Value
-
-# Create vault directory if it doesn't exist
-if (-not [string]::IsNullOrEmpty($vaultPathFromConfig) -and (-not (Test-Path $vaultPathFromConfig))) {
-    New-Item -ItemType Directory -Path $vaultPathFromConfig -Force | Out-Null
-    Print-Success "Skapade valv-mappen: $vaultPathFromConfig"
-}
-
-# Only ask if vault path is set and doesn't already have .obsidian
-if (-not [string]::IsNullOrEmpty($vaultPathFromConfig) -and (-not (Test-Path "$vaultPathFromConfig\.obsidian")) -and (Test-Path $OBSIDIAN_TEMPLATE)) {
-    Print-Header "Obsidian Settings"
-    Write-Host "Vi har en Obsidian-mall med forinstallerade plugins (bl.a. Map View for kartor)."
-    Write-Host ""
-    $installObsidian = Read-Host "Vill du kopiera Obsidian-installningar till ditt valv? [J/n]"
-    if ([string]::IsNullOrEmpty($installObsidian)) { $installObsidian = "J" }
-    
-    if ($installObsidian -match "^[JjYy]$") {
-        Copy-Item -Path $OBSIDIAN_TEMPLATE -Destination "$vaultPathFromConfig\.obsidian" -Recurse
-        Print-Success "Obsidian-installningar kopierade till $vaultPathFromConfig\.obsidian"
-        Write-Host "Tips: Starta Obsidian och aktivera community plugins under Installningar > Community plugins"
-    } else {
-        Write-Host "Hoppade over Obsidian-installningar."
-    }
-}
-
-# =============================================================================
-# STEP 5: Run Application
-# =============================================================================
-Print-Header "Step 5: Starting Oden"
-
-# Try to run the binary if it exists
-if (Test-Path $EXECUTABLE) {
-    Write-Host ""
-    Write-Host "=== Oden is starting ===" -ForegroundColor $C_GREEN
-    Write-Host ""
-    Write-Host "Press Ctrl+C to stop."
-    Write-Host ""
-    
-    # Try to execute the binary
-    try {
-        & $EXECUTABLE
-        $exitCode = $LASTEXITCODE
-    }
-    catch {
-        $exitCode = 1
-    }
-    
-    # If binary execution failed (and not user interrupt), fall back to Python
-    # -1073741510 is the Windows exit code for Ctrl+C interrupt (0xC000013A)
-    if ($exitCode -ne 0 -and $exitCode -ne -1073741510) {
-        Print-Warning "Binary execution failed with exit code $exitCode"
-        Print-Warning "Trying Python fallback..."
-        
-        # Check if Python is available
-        $pythonCmd = $null
-        if (Get-Command python -ErrorAction SilentlyContinue) {
-            $pythonCmd = "python"
-        }
-        elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
-            $pythonCmd = "python3"
-        }
-        
-        if (-not $pythonCmd) {
-            Print-Error "Python 3 is required but not found."
-            Print-Error "Please install Python 3.10+ from https://www.python.org/"
-            Read-Host "Press Enter to exit"
-            exit 1
-        }
-        
-        # Check if oden package exists
-        if (-not (Test-Path ".\oden")) {
-            Print-Error "Oden source code not found."
-            Print-Error "This may be a binary-only release. Please report this issue."
-            Read-Host "Press Enter to exit"
-            exit 1
-        }
-        
-        # Install dependencies if needed
-        $importTest = & $pythonCmd -c "import oden" 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Print-Warning "Installing Python dependencies..."
-            & $pythonCmd -m pip install --quiet -e .
-            if ($LASTEXITCODE -ne 0) {
-                Print-Error "Failed to install dependencies."
-                Read-Host "Press Enter to exit"
-                exit 1
-            }
-        }
-        
-        # Run using Python
-        Write-Host ""
-        Write-Host "=== Oden is starting (Python mode) ===" -ForegroundColor $C_GREEN
-        Write-Host ""
-        Write-Host "Press Ctrl+C to stop."
-        Write-Host ""
-        & $pythonCmd -m oden
-    }
-    exit $exitCode
+# 3. Check standard locations
+elseif (Test-Path "$env:LOCALAPPDATA\signal-cli\bin\signal-cli.bat") {
+    $SIGNAL_CLI_EXEC = "$env:LOCALAPPDATA\signal-cli\bin\signal-cli.bat"
+    Print-Success "Hittade signal-cli: $SIGNAL_CLI_EXEC"
 }
 else {
-    # No binary found, try Python directly
-    Print-Warning "Executable not found: $EXECUTABLE"
-    Print-Warning "Trying to run from Python source..."
+    Print-Warning "signal-cli hittades inte."
+    Write-Host ""
+    $downloadChoice = Read-Host "Ladda ner signal-cli $SIGNAL_CLI_VERSION automatiskt? (J/n)"
     
-    # Check if Python is available
-    $pythonCmd = $null
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        $pythonCmd = "python"
-    }
-    elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
-        $pythonCmd = "python3"
-    }
-    
-    if (-not $pythonCmd) {
-        Print-Error "Python 3 is required but not found."
-        Print-Error "Please install Python 3.10+ from https://www.python.org/"
-        Read-Host "Press Enter to exit"
-        exit 1
-    }
-    
-    # Check if oden package exists
-    if (-not (Test-Path ".\oden")) {
-        Print-Error "Oden source code not found."
-        Print-Error "Please make sure you have the complete Oden package."
-        Read-Host "Press Enter to exit"
-        exit 1
-    }
-    
-    # Install dependencies if needed
-    $importTest = & $pythonCmd -c "import oden" 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Print-Warning "Installing Python dependencies..."
-        & $pythonCmd -m pip install --quiet -e .
-        if ($LASTEXITCODE -ne 0) {
-            Print-Error "Failed to install dependencies."
-            Read-Host "Press Enter to exit"
+    if ([string]::IsNullOrEmpty($downloadChoice) -or $downloadChoice -match '^[JjYy]$') {
+        Write-Host "Laddar ner signal-cli..."
+        $downloadUrl = "https://github.com/AsamK/signal-cli/releases/download/v$SIGNAL_CLI_VERSION/signal-cli-$SIGNAL_CLI_VERSION.tar.gz"
+        $installDir = "$env:LOCALAPPDATA\signal-cli-$SIGNAL_CLI_VERSION"
+        $tarFile = "$env:TEMP\signal-cli.tar.gz"
+        
+        try {
+            # Download
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $tarFile -UseBasicParsing
+            
+            # Extract
+            Write-Host "Extraherar..."
+            if (-not (Test-Path $env:LOCALAPPDATA)) {
+                New-Item -ItemType Directory -Path $env:LOCALAPPDATA | Out-Null
+            }
+            
+            Push-Location $env:LOCALAPPDATA
+            tar -xzf $tarFile
+            Pop-Location
+            
+            Remove-Item $tarFile -ErrorAction SilentlyContinue
+            
+            $SIGNAL_CLI_EXEC = "$installDir\bin\signal-cli.bat"
+            Print-Success "signal-cli installerat: $SIGNAL_CLI_EXEC"
+        }
+        catch {
+            Print-Error "Nedladdning misslyckades: $_"
+            Read-Host "Tryck Enter for att avsluta"
             exit 1
         }
     }
-    
-    # Run using Python
-    Write-Host ""
-    Write-Host "=== Oden is starting (Python mode) ===" -ForegroundColor $C_GREEN
-    Write-Host ""
-    Write-Host "Press Ctrl+C to stop."
-    Write-Host ""
-    & $pythonCmd -m oden
+    else {
+        Print-Error "signal-cli kravs for att fortsatta."
+        Read-Host "Tryck Enter for att avsluta"
+        exit 1
+    }
 }
+
+# Verify signal-cli works
+Write-Host "Verifierar signal-cli... " -NoNewline
+try {
+    $cliVersion = & $SIGNAL_CLI_EXEC --version 2>&1 | Select-Object -First 1
+    Print-Success "$cliVersion"
+}
+catch {
+    Print-Error "signal-cli kunde inte koras."
+    exit 1
+}
+
+# =============================================================================
+# STEP 3: Create config directory
+# =============================================================================
+Print-Header "Steg 3: Forbereder konfiguration"
+
+if (-not (Test-Path $ODEN_CONFIG_DIR)) {
+    New-Item -ItemType Directory -Path $ODEN_CONFIG_DIR | Out-Null
+}
+Print-Success "Konfigurationskatalog: $ODEN_CONFIG_DIR"
+
+# Write signal-cli path for the app to find
+$SIGNAL_CLI_EXEC | Out-File -FilePath "$ODEN_CONFIG_DIR\.signal_cli_path" -Encoding UTF8 -NoNewline
+
+# =============================================================================
+# STEP 4: Launch Oden
+# =============================================================================
+Print-Header "Steg 4: Startar Oden"
+
+if (-not (Test-Path "$ODEN_CONFIG_DIR\config.ini")) {
+    Print-Info "Forsta korningen - setup wizard kommer att oppnas i webblasaren."
+    Write-Host ""
+}
+
+Write-Host "Startar Oden..."
+Write-Host "Webb-GUI: http://127.0.0.1:8080"
+Write-Host ""
+Write-Host "Tryck Ctrl+C for att avsluta" -ForegroundColor $C_YELLOW
+Write-Host ""
+
+# Set environment variable for signal-cli path
+$env:SIGNAL_CLI_PATH = $SIGNAL_CLI_EXEC
+
+# Run the executable
+& $EXECUTABLE
