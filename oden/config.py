@@ -13,21 +13,13 @@ import sys
 import zoneinfo
 from pathlib import Path
 
+from oden.bundle_utils import get_bundle_path
+
 # Default paths
 ODEN_HOME = Path.home() / ".oden"
 CONFIG_FILE = ODEN_HOME / "config.ini"
 DEFAULT_VAULT_PATH = Path.home() / "oden-vault"
 SIGNAL_DATA_PATH = ODEN_HOME / "signal-data"
-
-
-def get_bundle_path() -> Path:
-    """Get the path to bundled resources (for PyInstaller builds)."""
-    if getattr(sys, "frozen", False):
-        # Running as PyInstaller bundle
-        return Path(sys._MEIPASS)
-    else:
-        # Running from source
-        return Path(__file__).parent.parent
 
 
 def get_config_template_path() -> Path:

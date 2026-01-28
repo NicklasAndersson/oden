@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-01-28
+
+### Changed
+
+- **Code refactoring**: Stora filer uppdelade i mindre, mer hanterbara moduler
+  - `web_server.py` reducerad från 2556 → 187 rader (93% minskning)
+  - Ny modul `web_templates.py` för HTML-mallar
+  - Nytt paket `web_handlers/` med `config_handlers.py`, `group_handlers.py`, `setup_handlers.py`
+  - Ny modul `bundle_utils.py` för gemensamma PyInstaller bundle-funktioner
+  - Eliminerad kodduplikation av `get_bundle_path()` mellan config.py och signal_manager.py
+
 ## [0.11.0] - 2026-01-28
 
 ### Added

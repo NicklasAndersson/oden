@@ -9,7 +9,6 @@ import asyncio
 import contextlib
 import logging
 import os
-import platform
 import shutil
 import socket
 import subprocess
@@ -17,50 +16,15 @@ import sys
 import time
 from pathlib import Path
 
+from oden.bundle_utils import get_bundle_path, get_bundled_java_path, is_bundled
 from oden.config import SIGNAL_CLI_LOG_FILE, SIGNAL_CLI_PATH, SIGNAL_DATA_PATH
 
 logger = logging.getLogger(__name__)
 
 
-def get_bundle_path() -> Path:
-    """Get the path to bundled resources (for PyInstaller builds)."""
-    if getattr(sys, "frozen", False):
-        # Running as PyInstaller bundle
-        return Path(sys._MEIPASS)
-    else:
-        # Running from source
-        return Path(__file__).parent.parent
-
-
-def get_bundled_java_path() -> str | None:
-    """Get path to bundled JRE based on architecture."""
-    if not getattr(sys, "frozen", False):
-        return None
-
-    bundle_path = get_bundle_path()
-    arch = platform.machine()
-
-    # Map architecture names
-    if arch == "arm64":
-        jre_dir = "jre-arm64"
-    elif arch in ("x86_64", "AMD64"):
-        jre_dir = "jre-x64"
-    else:
-        logger.warning(f"Unknown architecture: {arch}")
-        return None
-
-    java_path = bundle_path / jre_dir / "bin" / "java"
-    if java_path.exists():
-        logger.info(f"Found bundled Java at: {java_path}")
-        return str(java_path)
-
-    logger.warning(f"Bundled JRE not found at: {java_path}")
-    return None
-
-
 def get_bundled_signal_cli_path() -> str | None:
     """Get path to bundled signal-cli."""
-    if not getattr(sys, "frozen", False):
+    if not is_bundled():
         return None
 
     bundle_path = get_bundle_path()
