@@ -24,6 +24,7 @@ from oden.config import (
     IGNORED_GROUPS,
     ODEN_HOME,
     WEB_ACCESS_LOG,
+    WHITELIST_GROUPS,
     get_bundle_path,
     get_config,
     reload_config,
@@ -360,6 +361,29 @@ HTML_TEMPLATE = """
         .toggle-ignore.ignored:hover {
             background: rgba(76, 175, 80, 0.1);
         }
+        .toggle-whitelist {
+            padding: 4px 10px;
+            font-size: 0.8em;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 1px solid #555;
+            background: transparent;
+            color: #888;
+            transition: all 0.2s;
+            margin-left: 5px;
+        }
+        .toggle-whitelist:hover {
+            border-color: #4fc3f7;
+            color: #4fc3f7;
+        }
+        .toggle-whitelist.whitelisted {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        .toggle-whitelist.whitelisted:hover {
+            background: rgba(76, 175, 80, 0.3);
+        }
         .warning-banner {
             background: rgba(255, 183, 77, 0.2);
             border: 1px solid #ffb74d;
@@ -545,6 +569,7 @@ HTML_TEMPLATE = """
                     <tr><th>Append-fönster</th><td id="append-window">-</td></tr>
                     <tr><th>Startup-meddelande</th><td id="startup-message">-</td></tr>
                     <tr><th>Ignorerade grupper</th><td id="ignored-groups">-</td></tr>
+                    <tr><th>Whitelist-grupper</th><td id="whitelist-groups">-</td></tr>
                 </table>
             </div>
 
@@ -553,7 +578,7 @@ HTML_TEMPLATE = """
                 <div id="groups-container" class="group-list">
                     <div class="empty-state">Laddar grupper...</div>
                 </div>
-                <div class="refresh-info">Klicka på "Ignorera" för att dölja gruppen. Kräver omstart.</div>
+                <div class="refresh-info">Klicka på "Ignorera" för att dölja gruppen, eller "Whitelist" för att endast tillåta den. Om whitelist är satt ignoreras alla andra grupper.</div>
             </div>
 
             <div class="card full-width">
@@ -646,6 +671,11 @@ HTML_TEMPLATE = """
                                     <label for="cfg-ignored-groups">Ignorerade grupper (kommaseparerade)</label>
                                     <input type="text" id="cfg-ignored-groups" name="ignored_groups" placeholder="Grupp1, Grupp2">
                                     <span class="help-text">Meddelanden från dessa grupper sparas inte</span>
+                                </div>
+                                <div class="config-field full-width">
+                                    <label for="cfg-whitelist-groups">Whitelist-grupper (kommaseparerade)</label>
+                                    <input type="text" id="cfg-whitelist-groups" name="whitelist_groups" placeholder="Grupp1, Grupp2">
+                                    <span class="help-text">Om satt sparas ENDAST meddelanden från dessa grupper (har prioritet över ignorerade)</span>
                                 </div>
                             </div>
                         </div>
@@ -1024,6 +1054,7 @@ HTML_TEMPLATE = """
                 document.getElementById('cfg-startup-message').value = config.startup_message || 'self';
                 document.getElementById('cfg-plus-plus').checked = config.plus_plus_enabled || false;
                 document.getElementById('cfg-ignored-groups').value = (config.ignored_groups || []).join(', ');
+                document.getElementById('cfg-whitelist-groups').value = (config.whitelist_groups || []).join(', ');
 
                 // Advanced tab
                 document.getElementById('cfg-signal-host').value = config.signal_cli_host || '127.0.0.1';
@@ -1056,6 +1087,8 @@ HTML_TEMPLATE = """
                 startup_message: document.getElementById('cfg-startup-message').value,
                 plus_plus_enabled: document.getElementById('cfg-plus-plus').checked,
                 ignored_groups: document.getElementById('cfg-ignored-groups').value
+                    .split(',').map(s => s.trim()).filter(s => s),
+                whitelist_groups: document.getElementById('cfg-whitelist-groups').value
                     .split(',').map(s => s.trim()).filter(s => s),
                 signal_cli_host: document.getElementById('cfg-signal-host').value,
                 signal_cli_port: parseInt(document.getElementById('cfg-signal-port').value) || 7583,
@@ -1360,7 +1393,7 @@ async def groups_handler(request: web.Request) -> web.Response:
                     "memberCount": len(group.get("members", [])),
                 }
             )
-    return web.json_response({"groups": groups, "ignoredGroups": IGNORED_GROUPS})
+    return web.json_response({"groups": groups, "ignoredGroups": IGNORED_GROUPS, "whitelistGroups": WHITELIST_GROUPS})
 
 
 async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
@@ -1407,6 +1440,9 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
         with open("config.ini", "w", encoding="utf-8") as f:
             config.write(f)
 
+        # Reload config to apply changes
+        reload_config()
+
         logger.info(f"Group '{group_name}' {action} ignored_groups")
         return web.json_response(
             {
@@ -1420,6 +1456,69 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error toggling ignore group: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
+    """Toggle whitelist status for a group by updating config.ini."""
+    try:
+        data = await request.json()
+        group_name = data.get("groupName", "").strip()
+
+        if not group_name:
+            return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
+
+        # Read current config
+        try:
+            with open("config.ini", encoding="utf-8") as f:
+                config_content = f.read()
+        except FileNotFoundError:
+            return web.json_response({"success": False, "error": "config.ini hittades inte"}, status=404)
+
+        # Parse to get current whitelist groups
+        import configparser
+
+        config = configparser.RawConfigParser()
+        config.read_string(config_content)
+
+        whitelist_groups = []
+        if config.has_section("Settings") and config.has_option("Settings", "whitelist_groups"):
+            whitelist_str = config.get("Settings", "whitelist_groups")
+            whitelist_groups = [g.strip() for g in whitelist_str.split(",") if g.strip()]
+
+        # Toggle the group
+        if group_name in whitelist_groups:
+            whitelist_groups.remove(group_name)
+            action = "borttagen från"
+        else:
+            whitelist_groups.append(group_name)
+            action = "tillagd i"
+
+        # Update config
+        if not config.has_section("Settings"):
+            config.add_section("Settings")
+        config.set("Settings", "whitelist_groups", ", ".join(whitelist_groups))
+
+        # Write back
+        with open("config.ini", "w", encoding="utf-8") as f:
+            config.write(f)
+
+        # Reload config to apply changes
+        reload_config()
+
+        logger.info(f"Group '{group_name}' {action} whitelist_groups")
+        return web.json_response(
+            {
+                "success": True,
+                "message": f"Grupp '{group_name}' {action} whitelist",
+                "whitelistGroups": whitelist_groups,
+            }
+        )
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error toggling whitelist group: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
@@ -1501,6 +1600,7 @@ async def config_save_handler(request: web.Request) -> web.Response:
             "startup_message": data.get("startup_message", "self"),
             "plus_plus_enabled": data.get("plus_plus_enabled", False),
             "ignored_groups": data.get("ignored_groups", []),
+            "whitelist_groups": data.get("whitelist_groups", []),
             "signal_cli_host": data.get("signal_cli_host", "127.0.0.1"),
             "signal_cli_port": data.get("signal_cli_port", 7583),
             "signal_cli_path": data.get("signal_cli_path"),
@@ -2370,6 +2470,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/invitations/decline", decline_invitation_handler)
         app.router.add_get("/api/groups", groups_handler)
         app.router.add_post("/api/toggle-ignore-group", toggle_ignore_group_handler)
+        app.router.add_post("/api/toggle-whitelist-group", toggle_whitelist_group_handler)
         app.router.add_get("/api/config-file", config_file_get_handler)
         app.router.add_post("/api/config-file", config_file_save_handler)
         app.router.add_post("/api/config-save", config_save_handler)

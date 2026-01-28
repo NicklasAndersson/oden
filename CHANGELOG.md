@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-01-28
+
+### Added
+
+- **Whitelist Groups**: Ny konfiguration för att endast tillåta specifika grupper
+  - Om whitelist är satt ignoreras alla andra grupper (har prioritet över ignore-listan)
+  - Konfigurerbar via `config.ini` (`whitelist_groups`) eller webbgränssnittet
+  - Grön toggle-knapp i grupplistan för att lägga till/ta bort grupper från whitelist
+
+- **Flexibla filnamnsformat**: Stöd för olika filnamnsformat via `filename_format` i config
+  - `classic` (default): `DDHHMM-telefon-namn.md` (t.ex. `261427-46762320406-Nicklas.md`)
+  - `tnr`: `TNR.md` (t.ex. `261427.md`, `261427-1.md` vid duplikat)
+  - `tnr-name`: `TNR-namn.md` (t.ex. `261427-Nicklas.md`)
+  - Automatisk duplikathantering med `-1`, `-2` suffix
+  - Fileid i frontmatter för konsekvent identifiering oavsett format
+
 ## [0.9.3] - 2026-01-28
 
 ### Fixed

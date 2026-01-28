@@ -7,9 +7,17 @@ import re
 from typing import Any
 
 from oden.attachment_handler import save_attachments
-from oden.config import APPEND_WINDOW_MINUTES, IGNORED_GROUPS, PLUS_PLUS_ENABLED, TIMEZONE
+from oden.config import (
+    APPEND_WINDOW_MINUTES,
+    IGNORED_GROUPS,
+    PLUS_PLUS_ENABLED,
+    TIMEZONE,
+    WHITELIST_GROUPS,
+)
 from oden.formatting import (
     _format_quote,
+    create_fileid,
+    find_latest_file_by_fileid,
     format_sender_display,
     get_message_filepath,
     get_safe_group_dir_path,
@@ -27,90 +35,10 @@ def _find_latest_file_for_sender(group_dir: str, source_name: str | None, source
     """
     Finds the most recent file by a given sender in a group directory.
     Returns the path to the most recent file within APPEND_WINDOW_MINUTES, or None.
+
+    This is a wrapper around find_latest_file_by_fileid from formatting.py.
     """
-    latest_file = None
-    latest_time = datetime.datetime.min.replace(tzinfo=TIMEZONE)
-
-    # Construct sender identifier for matching filenames
-    sender_id_parts = []
-    if source_number:
-        sender_id_parts.append(source_number.lstrip("+"))
-    if source_name:
-        sender_id_parts.append(source_name.replace("/", "_"))
-
-    if not sender_id_parts:
-        return None
-
-    sender_pattern = re.sub(r"[^\w\-_\.]", "_", "-".join(sender_id_parts))
-
-    try:
-        now = datetime.datetime.now(TIMEZONE)
-        candidate_files = [f for f in os.listdir(group_dir) if f.endswith(".md")]
-
-        for filename in candidate_files:
-            # Check if the file belongs to the sender
-            if sender_pattern not in filename:
-                continue
-
-            try:
-                # Extract DDHHMM from filename like "DDHHMM-..."
-                ts_str = filename.split("-")[0]
-                if len(ts_str) != 6:
-                    continue
-
-                day = int(ts_str[0:2])
-                hour = int(ts_str[2:4])
-                minute = int(ts_str[4:6])
-
-                # Validate extracted values
-                if not (1 <= day <= 31 and 0 <= hour <= 23 and 0 <= minute <= 59):
-                    continue
-
-                # Reconstruct the file's datetime using current month/year as base
-                try:
-                    file_dt = now.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
-                except ValueError:
-                    # Handle invalid day for this month (e.g., day 31 in February)
-                    continue
-
-                # Handle month/year rollovers
-                if file_dt > now:
-                    # If the file's date is in the future, it must be from the previous month
-                    # Calculate previous month safely
-                    prev_month = now.month - 1 if now.month > 1 else 12
-                    prev_year = now.year if now.month > 1 else now.year - 1
-
-                    try:
-                        file_dt = now.replace(
-                            year=prev_year, month=prev_month, day=day, hour=hour, minute=minute, second=0, microsecond=0
-                        )
-                    except ValueError:
-                        # Day doesn't exist in previous month either, skip this file
-                        continue
-
-                    # If still in the future (shouldn't happen), skip the file
-                    if file_dt > now:
-                        continue
-
-                # Check if the file is within the append window
-                time_diff = now - file_dt
-                if time_diff < datetime.timedelta(minutes=APPEND_WINDOW_MINUTES) and (
-                    latest_file is None or file_dt > latest_time
-                ):
-                    latest_time = file_dt
-                    latest_file = os.path.join(group_dir, filename)
-                    logger.debug(f"Found candidate file: {filename} (age: {time_diff})")
-
-            except (ValueError, IndexError) as e:
-                logger.debug(f"Skipping file {filename}: {e}")
-                continue
-
-    except FileNotFoundError:
-        return None
-
-    if latest_file:
-        logger.debug(f"Selected latest file for sender: {latest_file}")
-    return latest_file
+    return find_latest_file_by_fileid(group_dir, source_name, source_number)
 
 
 def _apply_regex_links(text: str | None) -> str | None:
@@ -209,7 +137,12 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
 
-    if group_title and group_title in IGNORED_GROUPS:
+    # Whitelist has priority: if set, only allow whitelisted groups
+    if WHITELIST_GROUPS:
+        if group_title and group_title not in WHITELIST_GROUPS:
+            logger.info(f"Skipping message: group '{group_title}' not in whitelist")
+            return
+    elif group_title and group_title in IGNORED_GROUPS:
         logger.info(f"Skipping message from ignored group: {group_title}")
         return
 
@@ -343,11 +276,12 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         else now
     )
 
-    path = get_message_filepath(group_title, dt, source_name, source_number)
+    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True)
     group_dir = os.path.dirname(path)
     os.makedirs(group_dir, exist_ok=True)
 
-    file_exists = os.path.exists(path)
+    # Generate fileid for frontmatter (consistent identification across filename formats)
+    fileid = create_fileid(dt, source_name, source_number)
 
     lat, lon = None, None
     if msg:
@@ -359,25 +293,27 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     # --- Prepare content for Markdown file ---
     content_parts = []
-    if file_exists:
-        content_parts.append("\n---\n")
-    else:
-        sender_display = format_sender_display(source_name, source_number)
+    sender_display = format_sender_display(source_name, source_number)
 
-        if lat is not None and lon is not None:
-            content_parts.extend(["---", 'locations: ""', "---", ""])
+    # Always add frontmatter with fileid (and locations if present)
+    content_parts.append("---")
+    content_parts.append(f"fileid: {fileid}")
+    if lat is not None and lon is not None:
+        content_parts.append('locations: ""')
+    content_parts.append("---")
+    content_parts.append("")
 
-        content_parts.extend(
-            [
-                f"# {group_title}\n",
-                f"TNR: {dt.strftime('%d%H%M')} ({dt.isoformat()})\n",
-                f"Avsändare: {sender_display}\n",
-                f"Grupp: [[{group_title}]]\n",
-                f"Grupp id: {group_id}\n",
-            ]
-        )
-        if lat is not None and lon is not None:
-            content_parts.append(f"[Position](geo:{lat},{lon})\n")
+    content_parts.extend(
+        [
+            f"# {group_title}\n",
+            f"TNR: {dt.strftime('%d%H%M')}\n",
+            f"Avsändare: {sender_display}\n",
+            f"Grupp: [[{group_title}]]\n",
+            f"Grupp id: {group_id}\n",
+        ]
+    )
+    if lat is not None and lon is not None:
+        content_parts.append(f"[Position](geo:{lat},{lon})\n")
 
     if quote:
         content_parts.extend(_format_quote(quote))
@@ -393,8 +329,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     content_parts.append("")
 
-    with open(path, "a", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(content_parts))
 
-    action = "APPENDED TO" if file_exists else "WROTE"
-    logger.info(f"{action}: {path}")
+    logger.info(f"WROTE: {path}")

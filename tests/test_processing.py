@@ -39,6 +39,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.makedirs")
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
+    @patch("oden.formatting.FILENAME_FORMAT", "classic")
     async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -56,12 +57,13 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         mock_makedirs.assert_called_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
         mock_open.assert_called_with(
-            os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8"
+            os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "w", encoding="utf-8"
         )
 
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
 
+        self.assertIn("fileid: 161410-123-John_Doe", written_content)
         self.assertIn("# Test Group", written_content)
         self.assertIn("Avsändare: John Doe ( [[+123]])", written_content)
         self.assertIn("## Meddelande", written_content)
@@ -71,6 +73,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.makedirs")
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
+    @patch("oden.formatting.FILENAME_FORMAT", "classic")
     async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
         """Tests that attachments are properly saved and linked in the message file."""
         mock_exists.return_value = False
@@ -108,7 +111,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         att_path = os.path.join(attachment_dir, "1_test.jpg")
 
         # Check calls to open
-        mock_open_mock.assert_any_call(md_path, "a", encoding="utf-8")
+        mock_open_mock.assert_any_call(md_path, "w", encoding="utf-8")
         mock_open_mock.assert_any_call(att_path, "wb")
 
         # Check content of markdown file
@@ -124,6 +127,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.makedirs")
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
+    @patch("oden.formatting.FILENAME_FORMAT", "classic")
     async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
         mock_exists.return_value = False
         message_obj = {
@@ -144,13 +148,14 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         mock_makedirs.assert_called_with(os.path.join("mock_vault", "Maps Group"), exist_ok=True)
         mock_open.assert_called_with(
-            os.path.join("mock_vault", "Maps Group", "161410-456-Jane_Doe.md"), "a", encoding="utf-8"
+            os.path.join("mock_vault", "Maps Group", "161410-456-Jane_Doe.md"), "w", encoding="utf-8"
         )
 
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
 
-        self.assertIn('---\nlocations: ""\n---\n\n', written_content)
+        self.assertIn("fileid: 161410-456-Jane_Doe", written_content)
+        self.assertIn('locations: ""', written_content)
         self.assertIn("[Position](geo:59.514828,17.767852)\n", written_content)
         self.assertIn("Check this location https://maps.google.com/maps?q=59.514828%2C17.767852", written_content)
 
@@ -158,9 +163,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("os.makedirs")
     @patch("os.path.exists")
     @patch("oden.formatting.VAULT_PATH", "mock_vault")
-    async def test_process_message_append_file(self, mock_exists, mock_makedirs, mock_open):
-        """Tests that a new message is appended to an existing file."""
-        mock_exists.return_value = True
+    @patch("oden.formatting.FILENAME_FORMAT", "classic")
+    async def test_process_message_duplicate_creates_unique_file(self, mock_exists, mock_makedirs, mock_open):
+        """Tests that a duplicate message creates a new file with suffix."""
+        # First file exists, second doesn't (simulating -1 suffix)
+        mock_exists.side_effect = [True, False]
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
@@ -175,14 +182,15 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(message_obj, mock_reader, mock_writer)
 
         mock_makedirs.assert_called_with(os.path.join("mock_vault", "Test Group"), exist_ok=True)
+        # Should create file with -1 suffix since original exists
         mock_open.assert_called_with(
-            os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "a", encoding="utf-8"
+            os.path.join("mock_vault", "Test Group", "161410-123-John_Doe-1.md"), "w", encoding="utf-8"
         )
 
         handle = mock_open()
         written_content = "".join(call.args[0] for call in handle.write.call_args_list)
 
-        self.assertIn("\n---\n", written_content)
+        self.assertIn("fileid: 161410-123-John_Doe", written_content)
         self.assertIn("## Meddelande", written_content)
         self.assertIn("Another message", written_content)
 

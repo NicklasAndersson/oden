@@ -151,6 +151,12 @@ def save_config(config_dict: dict) -> None:
             config.set("Settings", "ignored_groups", ", ".join(ignored_groups))
         else:
             config.set("Settings", "ignored_groups", ignored_groups)
+    whitelist_groups = config_dict.get("whitelist_groups", [])
+    if whitelist_groups:
+        if isinstance(whitelist_groups, list):
+            config.set("Settings", "whitelist_groups", ", ".join(whitelist_groups))
+        else:
+            config.set("Settings", "whitelist_groups", whitelist_groups)
 
     # Timezone section
     config.add_section("Timezone")
@@ -222,17 +228,25 @@ def get_config() -> dict:
     # Read settings if available
     append_window_minutes = 30
     ignored_groups = []
+    whitelist_groups = []
     startup_message = "self"
     plus_plus_enabled = False
+    filename_format = "classic"
     if config.has_section("Settings"):
         append_window_minutes = config.getint("Settings", "append_window_minutes", fallback=30)
         ignored_groups_str = config.get("Settings", "ignored_groups", fallback="")
         ignored_groups = [group.strip() for group in ignored_groups_str.split(",") if group.strip()]
+        whitelist_groups_str = config.get("Settings", "whitelist_groups", fallback="")
+        whitelist_groups = [group.strip() for group in whitelist_groups_str.split(",") if group.strip()]
         startup_message = config.get("Settings", "startup_message", fallback="self").lower()
         if startup_message not in ("self", "all", "off"):
             print(f"Warning: Invalid startup_message '{startup_message}'. Using 'self'", file=sys.stderr)
             startup_message = "self"
         plus_plus_enabled = config.getboolean("Settings", "plus_plus_enabled", fallback=False)
+        filename_format = config.get("Settings", "filename_format", fallback="classic").lower()
+        if filename_format not in ("classic", "tnr", "tnr-name"):
+            print(f"Warning: Invalid filename_format '{filename_format}'. Using 'classic'", file=sys.stderr)
+            filename_format = "classic"
 
     # Read timezone if available, defaults to Europe/Stockholm
     timezone_str = "Europe/Stockholm"
@@ -274,8 +288,10 @@ def get_config() -> dict:
         "timezone": timezone,
         "append_window_minutes": append_window_minutes,
         "ignored_groups": ignored_groups,
+        "whitelist_groups": whitelist_groups,
         "startup_message": startup_message,
         "plus_plus_enabled": plus_plus_enabled,
+        "filename_format": filename_format,
         "signal_cli_log_file": signal_cli_log_file,
         "log_level": log_level,
         "web_enabled": web_enabled,
@@ -290,8 +306,8 @@ def reload_config() -> dict:
     """Reload configuration from disk and update module-level variables."""
     global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, REGEX_PATTERNS
-    global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, STARTUP_MESSAGE
-    global PLUS_PLUS_ENABLED, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, WEB_ENABLED, WEB_PORT, WEB_ACCESS_LOG
+    global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
+    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, WEB_ENABLED, WEB_PORT, WEB_ACCESS_LOG
 
     app_config = get_config()
     VAULT_PATH = app_config["vault_path"]
@@ -305,8 +321,10 @@ def reload_config() -> dict:
     TIMEZONE = app_config["timezone"]
     APPEND_WINDOW_MINUTES = app_config["append_window_minutes"]
     IGNORED_GROUPS = app_config["ignored_groups"]
+    WHITELIST_GROUPS = app_config["whitelist_groups"]
     STARTUP_MESSAGE = app_config["startup_message"]
     PLUS_PLUS_ENABLED = app_config["plus_plus_enabled"]
+    FILENAME_FORMAT = app_config["filename_format"]
     SIGNAL_CLI_LOG_FILE = app_config["signal_cli_log_file"]
     LOG_LEVEL = app_config["log_level"]
     WEB_ENABLED = app_config["web_enabled"]
@@ -330,8 +348,10 @@ try:
     TIMEZONE = app_config["timezone"]
     APPEND_WINDOW_MINUTES = app_config["append_window_minutes"]
     IGNORED_GROUPS = app_config["ignored_groups"]
+    WHITELIST_GROUPS = app_config["whitelist_groups"]
     STARTUP_MESSAGE = app_config["startup_message"]
     PLUS_PLUS_ENABLED = app_config["plus_plus_enabled"]
+    FILENAME_FORMAT = app_config["filename_format"]
     SIGNAL_CLI_LOG_FILE = app_config["signal_cli_log_file"]
     LOG_LEVEL = app_config["log_level"]
     WEB_ENABLED = app_config["web_enabled"]
