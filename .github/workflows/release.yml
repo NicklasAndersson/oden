@@ -7,9 +7,9 @@ on:
 
 jobs:
   # Build macOS DMG with bundled JRE and signal-cli
-  # Using macos-13 (Intel) for x86_64 build - works on Intel natively and Apple Silicon via Rosetta 2
+  # Build x86_64 using Rosetta on Apple Silicon runner - works on both Intel and Apple Silicon Macs
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-latest
     permissions:
       contents: read
 
@@ -17,10 +17,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      # Install x86_64 Python via Rosetta for Intel-compatible build
+      - name: Set up x86_64 Python via Rosetta
+        run: |
+          # Install Rosetta if not already installed
+          softwareupdate --install-rosetta --agree-to-license || true
+          
+          # Download and install x86_64 Python
+          curl -L -o python-installer.pkg "https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg"
+          sudo installer -pkg python-installer.pkg -target /
+          rm python-installer.pkg
+          
+          # Verify we have x86_64 Python
+          /usr/local/bin/python3.12 --version
+          file /usr/local/bin/python3.12
 
       - name: Get version from tag
         id: version
@@ -34,9 +44,10 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller pillow
-          pip install -e .
+          # Use x86_64 Python
+          arch -x86_64 /usr/local/bin/python3.12 -m pip install --upgrade pip
+          arch -x86_64 /usr/local/bin/python3.12 -m pip install pyinstaller pillow
+          arch -x86_64 /usr/local/bin/python3.12 -m pip install -e .
 
       # Cache JRE download (x64 only for Intel build)
       - name: Cache JRE x64
@@ -81,8 +92,8 @@ jobs:
       # Generate icons
       - name: Generate app icon
         run: |
-          python scripts/generate_icon.py
-          python scripts/generate_dmg_background.py
+          arch -x86_64 /usr/local/bin/python3.12 scripts/generate_icon.py
+          arch -x86_64 /usr/local/bin/python3.12 scripts/generate_dmg_background.py
 
       # Copy dependencies to project root for PyInstaller
       - name: Prepare build files
@@ -91,12 +102,12 @@ jobs:
           cp -r build-dmg/signal-cli .
           mkdir -p oden/static
 
-      # Build with PyInstaller (x86_64 on Intel runner)
+      # Build with PyInstaller (x86_64 via Rosetta)
       - name: Build macOS app bundle
         env:
           ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          pyinstaller --clean --noconfirm s7_watcher.spec
+          arch -x86_64 /usr/local/bin/python3.12 -m PyInstaller --clean --noconfirm s7_watcher.spec
 
       # Create DMG
       - name: Install create-dmg
