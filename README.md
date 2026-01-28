@@ -18,6 +18,21 @@ Skriptet hanterar allt: beroenden, Signal-konfiguration och start.
 
 Se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) för mer info.
 
+### macOS: "Oden.app är skadat"
+
+Om du får meddelandet *"Oden.app är skadat och kan inte öppnas"* beror det på macOS Gatekeeper som blockerar osignerade appar. Lös det genom att köra i Terminal:
+
+```bash
+xattr -cr /Applications/Oden.app
+```
+
+Eller om appen ligger i Downloads:
+```bash
+xattr -cr ~/Downloads/Oden.app
+```
+
+Alternativt kan du högerklicka på appen och välja **"Öppna"** – då får du möjlighet att öppna den trots varningen.
+
 ### Signal-konto
 
 **Viktigt:** Använd inte ditt privata Signal-nummer! Skaffa ett dedikerat nummer för Oden (t.ex. ett billigt kontantkort eller VoIP-nummer).
