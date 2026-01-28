@@ -312,6 +312,10 @@ HTML_TEMPLATE = """
             color: #888;
             margin-top: 2px;
         }
+        .group-buttons {
+            display: flex;
+            gap: 5px;
+        }
         .toggle-ignore {
             padding: 4px 10px;
             font-size: 0.8em;
@@ -633,6 +637,14 @@ HTML_TEMPLATE = """
                                     </select>
                                 </div>
                                 <div class="config-field">
+                                    <label for="cfg-filename-format">Filnamnsformat</label>
+                                    <select id="cfg-filename-format" name="filename_format">
+                                        <option value="classic">Classic (DDHHMM-telefon-namn.md)</option>
+                                        <option value="tnr">TNR (DDHHMM.md)</option>
+                                        <option value="tnr-name">TNR-namn (DDHHMM-namn.md)</option>
+                                    </select>
+                                </div>
+                                <div class="config-field">
                                     <label>Funktioner</label>
                                     <div class="checkbox-wrapper">
                                         <input type="checkbox" id="cfg-plus-plus" name="plus_plus_enabled">
@@ -922,6 +934,7 @@ HTML_TEMPLATE = """
 
         // Fetch and display groups
         let currentIgnoredGroups = [];
+        let currentWhitelistGroups = [];
 
         async function fetchGroups() {
             try {
@@ -929,6 +942,7 @@ HTML_TEMPLATE = """
                 const data = await response.json();
                 const container = document.getElementById('groups-container');
                 currentIgnoredGroups = data.ignoredGroups || [];
+                currentWhitelistGroups = data.whitelistGroups || [];
 
                 if (!data.groups || data.groups.length === 0) {
                     container.innerHTML = '<div class="empty-state">Inga grupper hittades</div>';
@@ -937,17 +951,25 @@ HTML_TEMPLATE = """
 
                 container.innerHTML = data.groups.map(group => {
                     const isIgnored = currentIgnoredGroups.includes(group.name);
+                    const isWhitelisted = currentWhitelistGroups.includes(group.name);
                     return `
-                        <div class="group-item ${isIgnored ? 'ignored' : ''}" data-group-name="${escapeHtml(group.name)}">
+                        <div class="group-item ${isIgnored ? 'ignored' : ''} ${isWhitelisted ? 'whitelisted' : ''}" data-group-name="${escapeHtml(group.name)}">
                             <div class="group-info">
                                 <div class="group-name">${escapeHtml(group.name)}</div>
                                 <div class="group-meta">${group.memberCount} medlemmar</div>
                             </div>
-                            <button class="toggle-ignore ${isIgnored ? 'ignored' : ''}"
-                                    onclick="toggleIgnoreGroup('${escapeHtml(group.name)}')"
-                                    title="${isIgnored ? 'Sluta ignorera' : 'Ignorera grupp'}">
-                                ${isIgnored ? '✓ Ignorerad' : 'Ignorera'}
-                            </button>
+                            <div class="group-buttons">
+                                <button class="toggle-ignore ${isIgnored ? 'ignored' : ''}"
+                                        onclick="toggleIgnoreGroup('${escapeHtml(group.name)}')"
+                                        title="${isIgnored ? 'Sluta ignorera' : 'Ignorera grupp'}">
+                                    ${isIgnored ? '✓ Ignorerad' : 'Ignorera'}
+                                </button>
+                                <button class="toggle-whitelist ${isWhitelisted ? 'whitelisted' : ''}"
+                                        onclick="toggleWhitelistGroup('${escapeHtml(group.name)}')"
+                                        title="${isWhitelisted ? 'Ta bort från whitelist' : 'Lägg till i whitelist'}">
+                                    ${isWhitelisted ? '✓ Whitelist' : 'Whitelist'}
+                                </button>
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -967,6 +989,29 @@ HTML_TEMPLATE = """
 
                 if (response.ok && result.success) {
                     showConfigMessage('Grupp uppdaterad! Ändringen appliceras direkt.', 'success');
+                    // Refresh groups list
+                    await fetchGroups();
+                    // Refresh config form
+                    await loadConfigForm();
+                } else {
+                    alert(result.error || 'Något gick fel');
+                }
+            } catch (error) {
+                alert('Nätverksfel: ' + error.message);
+            }
+        }
+
+        async function toggleWhitelistGroup(groupName) {
+            try {
+                const response = await fetch('/api/toggle-whitelist-group', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ groupName })
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showConfigMessage('Whitelist uppdaterad! Ändringen appliceras direkt.', 'success');
                     // Refresh groups list
                     await fetchGroups();
                     // Refresh config form
@@ -1024,6 +1069,7 @@ HTML_TEMPLATE = """
                 document.getElementById('cfg-timezone').value = config.timezone || 'Europe/Stockholm';
                 document.getElementById('cfg-append-window').value = config.append_window_minutes || 30;
                 document.getElementById('cfg-startup-message').value = config.startup_message || 'self';
+                document.getElementById('cfg-filename-format').value = config.filename_format || 'classic';
                 document.getElementById('cfg-plus-plus').checked = config.plus_plus_enabled || false;
                 document.getElementById('cfg-ignored-groups').value = (config.ignored_groups || []).join(', ');
                 document.getElementById('cfg-whitelist-groups').value = (config.whitelist_groups || []).join(', ');
@@ -1057,6 +1103,7 @@ HTML_TEMPLATE = """
                 timezone: document.getElementById('cfg-timezone').value,
                 append_window_minutes: parseInt(document.getElementById('cfg-append-window').value) || 30,
                 startup_message: document.getElementById('cfg-startup-message').value,
+                filename_format: document.getElementById('cfg-filename-format').value,
                 plus_plus_enabled: document.getElementById('cfg-plus-plus').checked,
                 ignored_groups: document.getElementById('cfg-ignored-groups').value
                     .split(',').map(s => s.trim()).filter(s => s),

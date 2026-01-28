@@ -5,6 +5,7 @@ Group-related handlers for Oden web GUI.
 import configparser
 import json
 import logging
+import re
 
 from aiohttp import web
 
@@ -12,6 +13,31 @@ from oden.app_state import get_app_state
 from oden.config import IGNORED_GROUPS, WHITELIST_GROUPS, reload_config
 
 logger = logging.getLogger(__name__)
+
+
+def _update_config_value(content: str, key: str, new_value: str) -> str:
+    """Update a config value while preserving comments.
+
+    Handles both existing keys and adding new keys under [Settings].
+    """
+    # Pattern to match the key (possibly commented out)
+    pattern = rf'^(#?\s*{re.escape(key)}\s*=\s*)(.*)$'
+
+    if re.search(pattern, content, re.MULTILINE):
+        # Key exists (possibly commented) - replace it
+        return re.sub(pattern, f'{key} = {new_value}', content, flags=re.MULTILINE)
+    else:
+        # Key doesn't exist - add it under [Settings]
+        settings_pattern = r'(\[Settings\][^\[]*)'
+        match = re.search(settings_pattern, content, re.DOTALL)
+        if match:
+            settings_section = match.group(1)
+            # Add the new key at the end of the settings section
+            new_settings = settings_section.rstrip() + f'\n{key} = {new_value}\n\n'
+            return content.replace(settings_section, new_settings)
+        else:
+            # No [Settings] section - add it
+            return content + f'\n[Settings]\n{key} = {new_value}\n'
 
 
 async def groups_handler(request: web.Request) -> web.Response:
@@ -64,14 +90,13 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
             ignored_groups.append(group_name)
             action = "added to"
 
-        # Update config
-        if not config.has_section("Settings"):
-            config.add_section("Settings")
-        config.set("Settings", "ignored_groups", ", ".join(ignored_groups))
+        # Update config content while preserving comments
+        new_value = ", ".join(ignored_groups) if ignored_groups else ""
+        config_content = _update_config_value(config_content, "ignored_groups", new_value)
 
         # Write back
         with open("config.ini", "w", encoding="utf-8") as f:
-            config.write(f)
+            f.write(config_content)
 
         # Reload config to apply changes
         reload_config()
@@ -125,14 +150,13 @@ async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
             whitelist_groups.append(group_name)
             action = "tillagd i"
 
-        # Update config
-        if not config.has_section("Settings"):
-            config.add_section("Settings")
-        config.set("Settings", "whitelist_groups", ", ".join(whitelist_groups))
+        # Update config content while preserving comments
+        new_value = ", ".join(whitelist_groups) if whitelist_groups else ""
+        config_content = _update_config_value(config_content, "whitelist_groups", new_value)
 
         # Write back
         with open("config.ini", "w", encoding="utf-8") as f:
-            config.write(f)
+            f.write(config_content)
 
         # Reload config to apply changes
         reload_config()
