@@ -2,6 +2,7 @@
 Signal-cli listener and message processor.
 
 Main entry point that connects to signal-cli daemon and processes incoming messages.
+Supports first-run setup wizard for initial configuration.
 """
 
 import asyncio
@@ -10,21 +11,21 @@ import json
 import logging
 import sys
 import time
+import webbrowser
 
 from oden import __version__
 from oden.app_state import get_app_state
 from oden.config import (
     DISPLAY_NAME,
-    IGNORED_GROUPS,
     LOG_LEVEL,
     SIGNAL_CLI_HOST,
     SIGNAL_CLI_PORT,
     SIGNAL_NUMBER,
-    STARTUP_MESSAGE,
-    TIMEZONE,
     UNMANAGED_SIGNAL_CLI,
     WEB_ENABLED,
     WEB_PORT,
+    is_configured,
+    reload_config,
 )
 from oden.log_buffer import get_log_buffer
 from oden.processing import process_message
@@ -53,42 +54,48 @@ def configure_logging() -> None:
 async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
     """Sends a startup notification message based on STARTUP_MESSAGE config.
 
+    Reads config values dynamically to support live reload after setup.
+
     Args:
         writer: The asyncio StreamWriter for sending messages.
         groups: List of group dictionaries from listGroups (required if mode is 'all').
     """
-    if STARTUP_MESSAGE == "off":
+    # Import config values dynamically to get post-reload values
+    from oden import config as cfg
+
+    if cfg.STARTUP_MESSAGE == "off":
         logger.info("Startup message disabled (startup_message=off)")
         return
 
-    now = datetime.datetime.now(TIMEZONE)
+    now = datetime.datetime.now(cfg.TIMEZONE)
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
     message = f"🚀 Oden v{__version__} started\n📅 {timestamp}"
 
     try:
-        if STARTUP_MESSAGE == "self":
+        if cfg.STARTUP_MESSAGE == "self":
             # Send to self only
             request_id = f"startup-{int(time.time())}"
             json_request = {
                 "jsonrpc": "2.0",
                 "method": "send",
-                "params": {"recipient": [SIGNAL_NUMBER], "message": message},
+                "params": {"recipient": [cfg.SIGNAL_NUMBER], "message": message},
                 "id": request_id,
             }
-            logger.info(f"Sending startup message to {SIGNAL_NUMBER}...")
+            logger.info(f"Sending startup message to {cfg.SIGNAL_NUMBER}...")
             writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
             await writer.drain()
             logger.info("Startup message sent to self.")
 
-        elif STARTUP_MESSAGE == "all":
+        elif cfg.STARTUP_MESSAGE == "all":
             if not groups:
                 logger.warning("No groups available for startup message (startup_message=all)")
                 return
 
             # Filter out ignored groups
-            active_groups = [g for g in groups if g.get("name") not in IGNORED_GROUPS]
+            active_groups = [g for g in groups if g.get("name") not in cfg.IGNORED_GROUPS]
             if not active_groups:
                 logger.info("No active groups to send startup message to (all groups ignored)")
+                return
                 return
 
             logger.info(f"Sending startup message to {len(active_groups)} group(s)...")
@@ -118,9 +125,13 @@ async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] 
 async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> list[dict]:
     """Fetches and logs all groups the account is a member of.
 
+    Reads config values dynamically to support live reload.
+
     Returns:
         List of group dictionaries from signal-cli.
     """
+    from oden import config as cfg
+
     app_state = get_app_state()
     request_id = f"list-groups-{int(time.time())}"
     json_request = {
@@ -153,13 +164,13 @@ async def log_groups(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
             logger.info(f"Account is member of {len(groups)} group(s):")
             for group in groups:
                 group_name = group.get("name", "Unknown")
-                is_ignored = group_name in IGNORED_GROUPS
+                is_ignored = group_name in cfg.IGNORED_GROUPS
                 status = " (IGNORED)" if is_ignored else ""
                 logger.info(f"  • {group_name}{status}")
 
-            if IGNORED_GROUPS:
-                ignored_count = sum(1 for g in groups if g.get("name") in IGNORED_GROUPS)
-                logger.info(f"Ignored groups configured: {len(IGNORED_GROUPS)}, matched: {ignored_count}")
+            if cfg.IGNORED_GROUPS:
+                ignored_count = sum(1 for g in groups if g.get("name") in cfg.IGNORED_GROUPS)
+                logger.info(f"Ignored groups configured: {len(cfg.IGNORED_GROUPS)}, matched: {ignored_count}")
 
             return groups
         else:
@@ -267,43 +278,111 @@ async def run_all(host: str, port: int) -> None:
     await asyncio.gather(*tasks)
 
 
+async def run_setup_mode(port: int) -> bool:
+    """Run setup wizard and wait for configuration to complete.
+
+    Args:
+        port: Web server port.
+
+    Returns:
+        True if setup completed successfully.
+    """
+    from oden.web_server import run_setup_server
+
+    logger.info("=" * 60)
+    logger.info("🛡️  Välkommen till Oden!")
+    logger.info("=" * 60)
+    logger.info("")
+    logger.info("Oden är inte konfigurerad ännu.")
+    logger.info("En webbläsare öppnas nu för att guida dig genom setup.")
+    logger.info("")
+    logger.info(f"Om webbläsaren inte öppnas, gå till: http://127.0.0.1:{port}/setup")
+    logger.info("")
+
+    # Open browser after a short delay
+    async def open_browser():
+        await asyncio.sleep(1.0)
+        url = f"http://127.0.0.1:{port}/setup"
+        try:
+            webbrowser.open(url)
+            logger.info(f"Öppnade webbläsare: {url}")
+        except Exception as e:
+            logger.warning(f"Kunde inte öppna webbläsare: {e}")
+
+    # Run web server and browser opener concurrently
+    browser_task = asyncio.create_task(open_browser())
+    result = await run_setup_server(port)
+    browser_task.cancel()
+
+    return result
+
+
 def main() -> None:
     """Sets up the vault path, starts signal-cli, and begins listening."""
     # Configure logging with console and buffer handlers
     configure_logging()
 
-    logger.info("Starting s7_watcher...")
+    logger.info(f"Starting Oden v{__version__}...")
 
-    if SIGNAL_NUMBER == "YOUR_SIGNAL_NUMBER":
+    # Check if this is first run (not configured)
+    if not is_configured():
+        logger.info("First run detected - starting setup wizard...")
+        try:
+            setup_complete = asyncio.run(run_setup_mode(WEB_PORT))
+            if setup_complete:
+                logger.info("Setup complete! Reloading configuration...")
+                # Reload and get fresh config values
+                new_config = reload_config()
+                new_number = new_config["signal_number"]
+                new_host = new_config["signal_cli_host"]
+                new_port = new_config["signal_cli_port"]
+                new_unmanaged = new_config["unmanaged_signal_cli"]
+            else:
+                logger.error("Setup was not completed. Exiting.")
+                sys.exit(1)
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Setup cancelled by user.")
+            sys.exit(0)
+        except Exception as e:
+            logger.exception(f"Error during setup: {e}")
+            sys.exit(1)
+    else:
+        # Use existing config
+        new_number = SIGNAL_NUMBER
+        new_host = SIGNAL_CLI_HOST
+        new_port = SIGNAL_CLI_PORT
+        new_unmanaged = UNMANAGED_SIGNAL_CLI
+
+    # Validate configuration
+    if new_number == "+46XXXXXXXXX" or not new_number:
         logger.error("❌ Signal number not configured!")
-        logger.error("Please update 'number' in config.ini with your Signal phone number")
-        logger.error("Example: number = +46701234567")
+        logger.error("Please run Oden again to complete setup.")
         sys.exit(1)
 
-    if UNMANAGED_SIGNAL_CLI:
-        if not is_signal_cli_running(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT):
+    if new_unmanaged:
+        if not is_signal_cli_running(new_host, new_port):
             logger.error("signal-cli is not running. Please start it manually.")
             sys.exit(1)
         logger.info("Running in unmanaged mode. Assuming signal-cli is already running.")
         try:
-            asyncio.run(run_all(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+            asyncio.run(run_all(new_host, new_port))
         except (KeyboardInterrupt, SystemExit):
             logger.info("Exiting on user request.")
         except Exception as e:
             logger.exception(f"An unexpected error occurred: {e}")
         sys.exit(0)
     else:
-        signal_manager = SignalManager(SIGNAL_NUMBER, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT)
+        signal_manager = SignalManager(new_number, new_host, new_port)
         try:
             signal_manager.start()
-            asyncio.run(run_all(SIGNAL_CLI_HOST, SIGNAL_CLI_PORT))
+            asyncio.run(run_all(new_host, new_port))
         except (KeyboardInterrupt, SystemExit):
             logger.info("Exiting on user request.")
         except Exception as e:
             logger.exception(f"An unexpected error occurred: {e}")
         finally:
             signal_manager.stop()
-            logger.info("s7_watcher shut down.")
+            logger.info("Oden shut down.")
         sys.exit(0)
 
 

@@ -1,4 +1,4 @@
-name: Build and Release Executable
+name: Build and Release
 
 on:
   push:
@@ -6,28 +6,175 @@ on:
       - 'v*'
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  # Build macOS Universal DMG with bundled JRE and signal-cli
+  build-macos:
+    runs-on: macos-latest
     permissions:
       contents: read
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            artifact_name: s7_watcher_mac
-          - os: windows-latest
-            artifact_name: s7_watcher_windows.exe
-          - os: ubuntu-latest
-            artifact_name: s7_watcher_linux
-    
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Set version in source
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          sed -i '' "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
+          cat oden/__init__.py
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pillow
+          pip install -e .
+
+      # Cache JRE downloads
+      - name: Cache JRE arm64
+        id: cache-jre-arm64
+        uses: actions/cache@v4
+        with:
+          path: build-dmg/jre-arm64
+          key: temurin-jre-25-macos-aarch64-v1
+
+      - name: Cache JRE x64
+        id: cache-jre-x64
+        uses: actions/cache@v4
+        with:
+          path: build-dmg/jre-x64
+          key: temurin-jre-25-macos-x64-v1
+
+      - name: Cache signal-cli
+        id: cache-signal-cli
+        uses: actions/cache@v4
+        with:
+          path: build-dmg/signal-cli
+          key: signal-cli-0.13.23-v1
+
+      # Download JRE arm64
+      - name: Download JRE arm64
+        if: steps.cache-jre-arm64.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build-dmg/jre-arm64
+          JRE_URL=$(curl -s "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=aarch64&image_type=jre&os=mac&vendor=eclipse" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['binary']['package']['link'])")
+          echo "Downloading JRE arm64 from: $JRE_URL"
+          curl -L -o jre-arm64.tar.gz "$JRE_URL"
+          tar -xzf jre-arm64.tar.gz -C build-dmg/jre-arm64 --strip-components=1
+          rm jre-arm64.tar.gz
+          rm -rf build-dmg/jre-arm64/man build-dmg/jre-arm64/legal
+
+      # Download JRE x64
+      - name: Download JRE x64
+        if: steps.cache-jre-x64.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build-dmg/jre-x64
+          JRE_URL=$(curl -s "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=mac&vendor=eclipse" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['binary']['package']['link'])")
+          echo "Downloading JRE x64 from: $JRE_URL"
+          curl -L -o jre-x64.tar.gz "$JRE_URL"
+          tar -xzf jre-x64.tar.gz -C build-dmg/jre-x64 --strip-components=1
+          rm jre-x64.tar.gz
+          rm -rf build-dmg/jre-x64/man build-dmg/jre-x64/legal
+
+      # Download signal-cli
+      - name: Download signal-cli
+        if: steps.cache-signal-cli.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build-dmg/signal-cli
+          SIGNAL_CLI_VERSION="0.13.23"
+          curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
+          tar -xzf signal-cli.tar.gz
+          mv signal-cli-${SIGNAL_CLI_VERSION}/* build-dmg/signal-cli/
+          rmdir signal-cli-${SIGNAL_CLI_VERSION}
+          rm signal-cli.tar.gz
+          chmod +x build-dmg/signal-cli/bin/signal-cli
+
+      # Generate icons
+      - name: Generate app icon
+        run: |
+          python scripts/generate_icon.py
+          python scripts/generate_dmg_background.py
+
+      # Copy dependencies to project root for PyInstaller
+      - name: Prepare build files
+        run: |
+          cp -r build-dmg/jre-arm64 .
+          cp -r build-dmg/jre-x64 .
+          cp -r build-dmg/signal-cli .
+          mkdir -p oden/static
+
+      # Build with PyInstaller
+      - name: Build macOS app bundle
+        env:
+          ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          pyinstaller --clean --noconfirm s7_watcher.spec
+
+      # Create DMG
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create DMG
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          DMG_NAME="Oden-${VERSION}-macOS-universal.dmg"
+
+          # Try with background
+          create-dmg \
+            --volname "Oden ${VERSION}" \
+            --volicon "images/oden.icns" \
+            --background "images/dmg_background.png" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Oden.app" 150 190 \
+            --hide-extension "Oden.app" \
+            --app-drop-link 450 190 \
+            "dist/${DMG_NAME}" \
+            "dist/Oden.app" || true
+
+          # Fallback if background fails
+          if [ ! -f "dist/${DMG_NAME}" ]; then
+            hdiutil create -volname "Oden ${VERSION}" \
+              -srcfolder "dist/Oden.app" \
+              -ov -format UDZO \
+              "dist/${DMG_NAME}"
+          fi
+
+          ls -la dist/
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: oden-macos-dmg
+          path: dist/Oden-*.dmg
+
+  # Build Linux executable
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set version from tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
 
       - name: Install dependencies
         run: |
@@ -35,47 +182,64 @@ jobs:
           pip install pyinstaller
           pip install -e .
 
-      - name: Set version from tag
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          sed -i.bak "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
-          cat oden/__init__.py
-        shell: bash
+      - name: Build executable
+        run: pyinstaller --onefile --name oden_linux oden/s7_watcher.py
 
-      - name: Build executable with PyInstaller
-        run: pyinstaller --onefile --name s7_watcher oden/s7_watcher.py
-
-      - name: Rename binary for macOS (ARM64, runs on Intel via Rosetta 2)
-        if: matrix.os == 'macos-latest'
-        run: mv dist/s7_watcher dist/s7_watcher_mac
-
-      - name: Rename binary for Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: mv dist/s7_watcher dist/s7_watcher_linux
-
-      - name: Rename binary for Windows
-        if: matrix.os == 'windows-latest'
-        run: mv dist/s7_watcher.exe dist/s7_watcher_windows.exe
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v6
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: s7_watcher-${{ matrix.os }}
-          path: dist/s7_watcher*
-          if-no-files-found: ignore
+          name: oden-linux
+          path: dist/oden_linux
 
-  package-and-release:
-    needs: build
-    runs-on: ubuntu-latest
+  # Build Windows executable
+  build-windows:
+    runs-on: windows-latest
     permissions:
-      contents: write 
+      contents: read
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set version from tag
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -e .
+
+      - name: Build executable
+        run: pyinstaller --onefile --name oden_windows.exe oden/s7_watcher.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oden-windows
+          path: dist/oden_windows.exe
+
+  # Create release with all artifacts
+  release:
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -87,14 +251,17 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
-          cat oden/__init__.py
 
       - name: Package release assets
         run: |
           mkdir -p release_package/docs release_package/images
-          find artifacts -type f -name "s7_watcher*" -exec cp {} release_package/ \;
+
+          # Copy binaries
+          find artifacts -type f \( -name "*.dmg" -o -name "oden_linux" -o -name "oden_windows.exe" \) -exec cp {} release_package/ \;
+
+          # Copy docs and resources
           cp docs/Flow.md release_package/docs/
-          cp images/logo_small.jpg release_package/images/
+          [ -f images/logo_small.jpg ] && cp images/logo_small.jpg release_package/images/ || true
           cp config.ini release_package/config.ini.template
           cp scripts/run_mac.sh release_package/
           cp scripts/run_linux.sh release_package/
@@ -104,12 +271,24 @@ jobs:
           cp -r obsidian-template release_package/
           cp -r oden release_package/
           cp pyproject.toml release_package/
-          zip -r s7_watcher-${{ steps.version.outputs.VERSION }}-release.zip release_package/
+
+          # Create zip (excluding DMG which is separate)
+          cd release_package
+          zip -r ../oden-${{ steps.version.outputs.VERSION }}-source.zip . -x "*.dmg"
+          cd ..
+
+          # List what we have
+          ls -la release_package/
+          ls -la artifacts/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./s7_watcher-${{ steps.version.outputs.VERSION }}-release.zip
+          files: |
+            release_package/Oden-*.dmg
+            release_package/oden_linux
+            release_package/oden_windows.exe
+            oden-${{ steps.version.outputs.VERSION }}-source.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

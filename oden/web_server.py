@@ -1,22 +1,30 @@
 """
 Web server for Oden GUI.
 
-Provides a web interface for viewing config, logs, and sending commands.
+Provides a web interface for viewing config, logs, sending commands,
+and initial setup wizard for first-run configuration.
 """
 
 import asyncio
+import io
 import json
 import logging
+from pathlib import Path
 
+import qrcode
+import qrcode.image.svg
 from aiohttp import web
 
 from oden import __version__
 from oden.app_state import get_app_state
 from oden.config import (
     APPEND_WINDOW_MINUTES,
+    CONFIG_FILE,
+    DEFAULT_VAULT_PATH,
     DISPLAY_NAME,
     IGNORED_GROUPS,
     LOG_LEVEL,
+    ODEN_HOME,
     PLUS_PLUS_ENABLED,
     REGEX_PATTERNS,
     SIGNAL_CLI_HOST,
@@ -31,6 +39,10 @@ from oden.config import (
     WEB_ACCESS_LOG,
     WEB_ENABLED,
     WEB_PORT,
+    get_bundle_path,
+    get_config,
+    reload_config,
+    save_config,
 )
 from oden.log_buffer import get_log_buffer
 
@@ -364,28 +376,131 @@ HTML_TEMPLATE = """
         .warning-banner.show {
             display: flex;
         }
+        .warning-banner.success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4caf50;
+            color: #4caf50;
+        }
         .warning-banner .icon {
             font-size: 1.2em;
         }
-        .config-editor {
+        .config-form {
             display: flex;
             flex-direction: column;
+            gap: 20px;
+        }
+        .config-section {
+            background: #0d1421;
+            border-radius: 6px;
+            padding: 15px;
+            border: 1px solid #333;
+        }
+        .config-section h3 {
+            color: #4fc3f7;
+            font-size: 1em;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #333;
+        }
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 15px;
         }
-        .config-editor textarea {
-            width: 100%;
-            min-height: 300px;
-            padding: 12px;
+        @media (max-width: 600px) {
+            .config-grid { grid-template-columns: 1fr; }
+        }
+        .config-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .config-field.full-width {
+            grid-column: 1 / -1;
+        }
+        .config-field label {
+            font-size: 0.85em;
+            color: #888;
+        }
+        .config-field input,
+        .config-field select {
+            padding: 10px 12px;
             border: 1px solid #333;
             border-radius: 4px;
-            background: #0d1421;
+            background: #16213e;
             color: #fff;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.9em;
-            resize: vertical;
+            font-size: 0.95em;
         }
-        .config-editor textarea:focus {
+        .config-field input:focus,
+        .config-field select:focus {
             outline: none;
+            border-color: #4fc3f7;
+        }
+        .config-field input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .config-field .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .config-field .help-text {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .config-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .config-actions .btn {
+            flex: 1;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+        .tab-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover {
+            color: #fff;
+            background: rgba(79, 195, 247, 0.1);
+        }
+        .tab-btn.active {
+            color: #4fc3f7;
+            background: rgba(79, 195, 247, 0.2);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
             border-color: #4fc3f7;
         }
         .config-actions {
@@ -460,19 +575,165 @@ HTML_TEMPLATE = """
             </div>
 
             <div class="card full-width">
-                <h2>⚙️ Redigera config.ini</h2>
-                <div id="config-warning" class="warning-banner">
-                    <span class="icon">⚠️</span>
-                    <span>Konfigurationen har ändrats. Starta om Oden för att ändringarna ska börja gälla.</span>
+                <h2>⚙️ Inställningar</h2>
+                <div id="config-message" class="warning-banner">
+                    <span class="icon">✓</span>
+                    <span id="config-message-text"></span>
                 </div>
-                <div class="config-editor">
-                    <textarea id="config-content" placeholder="Laddar config.ini..."></textarea>
-                    <div class="config-actions">
-                        <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()">Spara config</button>
-                        <button class="btn btn-secondary" onclick="loadConfig()">Återställ</button>
+
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showTab('basic')">Grundläggande</button>
+                    <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
+                    <button class="tab-btn" onclick="showTab('raw')">Rå config</button>
+                </div>
+
+                <div id="tab-basic" class="tab-content active">
+                    <form id="config-form" class="config-form">
+                        <div class="config-section">
+                            <h3>📱 Signal</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-signal-number">Telefonnummer</label>
+                                    <input type="text" id="cfg-signal-number" name="signal_number" placeholder="+46...">
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-display-name">Visningsnamn</label>
+                                    <input type="text" id="cfg-display-name" name="display_name" placeholder="oden">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>📁 Vault</h3>
+                            <div class="config-grid">
+                                <div class="config-field full-width">
+                                    <label for="cfg-vault-path">Sökväg till vault</label>
+                                    <input type="text" id="cfg-vault-path" name="vault_path" placeholder="~/oden-vault">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>⏱️ Inställningar</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-timezone">Tidszon</label>
+                                    <input type="text" id="cfg-timezone" name="timezone" placeholder="Europe/Stockholm">
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-append-window">Append-fönster (minuter)</label>
+                                    <input type="number" id="cfg-append-window" name="append_window_minutes" min="1" max="1440">
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-startup-message">Startup-meddelande</label>
+                                    <select id="cfg-startup-message" name="startup_message">
+                                        <option value="self">Skicka till mig själv</option>
+                                        <option value="all">Skicka till alla grupper</option>
+                                        <option value="off">Av</option>
+                                    </select>
+                                </div>
+                                <div class="config-field">
+                                    <label>Funktioner</label>
+                                    <div class="checkbox-wrapper">
+                                        <input type="checkbox" id="cfg-plus-plus" name="plus_plus_enabled">
+                                        <label for="cfg-plus-plus" style="color: #fff;">Aktivera ++ (append-läge)</label>
+                                    </div>
+                                </div>
+                                <div class="config-field full-width">
+                                    <label for="cfg-ignored-groups">Ignorerade grupper (kommaseparerade)</label>
+                                    <input type="text" id="cfg-ignored-groups" name="ignored_groups" placeholder="Grupp1, Grupp2">
+                                    <span class="help-text">Meddelanden från dessa grupper sparas inte</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-actions">
+                            <button type="submit" class="btn btn-primary" id="save-config-btn">
+                                Spara och applicera
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="tab-advanced" class="tab-content">
+                    <form id="config-form-advanced" class="config-form">
+                        <div class="config-section">
+                            <h3>🔧 signal-cli</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-signal-host">Host</label>
+                                    <input type="text" id="cfg-signal-host" name="signal_cli_host" placeholder="127.0.0.1">
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-signal-port">Port</label>
+                                    <input type="number" id="cfg-signal-port" name="signal_cli_port" placeholder="7583">
+                                </div>
+                                <div class="config-field full-width">
+                                    <label for="cfg-signal-path">Sökväg till signal-cli (valfritt)</label>
+                                    <input type="text" id="cfg-signal-path" name="signal_cli_path" placeholder="Lämna tomt för auto">
+                                </div>
+                                <div class="config-field">
+                                    <label>Extern signal-cli</label>
+                                    <div class="checkbox-wrapper">
+                                        <input type="checkbox" id="cfg-unmanaged" name="unmanaged_signal_cli">
+                                        <label for="cfg-unmanaged" style="color: #fff;">Ohanterad (startas inte av Oden)</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>🌐 Webbserver</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label>Status</label>
+                                    <div class="checkbox-wrapper">
+                                        <input type="checkbox" id="cfg-web-enabled" name="web_enabled" checked>
+                                        <label for="cfg-web-enabled" style="color: #fff;">Aktivera webbgränssnitt</label>
+                                    </div>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-web-port">Port</label>
+                                    <input type="number" id="cfg-web-port" name="web_port" placeholder="8080">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>📝 Loggning</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-log-level">Loggnivå</label>
+                                    <select id="cfg-log-level" name="log_level">
+                                        <option value="DEBUG">DEBUG</option>
+                                        <option value="INFO">INFO</option>
+                                        <option value="WARNING">WARNING</option>
+                                        <option value="ERROR">ERROR</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-actions">
+                            <button type="submit" class="btn btn-primary" id="save-config-adv-btn">
+                                Spara och applicera
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="tab-raw" class="tab-content">
+                    <div class="config-section">
+                        <h3>📄 config.ini (rå redigering)</h3>
+                        <textarea id="config-content" style="width:100%;min-height:300px;padding:12px;border:1px solid #333;border-radius:4px;background:#16213e;color:#fff;font-family:Monaco,Menlo,monospace;font-size:0.9em;resize:vertical;" placeholder="Laddar config.ini..."></textarea>
+                        <div class="config-actions" style="margin-top:15px;">
+                            <button type="button" class="btn btn-primary" onclick="saveRawConfig()">Spara rå config</button>
+                            <button type="button" class="btn btn-secondary" onclick="loadRawConfig()">Återställ</button>
+                        </div>
                     </div>
                 </div>
-                <div id="config-message" class="message"></div>
             </div>
 
             <div class="card full-width">
@@ -700,12 +961,11 @@ HTML_TEMPLATE = """
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    // Show restart warning
-                    document.getElementById('config-warning').classList.add('show');
+                    showConfigMessage('Grupp uppdaterad! Ändringen appliceras direkt.', 'success');
                     // Refresh groups list
                     await fetchGroups();
-                    // Refresh config editor
-                    await loadConfig();
+                    // Refresh config form
+                    await loadConfigForm();
                 } else {
                     alert(result.error || 'Något gick fel');
                 }
@@ -714,8 +974,121 @@ HTML_TEMPLATE = """
             }
         }
 
-        // Config editor functions
-        async function loadConfig() {
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+
+            // Show selected tab
+            document.getElementById('tab-' + tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            // Load raw config when switching to raw tab
+            if (tabName === 'raw') {
+                loadRawConfig();
+            }
+        }
+
+        // Config message helper
+        function showConfigMessage(message, type) {
+            const msgDiv = document.getElementById('config-message');
+            const msgText = document.getElementById('config-message-text');
+            msgDiv.classList.remove('show', 'success');
+            msgText.textContent = message;
+            if (type === 'success') {
+                msgDiv.classList.add('success');
+                msgDiv.querySelector('.icon').textContent = '✓';
+            } else {
+                msgDiv.querySelector('.icon').textContent = '⚠️';
+            }
+            msgDiv.classList.add('show');
+            setTimeout(() => msgDiv.classList.remove('show'), 5000);
+        }
+
+        // Load config into form fields
+        async function loadConfigForm() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+
+                // Basic tab
+                document.getElementById('cfg-signal-number').value = config.signal_number || '';
+                document.getElementById('cfg-display-name').value = config.display_name || '';
+                document.getElementById('cfg-vault-path').value = config.vault_path || '';
+                document.getElementById('cfg-timezone').value = config.timezone || 'Europe/Stockholm';
+                document.getElementById('cfg-append-window').value = config.append_window_minutes || 30;
+                document.getElementById('cfg-startup-message').value = config.startup_message || 'self';
+                document.getElementById('cfg-plus-plus').checked = config.plus_plus_enabled || false;
+                document.getElementById('cfg-ignored-groups').value = (config.ignored_groups || []).join(', ');
+
+                // Advanced tab
+                document.getElementById('cfg-signal-host').value = config.signal_cli_host || '127.0.0.1';
+                document.getElementById('cfg-signal-port').value = config.signal_cli_port || 7583;
+                document.getElementById('cfg-signal-path').value = config.signal_cli_path || '';
+                document.getElementById('cfg-unmanaged').checked = config.unmanaged_signal_cli || false;
+                document.getElementById('cfg-web-enabled').checked = config.web_enabled !== false;
+                document.getElementById('cfg-web-port').value = config.web_port || 8080;
+                document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+
+        // Save config from form and trigger live reload
+        async function saveConfigForm(event) {
+            event.preventDefault();
+            const btn = event.submitter || document.getElementById('save-config-btn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Sparar...';
+
+            // Gather form data from both tabs
+            const configData = {
+                signal_number: document.getElementById('cfg-signal-number').value,
+                display_name: document.getElementById('cfg-display-name').value,
+                vault_path: document.getElementById('cfg-vault-path').value,
+                timezone: document.getElementById('cfg-timezone').value,
+                append_window_minutes: parseInt(document.getElementById('cfg-append-window').value) || 30,
+                startup_message: document.getElementById('cfg-startup-message').value,
+                plus_plus_enabled: document.getElementById('cfg-plus-plus').checked,
+                ignored_groups: document.getElementById('cfg-ignored-groups').value
+                    .split(',').map(s => s.trim()).filter(s => s),
+                signal_cli_host: document.getElementById('cfg-signal-host').value,
+                signal_cli_port: parseInt(document.getElementById('cfg-signal-port').value) || 7583,
+                signal_cli_path: document.getElementById('cfg-signal-path').value || null,
+                unmanaged_signal_cli: document.getElementById('cfg-unmanaged').checked,
+                web_enabled: document.getElementById('cfg-web-enabled').checked,
+                web_port: parseInt(document.getElementById('cfg-web-port').value) || 8080,
+                log_level: document.getElementById('cfg-log-level').value
+            };
+
+            try {
+                const response = await fetch('/api/config-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(configData)
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showConfigMessage('✓ Inställningar sparade och applicerade!', 'success');
+                    // Refresh the config display
+                    await fetchConfig();
+                    await fetchGroups();
+                } else {
+                    showConfigMessage(result.error || 'Kunde inte spara', 'error');
+                }
+            } catch (error) {
+                showConfigMessage('Nätverksfel: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // Raw config functions
+        async function loadRawConfig() {
             try {
                 const response = await fetch('/api/config-file');
                 const data = await response.json();
@@ -726,44 +1099,36 @@ HTML_TEMPLATE = """
             }
         }
 
-        async function saveConfig() {
+        async function saveRawConfig() {
             const content = document.getElementById('config-content').value;
-            const messageDiv = document.getElementById('config-message');
-            const saveBtn = document.getElementById('save-config-btn');
-
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Sparar...';
-
             try {
                 const response = await fetch('/api/config-file', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content })
+                    body: JSON.stringify({ content, reload: true })
                 });
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    messageDiv.className = 'message success';
-                    messageDiv.textContent = 'Config sparad! Starta om Oden för att ändringarna ska börja gälla.';
-                    document.getElementById('config-warning').classList.add('show');
-                    // Refresh groups in case ignored_groups changed
+                    showConfigMessage('✓ Config sparad och applicerad!', 'success');
+                    await fetchConfig();
                     await fetchGroups();
+                    await loadConfigForm();
                 } else {
-                    messageDiv.className = 'message error';
-                    messageDiv.textContent = result.error || 'Kunde inte spara config';
+                    showConfigMessage(result.error || 'Kunde inte spara config', 'error');
                 }
             } catch (error) {
-                messageDiv.className = 'message error';
-                messageDiv.textContent = 'Nätverksfel: ' + error.message;
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Spara config';
+                showConfigMessage('Nätverksfel: ' + error.message, 'error');
             }
         }
 
+        // Attach form handlers
+        document.getElementById('config-form').addEventListener('submit', saveConfigForm);
+        document.getElementById('config-form-advanced').addEventListener('submit', saveConfigForm);
+
         // Initial fetch for groups and config
         fetchGroups();
-        loadConfig();
+        loadConfigForm();
 
         // Polling - refresh groups every 30 seconds
         setInterval(fetchGroups, 30000);
@@ -780,26 +1145,28 @@ async def index_handler(request: web.Request) -> web.Response:
 
 
 async def config_handler(request: web.Request) -> web.Response:
-    """Return current config as JSON."""
+    """Return current config as JSON (reads live from disk)."""
+    # Read config fresh from disk to support live reload
+    config = get_config()
     config_data = {
-        "signal_number": SIGNAL_NUMBER,
-        "display_name": DISPLAY_NAME,
-        "signal_cli_host": SIGNAL_CLI_HOST,
-        "signal_cli_port": SIGNAL_CLI_PORT,
-        "signal_cli_path": SIGNAL_CLI_PATH,
-        "signal_cli_log_file": SIGNAL_CLI_LOG_FILE,
-        "unmanaged_signal_cli": UNMANAGED_SIGNAL_CLI,
-        "vault_path": VAULT_PATH,
-        "timezone": str(TIMEZONE),
-        "append_window_minutes": APPEND_WINDOW_MINUTES,
-        "startup_message": STARTUP_MESSAGE,
-        "ignored_groups": IGNORED_GROUPS,
-        "plus_plus_enabled": PLUS_PLUS_ENABLED,
-        "regex_patterns": REGEX_PATTERNS,
-        "log_level": logging.getLevelName(LOG_LEVEL),
-        "web_enabled": WEB_ENABLED,
-        "web_port": WEB_PORT,
-        "web_access_log": WEB_ACCESS_LOG,
+        "signal_number": config["signal_number"],
+        "display_name": config["display_name"],
+        "signal_cli_host": config["signal_cli_host"],
+        "signal_cli_port": config["signal_cli_port"],
+        "signal_cli_path": config["signal_cli_path"],
+        "signal_cli_log_file": config["signal_cli_log_file"],
+        "unmanaged_signal_cli": config["unmanaged_signal_cli"],
+        "vault_path": config["vault_path"],
+        "timezone": str(config["timezone"]),
+        "append_window_minutes": config["append_window_minutes"],
+        "startup_message": config["startup_message"],
+        "ignored_groups": config["ignored_groups"],
+        "plus_plus_enabled": config["plus_plus_enabled"],
+        "regex_patterns": config["regex_patterns"],
+        "log_level": logging.getLevelName(config["log_level"]),
+        "web_enabled": config["web_enabled"],
+        "web_port": config["web_port"],
+        "web_access_log": config["web_access_log"],
     }
     return web.json_response(config_data)
 
@@ -1035,8 +1402,12 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
 async def config_file_get_handler(request: web.Request) -> web.Response:
     """Return the raw content of config.ini."""
     try:
-        with open("config.ini", encoding="utf-8") as f:
-            content = f.read()
+        if CONFIG_FILE.exists():
+            content = CONFIG_FILE.read_text(encoding="utf-8")
+        else:
+            # Fallback to local config.ini
+            with open("config.ini", encoding="utf-8") as f:
+                content = f.read()
         return web.json_response({"content": content})
     except FileNotFoundError:
         return web.json_response({"content": "", "error": "config.ini hittades inte"}, status=404)
@@ -1045,10 +1416,11 @@ async def config_file_get_handler(request: web.Request) -> web.Response:
 
 
 async def config_file_save_handler(request: web.Request) -> web.Response:
-    """Save new content to config.ini."""
+    """Save new content to config.ini and optionally trigger live reload."""
     try:
         data = await request.json()
         content = data.get("content", "")
+        do_reload = data.get("reload", False)
 
         if not content.strip():
             return web.json_response({"success": False, "error": "Config kan inte vara tom"}, status=400)
@@ -1069,11 +1441,18 @@ async def config_file_save_handler(request: web.Request) -> web.Response:
                 status=400,
             )
 
-        # Write to file
-        with open("config.ini", "w", encoding="utf-8") as f:
+        # Write to file (prefer ~/.oden/config.ini)
+        config_path = CONFIG_FILE if CONFIG_FILE.exists() else "config.ini"
+        with open(config_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-        logger.info("config.ini updated via web GUI")
+        logger.info(f"config.ini updated via web GUI (reload={do_reload})")
+
+        # Trigger live reload if requested
+        if do_reload:
+            reload_config()
+            logger.info("Configuration reloaded")
+
         return web.json_response({"success": True, "message": "Config sparad"})
 
     except json.JSONDecodeError:
@@ -1083,37 +1462,875 @@ async def config_file_save_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
-def create_app() -> web.Application:
-    """Create and configure the aiohttp application."""
+async def config_save_handler(request: web.Request) -> web.Response:
+    """Save configuration from structured form data and trigger live reload."""
+    try:
+        data = await request.json()
+
+        # Build config dict
+        config_dict = {
+            "signal_number": data.get("signal_number", ""),
+            "display_name": data.get("display_name", "oden"),
+            "vault_path": data.get("vault_path", str(DEFAULT_VAULT_PATH)),
+            "timezone": data.get("timezone", "Europe/Stockholm"),
+            "append_window_minutes": data.get("append_window_minutes", 30),
+            "startup_message": data.get("startup_message", "self"),
+            "plus_plus_enabled": data.get("plus_plus_enabled", False),
+            "ignored_groups": data.get("ignored_groups", []),
+            "signal_cli_host": data.get("signal_cli_host", "127.0.0.1"),
+            "signal_cli_port": data.get("signal_cli_port", 7583),
+            "signal_cli_path": data.get("signal_cli_path"),
+            "unmanaged_signal_cli": data.get("unmanaged_signal_cli", False),
+            "web_enabled": data.get("web_enabled", True),
+            "web_port": data.get("web_port", 8080),
+            "log_level": data.get("log_level", "INFO"),
+        }
+
+        # Validate required fields
+        if not config_dict["signal_number"] or config_dict["signal_number"] == "+46XXXXXXXXX":
+            return web.json_response(
+                {"success": False, "error": "Signal-nummer måste anges"},
+                status=400,
+            )
+
+        # Save config
+        save_config(config_dict)
+        logger.info(f"Config saved via web GUI form to {CONFIG_FILE}")
+
+        # Trigger live reload
+        reload_config()
+        logger.info("Configuration reloaded (live reload)")
+
+        return web.json_response({
+            "success": True,
+            "message": "Konfiguration sparad och applicerad!",
+        })
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error saving config via form: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error saving config: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+# =============================================================================
+# Setup Wizard Handlers (for first-run configuration)
+# =============================================================================
+
+# Global state for the linking process
+_linker = None
+_link_task = None
+
+
+async def setup_handler(request: web.Request) -> web.Response:
+    """Serve the setup wizard HTML page."""
+    # Try to load from static file first (bundled app)
+    bundle_path = get_bundle_path()
+    static_file = bundle_path / "static" / "setup.html"
+
+    if static_file.exists():
+        return web.FileResponse(static_file)
+
+    # Fallback to inline HTML for development
+    return web.Response(text=SETUP_HTML_TEMPLATE.replace("{{version}}", __version__), content_type="text/html")
+
+
+async def setup_status_handler(request: web.Request) -> web.Response:
+    """Return current setup/linking status."""
+    global _linker
+
+    # Only fetch accounts if explicitly requested (slow operation)
+    include_accounts = request.query.get("accounts") == "true"
+    existing_accounts = []
+
+    if include_accounts:
+        from oden.signal_manager import get_existing_accounts
+        existing_accounts = get_existing_accounts()
+
+    if _linker is None:
+        return web.json_response({
+            "status": "idle",
+            "configured": False,
+            "oden_home": str(ODEN_HOME),
+            "default_vault": str(DEFAULT_VAULT_PATH),
+            "existing_accounts": existing_accounts,
+        })
+
+    return web.json_response({
+        "status": _linker.status,
+        "link_uri": _linker.link_uri,
+        "linked_number": _linker.linked_number,
+        "error": _linker.error,
+        "manual_instructions": _linker.get_manual_instructions() if _linker.status == "timeout" else None,
+        "existing_accounts": existing_accounts,
+    })
+
+
+async def setup_start_link_handler(request: web.Request) -> web.Response:
+    """Start the Signal account linking process."""
+    global _linker, _link_task
+
+    try:
+        data = await request.json()
+        device_name = data.get("device_name", "Oden")
+    except (json.JSONDecodeError, TypeError):
+        device_name = "Oden"
+
+    # Import here to avoid circular imports
+    from oden.signal_manager import SignalLinker
+
+    # Cancel any existing linking process
+    if _linker and _linker.process:
+        await _linker.cancel()
+
+    _linker = SignalLinker(device_name=device_name)
+
+    try:
+        uri = await _linker.start_link()
+        if uri:
+            # Generate QR code as SVG
+            qr = qrcode.QRCode(version=1, box_size=10, border=2)
+            qr.add_data(uri)
+            qr.make(fit=True)
+            img = qr.make_image(image_factory=qrcode.image.svg.SvgPathImage)
+            svg_buffer = io.BytesIO()
+            img.save(svg_buffer)
+            qr_svg = svg_buffer.getvalue().decode('utf-8')
+
+            # Start waiting for link in background
+            _link_task = asyncio.create_task(_wait_for_link_background())
+            return web.json_response({
+                "success": True,
+                "link_uri": uri,
+                "qr_svg": qr_svg,
+                "status": "waiting",
+            })
+        else:
+            return web.json_response({
+                "success": False,
+                "error": _linker.error or "Kunde inte starta länkning",
+                "status": "error",
+            }, status=500)
+
+    except FileNotFoundError as e:
+        return web.json_response({
+            "success": False,
+            "error": f"signal-cli hittades inte: {e}",
+            "status": "error",
+        }, status=500)
+    except Exception as e:
+        logger.error(f"Error starting link: {e}")
+        return web.json_response({
+            "success": False,
+            "error": str(e),
+            "status": "error",
+        }, status=500)
+
+
+async def _wait_for_link_background():
+    """Background task to wait for linking to complete."""
+    global _linker
+    if _linker:
+        await _linker.wait_for_link(timeout=60.0)
+
+
+async def setup_cancel_link_handler(request: web.Request) -> web.Response:
+    """Cancel the linking process."""
+    global _linker, _link_task
+
+    if _link_task:
+        _link_task.cancel()
+        try:
+            await _link_task
+        except asyncio.CancelledError:
+            pass
+        _link_task = None
+
+    if _linker:
+        await _linker.cancel()
+        _linker = None
+
+    return web.json_response({"success": True})
+
+
+async def setup_save_config_handler(request: web.Request) -> web.Response:
+    """Save the setup configuration."""
+    global _linker
+
+    try:
+        data = await request.json()
+        vault_path = data.get("vault_path", str(DEFAULT_VAULT_PATH))
+        signal_number = data.get("signal_number", "")
+        display_name = data.get("display_name", "oden")
+
+        logger.info(f"Save config request: signal_number={signal_number}, vault_path={vault_path}")
+
+        # Use linked number from _linker only if no number was provided
+        if not signal_number and _linker and _linker.linked_number:
+            signal_number = _linker.linked_number
+            logger.info(f"Using linked number from _linker: {signal_number}")
+
+        if not signal_number or signal_number == "+46XXXXXXXXX":
+            return web.json_response({
+                "success": False,
+                "error": "Signal-nummer måste anges",
+            }, status=400)
+
+        # Expand and validate vault path
+        vault_path = str(Path(vault_path).expanduser())
+
+        # Create vault directory
+        Path(vault_path).mkdir(parents=True, exist_ok=True)
+
+        # Save config
+        config_dict = {
+            "vault_path": vault_path,
+            "signal_number": signal_number,
+            "display_name": display_name,
+            "append_window_minutes": 30,
+            "startup_message": "self",
+            "plus_plus_enabled": False,
+            "timezone": "Europe/Stockholm",
+            "web_enabled": True,
+            "web_port": 8080,
+        }
+
+        save_config(config_dict)
+        logger.info(f"Setup complete. Config saved to {CONFIG_FILE}")
+
+        return web.json_response({
+            "success": True,
+            "message": "Konfiguration sparad! Oden startar om...",
+            "config_path": str(CONFIG_FILE),
+        })
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error saving setup config: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+# Setup HTML template (fallback for development)
+SETUP_HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oden - Setup</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .setup-container {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        h1 { color: #4fc3f7; margin-bottom: 10px; text-align: center; }
+        .version { color: #666; text-align: center; margin-bottom: 30px; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #333;
+            transition: background 0.3s;
+        }
+        .step-dot.active { background: #4fc3f7; }
+        .step-dot.completed { background: #4caf50; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #0d1421;
+            color: #fff;
+            font-size: 1em;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #4fc3f7;
+            color: #1a1a2e;
+            font-weight: 600;
+        }
+        .btn-primary:hover { background: #81d4fa; }
+        .btn-primary:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #555;
+            color: #aaa;
+            margin-top: 10px;
+        }
+        .btn-secondary:hover { border-color: #888; color: #fff; }
+        .qr-container {
+            text-align: center;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .qr-container img, .qr-container canvas {
+            max-width: 250px;
+            height: auto;
+        }
+        .countdown {
+            text-align: center;
+            color: #888;
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+        .countdown.warning { color: #ffb74d; }
+        .instructions {
+            background: #0d1421;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        .instructions ol {
+            margin-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+        .error {
+            background: rgba(239, 83, 80, 0.2);
+            border: 1px solid #ef5350;
+            color: #ef5350;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4caf50;
+            color: #4caf50;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        .manual-instructions {
+            background: #0d1421;
+            border: 1px solid #ffb74d;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            white-space: pre-wrap;
+            font-family: 'Monaco', monospace;
+            font-size: 0.85em;
+            line-height: 1.5;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: #4fc3f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <h1>🛡️ Oden Setup</h1>
+        <p class="version">v{{version}}</p>
+
+        <div class="step-indicator">
+            <div class="step-dot active" id="dot-1"></div>
+            <div class="step-dot" id="dot-2"></div>
+            <div class="step-dot" id="dot-3"></div>
+        </div>
+
+        <!-- Step 1: Vault Path -->
+        <div class="step active" id="step-1">
+            <h2 style="margin-bottom: 20px;">📁 Välj Vault-sökväg</h2>
+            <p style="color: #888; margin-bottom: 20px;">
+                Ange sökvägen där Oden ska spara markdown-filer från Signal.
+            </p>
+            <div class="form-group">
+                <label for="vault-path">Vault-sökväg</label>
+                <input type="text" id="vault-path" placeholder="~/oden-vault">
+            </div>
+            <button class="btn btn-primary" onclick="goToStep(2)">Nästa →</button>
+        </div>
+
+        <!-- Step 2: Signal Linking -->
+        <div class="step" id="step-2">
+            <h2 style="margin-bottom: 20px;">📱 Länka Signal-konto</h2>
+
+            <!-- Loading indicator -->
+            <div id="accounts-loading" style="text-align: center; padding: 40px;">
+                <div class="spinner"></div>
+                <p style="color: #888; margin-top: 15px;">Letar efter befintliga Signal-konton...</p>
+            </div>
+
+            <!-- Existing accounts section -->
+            <div id="existing-accounts" class="hidden">
+                <div style="background: #1a3a1a; border: 1px solid #2d5a2d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #4ade80;">✓ Befintliga Signal-konton hittades</h3>
+                    <p style="color: #888; margin-bottom: 15px;">Du har redan konfigurerade Signal-konton. Välj ett att använda eller länka ett nytt.</p>
+                    <div id="accounts-list"></div>
+                </div>
+            </div>
+
+            <div id="link-start" class="hidden">
+                <p style="color: #888; margin-bottom: 20px;">
+                    Klicka på knappen nedan för att starta länkningen. En QR-kod visas som du scannar med Signal-appen.
+                </p>
+                <div class="form-group">
+                    <label for="device-name">Enhetsnamn</label>
+                    <input type="text" id="device-name" value="Oden" placeholder="Oden">
+                </div>
+                <button class="btn btn-primary" onclick="startLinking()">Länka nytt konto</button>
+                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+            </div>
+
+            <div id="link-waiting" class="hidden">
+                <div class="instructions">
+                    <ol>
+                        <li>Öppna <strong>Signal</strong> på din telefon</li>
+                        <li>Gå till <strong>Inställningar → Länkade enheter</strong></li>
+                        <li>Tryck på <strong>"+"</strong> eller <strong>"Länka ny enhet"</strong></li>
+                        <li>Scanna QR-koden nedan</li>
+                    </ol>
+                </div>
+                <div class="qr-container" id="qr-container">
+                    <div class="spinner"></div>
+                </div>
+                <div class="countdown" id="countdown">Väntar på scan... 60s</div>
+                <button class="btn btn-secondary" onclick="cancelLinking()">Avbryt</button>
+            </div>
+
+            <div id="link-success" class="hidden">
+                <div class="success">
+                    ✅ Länkning lyckades!<br>
+                    <strong id="linked-number"></strong>
+                </div>
+                <button class="btn btn-primary" onclick="goToStep(3)">Nästa →</button>
+            </div>
+
+            <div id="link-timeout" class="hidden">
+                <div class="error">
+                    ⏱️ Länkningen tog för lång tid. Försök igen eller följ de manuella stegen nedan.
+                </div>
+                <div class="manual-instructions" id="manual-instructions"></div>
+                <div class="form-group">
+                    <label for="manual-number">Ange ditt Signal-nummer manuellt</label>
+                    <input type="text" id="manual-number" placeholder="+46701234567">
+                </div>
+                <button class="btn btn-primary" onclick="useManualNumber()">Använd detta nummer</button>
+                <button class="btn btn-secondary" onclick="retryLinking()">Försök igen</button>
+            </div>
+
+            <div id="link-error" class="hidden">
+                <div class="error" id="error-message"></div>
+                <button class="btn btn-secondary" onclick="retryLinking()">Försök igen</button>
+                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Confirmation -->
+        <div class="step" id="step-3">
+            <h2 style="margin-bottom: 20px;">✅ Bekräfta inställningar</h2>
+            <div class="instructions">
+                <table style="width: 100%;">
+                    <tr><td style="color: #888;">Vault:</td><td id="confirm-vault">-</td></tr>
+                    <tr><td style="color: #888;">Signal:</td><td id="confirm-number">-</td></tr>
+                    <tr><td style="color: #888;">Enhetsnamn:</td><td id="confirm-device">-</td></tr>
+                </table>
+            </div>
+            <button class="btn btn-primary" onclick="saveConfig()" id="save-btn">Spara och starta Oden</button>
+            <button class="btn btn-secondary" onclick="goToStep(2)">← Tillbaka</button>
+            <div id="save-message"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let linkedNumber = null;
+        let countdownInterval = null;
+        let pollInterval = null;
+        let existingAccounts = [];
+
+        // Set default vault path on page load (quick, no signal-cli needed)
+        fetch('/api/setup/status')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('vault-path').value = data.default_vault || '~/oden-vault';
+            });
+
+        function showExistingAccounts(accounts) {
+            const container = document.getElementById('existing-accounts');
+            const list = document.getElementById('accounts-list');
+
+            list.innerHTML = accounts.map((acc, i) => `
+                <button class="btn btn-primary" style="margin: 5px; width: auto;"
+                        onclick="useExistingAccount('${acc.number}')">
+                    ${acc.number}
+                </button>
+            `).join('');
+
+            container.classList.remove('hidden');
+        }
+
+        function useExistingAccount(number) {
+            linkedNumber = number;
+            document.getElementById('accounts-loading').classList.add('hidden');
+            document.getElementById('link-start').classList.add('hidden');
+            document.getElementById('existing-accounts').classList.add('hidden');
+            document.getElementById('link-success').classList.remove('hidden');
+            document.getElementById('linked-number').textContent = number;
+        }
+
+        async function loadExistingAccounts() {
+            // Show loading, hide other sections
+            document.getElementById('accounts-loading').classList.remove('hidden');
+            document.getElementById('existing-accounts').classList.add('hidden');
+            document.getElementById('link-start').classList.add('hidden');
+
+            try {
+                // Use ?accounts=true to trigger the slow listAccounts call
+                const response = await fetch('/api/setup/status?accounts=true');
+                const data = await response.json();
+
+                // Hide loading
+                document.getElementById('accounts-loading').classList.add('hidden');
+
+                // Show existing accounts if any
+                if (data.existing_accounts && data.existing_accounts.length > 0) {
+                    existingAccounts = data.existing_accounts;
+                    showExistingAccounts(data.existing_accounts);
+                }
+
+                // Always show the link form (either below accounts or alone)
+                document.getElementById('link-start').classList.remove('hidden');
+
+            } catch (error) {
+                // On error, just show the link form
+                document.getElementById('accounts-loading').classList.add('hidden');
+                document.getElementById('link-start').classList.remove('hidden');
+            }
+        }
+
+        function goToStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById('step-' + step).classList.add('active');
+
+            document.querySelectorAll('.step-dot').forEach((dot, i) => {
+                dot.classList.remove('active', 'completed');
+                if (i + 1 < step) dot.classList.add('completed');
+                if (i + 1 === step) dot.classList.add('active');
+            });
+
+            currentStep = step;
+
+            if (step === 2) {
+                // Load existing accounts when entering step 2
+                loadExistingAccounts();
+            }
+
+            if (step === 3) {
+                document.getElementById('confirm-vault').textContent = document.getElementById('vault-path').value;
+                document.getElementById('confirm-number').textContent = linkedNumber || '(ej länkad)';
+                document.getElementById('confirm-device').textContent = document.getElementById('device-name').value;
+            }
+        }
+
+        async function startLinking() {
+            const deviceName = document.getElementById('device-name').value || 'Oden';
+
+            document.getElementById('link-start').classList.add('hidden');
+            document.getElementById('existing-accounts').classList.add('hidden');
+            document.getElementById('link-waiting').classList.remove('hidden');
+            document.getElementById('link-success').classList.add('hidden');
+            document.getElementById('link-timeout').classList.add('hidden');
+            document.getElementById('link-error').classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/setup/start-link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_name: deviceName })
+                });
+                const data = await response.json();
+
+                if (data.success && data.qr_svg) {
+                    // Display server-generated QR code
+                    const container = document.getElementById('qr-container');
+                    container.innerHTML = data.qr_svg;
+                    // Style the SVG
+                    const svg = container.querySelector('svg');
+                    if (svg) {
+                        svg.style.width = '250px';
+                        svg.style.height = '250px';
+                    }
+
+                    // Start countdown
+                    let seconds = 60;
+                    const countdownEl = document.getElementById('countdown');
+                    countdownInterval = setInterval(() => {
+                        seconds--;
+                        countdownEl.textContent = 'Väntar på scan... ' + seconds + 's';
+                        if (seconds <= 15) countdownEl.classList.add('warning');
+                        if (seconds <= 0) clearInterval(countdownInterval);
+                    }, 1000);
+
+                    // Poll for status
+                    pollInterval = setInterval(checkLinkStatus, 2000);
+                } else {
+                    showError(data.error || 'Kunde inte starta länkning');
+                }
+            } catch (error) {
+                showError('Nätverksfel: ' + error.message);
+            }
+        }
+
+        async function checkLinkStatus() {
+            try {
+                const response = await fetch('/api/setup/status');
+                const data = await response.json();
+
+                if (data.status === 'linked') {
+                    clearInterval(countdownInterval);
+                    clearInterval(pollInterval);
+                    linkedNumber = data.linked_number;
+                    document.getElementById('linked-number').textContent = linkedNumber;
+                    document.getElementById('link-waiting').classList.add('hidden');
+                    document.getElementById('link-success').classList.remove('hidden');
+                } else if (data.status === 'timeout') {
+                    clearInterval(countdownInterval);
+                    clearInterval(pollInterval);
+                    document.getElementById('link-waiting').classList.add('hidden');
+                    document.getElementById('link-timeout').classList.remove('hidden');
+                    if (data.manual_instructions) {
+                        document.getElementById('manual-instructions').textContent = data.manual_instructions;
+                    }
+                } else if (data.status === 'error') {
+                    clearInterval(countdownInterval);
+                    clearInterval(pollInterval);
+                    showError(data.error || 'Ett fel uppstod');
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('link-waiting').classList.add('hidden');
+            document.getElementById('link-error').classList.remove('hidden');
+            document.getElementById('error-message').textContent = message;
+        }
+
+        async function cancelLinking() {
+            clearInterval(countdownInterval);
+            clearInterval(pollInterval);
+            await fetch('/api/setup/cancel-link', { method: 'POST' });
+            document.getElementById('link-waiting').classList.add('hidden');
+            document.getElementById('link-start').classList.remove('hidden');
+        }
+
+        function retryLinking() {
+            document.getElementById('link-timeout').classList.add('hidden');
+            document.getElementById('link-error').classList.add('hidden');
+            document.getElementById('link-start').classList.remove('hidden');
+        }
+
+        function useManualNumber() {
+            const number = document.getElementById('manual-number').value.trim();
+            if (!number || !number.startsWith('+')) {
+                alert('Ange ett giltigt telefonnummer (t.ex. +46701234567)');
+                return;
+            }
+            linkedNumber = number;
+            goToStep(3);
+        }
+
+        async function saveConfig() {
+            const btn = document.getElementById('save-btn');
+            const msgDiv = document.getElementById('save-message');
+            btn.disabled = true;
+            btn.textContent = 'Sparar...';
+
+            try {
+                const response = await fetch('/api/setup/save-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        vault_path: document.getElementById('vault-path').value,
+                        signal_number: linkedNumber,
+                        display_name: document.getElementById('device-name').value
+                    })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    msgDiv.innerHTML = '<div class="success" style="padding: 20px; text-align: center;">' +
+                        '<h2 style="margin: 0 0 10px 0;">✅ Klart!</h2>' +
+                        '<p style="margin: 0;">' + data.message + '</p>' +
+                        '<p style="margin: 10px 0 0 0; color: #888;" id="reload-status">Väntar på att Oden ska starta...</p>' +
+                        '</div>';
+                    btn.style.display = 'none';
+                    document.querySelector('button.btn-secondary').style.display = 'none';
+                    // Poll until the main server is ready
+                    pollForMainServer();
+                } else {
+                    msgDiv.innerHTML = '<div class="error">' + data.error + '</div>';
+                    btn.disabled = false;
+                    btn.textContent = 'Spara och starta Oden';
+                }
+            } catch (error) {
+                msgDiv.innerHTML = '<div class="error">Nätverksfel: ' + error.message + '</div>';
+                btn.disabled = false;
+                btn.textContent = 'Spara och starta Oden';
+            }
+        }
+
+        async function pollForMainServer() {
+            const statusEl = document.getElementById('reload-status');
+            let attempts = 0;
+            const maxAttempts = 30;  // 30 seconds max
+
+            const poll = async () => {
+                attempts++;
+                try {
+                    // Try to fetch the main page (not /setup)
+                    const response = await fetch('/api/config');
+                    if (response.ok) {
+                        statusEl.textContent = 'Oden är redo! Laddar om...';
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 500);
+                        return;
+                    }
+                } catch (e) {
+                    // Server not ready yet
+                }
+
+                if (attempts < maxAttempts) {
+                    statusEl.textContent = 'Väntar på att Oden ska starta... (' + attempts + 's)';
+                    setTimeout(poll, 1000);
+                } else {
+                    statusEl.innerHTML = 'Oden har startat. <a href="/" style="color: #4ade80;">Klicka här</a> för att öppna.';
+                }
+            };
+
+            // Start polling after a short delay
+            setTimeout(poll, 2000);
+        }
+    </script>
+</body>
+</html>
+"""
+
+
+def create_app(setup_mode: bool = False) -> web.Application:
+    """Create and configure the aiohttp application.
+
+    Args:
+        setup_mode: If True, only enable setup-related routes.
+    """
     app = web.Application()
-    app.router.add_get("/", index_handler)
-    app.router.add_get("/api/config", config_handler)
-    app.router.add_get("/api/logs", logs_handler)
-    app.router.add_post("/api/join-group", join_group_handler)
-    app.router.add_get("/api/invitations", invitations_handler)
-    app.router.add_post("/api/invitations/accept", accept_invitation_handler)
-    app.router.add_post("/api/invitations/decline", decline_invitation_handler)
-    app.router.add_get("/api/groups", groups_handler)
-    app.router.add_post("/api/toggle-ignore-group", toggle_ignore_group_handler)
-    app.router.add_get("/api/config-file", config_file_get_handler)
-    app.router.add_post("/api/config-file", config_file_save_handler)
+
+    # Setup routes (always available)
+    app.router.add_get("/setup", setup_handler)
+    app.router.add_get("/api/setup/status", setup_status_handler)
+    app.router.add_post("/api/setup/start-link", setup_start_link_handler)
+    app.router.add_post("/api/setup/cancel-link", setup_cancel_link_handler)
+    app.router.add_post("/api/setup/save-config", setup_save_config_handler)
+
+    if setup_mode:
+        # In setup mode, redirect root to setup
+        async def redirect_to_setup(request):
+            raise web.HTTPFound("/setup")
+
+        app.router.add_get("/", redirect_to_setup)
+    else:
+        # Normal mode routes
+        app.router.add_get("/", index_handler)
+        app.router.add_get("/api/config", config_handler)
+        app.router.add_get("/api/logs", logs_handler)
+        app.router.add_post("/api/join-group", join_group_handler)
+        app.router.add_get("/api/invitations", invitations_handler)
+        app.router.add_post("/api/invitations/accept", accept_invitation_handler)
+        app.router.add_post("/api/invitations/decline", decline_invitation_handler)
+        app.router.add_get("/api/groups", groups_handler)
+        app.router.add_post("/api/toggle-ignore-group", toggle_ignore_group_handler)
+        app.router.add_get("/api/config-file", config_file_get_handler)
+        app.router.add_post("/api/config-file", config_file_save_handler)
+        app.router.add_post("/api/config-save", config_save_handler)
+
     return app
 
 
-async def start_web_server(port: int = 8080) -> web.AppRunner:
+async def start_web_server(port: int = 8080, setup_mode: bool = False) -> web.AppRunner:
     """Start the web server on the specified port.
 
     Args:
         port: Port to listen on (default 8080).
+        setup_mode: If True, only enable setup-related routes.
 
     Returns:
         The AppRunner instance (for cleanup).
     """
-    app = create_app()
+    app = create_app(setup_mode=setup_mode)
 
     # Configure access logger to write to file instead of terminal
     access_log: logging.Logger | None = None
-    if WEB_ACCESS_LOG:
+    if WEB_ACCESS_LOG and not setup_mode:
         access_log = logging.getLogger("aiohttp.access")
         access_log.setLevel(logging.INFO)
         # Remove any existing handlers to avoid duplicate output
@@ -1128,19 +2345,48 @@ async def start_web_server(port: int = 8080) -> web.AppRunner:
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", port)
     await site.start()
-    logger.info(f"Web GUI started at http://127.0.0.1:{port}")
+    mode_str = " (setup mode)" if setup_mode else ""
+    logger.info(f"Web GUI started at http://127.0.0.1:{port}{mode_str}")
     return runner
 
 
-async def run_web_server(port: int = 8080) -> None:
+async def run_web_server(port: int = 8080, setup_mode: bool = False) -> None:
     """Run the web server indefinitely.
 
     This function starts the web server and waits forever.
     Use this with asyncio.gather() to run alongside other tasks.
+
+    Args:
+        port: Port to listen on.
+        setup_mode: If True, only enable setup-related routes.
     """
-    runner = await start_web_server(port)
+    runner = await start_web_server(port, setup_mode=setup_mode)
     try:
         # Wait forever
         await asyncio.sleep(float("inf"))
+    finally:
+        await runner.cleanup()
+
+
+async def run_setup_server(port: int = 8080) -> bool:
+    """Run the web server in setup mode until configuration is complete.
+
+    Args:
+        port: Port to listen on.
+
+    Returns:
+        True if setup completed successfully, False otherwise.
+    """
+    from oden.config import is_configured
+
+    runner = await start_web_server(port, setup_mode=True)
+    try:
+        # Poll for configuration completion
+        while not is_configured():
+            await asyncio.sleep(1.0)
+        logger.info("Setup completed, configuration saved.")
+        # Wait so the browser can show success message and redirect
+        await asyncio.sleep(5.0)
+        return True
     finally:
         await runner.cleanup()

@@ -12,6 +12,7 @@ from oden.signal_manager import SignalManager, is_signal_cli_running
 
 
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
+    @patch("oden.s7_watcher.is_configured", return_value=True)
     @patch("oden.s7_watcher.WEB_ENABLED", False)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", False)
     @patch("oden.s7_watcher.SignalManager")
@@ -19,7 +20,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
     @patch("oden.s7_watcher.SIGNAL_NUMBER", "+1234567890")
     @patch("oden.s7_watcher.SIGNAL_CLI_HOST", "1.2.3.4")
     @patch("oden.s7_watcher.SIGNAL_CLI_PORT", 1234)
-    def test_main_managed_success(self, mock_subscribe, mock_signal_manager_class):
+    def test_main_managed_success(self, mock_subscribe, mock_signal_manager_class, mock_is_configured):
         """Tests main in managed mode with successful execution."""
         mock_manager_instance = mock_signal_manager_class.return_value
 
@@ -32,6 +33,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)
         mock_manager_instance.stop.assert_called_once()
 
+    @patch("oden.s7_watcher.is_configured", return_value=True)
     @patch("oden.s7_watcher.WEB_ENABLED", False)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=True)
@@ -39,7 +41,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
     @patch("oden.s7_watcher.SIGNAL_NUMBER", "+1234567890")
     @patch("oden.s7_watcher.SIGNAL_CLI_HOST", "1.2.3.4")
     @patch("oden.s7_watcher.SIGNAL_CLI_PORT", 1234)
-    def test_main_unmanaged_success(self, mock_subscribe, mock_is_running):
+    def test_main_unmanaged_success(self, mock_subscribe, mock_is_running, mock_is_configured):
         """Tests main in unmanaged mode with signal-cli already running."""
         with self.assertRaises(SystemExit) as cm:
             s7_main()
@@ -48,11 +50,12 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_is_running.assert_called_once_with("1.2.3.4", 1234)
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)
 
+    @patch("oden.s7_watcher.is_configured", return_value=True)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=False)
     @patch("sys.exit", side_effect=SystemExit)
     @patch("oden.s7_watcher.SIGNAL_NUMBER", "+1234567890")
-    def test_main_unmanaged_not_running(self, mock_exit, mock_is_running):
+    def test_main_unmanaged_not_running(self, mock_exit, mock_is_running, mock_is_configured):
         """Tests main in unmanaged mode when signal-cli is not running."""
         with self.assertLogs("oden.s7_watcher", level="ERROR") as log:
             with self.assertRaises(SystemExit):

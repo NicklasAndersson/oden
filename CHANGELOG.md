@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-01-28
+
+### ✨ Highlights
+
+This is a major release focused on **simplified installation** and a **completely redesigned configuration experience**. New users can now get started in minutes with the setup wizard, and experienced users get a powerful web-based config editor with live reload.
+
+### Added
+
+- **🧙 First-run Setup Wizard**: New web-based setup wizard guides you through initial configuration
+  - Automatically detects existing Signal accounts from signal-cli
+  - QR code linking for new devices (generated server-side, no external dependencies)
+  - Choose your vault path with sensible defaults (`~/oden-vault`)
+  - Opens automatically in your browser on first launch
+
+- **⚙️ Redesigned Config Editor**: Complete overhaul of the settings interface
+  - **Grundläggande tab**: Signal number, display name, vault path, timezone, append window, startup message
+  - **Avancerat tab**: signal-cli host/port, custom path, external signal-cli mode, web server settings, log level
+  - **Rå config tab**: Traditional textarea for power users who prefer editing INI directly
+  - Form-based editing with proper input types (dropdowns, checkboxes, number fields)
+
+- **🔄 Live Configuration Reload**: Changes take effect immediately without restart
+  - Click "Spara och applicera" to save and reload config in one step
+  - No more "restart required" warnings for most settings
+  - Config is read fresh from disk on each API request
+
+- **📁 New Config Location**: Configuration now lives in `~/.oden/`
+  - `~/.oden/config.ini` - Main configuration file
+  - `~/.oden/signal-data/` - Signal-cli data directory (for bundled builds)
+  - Automatic migration from project-local config.ini
+
+- **🔍 Faster Account Detection**: Existing Signal accounts are detected instantly
+  - Reads directly from `accounts.json` instead of running `signal-cli listAccounts`
+  - No more 30+ second timeouts waiting for JVM startup
+  - Checks both standard (`~/.local/share/signal-cli/`) and bundled paths
+
+### Changed
+
+- **Config API**: `/api/config` now reads live from disk instead of cached values
+- **Signal number display**: Fixed issue where phone number showed as `+46XXXXXXXXX` after setup
+- **Dynamic config imports**: Functions that need config values now read them dynamically to support live reload
+
+### Technical
+
+- New `reload_config()` function updates all module-level config variables
+- New `/api/config-save` endpoint for form-based config saving
+- `save_config()` now supports all configuration options including advanced settings
+- Server-side QR code generation using `qrcode` library (SVG output)
+
 ## [0.8.7] - 2026-01-25
 
 ### Added
