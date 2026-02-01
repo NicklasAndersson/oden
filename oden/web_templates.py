@@ -1402,12 +1402,21 @@ SETUP_HTML_TEMPLATE = """
                 <label for="vault-path">Vault-sökväg</label>
                 <input type="text" id="vault-path" placeholder="~/oden-vault">
             </div>
+            <div class="form-group" style="margin-top: 20px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="install-obsidian" checked style="width: 20px; height: 20px;">
+                    <span>Installera Obsidian-inställningar (Map View plugin)</span>
+                </label>
+                <p style="color: #666; font-size: 0.85em; margin-top: 5px; margin-left: 30px;">
+                    Rekommenderas för att visa platser på karta i Obsidian.
+                </p>
+            </div>
             <button class="btn btn-primary" onclick="goToStep(2)">Nästa →</button>
         </div>
 
         <!-- Step 2: Signal Linking -->
         <div class="step" id="step-2">
-            <h2 style="margin-bottom: 20px;">📱 Länka Signal-konto</h2>
+            <h2 style="margin-bottom: 20px;">📱 Signal-konto</h2>
 
             <!-- Loading indicator -->
             <div id="accounts-loading" style="text-align: center; padding: 40px;">
@@ -1419,11 +1428,35 @@ SETUP_HTML_TEMPLATE = """
             <div id="existing-accounts" class="hidden">
                 <div style="background: #1a3a1a; border: 1px solid #2d5a2d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
                     <h3 style="margin: 0 0 10px 0; color: #4ade80;">✓ Befintliga Signal-konton hittades</h3>
-                    <p style="color: #888; margin-bottom: 15px;">Du har redan konfigurerade Signal-konton. Välj ett att använda eller länka ett nytt.</p>
+                    <p style="color: #888; margin-bottom: 15px;">Du har redan konfigurerade Signal-konton. Välj ett att använda eller konfigurera nytt.</p>
                     <div id="accounts-list"></div>
                 </div>
             </div>
 
+            <!-- Method selection -->
+            <div id="method-selection" class="hidden">
+                <p style="color: #888; margin-bottom: 15px;">Välj hur du vill konfigurera Signal:</p>
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #0d1421; border-radius: 6px; border: 1px solid #333;">
+                        <input type="radio" name="setup-method" value="link" checked style="width: 18px; height: 18px;">
+                        <div>
+                            <strong style="color: #4fc3f7;">Länka befintligt konto</strong>
+                            <p style="color: #888; font-size: 0.85em; margin: 4px 0 0 0;">Använd QR-kod för att länka till din Signal-app</p>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #0d1421; border-radius: 6px; border: 1px solid #333;">
+                        <input type="radio" name="setup-method" value="register" style="width: 18px; height: 18px;">
+                        <div>
+                            <strong style="color: #ffb74d;">Registrera nytt nummer</strong>
+                            <p style="color: #888; font-size: 0.85em; margin: 4px 0 0 0;">⚠️ Använd INTE ditt huvudnummer!</p>
+                        </div>
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="startSelectedMethod()">Fortsätt</button>
+                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+            </div>
+
+            <!-- Link form -->
             <div id="link-start" class="hidden">
                 <p style="color: #888; margin-bottom: 20px;">
                     Klicka på knappen nedan för att starta länkningen. En QR-kod visas som du scannar med Signal-appen.
@@ -1432,8 +1465,76 @@ SETUP_HTML_TEMPLATE = """
                     <label for="device-name">Enhetsnamn</label>
                     <input type="text" id="device-name" value="Oden" placeholder="Oden">
                 </div>
-                <button class="btn btn-primary" onclick="startLinking()">Länka nytt konto</button>
-                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+                <button class="btn btn-primary" onclick="startLinking()">Länka konto</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">← Tillbaka</button>
+            </div>
+
+            <!-- Registration form -->
+            <div id="register-start" class="hidden">
+                <div style="background: #3a2a1a; border: 1px solid #5a4a2a; border-radius: 6px; padding: 12px; margin-bottom: 20px;">
+                    <strong style="color: #ffb74d;">⚠️ Varning</strong>
+                    <p style="color: #888; font-size: 0.9em; margin: 5px 0 0 0;">
+                        Använd ett separat telefonnummer, INTE ditt huvudnummer på Signal!
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label for="register-phone">Telefonnummer</label>
+                    <input type="text" id="register-phone" placeholder="+46701234567">
+                </div>
+                <div class="form-group">
+                    <label style="color: #888;">Verifieringsmetod</label>
+                    <div style="display: flex; gap: 15px; margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="verify-method" value="sms" checked>
+                            <span>SMS</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="verify-method" value="voice">
+                            <span>Samtal</span>
+                        </label>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="startRegistration()">Registrera</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">← Tillbaka</button>
+            </div>
+
+            <!-- CAPTCHA required -->
+            <div id="register-captcha" class="hidden">
+                <div style="background: #2a2a3a; border: 1px solid #4a4a5a; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #ffb74d;">🔒 CAPTCHA krävs</h3>
+                    <ol style="color: #aaa; margin: 0; padding-left: 20px; line-height: 1.8;">
+                        <li>Öppna länken nedan i din webbläsare</li>
+                        <li>Lös CAPTCHA-uppgiften</li>
+                        <li>Högerklicka på "Open Signal" och <strong>kopiera länkadressen</strong></li>
+                        <li>Klistra in länken nedan</li>
+                    </ol>
+                </div>
+                <a href="https://signalcaptchas.org/registration/generate.html" target="_blank"
+                   style="display: block; background: #0d1421; padding: 12px; border-radius: 6px; margin-bottom: 15px; color: #4fc3f7; text-decoration: none; word-break: break-all;">
+                    https://signalcaptchas.org/registration/generate.html ↗
+                </a>
+                <div class="form-group">
+                    <label for="captcha-token">Klistra in signalcaptcha:// länken</label>
+                    <input type="text" id="captcha-token" placeholder="signalcaptcha://signal-recaptcha-v2...">
+                </div>
+                <button class="btn btn-primary" onclick="submitCaptcha()">Fortsätt</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">Avbryt</button>
+            </div>
+
+            <!-- Verification code -->
+            <div id="register-verify" class="hidden">
+                <div class="success" style="margin-bottom: 20px;">
+                    📱 Verifieringskod skickad!
+                </div>
+                <p style="color: #888; margin-bottom: 20px;">
+                    Ange koden du fick via <span id="verify-method-text">SMS</span> till <strong id="verify-phone-text"></strong>
+                </p>
+                <div class="form-group">
+                    <label for="verify-code">Verifieringskod</label>
+                    <input type="text" id="verify-code" placeholder="123456" maxlength="10" style="font-size: 1.5em; text-align: center; letter-spacing: 5px;">
+                </div>
+                <button class="btn btn-primary" onclick="submitVerifyCode()">Verifiera</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">Avbryt</button>
             </div>
 
             <div id="link-waiting" class="hidden">
@@ -1502,6 +1603,7 @@ SETUP_HTML_TEMPLATE = """
         let countdownInterval = null;
         let pollInterval = null;
         let existingAccounts = [];
+        let registerPhone = null;
 
         // Set default vault path on page load (quick, no signal-cli needed)
         fetch('/api/setup/status')
@@ -1509,6 +1611,23 @@ SETUP_HTML_TEMPLATE = """
             .then(data => {
                 document.getElementById('vault-path').value = data.default_vault || '~/oden-vault';
             });
+
+        function hideAllStep2Sections() {
+            ['accounts-loading', 'existing-accounts', 'method-selection', 'link-start',
+             'link-waiting', 'link-success', 'link-timeout', 'link-error',
+             'register-start', 'register-captcha', 'register-verify'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+        }
+
+        function showMethodSelection() {
+            hideAllStep2Sections();
+            document.getElementById('method-selection').classList.remove('hidden');
+            if (existingAccounts.length > 0) {
+                document.getElementById('existing-accounts').classList.remove('hidden');
+            }
+        }
 
         function showExistingAccounts(accounts) {
             const container = document.getElementById('existing-accounts');
@@ -1526,40 +1645,31 @@ SETUP_HTML_TEMPLATE = """
 
         function useExistingAccount(number) {
             linkedNumber = number;
-            document.getElementById('accounts-loading').classList.add('hidden');
-            document.getElementById('link-start').classList.add('hidden');
-            document.getElementById('existing-accounts').classList.add('hidden');
+            hideAllStep2Sections();
             document.getElementById('link-success').classList.remove('hidden');
             document.getElementById('linked-number').textContent = number;
         }
 
         async function loadExistingAccounts() {
-            // Show loading, hide other sections
+            hideAllStep2Sections();
             document.getElementById('accounts-loading').classList.remove('hidden');
-            document.getElementById('existing-accounts').classList.add('hidden');
-            document.getElementById('link-start').classList.add('hidden');
 
             try {
-                // Use ?accounts=true to trigger the slow listAccounts call
                 const response = await fetch('/api/setup/status?accounts=true');
                 const data = await response.json();
 
-                // Hide loading
                 document.getElementById('accounts-loading').classList.add('hidden');
 
-                // Show existing accounts if any
                 if (data.existing_accounts && data.existing_accounts.length > 0) {
                     existingAccounts = data.existing_accounts;
                     showExistingAccounts(data.existing_accounts);
                 }
 
-                // Always show the link form (either below accounts or alone)
-                document.getElementById('link-start').classList.remove('hidden');
+                document.getElementById('method-selection').classList.remove('hidden');
 
             } catch (error) {
-                // On error, just show the link form
                 document.getElementById('accounts-loading').classList.add('hidden');
-                document.getElementById('link-start').classList.remove('hidden');
+                document.getElementById('method-selection').classList.remove('hidden');
             }
         }
 
@@ -1576,26 +1686,31 @@ SETUP_HTML_TEMPLATE = """
             currentStep = step;
 
             if (step === 2) {
-                // Load existing accounts when entering step 2
                 loadExistingAccounts();
             }
 
             if (step === 3) {
                 document.getElementById('confirm-vault').textContent = document.getElementById('vault-path').value;
-                document.getElementById('confirm-number').textContent = linkedNumber || '(ej länkad)';
-                document.getElementById('confirm-device').textContent = document.getElementById('device-name').value;
+                document.getElementById('confirm-number').textContent = linkedNumber || '(ej konfigurerad)';
+                document.getElementById('confirm-device').textContent = document.getElementById('device-name')?.value || 'Oden';
+            }
+        }
+
+        function startSelectedMethod() {
+            const method = document.querySelector('input[name="setup-method"]:checked').value;
+            hideAllStep2Sections();
+            if (method === 'link') {
+                document.getElementById('link-start').classList.remove('hidden');
+            } else {
+                document.getElementById('register-start').classList.remove('hidden');
             }
         }
 
         async function startLinking() {
             const deviceName = document.getElementById('device-name').value || 'Oden';
 
-            document.getElementById('link-start').classList.add('hidden');
-            document.getElementById('existing-accounts').classList.add('hidden');
+            hideAllStep2Sections();
             document.getElementById('link-waiting').classList.remove('hidden');
-            document.getElementById('link-success').classList.add('hidden');
-            document.getElementById('link-timeout').classList.add('hidden');
-            document.getElementById('link-error').classList.add('hidden');
 
             try {
                 const response = await fetch('/api/setup/start-link', {
@@ -1606,17 +1721,14 @@ SETUP_HTML_TEMPLATE = """
                 const data = await response.json();
 
                 if (data.success && data.qr_svg) {
-                    // Display server-generated QR code
                     const container = document.getElementById('qr-container');
                     container.innerHTML = data.qr_svg;
-                    // Style the SVG
                     const svg = container.querySelector('svg');
                     if (svg) {
                         svg.style.width = '250px';
                         svg.style.height = '250px';
                     }
 
-                    // Start countdown
                     let seconds = 60;
                     const countdownEl = document.getElementById('countdown');
                     countdownInterval = setInterval(() => {
@@ -1626,12 +1738,123 @@ SETUP_HTML_TEMPLATE = """
                         if (seconds <= 0) clearInterval(countdownInterval);
                     }, 1000);
 
-                    // Poll for status
                     pollInterval = setInterval(checkLinkStatus, 2000);
                 } else {
                     showError(data.error || 'Kunde inte starta länkning');
                 }
             } catch (error) {
+                showError('Nätverksfel: ' + error.message);
+            }
+        }
+
+        async function startRegistration() {
+            const phone = document.getElementById('register-phone').value.trim();
+            const useVoice = document.querySelector('input[name="verify-method"]:checked').value === 'voice';
+
+            if (!phone || !phone.startsWith('+')) {
+                alert('Ange ett giltigt telefonnummer (t.ex. +46701234567)');
+                return;
+            }
+
+            registerPhone = phone;
+
+            hideAllStep2Sections();
+            document.getElementById('accounts-loading').classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/setup/start-register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone_number: phone, use_voice: useVoice })
+                });
+                const data = await response.json();
+
+                document.getElementById('accounts-loading').classList.add('hidden');
+
+                if (data.needs_captcha) {
+                    document.getElementById('register-captcha').classList.remove('hidden');
+                } else if (data.success) {
+                    document.getElementById('verify-phone-text').textContent = phone;
+                    document.getElementById('verify-method-text').textContent = useVoice ? 'samtal' : 'SMS';
+                    document.getElementById('register-verify').classList.remove('hidden');
+                } else {
+                    showError(data.error || 'Registrering misslyckades');
+                }
+            } catch (error) {
+                document.getElementById('accounts-loading').classList.add('hidden');
+                showError('Nätverksfel: ' + error.message);
+            }
+        }
+
+        async function submitCaptcha() {
+            const token = document.getElementById('captcha-token').value.trim();
+            const useVoice = document.querySelector('input[name="verify-method"]:checked').value === 'voice';
+
+            if (!token || !token.startsWith('signalcaptcha://')) {
+                alert('Klistra in en giltig signalcaptcha:// länk');
+                return;
+            }
+
+            hideAllStep2Sections();
+            document.getElementById('accounts-loading').classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/setup/start-register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone_number: registerPhone,
+                        use_voice: useVoice,
+                        captcha_token: token
+                    })
+                });
+                const data = await response.json();
+
+                document.getElementById('accounts-loading').classList.add('hidden');
+
+                if (data.success) {
+                    document.getElementById('verify-phone-text').textContent = registerPhone;
+                    document.getElementById('verify-method-text').textContent = useVoice ? 'samtal' : 'SMS';
+                    document.getElementById('register-verify').classList.remove('hidden');
+                } else {
+                    showError(data.error || 'Registrering misslyckades');
+                }
+            } catch (error) {
+                document.getElementById('accounts-loading').classList.add('hidden');
+                showError('Nätverksfel: ' + error.message);
+            }
+        }
+
+        async function submitVerifyCode() {
+            const code = document.getElementById('verify-code').value.trim();
+
+            if (!code || code.length < 4) {
+                alert('Ange verifieringskoden');
+                return;
+            }
+
+            hideAllStep2Sections();
+            document.getElementById('accounts-loading').classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/setup/verify-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                });
+                const data = await response.json();
+
+                document.getElementById('accounts-loading').classList.add('hidden');
+
+                if (data.success) {
+                    linkedNumber = data.phone_number;
+                    document.getElementById('linked-number').textContent = linkedNumber;
+                    document.getElementById('link-success').classList.remove('hidden');
+                } else {
+                    showError(data.error || 'Verifiering misslyckades');
+                }
+            } catch (error) {
+                document.getElementById('accounts-loading').classList.add('hidden');
                 showError('Nätverksfel: ' + error.message);
             }
         }
@@ -1646,12 +1869,12 @@ SETUP_HTML_TEMPLATE = """
                     clearInterval(pollInterval);
                     linkedNumber = data.linked_number;
                     document.getElementById('linked-number').textContent = linkedNumber;
-                    document.getElementById('link-waiting').classList.add('hidden');
+                    hideAllStep2Sections();
                     document.getElementById('link-success').classList.remove('hidden');
                 } else if (data.status === 'timeout') {
                     clearInterval(countdownInterval);
                     clearInterval(pollInterval);
-                    document.getElementById('link-waiting').classList.add('hidden');
+                    hideAllStep2Sections();
                     document.getElementById('link-timeout').classList.remove('hidden');
                     if (data.manual_instructions) {
                         document.getElementById('manual-instructions').textContent = data.manual_instructions;
@@ -1667,7 +1890,7 @@ SETUP_HTML_TEMPLATE = """
         }
 
         function showError(message) {
-            document.getElementById('link-waiting').classList.add('hidden');
+            hideAllStep2Sections();
             document.getElementById('link-error').classList.remove('hidden');
             document.getElementById('error-message').textContent = message;
         }
@@ -1676,14 +1899,11 @@ SETUP_HTML_TEMPLATE = """
             clearInterval(countdownInterval);
             clearInterval(pollInterval);
             await fetch('/api/setup/cancel-link', { method: 'POST' });
-            document.getElementById('link-waiting').classList.add('hidden');
-            document.getElementById('link-start').classList.remove('hidden');
+            showMethodSelection();
         }
 
         function retryLinking() {
-            document.getElementById('link-timeout').classList.add('hidden');
-            document.getElementById('link-error').classList.add('hidden');
-            document.getElementById('link-start').classList.remove('hidden');
+            showMethodSelection();
         }
 
         function useManualNumber() {
@@ -1702,14 +1922,34 @@ SETUP_HTML_TEMPLATE = """
             btn.disabled = true;
             btn.textContent = 'Sparar...';
 
+            // Install Obsidian template if checkbox is checked
+            const installObsidian = document.getElementById('install-obsidian').checked;
+            const vaultPath = document.getElementById('vault-path').value;
+
+            if (installObsidian) {
+                try {
+                    const obsResponse = await fetch('/api/setup/install-obsidian-template', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vault_path: vaultPath })
+                    });
+                    const obsData = await obsResponse.json();
+                    if (!obsData.success && !obsData.skipped) {
+                        console.warn('Obsidian template installation warning:', obsData.error);
+                    }
+                } catch (e) {
+                    console.warn('Obsidian template installation failed:', e);
+                }
+            }
+
             try {
                 const response = await fetch('/api/setup/save-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        vault_path: document.getElementById('vault-path').value,
+                        vault_path: vaultPath,
                         signal_number: linkedNumber,
-                        display_name: document.getElementById('device-name').value
+                        display_name: document.getElementById('device-name')?.value || 'Oden'
                     })
                 });
                 const data = await response.json();
@@ -1722,7 +1962,6 @@ SETUP_HTML_TEMPLATE = """
                         '</div>';
                     btn.style.display = 'none';
                     document.querySelector('button.btn-secondary').style.display = 'none';
-                    // Poll until the main server is ready
                     pollForMainServer();
                 } else {
                     msgDiv.innerHTML = '<div class="error">' + data.error + '</div>';
@@ -1739,12 +1978,11 @@ SETUP_HTML_TEMPLATE = """
         async function pollForMainServer() {
             const statusEl = document.getElementById('reload-status');
             let attempts = 0;
-            const maxAttempts = 30;  // 30 seconds max
+            const maxAttempts = 30;
 
             const poll = async () => {
                 attempts++;
                 try {
-                    // Try to fetch the main page (not /setup)
                     const response = await fetch('/api/config');
                     if (response.ok) {
                         statusEl.textContent = 'Oden är redo! Laddar om...';
@@ -1765,7 +2003,6 @@ SETUP_HTML_TEMPLATE = """
                 }
             };
 
-            // Start polling after a short delay
             setTimeout(poll, 2000);
         }
     </script>

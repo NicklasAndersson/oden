@@ -27,9 +27,12 @@ from oden.web_handlers import (
     join_group_handler,
     setup_cancel_link_handler,
     setup_handler,
+    setup_install_obsidian_template_handler,
     setup_save_config_handler,
     setup_start_link_handler,
+    setup_start_register_handler,
     setup_status_handler,
+    setup_verify_code_handler,
     toggle_ignore_group_handler,
     toggle_whitelist_group_handler,
 )
@@ -84,6 +87,9 @@ def create_app(setup_mode: bool = False) -> web.Application:
     app.router.add_post("/api/setup/start-link", setup_start_link_handler)
     app.router.add_post("/api/setup/cancel-link", setup_cancel_link_handler)
     app.router.add_post("/api/setup/save-config", setup_save_config_handler)
+    app.router.add_post("/api/setup/start-register", setup_start_register_handler)
+    app.router.add_post("/api/setup/verify-code", setup_verify_code_handler)
+    app.router.add_post("/api/setup/install-obsidian-template", setup_install_obsidian_template_handler)
 
     if setup_mode:
         # In setup mode, redirect root to setup

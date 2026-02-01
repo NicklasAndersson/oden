@@ -23,9 +23,12 @@ from oden.web_handlers.group_handlers import (
 from oden.web_handlers.setup_handlers import (
     setup_cancel_link_handler,
     setup_handler,
+    setup_install_obsidian_template_handler,
     setup_save_config_handler,
     setup_start_link_handler,
+    setup_start_register_handler,
     setup_status_handler,
+    setup_verify_code_handler,
 )
 
 __all__ = [
@@ -48,4 +51,7 @@ __all__ = [
     "setup_start_link_handler",
     "setup_cancel_link_handler",
     "setup_save_config_handler",
+    "setup_start_register_handler",
+    "setup_verify_code_handler",
+    "setup_install_obsidian_template_handler",
 ]

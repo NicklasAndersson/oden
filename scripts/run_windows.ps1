@@ -4,6 +4,10 @@
 # This script installs dependencies and launches Oden.
 # All configuration is done through the web-based setup wizard.
 
+# Set UTF-8 encoding for proper Swedish character display
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # --- Colors ---
 $C_RED = "Red"
 $C_GREEN = "Green"
@@ -53,13 +57,9 @@ Write-Host ""
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Check for executable
+$EXECUTABLE = $null
 if (Test-Path "$SCRIPT_DIR\oden_windows.exe") {
     $EXECUTABLE = "$SCRIPT_DIR\oden_windows.exe"
-} else {
-    Print-Error "Kunde inte hitta oden_windows.exe"
-    Print-Info "Se till att du kor detta skript fran release-paketet."
-    Read-Host "Tryck Enter for att avsluta"
-    exit 1
 }
 
 # =============================================================================
@@ -179,7 +179,7 @@ catch {
 # =============================================================================
 # STEP 3: Create config directory
 # =============================================================================
-Print-Header "Steg 3: Forbereder konfiguration"
+Print-Header "Steg 3: Förbereder konfiguration"
 
 if (-not (Test-Path $ODEN_CONFIG_DIR)) {
     New-Item -ItemType Directory -Path $ODEN_CONFIG_DIR | Out-Null
@@ -190,23 +190,141 @@ Print-Success "Konfigurationskatalog: $ODEN_CONFIG_DIR"
 $SIGNAL_CLI_EXEC | Out-File -FilePath "$ODEN_CONFIG_DIR\.signal_cli_path" -Encoding UTF8 -NoNewline
 
 # =============================================================================
+# Python Fallback Function
+# =============================================================================
+function Run-PythonFallback {
+    Print-Warning "Försöker med Python-fallback..."
+    
+    $PYTHON_CMD = $null
+    
+    # Try python first, then python3, then py -3
+    $pythonCandidates = @("python", "python3")
+    foreach ($candidate in $pythonCandidates) {
+        $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+        if ($cmd) {
+            try {
+                $versionOutput = & $candidate -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>&1
+                if ($versionOutput -match "^(\d+)\.(\d+)$") {
+                    $major = [int]$matches[1]
+                    $minor = [int]$matches[2]
+                    if ($major -ge 3 -and $minor -ge 10) {
+                        $PYTHON_CMD = $candidate
+                        Print-Success "Python $versionOutput"
+                        break
+                    }
+                }
+            } catch { }
+        }
+    }
+    
+    # Try py launcher
+    if (-not $PYTHON_CMD) {
+        $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+        if ($pyCmd) {
+            try {
+                $versionOutput = & py -3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>&1
+                if ($versionOutput -match "^(\d+)\.(\d+)$") {
+                    $major = [int]$matches[1]
+                    $minor = [int]$matches[2]
+                    if ($major -ge 3 -and $minor -ge 10) {
+                        $PYTHON_CMD = "py"
+                        Print-Success "Python $versionOutput (via py launcher)"
+                    }
+                }
+            } catch { }
+        }
+    }
+    
+    if (-not $PYTHON_CMD) {
+        Print-Error "Python 3.10+ krävs men hittades inte."
+        Print-Info "Ladda ner från: https://www.python.org/downloads/"
+        Read-Host "Tryck Enter för att avsluta"
+        exit 1
+    }
+    
+    # Check if oden package exists
+    if (-not (Test-Path "$SCRIPT_DIR\oden")) {
+        Print-Error "Oden-källkod hittades inte."
+        Print-Error "Detta kan vara en binär-only release. Rapportera detta problem."
+        Read-Host "Tryck Enter för att avsluta"
+        exit 1
+    }
+    
+    Push-Location $SCRIPT_DIR
+    
+    # Create virtual environment if needed
+    $VENV_DIR = "$SCRIPT_DIR\.venv"
+    if (-not (Test-Path $VENV_DIR)) {
+        Print-Warning "Skapar Python virtuell miljö..."
+        if ($PYTHON_CMD -eq "py") {
+            & py -3 -m venv $VENV_DIR
+        } else {
+            & $PYTHON_CMD -m venv $VENV_DIR
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Print-Error "Kunde inte skapa virtuell miljö."
+            Pop-Location
+            Read-Host "Tryck Enter för att avsluta"
+            exit 1
+        }
+    }
+    
+    # Use the venv Python
+    $VENV_PYTHON = "$VENV_DIR\Scripts\python.exe"
+    
+    # Install dependencies
+    Print-Warning "Installerar Python-beroenden..."
+    & $VENV_PYTHON -m pip install -e . 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Print-Error "Kunde inte installera beroenden."
+        Pop-Location
+        Read-Host "Tryck Enter för att avsluta"
+        exit 1
+    }
+    
+    # Run using Python
+    Write-Host ""
+    Write-Host "=== Oden startar (Python-läge) ===" -ForegroundColor $C_GREEN
+    Write-Host "Webb-GUI: http://127.0.0.1:8080"
+    Write-Host ""
+    Write-Host "Tryck Ctrl+C för att avsluta" -ForegroundColor $C_YELLOW
+    Write-Host ""
+    
+    & $VENV_PYTHON -m oden
+    Pop-Location
+}
+
+# =============================================================================
 # STEP 4: Launch Oden
 # =============================================================================
 Print-Header "Steg 4: Startar Oden"
 
-if (-not (Test-Path "$ODEN_CONFIG_DIR\config.ini")) {
-    Print-Info "Forsta korningen - setup wizard kommer att oppnas i webblasaren."
-    Write-Host ""
-}
-
-Write-Host "Startar Oden..."
-Write-Host "Webb-GUI: http://127.0.0.1:8080"
-Write-Host ""
-Write-Host "Tryck Ctrl+C for att avsluta" -ForegroundColor $C_YELLOW
-Write-Host ""
-
 # Set environment variable for signal-cli path
 $env:SIGNAL_CLI_PATH = $SIGNAL_CLI_EXEC
 
-# Run the executable
-& $EXECUTABLE
+if ($EXECUTABLE -and (Test-Path $EXECUTABLE)) {
+    if (-not (Test-Path "$ODEN_CONFIG_DIR\config.ini")) {
+        Print-Info "Första körningen - setup wizard kommer att öppnas i webbläsaren."
+        Write-Host ""
+    }
+    
+    Write-Host "Startar Oden..."
+    Write-Host "Webb-GUI: http://127.0.0.1:8080"
+    Write-Host ""
+    Write-Host "Tryck Ctrl+C för att avsluta" -ForegroundColor $C_YELLOW
+    Write-Host ""
+    
+    # Run the executable
+    & $EXECUTABLE
+    $EXIT_CODE = $LASTEXITCODE
+    
+    # If binary failed, fall back to Python
+    if ($EXIT_CODE -ne 0) {
+        Print-Warning "Binär körning misslyckades med kod $EXIT_CODE"
+        Run-PythonFallback
+    }
+} else {
+    # No binary found, try Python directly
+    Print-Warning "Körbar fil hittades inte: oden_windows.exe"
+    Run-PythonFallback
+}

@@ -2,7 +2,7 @@
 Setup wizard handlers for Oden web GUI.
 
 These handlers manage the first-run configuration wizard,
-including Signal account linking.
+including Signal account linking and registration.
 """
 
 import asyncio
@@ -10,6 +10,7 @@ import contextlib
 import io
 import json
 import logging
+import shutil
 from pathlib import Path
 
 import qrcode
@@ -31,6 +32,9 @@ logger = logging.getLogger(__name__)
 # Global state for the linking process
 _linker = None
 _link_task = None
+
+# Global state for registration process
+_registrar = None
 
 
 async def setup_handler(request: web.Request) -> web.Response:
@@ -238,4 +242,146 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error saving setup config: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def setup_start_register_handler(request: web.Request) -> web.Response:
+    """Start Signal account registration."""
+    global _registrar
+
+    try:
+        data = await request.json()
+        phone_number = data.get("phone_number", "").strip()
+        use_voice = data.get("use_voice", False)
+        captcha_token = data.get("captcha_token", "").strip() or None
+
+        if not phone_number:
+            return web.json_response(
+                {"success": False, "error": "Telefonnummer krävs"},
+                status=400,
+            )
+
+        if not phone_number.startswith("+"):
+            return web.json_response(
+                {"success": False, "error": "Telefonnummer måste börja med + (t.ex. +46701234567)"},
+                status=400,
+            )
+
+        # Import here to avoid circular imports
+        from oden.signal_manager import SignalRegistrar
+
+        _registrar = SignalRegistrar()
+        result = await _registrar.start_register(phone_number, use_voice, captcha_token)
+
+        return web.json_response(result)
+
+    except FileNotFoundError as e:
+        return web.json_response(
+            {"success": False, "error": f"signal-cli hittades inte: {e}"},
+            status=500,
+        )
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error starting registration: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def setup_verify_code_handler(request: web.Request) -> web.Response:
+    """Verify registration with received code."""
+    global _registrar
+
+    if not _registrar:
+        return web.json_response(
+            {"success": False, "error": "Ingen registrering pågår"},
+            status=400,
+        )
+
+    try:
+        data = await request.json()
+        code = data.get("code", "").strip()
+
+        if not code:
+            return web.json_response(
+                {"success": False, "error": "Verifieringskod krävs"},
+                status=400,
+            )
+
+        result = await _registrar.verify(code)
+        return web.json_response(result)
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error verifying code: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def setup_install_obsidian_template_handler(request: web.Request) -> web.Response:
+    """Install Obsidian template to vault directory."""
+    try:
+        data = await request.json()
+        vault_path = data.get("vault_path", "").strip()
+
+        if not vault_path:
+            return web.json_response(
+                {"success": False, "error": "Vault-sökväg krävs"},
+                status=400,
+            )
+
+        # Expand user path
+        vault_path = str(Path(vault_path).expanduser())
+        obsidian_target = Path(vault_path) / ".obsidian"
+
+        # Check if .obsidian already exists
+        if obsidian_target.exists():
+            return web.json_response(
+                {
+                    "success": True,
+                    "message": "Obsidian-inställningar finns redan",
+                    "skipped": True,
+                }
+            )
+
+        # Find the obsidian template
+        bundle_path = get_bundle_path()
+        template_path = bundle_path / "obsidian-template" / ".obsidian"
+
+        # Also check relative path for development
+        if not template_path.exists():
+            dev_template = Path("./obsidian-template/.obsidian")
+            if dev_template.exists():
+                template_path = dev_template
+
+        if not template_path.exists():
+            return web.json_response(
+                {"success": False, "error": "Obsidian-mall hittades inte"},
+                status=404,
+            )
+
+        # Create vault directory if needed
+        Path(vault_path).mkdir(parents=True, exist_ok=True)
+
+        # Copy the template
+        shutil.copytree(template_path, obsidian_target)
+
+        logger.info(f"Installed Obsidian template to {obsidian_target}")
+        return web.json_response(
+            {
+                "success": True,
+                "message": "Obsidian-inställningar installerade! Aktivera community plugins i Obsidian för att använda Map View.",
+                "path": str(obsidian_target),
+            }
+        )
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except PermissionError as e:
+        logger.error(f"Permission error installing Obsidian template: {e}")
+        return web.json_response(
+            {"success": False, "error": f"Behörighetsproblem: {e}"},
+            status=500,
+        )
+    except Exception as e:
+        logger.error(f"Error installing Obsidian template: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)

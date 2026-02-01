@@ -62,12 +62,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Check if we're in the release package
+EXECUTABLE=""
 if [ -f "$SCRIPT_DIR/oden_linux" ]; then
     EXECUTABLE="$SCRIPT_DIR/oden_linux"
-else
-    print_error "Kunde inte hitta oden_linux binär."
-    print_info "Se till att du kör detta skript från release-paketet."
-    exit 1
 fi
 
 # =============================================================================
@@ -212,4 +209,95 @@ echo ""
 # Export signal-cli path for the app
 export SIGNAL_CLI_PATH="$SIGNAL_CLI_EXEC"
 
-exec "$EXECUTABLE"
+# Function for Python fallback
+run_python_fallback() {
+    print_warning "Försöker med Python-fallback..."
+    
+    PYTHON_CMD=""
+    # Try python3 first, then python
+    if command -v python3 &> /dev/null; then
+        PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+        PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+        
+        if [ "$PYTHON_MAJOR" -ge 3 ] && [ "$PYTHON_MINOR" -ge 10 ]; then
+            PYTHON_CMD="python3"
+        fi
+    fi
+    
+    if [ -z "$PYTHON_CMD" ] && command -v python &> /dev/null; then
+        PYTHON_VERSION=$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+        PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+        
+        if [ "$PYTHON_MAJOR" -ge 3 ] && [ "$PYTHON_MINOR" -ge 10 ]; then
+            PYTHON_CMD="python"
+        fi
+    fi
+    
+    if [ -z "$PYTHON_CMD" ]; then
+        print_error "Python 3.10+ krävs men hittades inte."
+        print_info "Installera med: sudo apt install python3.11 python3.11-venv"
+        exit 1
+    fi
+    
+    print_success "Python $PYTHON_VERSION"
+    
+    # Check if oden package exists
+    if [ ! -d "$SCRIPT_DIR/oden" ]; then
+        print_error "Oden-källkod hittades inte."
+        print_error "Detta kan vara en binär-only release. Rapportera detta problem."
+        exit 1
+    fi
+    
+    cd "$SCRIPT_DIR" || exit 1
+    
+    # Create virtual environment if needed
+    VENV_DIR="$SCRIPT_DIR/.venv"
+    if [ ! -d "$VENV_DIR" ]; then
+        print_warning "Skapar Python virtuell miljö..."
+        $PYTHON_CMD -m venv "$VENV_DIR" || {
+            print_error "Kunde inte skapa virtuell miljö."
+            print_info "Installera venv med: sudo apt install python3.11-venv"
+            exit 1
+        }
+    fi
+    
+    # Use the venv Python
+    PYTHON_CMD="$VENV_DIR/bin/python3"
+    
+    # Install dependencies
+    print_warning "Installerar Python-beroenden..."
+    $PYTHON_CMD -m pip install -e . || {
+        print_error "Kunde inte installera beroenden."
+        exit 1
+    }
+    
+    # Run using Python
+    echo ""
+    echo -e "${C_GREEN}${C_BOLD}=== Oden startar (Python-läge) ===${C_RESET}"
+    echo "Webb-GUI: http://127.0.0.1:8080"
+    echo ""
+    echo -e "${C_YELLOW}Tryck Ctrl+C för att avsluta${C_RESET}"
+    echo ""
+    exec $PYTHON_CMD -m oden
+}
+
+# Try to run the binary if it exists
+if [ -n "$EXECUTABLE" ] && [ -f "$EXECUTABLE" ]; then
+    chmod +x "$EXECUTABLE"
+    
+    "$EXECUTABLE"
+    EXIT_CODE=$?
+    
+    # If binary failed (130 = Ctrl+C, which is expected), fall back to Python
+    if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
+        print_warning "Binär körning misslyckades med kod $EXIT_CODE"
+        run_python_fallback
+    fi
+    exit $EXIT_CODE
+else
+    # No binary found, try Python directly
+    print_warning "Körbar fil hittades inte: oden_linux"
+    run_python_fallback
+fi
