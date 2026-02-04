@@ -52,14 +52,14 @@ jobs:
       # Cache JRE download (x64 only for Intel build)
       - name: Cache JRE x64
         id: cache-jre-x64
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build-dmg/jre-x64
           key: temurin-jre-25-macos-x64-v1
 
       - name: Cache signal-cli
         id: cache-signal-cli
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build-dmg/signal-cli
           key: signal-cli-0.13.23-v1
