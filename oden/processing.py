@@ -239,6 +239,11 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         command = msg.strip()[1:]
         if not command:
             return
+        # Validate command to prevent path traversal attacks
+        # Block path separators and parent directory references
+        if "/" in command or "\\" in command or ".." in command:
+            logger.warning(f"Blocked potentially malicious command: #{command}")
+            return
         response_filepath = os.path.join("responses", f"{command}.md")
         if os.path.exists(response_filepath):
             try:

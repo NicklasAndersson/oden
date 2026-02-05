@@ -8,6 +8,7 @@ and initial setup wizard for first-run configuration.
 import asyncio
 import logging
 import os
+import secrets
 import signal
 
 from aiohttp import web
@@ -39,6 +40,67 @@ from oden.web_handlers import (
 from oden.web_templates import HTML_TEMPLATE
 
 logger = logging.getLogger(__name__)
+
+# API token for authentication (generated on startup)
+_api_token: str | None = None
+
+# Endpoints that require authentication (sensitive operations)
+PROTECTED_ENDPOINTS = {
+    "/api/config-file",  # GET and POST - read/write config file
+    "/api/config-save",  # POST - save config
+    "/api/shutdown",  # POST - shutdown application
+    "/api/join-group",  # POST - join Signal group
+    "/api/toggle-ignore-group",  # POST - modify group settings
+    "/api/toggle-whitelist-group",  # POST - modify group settings
+    "/api/invitations/accept",  # POST - accept group invitation
+    "/api/invitations/decline",  # POST - decline group invitation
+}
+
+
+def get_api_token() -> str:
+    """Get or generate the API token for this session."""
+    global _api_token
+    if _api_token is None:
+        _api_token = secrets.token_urlsafe(32)
+    return _api_token
+
+
+@web.middleware
+async def auth_middleware(request: web.Request, handler):
+    """Middleware to check API token for protected endpoints."""
+    path = request.path
+
+    # Check if this endpoint requires authentication
+    if path in PROTECTED_ENDPOINTS:
+        # Check for token in Authorization header or query parameter
+        auth_header = request.headers.get("Authorization", "")
+        query_token = request.query.get("token", "")
+
+        expected_token = get_api_token()
+
+        # Accept token from Bearer header or query parameter
+        provided_token = None
+        if auth_header.startswith("Bearer "):
+            provided_token = auth_header[7:]
+        elif query_token:
+            provided_token = query_token
+
+        if provided_token != expected_token:
+            logger.warning(f"Unauthorized access attempt to {path}")
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": "Unauthorized. Provide API token via 'Authorization: Bearer <token>' header or '?token=<token>' query parameter.",
+                },
+                status=401,
+            )
+
+    return await handler(request)
+
+
+async def token_handler(request: web.Request) -> web.Response:
+    """Return the API token for use with protected endpoints."""
+    return web.json_response({"token": get_api_token()})
 
 
 async def index_handler(request: web.Request) -> web.Response:
@@ -79,7 +141,9 @@ def create_app(setup_mode: bool = False) -> web.Application:
     Args:
         setup_mode: If True, only enable setup-related routes.
     """
-    app = web.Application()
+    # In setup mode, don't use auth middleware
+    middlewares = [] if setup_mode else [auth_middleware]
+    app = web.Application(middlewares=middlewares)
 
     # Setup routes (always available)
     app.router.add_get("/setup", setup_handler)
@@ -102,6 +166,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/", index_handler)
         app.router.add_get("/api/config", config_handler)
         app.router.add_get("/api/logs", logs_handler)
+        app.router.add_get("/api/token", token_handler)  # Get API token
         app.router.add_post("/api/join-group", join_group_handler)
         app.router.add_get("/api/invitations", invitations_handler)
         app.router.add_post("/api/invitations/accept", accept_invitation_handler)
@@ -148,6 +213,10 @@ async def start_web_server(port: int = 8080, setup_mode: bool = False) -> web.Ap
     await site.start()
     mode_str = " (setup mode)" if setup_mode else ""
     logger.info(f"Web GUI started at http://127.0.0.1:{port}{mode_str}")
+    if not setup_mode:
+        # Generate the API token for protected endpoints without logging its value
+        get_api_token()
+        logger.info("API token for protected endpoints has been generated.")
     return runner
 
 
