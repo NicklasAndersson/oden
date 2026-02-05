@@ -214,8 +214,9 @@ async def start_web_server(port: int = 8080, setup_mode: bool = False) -> web.Ap
     mode_str = " (setup mode)" if setup_mode else ""
     logger.info(f"Web GUI started at http://127.0.0.1:{port}{mode_str}")
     if not setup_mode:
-        token = get_api_token()
-        logger.info(f"API token for protected endpoints: {token}")
+        # Generate the API token for protected endpoints without logging its value
+        get_api_token()
+        logger.info("API token for protected endpoints has been generated.")
     return runner
 
 
