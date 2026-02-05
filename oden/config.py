@@ -298,11 +298,23 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
     # Migrate from INI if requested
     db_path = path / "config.db"
     if ini_path:
-        ini_path = Path(ini_path).expanduser()
-        if not ini_path.exists():
-            return False, f"INI-fil hittades inte: {ini_path}"
+        # Normalize and constrain the INI path to be within the chosen Oden home.
+        try:
+            raw_ini_path = Path(ini_path)
+            # Resolve against the Oden home directory to prevent directory traversal
+            # and disallow absolute paths outside of `path`.
+            safe_ini_path = (path / raw_ini_path).resolve()
+            # Raises ValueError if `safe_ini_path` is not within `path`
+            safe_ini_path.relative_to(path)
+        except (OSError, RuntimeError):
+            return False, "Ogiltig sökväg för INI-fil: kunde inte verifiera sökväg"
+        except ValueError:
+            return False, f"Ogiltig sökväg för INI-fil: {ini_path}"
 
-        success, error = migrate_from_ini(ini_path, db_path)
+        if not safe_ini_path.exists():
+            return False, f"INI-fil hittades inte: {safe_ini_path}"
+
+        success, error = migrate_from_ini(safe_ini_path, db_path)
         if not success:
             return False, error
     else:

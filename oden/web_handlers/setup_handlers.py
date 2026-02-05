@@ -214,15 +214,8 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
         oden_home_path = data.get("oden_home", str(DEFAULT_ODEN_HOME))
         ini_path = data.get("ini_path")  # Optional path to migrate from
 
-        # Validate and set up
-        if ini_path:
-            ini_path = Path(ini_path).expanduser()
-            if not ini_path.exists():
-                return web.json_response(
-                    {"success": False, "error": f"INI-fil hittades inte: {ini_path}"},
-                    status=400,
-                )
-
+        # Validate and set up; path validation (including ini_path) is handled
+        # inside setup_oden_home to ensure consistent security checks.
         success, error = setup_oden_home(Path(oden_home_path), ini_path)
 
         if success:
