@@ -69,9 +69,7 @@ async def config_export_handler(request: web.Request) -> web.Response:
         return web.Response(
             text=ini_content,
             content_type="text/plain",
-            headers={
-                "Content-Disposition": "attachment; filename=oden-config.ini"
-            },
+            headers={"Content-Disposition": "attachment; filename=oden-config.ini"},
         )
     except Exception as e:
         logger.error(f"Error exporting config: {e}")

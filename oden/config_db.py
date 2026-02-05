@@ -143,9 +143,7 @@ def check_db_integrity(db_path: Path) -> tuple[bool, str | None]:
             return False, "corrupt"
 
         # Check that config table exists
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='config'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='config'")
         if cursor.fetchone() is None:
             conn.close()
             return False, "invalid_schema"
@@ -318,9 +316,7 @@ def migrate_from_ini(ini_path: Path, db_path: Path) -> tuple[bool, str | None]:
             config_dict["signal_cli_host"] = config.get("Signal", "host", fallback="127.0.0.1")
             config_dict["signal_cli_port"] = config.getint("Signal", "port", fallback=7583)
             config_dict["signal_cli_log_file"] = config.get("Signal", "log_file", fallback=None)
-            config_dict["unmanaged_signal_cli"] = config.getboolean(
-                "Signal", "unmanaged_signal_cli", fallback=False
-            )
+            config_dict["unmanaged_signal_cli"] = config.getboolean("Signal", "unmanaged_signal_cli", fallback=False)
 
         # Regex section
         if config.has_section("Regex"):
@@ -328,28 +324,16 @@ def migrate_from_ini(ini_path: Path, db_path: Path) -> tuple[bool, str | None]:
 
         # Settings section
         if config.has_section("Settings"):
-            config_dict["append_window_minutes"] = config.getint(
-                "Settings", "append_window_minutes", fallback=30
-            )
-            config_dict["startup_message"] = config.get(
-                "Settings", "startup_message", fallback="self"
-            ).lower()
-            config_dict["plus_plus_enabled"] = config.getboolean(
-                "Settings", "plus_plus_enabled", fallback=False
-            )
-            config_dict["filename_format"] = config.get(
-                "Settings", "filename_format", fallback="classic"
-            ).lower()
+            config_dict["append_window_minutes"] = config.getint("Settings", "append_window_minutes", fallback=30)
+            config_dict["startup_message"] = config.get("Settings", "startup_message", fallback="self").lower()
+            config_dict["plus_plus_enabled"] = config.getboolean("Settings", "plus_plus_enabled", fallback=False)
+            config_dict["filename_format"] = config.get("Settings", "filename_format", fallback="classic").lower()
 
             ignored_groups_str = config.get("Settings", "ignored_groups", fallback="")
-            config_dict["ignored_groups"] = [
-                g.strip() for g in ignored_groups_str.split(",") if g.strip()
-            ]
+            config_dict["ignored_groups"] = [g.strip() for g in ignored_groups_str.split(",") if g.strip()]
 
             whitelist_groups_str = config.get("Settings", "whitelist_groups", fallback="")
-            config_dict["whitelist_groups"] = [
-                g.strip() for g in whitelist_groups_str.split(",") if g.strip()
-            ]
+            config_dict["whitelist_groups"] = [g.strip() for g in whitelist_groups_str.split(",") if g.strip()]
 
         # Timezone section
         if config.has_section("Timezone"):
@@ -425,14 +409,16 @@ def export_to_ini(db_path: Path) -> str:
             lines.append(f"{name} = {pattern}")
 
     # Settings section
-    lines.extend([
-        "",
-        "[Settings]",
-        f"append_window_minutes = {config.get('append_window_minutes', 30)}",
-        f"startup_message = {config.get('startup_message', 'self')}",
-        f"plus_plus_enabled = {str(config.get('plus_plus_enabled', False)).lower()}",
-        f"filename_format = {config.get('filename_format', 'classic')}",
-    ])
+    lines.extend(
+        [
+            "",
+            "[Settings]",
+            f"append_window_minutes = {config.get('append_window_minutes', 30)}",
+            f"startup_message = {config.get('startup_message', 'self')}",
+            f"plus_plus_enabled = {str(config.get('plus_plus_enabled', False)).lower()}",
+            f"filename_format = {config.get('filename_format', 'classic')}",
+        ]
+    )
 
     ignored_groups = config.get("ignored_groups", [])
     if ignored_groups:
@@ -443,30 +429,36 @@ def export_to_ini(db_path: Path) -> str:
         lines.append(f"whitelist_groups = {', '.join(whitelist_groups)}")
 
     # Timezone section
-    lines.extend([
-        "",
-        "[Timezone]",
-        f"timezone = {config.get('timezone', 'Europe/Stockholm')}",
-    ])
+    lines.extend(
+        [
+            "",
+            "[Timezone]",
+            f"timezone = {config.get('timezone', 'Europe/Stockholm')}",
+        ]
+    )
 
     # Web section
-    lines.extend([
-        "",
-        "[Web]",
-        f"enabled = {str(config.get('web_enabled', True)).lower()}",
-        f"port = {config.get('web_port', 8080)}",
-    ])
+    lines.extend(
+        [
+            "",
+            "[Web]",
+            f"enabled = {str(config.get('web_enabled', True)).lower()}",
+            f"port = {config.get('web_port', 8080)}",
+        ]
+    )
     if config.get("web_access_log"):
         lines.append(f"access_log = {config['web_access_log']}")
 
     # Logging section
     log_level = config.get("log_level", "INFO")
     if log_level != "INFO":
-        lines.extend([
-            "",
-            "[Logging]",
-            f"level = {log_level}",
-        ])
+        lines.extend(
+            [
+                "",
+                "[Logging]",
+                f"level = {log_level}",
+            ]
+        )
 
     lines.append("")  # Final newline
     return "\n".join(lines)

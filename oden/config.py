@@ -232,9 +232,8 @@ def reset_config() -> bool:
     from oden.bundle_utils import clear_oden_home_pointer
 
     success = True
-    if CONFIG_DB.exists():
-        if not delete_db(CONFIG_DB):
-            success = False
+    if CONFIG_DB.exists() and not delete_db(CONFIG_DB):
+        success = False
     if not clear_oden_home_pointer():
         success = False
 

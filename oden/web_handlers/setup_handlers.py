@@ -28,7 +28,6 @@ from oden.bundle_utils import (
 from oden.config import (
     CONFIG_DB,
     DEFAULT_VAULT_PATH,
-    ODEN_HOME,
     is_configured,
     reset_config,
     save_config,
