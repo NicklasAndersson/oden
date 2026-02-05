@@ -27,7 +27,7 @@ def normalize_path(path: str | Path) -> Path:
         ValueError: If path is empty.
         OSError: If path cannot be resolved.
     """
-    if not path:
+    if path is None or (isinstance(path, str) and not path.strip()):
         raise ValueError("Path cannot be empty")
     return Path(path).expanduser().resolve()
 
@@ -152,14 +152,18 @@ def validate_ini_file_path(
     except (OSError, RuntimeError, ValueError) as e:
         return None, f"Ogiltig sökväg för INI-fil: {e}"
 
-    # Check parent constraint
-    if must_be_within is not None:
-        try:
+    # Determine parent constraint: either the provided directory or user home by default
+    try:
+        if must_be_within is not None:
             parent = normalize_path(must_be_within)
-            if not is_within_directory(resolved, parent):
-                return None, f"INI-fil måste vara under {parent}"
-        except (OSError, RuntimeError, ValueError):
-            return None, "Ogiltig föräldrasökväg"
+        else:
+            parent = Path.home().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None, "Ogiltig föräldrasökväg"
+
+    # Enforce that the INI file is within the allowed parent directory
+    if not is_within_directory(resolved, parent):
+        return None, f"INI-fil måste vara under {parent}"
 
     # Must be named config.ini
     if resolved.name != "config.ini":
