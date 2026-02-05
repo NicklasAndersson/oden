@@ -310,7 +310,12 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
         except ValueError:
             return False, f"Ogiltig sökväg för INI-fil: {ini_path}"
 
-        if not safe_ini_path.exists():
+        # Further restrict to a specific INI file name within the validated root.
+        # This prevents arbitrary file selection even inside the Oden home.
+        if safe_ini_path.name != "config.ini":
+            return False, f"Ogiltigt filnamn för INI-fil: {safe_ini_path.name}"
+
+        if not safe_ini_path.exists() or not safe_ini_path.is_file():
             return False, f"INI-fil hittades inte: {safe_ini_path}"
 
         success, error = migrate_from_ini(safe_ini_path, db_path)
