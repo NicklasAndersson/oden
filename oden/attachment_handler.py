@@ -88,7 +88,13 @@ async def save_attachments(
         if data and filename:
             try:
                 decoded_data = base64.b64decode(data)
-                safe_filename = f"{i + 1}_{filename}"
+                # Sanitize filename to prevent path traversal attacks
+                # os.path.basename strips directory components like "../" or "subdir/"
+                sanitized_filename = os.path.basename(filename)
+                if not sanitized_filename:
+                    # Use attachment ID for uniqueness if available, otherwise use index
+                    sanitized_filename = f"attachment_{attachment_id or i + 1}"
+                safe_filename = f"{i + 1}_{sanitized_filename}"
                 attachment_filepath = os.path.join(attachment_dir, safe_filename)
                 with open(attachment_filepath, "wb") as f:
                     f.write(decoded_data)
