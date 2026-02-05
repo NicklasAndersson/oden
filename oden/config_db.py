@@ -290,12 +290,16 @@ def migrate_from_ini(ini_path: Path, db_path: Path) -> tuple[bool, str | None]:
     import configparser
     import os
 
-    if not ini_path.exists():
-        return False, f"INI-fil hittades inte: {ini_path}"
+    # Normalize the incoming path to avoid issues with relative components
+    # and ensure we only operate on a resolved file system path.
+    safe_ini_path = Path(ini_path).expanduser().resolve()
+
+    if not safe_ini_path.exists():
+        return False, f"INI-fil hittades inte: {safe_ini_path}"
 
     try:
         config = configparser.RawConfigParser()
-        config.read(ini_path)
+        config.read(safe_ini_path)
 
         config_dict = {}
 
