@@ -267,6 +267,22 @@ async def setup_validate_path_handler(request: web.Request) -> web.Response:
                 status=400,
             )
 
+        # Constrain the path to be within the default Oden home directory to
+        # prevent arbitrary filesystem probing via user-controlled paths.
+        safe_root = DEFAULT_ODEN_HOME.expanduser().resolve()
+        try:
+            # Python 3.9+: use is_relative_to if available
+            is_inside_safe_root = resolved_path == safe_root or resolved_path.is_relative_to(safe_root)  # type: ignore[attr-defined]
+        except AttributeError:
+            # Fallback for older Python versions
+            is_inside_safe_root = resolved_path == safe_root or safe_root in resolved_path.parents
+
+        if not is_inside_safe_root:
+            return web.json_response(
+                {"valid": False, "error": "Sökvägen är inte tillåten"},
+                status=400,
+            )
+
         path = resolved_path
         is_valid, error = validate_oden_home(path)
 
