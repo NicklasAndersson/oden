@@ -33,6 +33,12 @@ from oden.config import (
     save_config,
     setup_oden_home,
 )
+from oden.path_utils import (
+    is_filesystem_root,
+    is_within_directory,
+    normalize_path,
+    validate_ini_file_path,
+)
 from oden.web_templates import SETUP_HTML_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -215,37 +221,11 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
 
         ini_path_obj: Path | None = None
         if ini_path_value:
-            try:
-                # Normalize and constrain the ini_path under the current user's home directory.
-                user_home = Path.home().resolve()
-                ini_path_obj = Path(ini_path_value).expanduser().resolve()
-                ini_path_obj.relative_to(user_home)
-                # Ensure the path points to an existing INI file.
-                if not ini_path_obj.is_file():
-                    return web.json_response(
-                        {
-                            "success": False,
-                            "error": f"Ogiltig sökväg för INI-fil (filen finns inte): {ini_path_value}",
-                        },
-                        status=400,
-                    )
-                if ini_path_obj.suffix.lower() != ".ini":
-                    return web.json_response(
-                        {
-                            "success": False,
-                            "error": f"Ogiltig sökväg för INI-fil (måste vara .ini): {ini_path_value}",
-                        },
-                        status=400,
-                    )
-            except (OSError, RuntimeError):
+            # Validate INI file path using centralized validation
+            ini_path_obj, ini_error = validate_ini_file_path(ini_path_value)
+            if ini_error:
                 return web.json_response(
-                    {"success": False, "error": "Ogiltig sökväg för INI-fil"},
-                    status=400,
-                )
-            except ValueError:
-                # ini_path is outside the allowed root
-                return web.json_response(
-                    {"success": False, "error": f"Ogiltig sökväg för INI-fil: {ini_path_value}"},
+                    {"success": False, "error": ini_error},
                     status=400,
                 )
 
@@ -288,49 +268,40 @@ async def setup_validate_path_handler(request: web.Request) -> web.Response:
 
         # Normalize and perform basic safety checks on the user-provided path
         try:
-            resolved_path = Path(path).expanduser().resolve()
+            resolved_path = normalize_path(path)
         except (OSError, RuntimeError, ValueError):
             return web.json_response(
                 {"valid": False, "error": "Ogiltig sökväg"},
                 status=400,
             )
 
-        # Disallow using the filesystem root as Oden home to avoid probing arbitrary system paths
-        if str(resolved_path) == resolved_path.anchor:
+        # Disallow using the filesystem root as Oden home
+        if is_filesystem_root(resolved_path):
             return web.json_response(
                 {"valid": False, "error": "Sökvägen är inte tillåten"},
                 status=400,
             )
 
-        # Constrain the path to be within the default Oden home directory to
-        # prevent arbitrary filesystem probing via user-controlled paths.
-        safe_root = DEFAULT_ODEN_HOME.expanduser().resolve()
-        try:
-            # Python 3.9+: use is_relative_to if available
-            is_inside_safe_root = resolved_path == safe_root or resolved_path.is_relative_to(safe_root)  # type: ignore[attr-defined]
-        except AttributeError:
-            # Fallback for older Python versions
-            is_inside_safe_root = resolved_path == safe_root or safe_root in resolved_path.parents
-
-        if not is_inside_safe_root:
+        # Constrain the path to be within the default Oden home directory
+        safe_root = normalize_path(DEFAULT_ODEN_HOME)
+        if not (resolved_path == safe_root or is_within_directory(resolved_path, safe_root)):
             return web.json_response(
                 {"valid": False, "error": "Sökvägen är inte tillåten"},
                 status=400,
             )
 
-        path = resolved_path
-        is_valid, error = validate_oden_home(path)
+        is_valid, error = validate_oden_home(resolved_path)
 
         if is_valid:
             # Check if there's already a config.db
-            db_exists = (path / "config.db").exists()
-            ini_exists = (path / "config.ini").exists()
+            db_exists = (resolved_path / "config.db").exists()
+            ini_exists = (resolved_path / "config.ini").exists()
 
             return web.json_response(
                 {
                     "valid": True,
-                    "path": str(path),
-                    "exists": path.exists(),
+                    "path": str(resolved_path),
+                    "exists": resolved_path.exists(),
                     "has_config_db": db_exists,
                     "has_config_ini": ini_exists,
                 }

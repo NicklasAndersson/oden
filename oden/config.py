@@ -30,6 +30,12 @@ from oden.config_db import (
     migrate_from_ini,
     save_all_config,
 )
+from oden.path_utils import (
+    ensure_directory,
+    normalize_path,
+    validate_ini_file_path,
+    validate_path_within_home,
+)
 
 # Computed paths - these depend on ODEN_HOME which may not be set yet
 ODEN_HOME: Path = DEFAULT_ODEN_HOME
@@ -64,9 +70,9 @@ def get_config_template_path() -> Path:
 
 def ensure_oden_directories() -> None:
     """Create Oden directories if they don't exist."""
-    ODEN_HOME.mkdir(parents=True, exist_ok=True)
-    SIGNAL_DATA_PATH.mkdir(parents=True, exist_ok=True)
-    DEFAULT_VAULT_PATH.mkdir(parents=True, exist_ok=True)
+    ensure_directory(ODEN_HOME)
+    ensure_directory(SIGNAL_DATA_PATH)
+    ensure_directory(DEFAULT_VAULT_PATH)
 
 
 def is_configured() -> tuple[bool, str | None]:
@@ -255,28 +261,12 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
         (True, None) on success
         (False, error_message) on failure
     """
-    # Normalize and constrain the path selected by the user
-    path = Path(path).expanduser().resolve()
-
-    # Normalize ini_path as well if provided, so that any callers that pass a
-    # string (for example from user input) get consistent handling.
-    if ini_path is not None and not isinstance(ini_path, Path):
-        ini_path = Path(ini_path).expanduser().resolve()
-
-    # Only allow Oden home directories under the current user's home directory,
-    # unless the path is exactly the compiled-in default.
-    try:
-        user_home = Path.home().resolve()
-        default_home = DEFAULT_ODEN_HOME.expanduser().resolve()
-        if path != default_home:
-            # Raises ValueError if `path` is not within `user_home`
-            path.relative_to(user_home)
-    except (OSError, RuntimeError):
-        # If we cannot determine a safe home directory, reject the path
-        return False, "Ogiltig sökväg: kunde inte verifiera hemkatalog"
-    except ValueError:
-        # Path is outside the allowed root
-        return False, f"Ogiltig sökväg: {path}"
+    # Validate and normalize the path using centralized security
+    default_home = normalize_path(DEFAULT_ODEN_HOME)
+    resolved_path, path_error = validate_path_within_home(path, allow_path=default_home)
+    if path_error:
+        return False, path_error
+    path = resolved_path
 
     # Validate the path
     is_valid, error = validate_oden_home(path)
@@ -285,12 +275,13 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
             return False, "Databasen är korrupt. Radera den och försök igen."
         return False, f"Ogiltig sökväg: {error}"
 
-    # Create directories
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-        (path / "signal-data").mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        return False, f"Kunde inte skapa katalog: {e}"
+    # Create directories using centralized function
+    success, dir_error = ensure_directory(path)
+    if not success:
+        return False, f"Kunde inte skapa katalog: {dir_error}"
+    success, dir_error = ensure_directory(path / "signal-data")
+    if not success:
+        return False, f"Kunde inte skapa signal-data katalog: {dir_error}"
 
     # Update paths
     _update_paths(path)
@@ -302,30 +293,14 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
     # Migrate from INI if requested
     db_path = path / "config.db"
     if ini_path:
-        # Normalize and constrain the INI path to be within the chosen Oden home.
-        try:
-            raw_ini_path = Path(ini_path)
-            # Resolve against the Oden home directory to prevent directory traversal
-            # and disallow absolute paths outside of `path`.
-            safe_ini_path = (path / raw_ini_path).resolve()
-            # Raises ValueError if `safe_ini_path` is not within `path`
-            safe_ini_path.relative_to(path)
-        except (OSError, RuntimeError):
-            return False, "Ogiltig sökväg för INI-fil: kunde inte verifiera sökväg"
-        except ValueError:
-            return False, f"Ogiltig sökväg för INI-fil: {ini_path}"
+        # Validate INI file path using centralized validation
+        safe_ini_path, ini_error = validate_ini_file_path(ini_path, must_be_within=path)
+        if ini_error:
+            return False, ini_error
 
-        # Further restrict to a specific INI file name within the validated root.
-        # This prevents arbitrary file selection even inside the Oden home.
-        if safe_ini_path.name != "config.ini":
-            return False, f"Ogiltigt filnamn för INI-fil: {safe_ini_path.name}"
-
-        if not safe_ini_path.exists() or not safe_ini_path.is_file():
-            return False, f"INI-fil hittades inte: {safe_ini_path}"
-
-        success, error = migrate_from_ini(safe_ini_path, db_path)
+        success, migrate_error = migrate_from_ini(safe_ini_path, db_path)
         if not success:
-            return False, error
+            return False, migrate_error
     else:
         # Initialize empty database
         init_db(db_path)

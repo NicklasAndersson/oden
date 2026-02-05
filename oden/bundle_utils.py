@@ -11,6 +11,8 @@ import platform
 import sys
 from pathlib import Path
 
+from oden.path_utils import ensure_directory, normalize_path
+
 logger = logging.getLogger(__name__)
 
 # Default paths
@@ -123,7 +125,7 @@ def get_oden_home_path() -> Path | None:
         if not content:
             return None
 
-        oden_home = Path(content).expanduser()
+        oden_home = normalize_path(content)
 
         # Verify the directory exists
         if not oden_home.exists():
@@ -132,7 +134,7 @@ def get_oden_home_path() -> Path | None:
 
         return oden_home
 
-    except OSError as e:
+    except (OSError, ValueError) as e:
         logger.error(f"Error reading pointer file: {e}")
         return None
 
@@ -148,10 +150,13 @@ def set_oden_home_path(path: Path) -> bool:
     """
     pointer_file = get_pointer_file_path()
 
-    try:
-        # Create app support directory if needed
-        pointer_file.parent.mkdir(parents=True, exist_ok=True)
+    # Create app support directory if needed using centralized function
+    success, error = ensure_directory(pointer_file.parent)
+    if not success:
+        logger.error(f"Failed to create directory: {error}")
+        return False
 
+    try:
         # Write the path
         pointer_file.write_text(str(path.resolve()), encoding="utf-8")
         logger.info(f"Set Oden home path to: {path}")
@@ -181,16 +186,17 @@ def validate_oden_home(path: Path) -> tuple[bool, str | None]:
     """
     from oden.config_db import check_db_integrity
 
-    path = Path(path).expanduser()
+    try:
+        path = normalize_path(path)
+    except (OSError, ValueError):
+        return False, "not_writable"
 
     # Check if we can create/access the directory
-    try:
-        if not path.exists():
-            # Try to create it
-            path.mkdir(parents=True, exist_ok=True)
-        elif not path.is_dir():
-            return False, "not_writable"
-    except OSError:
+    success, _error = ensure_directory(path)
+    if not success:
+        return False, "not_writable"
+
+    if not path.is_dir():
         return False, "not_writable"
 
     # Check if config.db exists and is valid
