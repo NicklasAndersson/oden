@@ -1,36 +1,61 @@
 """
 Configuration management for Oden.
 
-Handles loading configuration from ~/.oden/config.ini with automatic
-directory creation and template copying on first run.
+Handles loading configuration from ~/.oden/config.db (SQLite) with automatic
+directory creation on first run. Maintains backward compatibility with the
+module-level exports pattern.
 """
 
-import configparser
 import datetime
 import logging
 import os
-import shutil
 import sys
 import zoneinfo
 from pathlib import Path
 
-from oden.bundle_utils import get_bundle_path
+from oden.bundle_utils import (
+    DEFAULT_ODEN_HOME,
+    get_bundle_path,
+    get_oden_home_path,
+    set_oden_home_path,
+    validate_oden_home,
+)
+from oden.config_db import (
+    DEFAULT_CONFIG,
+    check_db_integrity,
+    delete_db,
+    export_to_ini,
+    get_all_config,
+    init_db,
+    migrate_from_ini,
+    save_all_config,
+)
 
-# Default paths
-ODEN_HOME = Path.home() / ".oden"
-CONFIG_FILE = ODEN_HOME / "config.ini"
-DEFAULT_VAULT_PATH = Path.home() / "oden-vault"
-SIGNAL_DATA_PATH = ODEN_HOME / "signal-data"
+# Computed paths - these depend on ODEN_HOME which may not be set yet
+ODEN_HOME: Path = DEFAULT_ODEN_HOME
+CONFIG_DB: Path = DEFAULT_ODEN_HOME / "config.db"
+DEFAULT_VAULT_PATH: Path = Path.home() / "oden-vault"
+SIGNAL_DATA_PATH: Path = DEFAULT_ODEN_HOME / "signal-data"
+
+# Legacy compatibility
+CONFIG_FILE: Path = DEFAULT_ODEN_HOME / "config.ini"
+
+
+def _update_paths(oden_home: Path) -> None:
+    """Update module-level paths based on ODEN_HOME."""
+    global ODEN_HOME, CONFIG_DB, SIGNAL_DATA_PATH, CONFIG_FILE
+    ODEN_HOME = oden_home
+    CONFIG_DB = oden_home / "config.db"
+    SIGNAL_DATA_PATH = oden_home / "signal-data"
+    CONFIG_FILE = oden_home / "config.ini"  # Legacy
 
 
 def get_config_template_path() -> Path:
-    """Get path to config.ini.template."""
+    """Get path to config.ini.template (for migration reference)."""
     bundle_path = get_bundle_path()
-    # Check for template in bundle
     template_path = bundle_path / "config.ini.template"
     if template_path.exists():
         return template_path
-    # Fallback to config.ini in project root (for development)
     config_ini = bundle_path / "config.ini"
     if config_ini.exists():
         return config_ini
@@ -38,216 +63,88 @@ def get_config_template_path() -> Path:
 
 
 def ensure_oden_directories() -> None:
-    """Create ~/.oden and ~/oden-vault directories if they don't exist."""
+    """Create Oden directories if they don't exist."""
     ODEN_HOME.mkdir(parents=True, exist_ok=True)
     SIGNAL_DATA_PATH.mkdir(parents=True, exist_ok=True)
     DEFAULT_VAULT_PATH.mkdir(parents=True, exist_ok=True)
 
 
-def is_configured() -> bool:
-    """Check if Oden has been configured (config exists with valid Signal number)."""
-    if not CONFIG_FILE.exists():
-        return False
+def is_configured() -> tuple[bool, str | None]:
+    """
+    Check if Oden has been configured.
 
-    try:
-        config = configparser.RawConfigParser()
-        config.read(CONFIG_FILE)
+    Returns:
+        (True, None) if configured and ready
+        (False, reason) if not configured:
+            - "no_pointer": No oden_home pointer file exists
+            - "no_db": Database file doesn't exist
+            - "corrupt": Database is corrupted
+            - "invalid_schema": Database has wrong schema
+            - "no_signal_number": Signal number not configured
+    """
+    # Check if pointer file exists and points to valid directory
+    oden_home = get_oden_home_path()
+    if oden_home is None:
+        return False, "no_pointer"
 
-        if not config.has_section("Signal"):
-            return False
+    # Update paths based on actual oden_home
+    _update_paths(oden_home)
 
-        number = config.get("Signal", "number", fallback="")
-        # Check if number is set and not placeholder
-        return bool(number and number != "+46XXXXXXXXX" and not number.startswith("+46XXXX"))
-    except Exception:
-        return False
+    # Check database exists and is valid
+    if not CONFIG_DB.exists():
+        return False, "no_db"
 
+    is_valid, error = check_db_integrity(CONFIG_DB)
+    if not is_valid:
+        return False, error
 
-def create_default_config() -> None:
-    """Create a default config.ini from template."""
-    ensure_oden_directories()
+    # Check if Signal number is configured
+    config = get_all_config(CONFIG_DB)
+    number = config.get("signal_number", "")
+    if not number or number == "+46XXXXXXXXX" or number.startswith("+46XXXX"):
+        return False, "no_signal_number"
 
-    if CONFIG_FILE.exists():
-        return
-
-    template_path = get_config_template_path()
-
-    if template_path.exists():
-        shutil.copy(template_path, CONFIG_FILE)
-    else:
-        # Create minimal config if no template found
-        config_content = f"""# =============================================================================
-# Oden Configuration File
-# =============================================================================
-# Denna fil konfigurerar Oden - Signal-till-Obsidian-bryggan.
-# =============================================================================
-
-[Vault]
-path = {DEFAULT_VAULT_PATH}
-
-[Signal]
-number = +46XXXXXXXXX
-display_name = oden
-
-[Settings]
-append_window_minutes = 30
-startup_message = self
-plus_plus_enabled = false
-
-[Timezone]
-timezone = Europe/Stockholm
-
-[Web]
-enabled = true
-port = 8080
-"""
-        CONFIG_FILE.write_text(config_content)
+    return True, None
 
 
 def get_config_path() -> Path:
-    """Get the path to the config file."""
-    return CONFIG_FILE
+    """Get the path to the config database."""
+    return CONFIG_DB
 
 
 def save_config(config_dict: dict) -> None:
-    """Save configuration to config.ini."""
+    """Save configuration to the database."""
     ensure_oden_directories()
-
-    config = configparser.RawConfigParser()
-
-    # Vault section
-    config.add_section("Vault")
-    config.set("Vault", "path", config_dict.get("vault_path", str(DEFAULT_VAULT_PATH)))
-
-    # Signal section
-    config.add_section("Signal")
-    config.set("Signal", "number", config_dict.get("signal_number", "+46XXXXXXXXX"))
-    if config_dict.get("display_name"):
-        config.set("Signal", "display_name", config_dict["display_name"])
-    if config_dict.get("signal_cli_path"):
-        config.set("Signal", "signal_cli_path", config_dict["signal_cli_path"])
-    if config_dict.get("signal_cli_host") and config_dict["signal_cli_host"] != "127.0.0.1":
-        config.set("Signal", "host", config_dict["signal_cli_host"])
-    if config_dict.get("signal_cli_port") and config_dict["signal_cli_port"] != 7583:
-        config.set("Signal", "port", str(config_dict["signal_cli_port"]))
-    if config_dict.get("unmanaged_signal_cli"):
-        config.set("Signal", "unmanaged_signal_cli", "true")
-
-    # Settings section
-    config.add_section("Settings")
-    config.set("Settings", "append_window_minutes", str(config_dict.get("append_window_minutes", 30)))
-    config.set("Settings", "startup_message", config_dict.get("startup_message", "self"))
-    config.set("Settings", "plus_plus_enabled", str(config_dict.get("plus_plus_enabled", False)).lower())
-    if config_dict.get("filename_format"):
-        config.set("Settings", "filename_format", config_dict["filename_format"])
-    ignored_groups = config_dict.get("ignored_groups", [])
-    if ignored_groups:
-        if isinstance(ignored_groups, list):
-            config.set("Settings", "ignored_groups", ", ".join(ignored_groups))
-        else:
-            config.set("Settings", "ignored_groups", ignored_groups)
-    whitelist_groups = config_dict.get("whitelist_groups", [])
-    if whitelist_groups:
-        if isinstance(whitelist_groups, list):
-            config.set("Settings", "whitelist_groups", ", ".join(whitelist_groups))
-        else:
-            config.set("Settings", "whitelist_groups", whitelist_groups)
-
-    # Timezone section
-    config.add_section("Timezone")
-    config.set("Timezone", "timezone", config_dict.get("timezone", "Europe/Stockholm"))
-
-    # Logging section
-    if config_dict.get("log_level") and config_dict["log_level"] != "INFO":
-        config.add_section("Logging")
-        config.set("Logging", "level", config_dict["log_level"])
-
-    # Web section
-    config.add_section("Web")
-    config.set("Web", "enabled", str(config_dict.get("web_enabled", True)).lower())
-    config.set("Web", "port", str(config_dict.get("web_port", 8080)))
-
-    with open(CONFIG_FILE, "w") as f:
-        config.write(f)
+    save_all_config(CONFIG_DB, config_dict)
 
 
 def get_config() -> dict:
     """
-    Reads configuration from ~/.oden/config.ini and returns it as a dictionary.
-    Creates default config if it doesn't exist.
+    Reads configuration from the database and returns it as a dictionary.
+    Creates default config if database doesn't exist.
     """
     ensure_oden_directories()
 
-    # Create default config if not exists
-    if not CONFIG_FILE.exists():
-        create_default_config()
+    # Initialize DB if not exists
+    if not CONFIG_DB.exists():
+        init_db(CONFIG_DB)
+        # Save default config
+        save_all_config(CONFIG_DB, DEFAULT_CONFIG)
 
-    # Use RawConfigParser to avoid interpolation issues with regex patterns
-    config = configparser.RawConfigParser()
-    config.read(CONFIG_FILE)
-
-    # Basic error handling - create sections if missing
-    if not config.has_section("Vault"):
-        config.add_section("Vault")
-        config.set("Vault", "path", str(DEFAULT_VAULT_PATH))
-
-    if not config.has_section("Signal"):
-        config.add_section("Signal")
-        config.set("Signal", "number", "+46XXXXXXXXX")
-
-    # Read values
-    vault_path = config.get("Vault", "path", fallback=str(DEFAULT_VAULT_PATH))
-    signal_number = config.get("Signal", "number", fallback="+46XXXXXXXXX")
-    display_name = config.get("Signal", "display_name", fallback=None)
-    signal_cli_path = config.get("Signal", "signal_cli_path", fallback=None)
+    config = get_all_config(CONFIG_DB)
 
     # Check for signal-cli path from environment variable or .signal_cli_path file
-    # This allows run scripts to pass the path to the app
+    signal_cli_path = config.get("signal_cli_path")
     if not signal_cli_path:
         signal_cli_path = os.environ.get("SIGNAL_CLI_PATH")
     if not signal_cli_path:
         signal_cli_path_file = ODEN_HOME / ".signal_cli_path"
         if signal_cli_path_file.exists():
             signal_cli_path = signal_cli_path_file.read_text().strip()
+    config["signal_cli_path"] = signal_cli_path
 
-    unmanaged_signal_cli = config.getboolean("Signal", "unmanaged_signal_cli", fallback=False)
-    signal_cli_host = config.get("Signal", "host", fallback="127.0.0.1")
-    signal_cli_port = config.getint("Signal", "port", fallback=7583)
-    signal_cli_log_file = config.get("Signal", "log_file", fallback=None)
-
-    # Read regex patterns if available
-    regex_patterns = {}
-    if config.has_section("Regex"):
-        regex_patterns = dict(config.items("Regex"))
-
-    # Read settings if available
-    append_window_minutes = 30
-    ignored_groups = []
-    whitelist_groups = []
-    startup_message = "self"
-    plus_plus_enabled = False
-    filename_format = "classic"
-    if config.has_section("Settings"):
-        append_window_minutes = config.getint("Settings", "append_window_minutes", fallback=30)
-        ignored_groups_str = config.get("Settings", "ignored_groups", fallback="")
-        ignored_groups = [group.strip() for group in ignored_groups_str.split(",") if group.strip()]
-        whitelist_groups_str = config.get("Settings", "whitelist_groups", fallback="")
-        whitelist_groups = [group.strip() for group in whitelist_groups_str.split(",") if group.strip()]
-        startup_message = config.get("Settings", "startup_message", fallback="self").lower()
-        if startup_message not in ("self", "all", "off"):
-            print(f"Warning: Invalid startup_message '{startup_message}'. Using 'self'", file=sys.stderr)
-            startup_message = "self"
-        plus_plus_enabled = config.getboolean("Settings", "plus_plus_enabled", fallback=False)
-        filename_format = config.get("Settings", "filename_format", fallback="classic").lower()
-        if filename_format not in ("classic", "tnr", "tnr-name"):
-            print(f"Warning: Invalid filename_format '{filename_format}'. Using 'classic'", file=sys.stderr)
-            filename_format = "classic"
-
-    # Read timezone if available, defaults to Europe/Stockholm
-    timezone_str = "Europe/Stockholm"
-    if config.has_section("Timezone"):
-        timezone_str = config.get("Timezone", "timezone", fallback="Europe/Stockholm")
-
+    # Parse timezone
+    timezone_str = config.get("timezone", "Europe/Stockholm")
     try:
         timezone = zoneinfo.ZoneInfo(timezone_str)
     except Exception as e:
@@ -255,108 +152,218 @@ def get_config() -> dict:
         try:
             timezone = zoneinfo.ZoneInfo("Europe/Stockholm")
         except Exception:
-            # Final fallback to UTC if tzdata is not available (e.g., during PyInstaller build)
             print("Warning: tzdata not available, using UTC", file=sys.stderr)
             timezone = datetime.timezone.utc
+    config["timezone"] = timezone
 
-    # Read logging level if available, defaults to INFO
-    log_level_str = config.get("Logging", "level", fallback="INFO")
+    # Parse log level
+    log_level_str = config.get("log_level", "INFO")
     try:
         log_level = getattr(logging, log_level_str.upper())
     except AttributeError:
         log_level = logging.INFO
-
-    # Read web server settings if available
-    web_enabled = True
-    web_port = 8080
-    web_access_log = None
-    if config.has_section("Web"):
-        web_enabled = config.getboolean("Web", "enabled", fallback=True)
-        web_port = config.getint("Web", "port", fallback=8080)
-        web_access_log = config.get("Web", "access_log", fallback=None)
+    config["log_level"] = log_level
 
     # Expand user path for vault_path
-    return {
-        "vault_path": os.path.expanduser(vault_path),
-        "signal_number": signal_number,
-        "display_name": display_name,
-        "signal_cli_path": os.path.expanduser(signal_cli_path) if signal_cli_path else None,
-        "unmanaged_signal_cli": unmanaged_signal_cli,
-        "signal_cli_host": signal_cli_host,
-        "signal_cli_port": signal_cli_port,
-        "regex_patterns": regex_patterns,
-        "timezone": timezone,
-        "append_window_minutes": append_window_minutes,
-        "ignored_groups": ignored_groups,
-        "whitelist_groups": whitelist_groups,
-        "startup_message": startup_message,
-        "plus_plus_enabled": plus_plus_enabled,
-        "filename_format": filename_format,
-        "signal_cli_log_file": signal_cli_log_file,
-        "log_level": log_level,
-        "web_enabled": web_enabled,
-        "web_port": web_port,
-        "web_access_log": web_access_log,
-        "oden_home": str(ODEN_HOME),
-        "signal_data_path": str(SIGNAL_DATA_PATH),
-    }
+    vault_path = config.get("vault_path", str(DEFAULT_VAULT_PATH))
+    config["vault_path"] = os.path.expanduser(vault_path)
+
+    # Expand signal_cli_path if set
+    if config.get("signal_cli_path"):
+        config["signal_cli_path"] = os.path.expanduser(config["signal_cli_path"])
+
+    # Add computed paths
+    config["oden_home"] = str(ODEN_HOME)
+    config["signal_data_path"] = str(SIGNAL_DATA_PATH)
+
+    return config
 
 
 def reload_config() -> dict:
-    """Reload configuration from disk and update module-level variables."""
+    """Reload configuration from database and update module-level variables."""
     global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, REGEX_PATTERNS
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
-    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, WEB_ENABLED, WEB_PORT, WEB_ACCESS_LOG
+    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL
+    global WEB_ENABLED, WEB_PORT, WEB_ACCESS_LOG
+
+    # Re-check oden_home in case it changed
+    oden_home = get_oden_home_path()
+    if oden_home:
+        _update_paths(oden_home)
 
     app_config = get_config()
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config["signal_number"]
-    DISPLAY_NAME = app_config["display_name"]
-    SIGNAL_CLI_PATH = app_config["signal_cli_path"]
-    UNMANAGED_SIGNAL_CLI = app_config["unmanaged_signal_cli"]
-    SIGNAL_CLI_HOST = app_config["signal_cli_host"]
-    SIGNAL_CLI_PORT = app_config["signal_cli_port"]
-    REGEX_PATTERNS = app_config["regex_patterns"]
+    DISPLAY_NAME = app_config.get("display_name")
+    SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
+    UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
+    SIGNAL_CLI_HOST = app_config.get("signal_cli_host", "127.0.0.1")
+    SIGNAL_CLI_PORT = app_config.get("signal_cli_port", 7583)
+    REGEX_PATTERNS = app_config.get("regex_patterns", {})
     TIMEZONE = app_config["timezone"]
-    APPEND_WINDOW_MINUTES = app_config["append_window_minutes"]
-    IGNORED_GROUPS = app_config["ignored_groups"]
-    WHITELIST_GROUPS = app_config["whitelist_groups"]
-    STARTUP_MESSAGE = app_config["startup_message"]
-    PLUS_PLUS_ENABLED = app_config["plus_plus_enabled"]
-    FILENAME_FORMAT = app_config["filename_format"]
-    SIGNAL_CLI_LOG_FILE = app_config["signal_cli_log_file"]
+    APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
+    IGNORED_GROUPS = app_config.get("ignored_groups", [])
+    WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
+    STARTUP_MESSAGE = app_config.get("startup_message", "self")
+    PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
+    FILENAME_FORMAT = app_config.get("filename_format", "classic")
+    SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     LOG_LEVEL = app_config["log_level"]
-    WEB_ENABLED = app_config["web_enabled"]
-    WEB_PORT = app_config["web_port"]
-    WEB_ACCESS_LOG = app_config["web_access_log"]
+    WEB_ENABLED = app_config.get("web_enabled", True)
+    WEB_PORT = app_config.get("web_port", 8080)
+    WEB_ACCESS_LOG = app_config.get("web_access_log")
 
     return app_config
 
 
+def export_config_to_ini() -> str:
+    """Export current configuration to INI format string."""
+    return export_to_ini(CONFIG_DB)
+
+
+def reset_config() -> bool:
+    """
+    Reset configuration by deleting the database and clearing the pointer file.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    from oden.bundle_utils import clear_oden_home_pointer
+
+    success = True
+    if CONFIG_DB.exists():
+        if not delete_db(CONFIG_DB):
+            success = False
+    if not clear_oden_home_pointer():
+        success = False
+
+    return success
+
+
+def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str | None]:
+    """
+    Set up the Oden home directory.
+
+    Creates the directory, initializes the database, and optionally migrates
+    from an existing INI file.
+
+    Args:
+        path: Path to use as Oden home directory
+        ini_path: Optional path to config.ini to migrate from
+
+    Returns:
+        (True, None) on success
+        (False, error_message) on failure
+    """
+    path = Path(path).expanduser()
+
+    # Validate the path
+    is_valid, error = validate_oden_home(path)
+    if not is_valid and error not in ("not_found", "empty"):
+        if error == "corrupt":
+            return False, "Databasen är korrupt. Radera den och försök igen."
+        return False, f"Ogiltig sökväg: {error}"
+
+    # Create directories
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "signal-data").mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return False, f"Kunde inte skapa katalog: {e}"
+
+    # Update paths
+    _update_paths(path)
+
+    # Set the pointer file
+    if not set_oden_home_path(path):
+        return False, "Kunde inte spara konfigurationssökväg"
+
+    # Migrate from INI if requested
+    db_path = path / "config.db"
+    if ini_path:
+        ini_path = Path(ini_path).expanduser()
+        if not ini_path.exists():
+            return False, f"INI-fil hittades inte: {ini_path}"
+
+        success, error = migrate_from_ini(ini_path, db_path)
+        if not success:
+            return False, error
+    else:
+        # Initialize empty database
+        init_db(db_path)
+
+    return True, None
+
+
+# Initialize paths from pointer file if it exists
+_oden_home = get_oden_home_path()
+if _oden_home:
+    _update_paths(_oden_home)
+
 # Load configuration on import
+# This will use defaults if not configured yet
 try:
-    app_config = get_config()
-    VAULT_PATH = app_config["vault_path"]
-    SIGNAL_NUMBER = app_config["signal_number"]
-    DISPLAY_NAME = app_config["display_name"]
-    SIGNAL_CLI_PATH = app_config["signal_cli_path"]
-    UNMANAGED_SIGNAL_CLI = app_config["unmanaged_signal_cli"]
-    SIGNAL_CLI_HOST = app_config["signal_cli_host"]
-    SIGNAL_CLI_PORT = app_config["signal_cli_port"]
-    REGEX_PATTERNS = app_config["regex_patterns"]
-    TIMEZONE = app_config["timezone"]
-    APPEND_WINDOW_MINUTES = app_config["append_window_minutes"]
-    IGNORED_GROUPS = app_config["ignored_groups"]
-    WHITELIST_GROUPS = app_config["whitelist_groups"]
-    STARTUP_MESSAGE = app_config["startup_message"]
-    PLUS_PLUS_ENABLED = app_config["plus_plus_enabled"]
-    FILENAME_FORMAT = app_config["filename_format"]
-    SIGNAL_CLI_LOG_FILE = app_config["signal_cli_log_file"]
-    LOG_LEVEL = app_config["log_level"]
-    WEB_ENABLED = app_config["web_enabled"]
-    WEB_PORT = app_config["web_port"]
-    WEB_ACCESS_LOG = app_config["web_access_log"]
+    # Check if we're actually configured
+    _is_configured, _config_error = is_configured()
+
+    if _is_configured:
+        app_config = get_config()
+    else:
+        # Use defaults but still set up the variables
+        app_config = dict(DEFAULT_CONFIG)
+        # Parse timezone
+        try:
+            app_config["timezone"] = zoneinfo.ZoneInfo("Europe/Stockholm")
+        except Exception:
+            app_config["timezone"] = datetime.timezone.utc
+        app_config["log_level"] = logging.INFO
+        app_config["oden_home"] = str(ODEN_HOME)
+        app_config["signal_data_path"] = str(SIGNAL_DATA_PATH)
+
+    # Export module-level variables
+    VAULT_PATH = app_config.get("vault_path", str(DEFAULT_VAULT_PATH))
+    SIGNAL_NUMBER = app_config.get("signal_number", "+46XXXXXXXXX")
+    DISPLAY_NAME = app_config.get("display_name")
+    SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
+    UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
+    SIGNAL_CLI_HOST = app_config.get("signal_cli_host", "127.0.0.1")
+    SIGNAL_CLI_PORT = app_config.get("signal_cli_port", 7583)
+    REGEX_PATTERNS = app_config.get("regex_patterns", {})
+    TIMEZONE = app_config.get("timezone")
+    APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
+    IGNORED_GROUPS = app_config.get("ignored_groups", [])
+    WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
+    STARTUP_MESSAGE = app_config.get("startup_message", "self")
+    PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
+    FILENAME_FORMAT = app_config.get("filename_format", "classic")
+    SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
+    LOG_LEVEL = app_config.get("log_level", logging.INFO)
+    WEB_ENABLED = app_config.get("web_enabled", True)
+    WEB_PORT = app_config.get("web_port", 8080)
+    WEB_ACCESS_LOG = app_config.get("web_access_log")
+
 except Exception as e:
     print(f"Error loading configuration: {e}")
-    sys.exit(1)
+    # Don't exit - let the web server show setup wizard
+    app_config = {}
+    VAULT_PATH = str(DEFAULT_VAULT_PATH)
+    SIGNAL_NUMBER = "+46XXXXXXXXX"
+    DISPLAY_NAME = None
+    SIGNAL_CLI_PATH = None
+    UNMANAGED_SIGNAL_CLI = False
+    SIGNAL_CLI_HOST = "127.0.0.1"
+    SIGNAL_CLI_PORT = 7583
+    REGEX_PATTERNS = {}
+    TIMEZONE = datetime.timezone.utc
+    APPEND_WINDOW_MINUTES = 30
+    IGNORED_GROUPS = []
+    WHITELIST_GROUPS = []
+    STARTUP_MESSAGE = "self"
+    PLUS_PLUS_ENABLED = False
+    FILENAME_FORMAT = "classic"
+    SIGNAL_CLI_LOG_FILE = None
+    LOG_LEVEL = logging.INFO
+    WEB_ENABLED = True
+    WEB_PORT = 8080
+    WEB_ACCESS_LOG = None

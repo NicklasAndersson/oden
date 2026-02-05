@@ -720,11 +720,15 @@ HTML_TEMPLATE = """
 
                 <div id="tab-raw" class="tab-content">
                     <div class="config-section">
-                        <h3>📄 config.ini (rå redigering)</h3>
-                        <textarea id="config-content" style="width:100%;min-height:300px;padding:12px;border:1px solid #333;border-radius:4px;background:#16213e;color:#fff;font-family:Monaco,Menlo,monospace;font-size:0.9em;resize:vertical;" placeholder="Laddar config.ini..."></textarea>
+                        <h3>📄 Konfiguration (INI-format)</h3>
+                        <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">
+                            Konfigurationen sparas nu i SQLite-databas. Nedan visas en INI-export som kan importeras igen.
+                        </p>
+                        <textarea id="config-content" style="width:100%;min-height:300px;padding:12px;border:1px solid #333;border-radius:4px;background:#16213e;color:#fff;font-family:Monaco,Menlo,monospace;font-size:0.9em;resize:vertical;" placeholder="Laddar config..."></textarea>
                         <div class="config-actions" style="margin-top:15px;">
-                            <button type="button" class="btn btn-primary" onclick="saveRawConfig()">Spara rå config</button>
+                            <button type="button" class="btn btn-primary" onclick="saveRawConfig()">Importera INI</button>
                             <button type="button" class="btn btn-secondary" onclick="loadRawConfig()">Återställ</button>
+                            <button type="button" class="btn btn-secondary" onclick="exportConfig()">⬇️ Ladda ner INI</button>
                         </div>
                     </div>
                 </div>
@@ -1128,15 +1132,37 @@ HTML_TEMPLATE = """
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    showConfigMessage('✓ Config sparad och applicerad!', 'success');
+                    showConfigMessage('✓ Config importerad och applicerad!', 'success');
                     await fetchConfig();
                     await fetchGroups();
                     await loadConfigForm();
                 } else {
-                    showConfigMessage(result.error || 'Kunde inte spara config', 'error');
+                    showConfigMessage(result.error || 'Kunde inte importera config', 'error');
                 }
             } catch (error) {
                 showConfigMessage('Nätverksfel: ' + error.message, 'error');
+            }
+        }
+
+        // Export config as downloadable INI file
+        async function exportConfig() {
+            try {
+                const response = await fetch('/api/config/export');
+                if (!response.ok) {
+                    throw new Error('Kunde inte exportera config');
+                }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'oden-config.ini';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                showConfigMessage('✓ Config nedladdad!', 'success');
+            } catch (error) {
+                showConfigMessage('Fel vid export: ' + error.message, 'error');
             }
         }
 

@@ -2,7 +2,8 @@
 Setup wizard handlers for Oden web GUI.
 
 These handlers manage the first-run configuration wizard,
-including Signal account linking and registration.
+including Signal account linking and registration, and
+config directory selection with optional INI migration.
 """
 
 import asyncio
@@ -18,12 +19,20 @@ import qrcode.image.svg
 from aiohttp import web
 
 from oden import __version__
-from oden.bundle_utils import get_bundle_path
+from oden.bundle_utils import (
+    DEFAULT_ODEN_HOME,
+    get_bundle_path,
+    get_oden_home_path,
+    validate_oden_home,
+)
 from oden.config import (
-    CONFIG_FILE,
+    CONFIG_DB,
     DEFAULT_VAULT_PATH,
     ODEN_HOME,
+    is_configured,
+    reset_config,
     save_config,
+    setup_oden_home,
 )
 from oden.web_templates import SETUP_HTML_TEMPLATE
 
@@ -63,13 +72,27 @@ async def setup_status_handler(request: web.Request) -> web.Response:
 
         existing_accounts = get_existing_accounts()
 
+    # Check configuration status
+    configured, config_error = is_configured()
+
+    # Get current oden_home from pointer file
+    current_oden_home = get_oden_home_path()
+
+    # Check for existing INI file at default location
+    default_ini_path = DEFAULT_ODEN_HOME / "config.ini"
+    has_existing_ini = default_ini_path.exists()
+
     if _linker is None:
         return web.json_response(
             {
                 "status": "idle",
-                "configured": False,
-                "oden_home": str(ODEN_HOME),
+                "configured": configured,
+                "config_error": config_error,
+                "oden_home": str(current_oden_home) if current_oden_home else str(DEFAULT_ODEN_HOME),
+                "default_oden_home": str(DEFAULT_ODEN_HOME),
                 "default_vault": str(DEFAULT_VAULT_PATH),
+                "has_existing_ini": has_existing_ini,
+                "existing_ini_path": str(default_ini_path) if has_existing_ini else None,
                 "existing_accounts": existing_accounts,
             }
         )
@@ -82,6 +105,8 @@ async def setup_status_handler(request: web.Request) -> web.Response:
             "error": _linker.error,
             "manual_instructions": _linker.get_manual_instructions() if _linker.status == "timeout" else None,
             "existing_accounts": existing_accounts,
+            "configured": configured,
+            "config_error": config_error,
         }
     )
 
@@ -182,6 +207,111 @@ async def setup_cancel_link_handler(request: web.Request) -> web.Response:
     return web.json_response({"success": True})
 
 
+async def setup_oden_home_handler(request: web.Request) -> web.Response:
+    """Set up the Oden home directory with optional INI migration."""
+    try:
+        data = await request.json()
+        oden_home_path = data.get("oden_home", str(DEFAULT_ODEN_HOME))
+        ini_path = data.get("ini_path")  # Optional path to migrate from
+
+        # Validate and set up
+        if ini_path:
+            ini_path = Path(ini_path).expanduser()
+            if not ini_path.exists():
+                return web.json_response(
+                    {"success": False, "error": f"INI-fil hittades inte: {ini_path}"},
+                    status=400,
+                )
+
+        success, error = setup_oden_home(Path(oden_home_path), ini_path)
+
+        if success:
+            return web.json_response(
+                {
+                    "success": True,
+                    "message": "Konfigurationskatalog skapad",
+                    "oden_home": oden_home_path,
+                    "migrated_from_ini": ini_path is not None,
+                }
+            )
+        else:
+            return web.json_response(
+                {"success": False, "error": error},
+                status=400,
+            )
+
+    except json.JSONDecodeError:
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error setting up oden home: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def setup_validate_path_handler(request: web.Request) -> web.Response:
+    """Validate a path for use as Oden home directory."""
+    try:
+        data = await request.json()
+        path = data.get("path", "")
+
+        if not path:
+            return web.json_response(
+                {"valid": False, "error": "Sökväg krävs"},
+                status=400,
+            )
+
+        path = Path(path).expanduser()
+        is_valid, error = validate_oden_home(path)
+
+        if is_valid:
+            # Check if there's already a config.db
+            db_exists = (path / "config.db").exists()
+            ini_exists = (path / "config.ini").exists()
+
+            return web.json_response(
+                {
+                    "valid": True,
+                    "path": str(path),
+                    "exists": path.exists(),
+                    "has_config_db": db_exists,
+                    "has_config_ini": ini_exists,
+                }
+            )
+        else:
+            return web.json_response(
+                {
+                    "valid": False,
+                    "error": error,
+                    "can_reset": error == "corrupt",
+                }
+            )
+
+    except json.JSONDecodeError:
+        return web.json_response({"valid": False, "error": "Ogiltig JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error validating path: {e}")
+        return web.json_response({"valid": False, "error": str(e)}, status=500)
+
+
+async def setup_reset_config_handler(request: web.Request) -> web.Response:
+    """Reset configuration by deleting the database and pointer file."""
+    try:
+        if reset_config():
+            return web.json_response(
+                {
+                    "success": True,
+                    "message": "Konfiguration återställd. Starta om Oden för att köra setup igen.",
+                }
+            )
+        else:
+            return web.json_response(
+                {"success": False, "error": "Kunde inte återställa konfiguration"},
+                status=500,
+            )
+    except Exception as e:
+        logger.error(f"Error resetting config: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
 async def setup_save_config_handler(request: web.Request) -> web.Response:
     """Save the setup configuration."""
     global _linker
@@ -228,13 +358,13 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         }
 
         save_config(config_dict)
-        logger.info(f"Setup complete. Config saved to {CONFIG_FILE}")
+        logger.info(f"Setup complete. Config saved to {CONFIG_DB}")
 
         return web.json_response(
             {
                 "success": True,
                 "message": "Konfiguration sparad! Oden startar om...",
-                "config_path": str(CONFIG_FILE),
+                "config_path": str(CONFIG_DB),
             }
         )
 
