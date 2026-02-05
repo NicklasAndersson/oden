@@ -17,6 +17,7 @@ from oden.formatting import (
     get_safe_group_dir_path,
 )
 from oden.link_formatter import apply_regex_links
+from oden.template_loader import render_append, render_report
 
 logger = logging.getLogger(__name__)
 
@@ -200,23 +201,19 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
             # Only append if there's actual content (text or attachments)
             if new_text or attachment_links:
-                content_to_append = []
-
-                # Add TNR and sender info for the appended message
                 sender_display = format_sender_display(source_name, source_number)
-                content_to_append.append(f"\nTNR: {now.strftime('%d%H%M')} ({now.isoformat()})")
-                content_to_append.append(f"Avsändare: {sender_display}")
+                linked_text = _apply_regex_links(new_text) if new_text else None
 
-                if new_text:
-                    content_to_append.append("\n" + _apply_regex_links(new_text))
-
-                if attachment_links:
-                    content_to_append.append("\n## Bilagor\n")
-                    content_to_append.extend(attachment_links)
+                append_content = render_append(
+                    tnr=now.strftime("%d%H%M"),
+                    timestamp_iso=now.isoformat(),
+                    sender_display=sender_display,
+                    message=linked_text,
+                    attachments=attachment_links or None,
+                )
 
                 with open(latest_file, "a", encoding="utf-8") as f:
-                    f.write("\n---\n")
-                    f.write("\n".join(content_to_append))
+                    f.write(append_content)
                 logger.info(f"APPENDED (reply or ++) TO: {latest_file}")
             else:
                 logger.info("Ignoring empty append message.")
@@ -285,45 +282,35 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     attachment_links = await _save_attachments(attachments, group_dir, dt, source_name, source_number, reader, writer)
 
-    # --- Prepare content for Markdown file ---
-    content_parts = []
+    # --- Prepare content for Markdown file using template ---
     sender_display = format_sender_display(source_name, source_number)
 
-    # Always add frontmatter with fileid (and locations if present)
-    content_parts.append("---")
-    content_parts.append(f"fileid: {fileid}")
-    if lat is not None and lon is not None:
-        content_parts.append('locations: ""')
-    content_parts.append("---")
-    content_parts.append("")
-
-    content_parts.extend(
-        [
-            f"# {group_title}\n",
-            f"TNR: {dt.strftime('%d%H%M')}\n",
-            f"Avsändare: {sender_display}\n",
-            f"Grupp: [[{group_title}]]\n",
-            f"Grupp id: {group_id}\n",
-        ]
-    )
-    if lat is not None and lon is not None:
-        content_parts.append(f"[Position](geo:{lat},{lon})\n")
-
+    # Format quote block if present
+    quote_formatted = None
     if quote:
-        content_parts.extend(_format_quote(quote))
+        quote_lines = _format_quote(quote)
+        quote_formatted = "\n".join(quote_lines)
 
-    if msg:
-        content_parts.append("\n## Meddelande\n")
-        linked_msg = _apply_regex_links(msg.strip())
-        content_parts.append(linked_msg)
+    # Apply regex links to message
+    linked_msg = _apply_regex_links(msg.strip()) if msg else None
 
-    if attachment_links:
-        content_parts.append("\n## Bilagor\n")
-        content_parts.extend(attachment_links)
-
-    content_parts.append("")
+    content = render_report(
+        fileid=fileid,
+        group_title=group_title,
+        group_id=group_id,
+        tnr=dt.strftime("%d%H%M"),
+        timestamp_iso=dt.isoformat(),
+        sender_display=sender_display,
+        sender_name=source_name,
+        sender_number=source_number,
+        lat=lat,
+        lon=lon,
+        quote_formatted=quote_formatted,
+        message=linked_msg,
+        attachments=attachment_links or None,
+    )
 
     with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(content_parts))
+        f.write(content)
 
     logger.info(f"WROTE: {path}")
