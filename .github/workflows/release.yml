@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Install x86_64 Python via Rosetta for Intel-compatible build
       - name: Set up x86_64 Python via Rosetta
@@ -52,14 +52,14 @@ jobs:
       # Cache JRE download (x64 only for Intel build)
       - name: Cache JRE x64
         id: cache-jre-x64
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build-dmg/jre-x64
           key: temurin-jre-25-macos-x64-v1
 
       - name: Cache signal-cli
         id: cache-signal-cli
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build-dmg/signal-cli
           key: signal-cli-0.13.23-v1
@@ -143,7 +143,7 @@ jobs:
           ls -la dist/
 
       - name: Upload macOS DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: oden-macos-dmg
           path: dist/Oden-*.dmg
@@ -156,10 +156,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -218,7 +218,7 @@ jobs:
           cd ..
 
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: oden-linux
           path: Oden-*-linux.zip
@@ -231,10 +231,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -292,7 +292,7 @@ jobs:
           Compress-Archive -Path "release-windows\*" -DestinationPath "Oden-$VERSION-windows.zip"
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: oden-windows
           path: Oden-*-windows.zip
@@ -306,7 +306,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download all artifacts
         uses: actions/download-artifact@v7
