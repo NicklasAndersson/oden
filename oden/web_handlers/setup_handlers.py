@@ -259,7 +259,23 @@ async def setup_validate_path_handler(request: web.Request) -> web.Response:
                 status=400,
             )
 
-        path = Path(path).expanduser()
+        # Normalize and perform basic safety checks on the user-provided path
+        try:
+            resolved_path = Path(path).expanduser().resolve()
+        except (OSError, RuntimeError, ValueError):
+            return web.json_response(
+                {"valid": False, "error": "Ogiltig sökväg"},
+                status=400,
+            )
+
+        # Disallow using the filesystem root as Oden home to avoid probing arbitrary system paths
+        if str(resolved_path) == resolved_path.anchor:
+            return web.json_response(
+                {"valid": False, "error": "Sökvägen är inte tillåten"},
+                status=400,
+            )
+
+        path = resolved_path
         is_valid, error = validate_oden_home(path)
 
         if is_valid:
