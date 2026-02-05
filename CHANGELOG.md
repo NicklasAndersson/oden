@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-02-05
+
+### Added
+
+- **Jinja2 report templates**: Rapporter formateras nu med anpassningsbara Jinja2-mallar
+  - `templates/report.md.j2` för nya rapporter
+  - `templates/append.md.j2` för append-läge (++ och svar)
+  - Stöd för villkorliga block (`{% if %}`) för valfritt innehåll (position, citat, bilagor)
+  - Ny modul `template_loader.py` för att ladda och rendera mallar
+  - Dokumentation i `docs/REPORT_TEMPLATE.md` med alla placeholders
+
 ## [0.12.4] - 2026-01-28
 
 ### Fixed

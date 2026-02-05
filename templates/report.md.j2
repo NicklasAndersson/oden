@@ -1,0 +1,36 @@
+---
+fileid: {{ fileid }}
+{% if lat and lon -%}
+locations: ""
+{% endif -%}
+---
+
+# {{ group_title }}
+
+TNR: {{ tnr }}
+
+Avsändare: {{ sender_display }}
+
+Grupp: [[{{ group_title }}]]
+
+Grupp id: {{ group_id }}
+{% if lat and lon %}
+[Position](geo:{{ lat }},{{ lon }})
+{% endif %}
+{% if quote_formatted %}
+{{ quote_formatted }}
+{% endif %}
+{% if message %}
+
+## Meddelande
+
+{{ message }}
+{% endif %}
+{% if attachments %}
+
+## Bilagor
+
+{% for link in attachments -%}
+{{ link }}
+{% endfor -%}
+{% endif %}
