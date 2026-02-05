@@ -258,6 +258,11 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
     # Normalize and constrain the path selected by the user
     path = Path(path).expanduser().resolve()
 
+    # Normalize ini_path as well if provided, so that any callers that pass a
+    # string (for example from user input) get consistent handling.
+    if ini_path is not None and not isinstance(ini_path, Path):
+        ini_path = Path(ini_path).expanduser().resolve()
+
     # Only allow Oden home directories under the current user's home directory,
     # unless the path is exactly the compiled-in default.
     try:

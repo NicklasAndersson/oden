@@ -211,11 +211,29 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
     try:
         data = await request.json()
         oden_home_path = data.get("oden_home", str(DEFAULT_ODEN_HOME))
-        ini_path = data.get("ini_path")  # Optional path to migrate from
+        ini_path_value = data.get("ini_path")  # Optional path to migrate from
 
-        # Validate and set up; path validation (including ini_path) is handled
-        # inside setup_oden_home to ensure consistent security checks.
-        success, error = setup_oden_home(Path(oden_home_path), ini_path)
+        ini_path_obj: Path | None = None
+        if ini_path_value:
+            try:
+                # Normalize and constrain the ini_path under the current user's home directory.
+                user_home = Path.home().resolve()
+                ini_path_obj = Path(ini_path_value).expanduser().resolve()
+                ini_path_obj.relative_to(user_home)
+            except (OSError, RuntimeError):
+                return web.json_response(
+                    {"success": False, "error": "Ogiltig sökväg för INI-fil"},
+                    status=400,
+                )
+            except ValueError:
+                # ini_path is outside the allowed root
+                return web.json_response(
+                    {"success": False, "error": f"Ogiltig sökväg för INI-fil: {ini_path_value}"},
+                    status=400,
+                )
+
+        # Validate and set up; primary path validation is handled inside setup_oden_home
+        success, error = setup_oden_home(Path(oden_home_path), ini_path_obj)
 
         if success:
             return web.json_response(
@@ -223,7 +241,7 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
                     "success": True,
                     "message": "Konfigurationskatalog skapad",
                     "oden_home": oden_home_path,
-                    "migrated_from_ini": ini_path is not None,
+                    "migrated_from_ini": ini_path_obj is not None,
                 }
             )
         else:
