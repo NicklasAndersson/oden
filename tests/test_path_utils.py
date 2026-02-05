@@ -147,24 +147,30 @@ class TestValidateIniFilePath:
         """Test that valid config.ini files are accepted."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Resolve to handle symlinks (e.g., /tmp -> /private/tmp on macOS)
-            ini_file = (Path(tmpdir) / "config.ini").resolve()
+            tmpdir_resolved = Path(tmpdir).resolve()
+            ini_file = tmpdir_resolved / "config.ini"
             ini_file.write_text("[Test]\nkey=value\n")
-            result, error = validate_ini_file_path(str(ini_file))
+            # Pass must_be_within to allow temp directory outside home
+            result, error = validate_ini_file_path(str(ini_file), must_be_within=tmpdir_resolved)
             assert error is None
             assert result == ini_file
 
     def test_nonexistent_file_rejected(self):
         """Test that nonexistent files are rejected."""
-        result, error = validate_ini_file_path("/nonexistent/config.ini")
+        # Test with a path inside home directory that doesn't exist
+        home = Path.home()
+        result, error = validate_ini_file_path(str(home / "nonexistent_dir_12345" / "config.ini"))
         assert result is None
         assert "hittades inte" in error
 
     def test_wrong_filename_rejected(self):
         """Test that files not named config.ini are rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            wrong_file = Path(tmpdir) / "settings.ini"
+            tmpdir_resolved = Path(tmpdir).resolve()
+            wrong_file = tmpdir_resolved / "settings.ini"
             wrong_file.write_text("[Test]\n")
-            result, error = validate_ini_file_path(str(wrong_file))
+            # Pass must_be_within to allow temp directory outside home
+            result, error = validate_ini_file_path(str(wrong_file), must_be_within=tmpdir_resolved)
             assert result is None
             assert "config.ini" in error
 

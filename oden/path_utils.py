@@ -154,10 +154,7 @@ def validate_ini_file_path(
 
     # Determine parent constraint: either the provided directory or user home by default
     try:
-        if must_be_within is not None:
-            parent = normalize_path(must_be_within)
-        else:
-            parent = Path.home().resolve()
+        parent = normalize_path(must_be_within) if must_be_within is not None else Path.home().resolve()
     except (OSError, RuntimeError, ValueError):
         return None, "Ogiltig föräldrasökväg"
 
