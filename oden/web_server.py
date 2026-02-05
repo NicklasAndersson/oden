@@ -18,9 +18,11 @@ from oden.config import WEB_ACCESS_LOG
 from oden.log_buffer import get_log_buffer
 from oden.web_handlers import (
     accept_invitation_handler,
+    config_export_handler,
     config_file_get_handler,
     config_file_save_handler,
     config_handler,
+    config_reset_handler,
     config_save_handler,
     decline_invitation_handler,
     groups_handler,
@@ -29,10 +31,13 @@ from oden.web_handlers import (
     setup_cancel_link_handler,
     setup_handler,
     setup_install_obsidian_template_handler,
+    setup_oden_home_handler,
+    setup_reset_config_handler,
     setup_save_config_handler,
     setup_start_link_handler,
     setup_start_register_handler,
     setup_status_handler,
+    setup_validate_path_handler,
     setup_verify_code_handler,
     toggle_ignore_group_handler,
     toggle_whitelist_group_handler,
@@ -154,6 +159,9 @@ def create_app(setup_mode: bool = False) -> web.Application:
     app.router.add_post("/api/setup/start-register", setup_start_register_handler)
     app.router.add_post("/api/setup/verify-code", setup_verify_code_handler)
     app.router.add_post("/api/setup/install-obsidian-template", setup_install_obsidian_template_handler)
+    app.router.add_post("/api/setup/oden-home", setup_oden_home_handler)
+    app.router.add_post("/api/setup/validate-path", setup_validate_path_handler)
+    app.router.add_delete("/api/setup/reset", setup_reset_config_handler)
 
     if setup_mode:
         # In setup mode, redirect root to setup
@@ -177,6 +185,8 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/config-file", config_file_get_handler)
         app.router.add_post("/api/config-file", config_file_save_handler)
         app.router.add_post("/api/config-save", config_save_handler)
+        app.router.add_get("/api/config/export", config_export_handler)
+        app.router.add_delete("/api/config/reset", config_reset_handler)
         app.router.add_post("/api/shutdown", shutdown_handler)
 
     return app

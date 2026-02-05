@@ -6,9 +6,11 @@ organized by functionality.
 """
 
 from oden.web_handlers.config_handlers import (
+    config_export_handler,
     config_file_get_handler,
     config_file_save_handler,
     config_handler,
+    config_reset_handler,
     config_save_handler,
 )
 from oden.web_handlers.group_handlers import (
@@ -24,10 +26,13 @@ from oden.web_handlers.setup_handlers import (
     setup_cancel_link_handler,
     setup_handler,
     setup_install_obsidian_template_handler,
+    setup_oden_home_handler,
+    setup_reset_config_handler,
     setup_save_config_handler,
     setup_start_link_handler,
     setup_start_register_handler,
     setup_status_handler,
+    setup_validate_path_handler,
     setup_verify_code_handler,
 )
 
@@ -37,6 +42,8 @@ __all__ = [
     "config_file_get_handler",
     "config_file_save_handler",
     "config_save_handler",
+    "config_export_handler",
+    "config_reset_handler",
     # Group handlers
     "groups_handler",
     "toggle_ignore_group_handler",
@@ -54,4 +61,7 @@ __all__ = [
     "setup_start_register_handler",
     "setup_verify_code_handler",
     "setup_install_obsidian_template_handler",
+    "setup_oden_home_handler",
+    "setup_validate_path_handler",
+    "setup_reset_config_handler",
 ]

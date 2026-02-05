@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **SQLite-baserad konfiguration**: Migrerat från INI-fil till SQLite-databas
+  - Ny modul `config_db.py` med key-value-tabell och JSON-stöd för regex patterns
+  - Konfiguration sparas nu i `~/.oden/config.db` istället för `config.ini`
+  - Pointer-fil i app support-katalog (`~/Library/Application Support/Oden/oden_home.txt` på macOS) pekar på config-katalog
+  - Stöd för att välja annan config-katalog via setup-wizarden
+
+### Added
+
+- **Migrering från INI**: Setup-wizarden erbjuder nu att migrera från befintlig `config.ini`
+- **INI-export**: Ny "Ladda ner INI"-knapp i GUI för att exportera konfiguration
+- **Valideringsendpoints**: Nya API-endpoints för att validera och återställa konfiguration
+  - `POST /api/setup/oden-home` - sätt upp config-katalog
+  - `POST /api/setup/validate-path` - validera path
+  - `GET /api/config/export` - ladda ner INI-fil
+  - `DELETE /api/config/reset` - återställ konfiguration
+- **Korrupt DB-hantering**: Varning visas om databasen är korrupt med möjlighet att radera och börja om
+
+### Fixed
+
+- **`is_configured()` returnerar nu tuple**: Returnerar `(bool, error_reason)` för bättre felhantering i GUI
+
 ## [0.13.0] - 2026-02-05
 
 ### Added
