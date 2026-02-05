@@ -35,6 +35,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         expected = "This is a test for [[REG123]] and also [[REG456]]. This should not be linked: [[REG789]]."
         self.assertEqual(apply_regex_links(text), expected)
 
+    @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
@@ -42,8 +43,9 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open):
+    async def test_process_message_new_file(self, mock_exists, mock_makedirs, mock_open, mock_render):
         mock_exists.return_value = False
+        mock_render.return_value = "---\nfileid: 161410-123-John_Doe\n---\n\n# Test Group\n\nTNR: 161410\n\nAvsändare: John Doe ( [[+123]])\n\nGrupp: [[Test Group]]\n\nGrupp id: group123\n\n## Meddelande\n\nHello world\n"
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
@@ -62,15 +64,15 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             os.path.join("mock_vault", "Test Group", "161410-123-John_Doe.md"), "w", encoding="utf-8"
         )
 
-        handle = mock_open()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+        # Verify render_report was called with correct arguments
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertEqual(call_kwargs["fileid"], "161410-123-John_Doe")
+        self.assertEqual(call_kwargs["group_title"], "Test Group")
+        self.assertEqual(call_kwargs["sender_display"], "John Doe ( [[+123]])")
+        self.assertEqual(call_kwargs["message"], "Hello world")
 
-        self.assertIn("fileid: 161410-123-John_Doe", written_content)
-        self.assertIn("# Test Group", written_content)
-        self.assertIn("Avsändare: John Doe ( [[+123]])", written_content)
-        self.assertIn("## Meddelande", written_content)
-        self.assertIn("Hello world", written_content)
-
+    @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
@@ -78,9 +80,10 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock):
+    async def test_process_message_with_attachment(self, mock_exists, mock_makedirs, mock_open_mock, mock_render):
         """Tests that attachments are properly saved and linked in the message file."""
         mock_exists.return_value = False
+        mock_render.return_value = "---\nfileid: 161410-123-John_Doe\n---\n\n# Attachment Group\n\n## Meddelande\n\nHere is an image\n\n## Bilagor\n\n![[20251216141000_161410-123-John_Doe/1_test.jpg]]\n"
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
@@ -118,15 +121,16 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_open_mock.assert_any_call(md_path, "w", encoding="utf-8")
         mock_open_mock.assert_any_call(att_path, "wb")
 
-        # Check content of markdown file
-        handle = mock_open_mock()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list if isinstance(call.args[0], str))
-        self.assertIn("## Bilagor", written_content)
-        self.assertIn("![[20251216141000_161410-123-John_Doe/1_test.jpg]]", written_content)
+        # Verify render_report was called with attachment links
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertIn("![[20251216141000_161410-123-John_Doe/1_test.jpg]]", call_kwargs["attachments"])
 
         # Check content of attachment file
+        handle = mock_open_mock()
         handle.write.assert_any_call(b"hello world")
 
+    @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
@@ -134,8 +138,9 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open):
+    async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open, mock_render):
         mock_exists.return_value = False
+        mock_render.return_value = '---\nfileid: 161410-456-Jane_Doe\nlocations: ""\n---\n\n# Maps Group\n\n[Position](geo:59.514828,17.767852)\n'
         message_obj = {
             "envelope": {
                 "sourceName": "Jane Doe",
@@ -157,14 +162,14 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             os.path.join("mock_vault", "Maps Group", "161410-456-Jane_Doe.md"), "w", encoding="utf-8"
         )
 
-        handle = mock_open()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+        # Verify render_report was called with lat/lon
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertEqual(call_kwargs["fileid"], "161410-456-Jane_Doe")
+        self.assertEqual(call_kwargs["lat"], "59.514828")
+        self.assertEqual(call_kwargs["lon"], "17.767852")
 
-        self.assertIn("fileid: 161410-456-Jane_Doe", written_content)
-        self.assertIn('locations: ""', written_content)
-        self.assertIn("[Position](geo:59.514828,17.767852)\n", written_content)
-        self.assertIn("Check this location https://maps.google.com/maps?q=59.514828%2C17.767852", written_content)
-
+    @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
     @patch("os.path.exists")
@@ -172,10 +177,15 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_duplicate_creates_unique_file(self, mock_exists, mock_makedirs, mock_open):
+    async def test_process_message_duplicate_creates_unique_file(
+        self, mock_exists, mock_makedirs, mock_open, mock_render
+    ):
         """Tests that a duplicate message creates a new file with suffix."""
         # First file exists, second doesn't (simulating -1 suffix)
         mock_exists.side_effect = [True, False]
+        mock_render.return_value = (
+            "---\nfileid: 161410-123-John_Doe\n---\n\n# Test Group\n\n## Meddelande\n\nAnother message\n"
+        )
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
@@ -195,12 +205,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             os.path.join("mock_vault", "Test Group", "161410-123-John_Doe-1.md"), "w", encoding="utf-8"
         )
 
-        handle = mock_open()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
-
-        self.assertIn("fileid: 161410-123-John_Doe", written_content)
-        self.assertIn("## Meddelande", written_content)
-        self.assertIn("Another message", written_content)
+        # Verify render_report was called with correct arguments
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertEqual(call_kwargs["fileid"], "161410-123-John_Doe")
+        self.assertEqual(call_kwargs["message"], "Another message")
 
     @patch("oden.processing._send_reply")
     @patch("builtins.open", new_callable=mock_open, read_data="HELP_TEXT")
@@ -275,13 +284,17 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(empty_message, mock_reader, mock_writer)
         mock_open.assert_not_called()
 
+    @patch("oden.processing.render_append")
     @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("builtins.open", new_callable=mock_open)
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_append_plus_plus_success(self, mock_open, mock_find_latest):
+    async def test_process_message_append_plus_plus_success(self, mock_open, mock_find_latest, mock_render):
         """Tests that a '++' message successfully appends to a recent file."""
+        mock_render.return_value = (
+            "---\n\nTNR: 050000 (2026-02-05T00:00:00)\nAvsändare: John Doe ( [[+123]])\n\nadding more details\n"
+        )
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
@@ -297,10 +310,10 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_find_latest.assert_called_once()
         mock_open.assert_called_once_with("/mock_vault/My Group/recent_file.md", "a", encoding="utf-8")
 
-        handle = mock_open()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
-        self.assertIn("\n---\n", written_content)
-        self.assertIn("adding more details", written_content)
+        # Verify render_append was called with correct message (without ++)
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertEqual(call_kwargs["message"], "adding more details")
 
     @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value=None)
@@ -326,12 +339,14 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             mock_open.assert_not_called()
             self.assertTrue(any("APPEND FAILED" in message for message in log.output))
 
+    @patch("oden.processing.render_append")
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("builtins.open", new_callable=mock_open)
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_append_on_reply_success(self, mock_open, mock_find_latest):
+    async def test_process_message_append_on_reply_success(self, mock_open, mock_find_latest, mock_render):
         """Tests that replying to a recent message from self triggers an append."""
+        mock_render.return_value = "---\n\nTNR: 050000\nAvsändare: John Doe ( [[+123]])\n\nThis is an addition\n"
         now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
         five_mins_ago_ts_ms = now_ts_ms - (5 * 60 * 1000)
 
@@ -357,10 +372,13 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         mock_find_latest.assert_called_once()
         mock_open.assert_called_once_with("/mock_vault/My Group/recent_file.md", "a", encoding="utf-8")
-        handle = mock_open()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
-        self.assertIn("This is an addition", written_content)
 
+        # Verify render_append was called with correct message
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertEqual(call_kwargs["message"], "This is an addition")
+
+    @patch("oden.processing.render_report")
     @patch("oden.processing._find_latest_file_for_sender")
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.path.exists", return_value=False)
@@ -369,9 +387,10 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_on_reply_fallback(
-        self, mock_makedirs, mock_exists, mock_open, mock_find_latest
+        self, mock_makedirs, mock_exists, mock_open, mock_find_latest, mock_render
     ):
         """Tests that replying to an old message or other user falls back to new message creation."""
+        mock_render.return_value = "---\nfileid: test\n---\n\n# My Group\n\nThis should be a new file\n\n> **Svarar på +123:**\n> Very old message\n"
         now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
         old_ts_ms = now_ts_ms - (40 * 60 * 1000)  # 40 minutes ago
 
@@ -398,19 +417,27 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         # Assert that append logic was NOT used, and it fell through to normal processing
         mock_find_latest.assert_not_called()
         mock_open.assert_called_once()  # Called once for the new file
-        self.assertIn("This should be a new file", mock_open().write.call_args.args[0])
-        # Check that the quote is still formatted, since it's a normal reply
-        self.assertIn("> **Svarar på", mock_open().write.call_args.args[0])
 
+        # Verify render_report was called with quote
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertEqual(call_kwargs["message"], "This should be a new file")
+        self.assertIsNotNone(call_kwargs["quote_formatted"])
+        self.assertIn("Svarar på", call_kwargs["quote_formatted"])
+
+    @patch("oden.processing.render_append")
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("oden.processing._save_attachments", new_callable=AsyncMock, return_value=["![[new_attachment.jpg]]"])
     @patch("builtins.open", new_callable=mock_open)
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_append_reply_with_attachment_only(
-        self, mock_open, mock_save_attachments, mock_find_latest
+        self, mock_open, mock_save_attachments, mock_find_latest, mock_render
     ):
         """Tests the user's bug report: replying with only an attachment should append it."""
+        mock_render.return_value = (
+            "---\n\nTNR: 050000\nAvsändare: John Doe ( [[+123]])\n\n## Bilagor\n\n![[new_attachment.jpg]]\n"
+        )
         now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
         one_min_ago_ts_ms = now_ts_ms - (1 * 60 * 1000)
 
@@ -441,10 +468,11 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         # Assert that the file was appended to with the new attachment link
         mock_open.assert_called_once_with("/mock_vault/My Group/recent_file.md", "a", encoding="utf-8")
-        handle = mock_open()
-        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
-        self.assertIn("## Bilagor", written_content)
-        self.assertIn("![[new_attachment.jpg]]", written_content)
+
+        # Verify render_append was called with attachments
+        mock_render.assert_called_once()
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertIn("![[new_attachment.jpg]]", call_kwargs["attachments"])
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("oden.config.WHITELIST_GROUPS", [])
