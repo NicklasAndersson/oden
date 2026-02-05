@@ -1,0 +1,16 @@
+---
+
+TNR: {{ tnr }} ({{ timestamp_iso }})
+Avsändare: {{ sender_display }}
+{% if message %}
+
+{{ message }}
+{% endif %}
+{% if attachments %}
+
+## Bilagor
+
+{% for link in attachments -%}
+{{ link }}
+{% endfor -%}
+{% endif %}

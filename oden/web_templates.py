@@ -526,29 +526,6 @@ HTML_TEMPLATE = """
         </header>
 
         <div class="grid">
-            <div class="card">
-                <h2>📱 Signal</h2>
-                <table>
-                    <tr><th>Nummer</th><td id="signal-number">-</td></tr>
-                    <tr><th>Visningsnamn</th><td id="display-name">-</td></tr>
-                    <tr><th>signal-cli host</th><td id="signal-host">-</td></tr>
-                    <tr><th>signal-cli port</th><td id="signal-port">-</td></tr>
-                    <tr><th>Ohanterad</th><td id="unmanaged">-</td></tr>
-                </table>
-            </div>
-
-            <div class="card">
-                <h2>📁 Vault</h2>
-                <table>
-                    <tr><th>Sökväg</th><td id="vault-path">-</td></tr>
-                    <tr><th>Tidszon</th><td id="timezone">-</td></tr>
-                    <tr><th>Append-fönster</th><td id="append-window">-</td></tr>
-                    <tr><th>Startup-meddelande</th><td id="startup-message">-</td></tr>
-                    <tr><th>Ignorerade grupper</th><td id="ignored-groups">-</td></tr>
-                    <tr><th>Whitelist-grupper</th><td id="whitelist-groups">-</td></tr>
-                </table>
-            </div>
-
             <div class="card full-width">
                 <h2>👥 Grupper</h2>
                 <div id="groups-container" class="group-list">
@@ -771,20 +748,6 @@ HTML_TEMPLATE = """
                 const response = await fetch('/api/config');
                 const config = await response.json();
 
-                document.getElementById('signal-number').textContent = config.signal_number || '-';
-                document.getElementById('display-name').textContent = config.display_name || '(ej satt)';
-                document.getElementById('signal-host').textContent = config.signal_cli_host || '-';
-                document.getElementById('signal-port').textContent = config.signal_cli_port || '-';
-                document.getElementById('unmanaged').textContent = config.unmanaged_signal_cli ? 'Ja' : 'Nej';
-
-                document.getElementById('vault-path').textContent = config.vault_path || '-';
-                document.getElementById('timezone').textContent = config.timezone || '-';
-                document.getElementById('append-window').textContent = (config.append_window_minutes || 30) + ' minuter';
-                document.getElementById('startup-message').textContent = config.startup_message || '-';
-                document.getElementById('ignored-groups').textContent =
-                    config.ignored_groups && config.ignored_groups.length > 0
-                        ? config.ignored_groups.join(', ')
-                        : '(inga)';
             } catch (error) {
                 console.error('Error fetching config:', error);
             }
