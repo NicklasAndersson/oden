@@ -220,6 +220,23 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
                 user_home = Path.home().resolve()
                 ini_path_obj = Path(ini_path_value).expanduser().resolve()
                 ini_path_obj.relative_to(user_home)
+                # Ensure the path points to an existing INI file.
+                if not ini_path_obj.is_file():
+                    return web.json_response(
+                        {
+                            "success": False,
+                            "error": f"Ogiltig sökväg för INI-fil (filen finns inte): {ini_path_value}",
+                        },
+                        status=400,
+                    )
+                if ini_path_obj.suffix.lower() != ".ini":
+                    return web.json_response(
+                        {
+                            "success": False,
+                            "error": f"Ogiltig sökväg för INI-fil (måste vara .ini): {ini_path_value}",
+                        },
+                        status=400,
+                    )
             except (OSError, RuntimeError):
                 return web.json_response(
                     {"success": False, "error": "Ogiltig sökväg för INI-fil"},
