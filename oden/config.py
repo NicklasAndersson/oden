@@ -256,7 +256,23 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
         (True, None) on success
         (False, error_message) on failure
     """
-    path = Path(path).expanduser()
+    # Normalize and constrain the path selected by the user
+    path = Path(path).expanduser().resolve()
+
+    # Only allow Oden home directories under the current user's home directory,
+    # unless the path is exactly the compiled-in default.
+    try:
+        user_home = Path.home().resolve()
+        default_home = DEFAULT_ODEN_HOME.expanduser().resolve()
+        if path != default_home:
+            # Raises ValueError if `path` is not within `user_home`
+            path.relative_to(user_home)
+    except (OSError, RuntimeError):
+        # If we cannot determine a safe home directory, reject the path
+        return False, "Ogiltig sökväg: kunde inte verifiera hemkatalog"
+    except ValueError:
+        # Path is outside the allowed root
+        return False, f"Ogiltig sökväg: {path}"
 
     # Validate the path
     is_valid, error = validate_oden_home(path)
