@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.4] - 2026-02-06
+
+### Fixed
+
+- **Setup wizard avslutas för tidigt**: Fixade bugg där `is_configured()` tuple-retur gjorde att setup-servern stängdes direkt istället för att vänta på att användaren konfigurerar
+
 ## [0.14.3] - 2026-02-06
 
 ### Fixed

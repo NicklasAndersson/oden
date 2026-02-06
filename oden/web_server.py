@@ -288,8 +288,10 @@ async def run_setup_server(port: int = 8080) -> bool:
     runner = await start_web_server(port, setup_mode=True)
     try:
         # Poll for configuration completion
-        while not is_configured():
+        configured, _error = is_configured()
+        while not configured:
             await asyncio.sleep(1.0)
+            configured, _error = is_configured()
         logger.info("Setup completed, configuration saved.")
         # Wait so the browser can show success message and redirect
         await asyncio.sleep(5.0)
