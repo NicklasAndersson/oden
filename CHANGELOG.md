@@ -7,16 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **SQLite-baserad konfiguration**: Migrerat från INI-fil till SQLite-databas
-  - Ny modul `config_db.py` med key-value-tabell och JSON-stöd för regex patterns
-  - Konfiguration sparas nu i `~/.oden/config.db` istället för `config.ini`
-  - Pointer-fil i app support-katalog (`~/Library/Application Support/Oden/oden_home.txt` på macOS) pekar på config-katalog
-  - Stöd för att välja annan config-katalog via setup-wizarden
+## [0.14.0] - 2026-02-06
 
 ### Added
 
+- **Mallredigerare i webb-GUI**: Ny "Mallar"-flik med split-screen editor/preview
+  - Redigera rapport- och append-mallar direkt i webbgränssnittet
+  - Jinja2-syntaxvalidering med varningar (sparar även vid syntaxfel)
+  - Växla mellan minimal och full exempeldata för förhandsgranskning
+  - Variabelreferens som visar tillgängliga mallvariabler
+  - Export av mallar (individuella .j2-filer och ZIP med alla mallar)
+  - Återställ till standardmall-funktion
 - **Migrering från INI**: Setup-wizarden erbjuder nu att migrera från befintlig `config.ini`
 - **INI-export**: Ny "Ladda ner INI"-knapp i GUI för att exportera konfiguration
 - **Valideringsendpoints**: Nya API-endpoints för att validera och återställa konfiguration
@@ -26,9 +27,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `DELETE /api/config/reset` - återställ konfiguration
 - **Korrupt DB-hantering**: Varning visas om databasen är korrupt med möjlighet att radera och börja om
 
+### Changed
+
+- **SQLite-baserad konfiguration**: Migrerat från INI-fil till SQLite-databas
+  - Ny modul `config_db.py` med key-value-tabell och JSON-stöd för regex patterns
+  - Konfiguration sparas nu i `~/.oden/config.db` istället för `config.ini`
+  - Pointer-fil i app support-katalog (`~/Library/Application Support/Oden/oden_home.txt` på macOS) pekar på config-katalog
+  - Stöd för att välja annan config-katalog via setup-wizarden
+- **Förenklad dashboard**: Tog bort Signal- och Vault-informationsrutorna från dashboard (info finns under Inställningar)
+
 ### Fixed
 
 - **`is_configured()` returnerar nu tuple**: Returnerar `(bool, error_reason)` för bättre felhantering i GUI
+
+### Security
+
+- **Path traversal-skydd**: Sanerar bifogade filnamn med `os.path.basename()` och validerar kommandonamn
+- **Webb-API-autentisering**: Token-baserad autentisering för känsliga endpoints
+- **SSTI-skydd**: Skyddar mallredigeraren mot Server Side Template Injection
 
 ## [0.13.0] - 2026-02-05
 
