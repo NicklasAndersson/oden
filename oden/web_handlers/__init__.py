@@ -35,6 +35,15 @@ from oden.web_handlers.setup_handlers import (
     setup_validate_path_handler,
     setup_verify_code_handler,
 )
+from oden.web_handlers.template_handlers import (
+    template_export_handler,
+    template_get_handler,
+    template_preview_handler,
+    template_reset_handler,
+    template_save_handler,
+    templates_export_all_handler,
+    templates_list_handler,
+)
 
 __all__ = [
     # Config handlers
@@ -64,4 +73,12 @@ __all__ = [
     "setup_oden_home_handler",
     "setup_validate_path_handler",
     "setup_reset_config_handler",
+    # Template handlers
+    "templates_list_handler",
+    "template_get_handler",
+    "template_save_handler",
+    "template_preview_handler",
+    "template_reset_handler",
+    "template_export_handler",
+    "templates_export_all_handler",
 ]

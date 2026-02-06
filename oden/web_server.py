@@ -39,6 +39,13 @@ from oden.web_handlers import (
     setup_status_handler,
     setup_validate_path_handler,
     setup_verify_code_handler,
+    template_export_handler,
+    template_get_handler,
+    template_preview_handler,
+    template_reset_handler,
+    template_save_handler,
+    templates_export_all_handler,
+    templates_list_handler,
     toggle_ignore_group_handler,
     toggle_whitelist_group_handler,
 )
@@ -61,6 +68,11 @@ PROTECTED_ENDPOINTS = {
     "/api/invitations/decline",  # POST - decline group invitation
 }
 
+# Endpoints that require auth and use path parameters (checked with startswith)
+PROTECTED_PREFIXES = {
+    "/api/templates/",  # All template modification endpoints
+}
+
 
 def get_api_token() -> str:
     """Get or generate the API token for this session."""
@@ -76,7 +88,12 @@ async def auth_middleware(request: web.Request, handler):
     path = request.path
 
     # Check if this endpoint requires authentication
-    if path in PROTECTED_ENDPOINTS:
+    needs_auth = path in PROTECTED_ENDPOINTS
+    if not needs_auth:
+        # Check for prefix-based protection (for paths with parameters)
+        needs_auth = any(path.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+
+    if needs_auth:
         # Check for token in Authorization header or query parameter
         auth_header = request.headers.get("Authorization", "")
         query_token = request.query.get("token", "")
@@ -188,6 +205,15 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/config/export", config_export_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)
         app.router.add_post("/api/shutdown", shutdown_handler)
+
+        # Template routes
+        app.router.add_get("/api/templates", templates_list_handler)
+        app.router.add_get("/api/templates/export", templates_export_all_handler)
+        app.router.add_get("/api/templates/{name}", template_get_handler)
+        app.router.add_post("/api/templates/{name}", template_save_handler)
+        app.router.add_post("/api/templates/{name}/preview", template_preview_handler)
+        app.router.add_post("/api/templates/{name}/reset", template_reset_handler)
+        app.router.add_get("/api/templates/{name}/export", template_export_handler)
 
     return app
 
