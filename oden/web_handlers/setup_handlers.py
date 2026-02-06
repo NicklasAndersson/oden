@@ -395,6 +395,14 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         # Create vault directory
         Path(vault_path).mkdir(parents=True, exist_ok=True)
 
+        # First ensure oden_home is set up (creates pointer file and initializes db)
+        success, error = setup_oden_home(DEFAULT_ODEN_HOME)
+        if not success:
+            return web.json_response(
+                {"success": False, "error": f"Kunde inte skapa konfiguration: {error}"},
+                status=500,
+            )
+
         # Save config
         config_dict = {
             "vault_path": vault_path,

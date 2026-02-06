@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.5] - 2026-02-06
+
+### Fixed
+
+- **Setup sparar inte konfiguration**: Setup wizard skapade inte pointer-filen som markerar att setup är klar, vilket gjorde att Oden gick tillbaka till setup efter omstart
+
 ## [0.14.4] - 2026-02-06
 
 ### Fixed
