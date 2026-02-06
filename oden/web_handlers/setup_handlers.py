@@ -75,7 +75,12 @@ async def setup_status_handler(request: web.Request) -> web.Response:
     if include_accounts:
         from oden.signal_manager import get_existing_accounts
 
-        existing_accounts = get_existing_accounts()
+        try:
+            existing_accounts = get_existing_accounts()
+            logger.info(f"Found {len(existing_accounts)} existing Signal accounts")
+        except Exception as e:
+            logger.exception(f"Error getting existing accounts: {e}")
+            existing_accounts = []
 
     # Check configuration status
     configured, config_error = is_configured()
