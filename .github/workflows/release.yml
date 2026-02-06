@@ -2,6 +2,7 @@ name: Build and Release
 
 on:
   push:
+    branches: [ main ]
     tags:
       - 'v*'
 
@@ -32,9 +33,15 @@ jobs:
           /usr/local/bin/python3.12 --version
           file /usr/local/bin/python3.12
 
-      - name: Get version from tag
+      - name: Get version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+            echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set version in source
         run: |
@@ -163,9 +170,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Get version from tag
+      - name: Get version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+            echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set version in source
         run: |
@@ -238,10 +251,16 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Get version from tag
+      - name: Get version
         id: version
         shell: bash
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+            echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set version in source
         shell: bash
@@ -313,9 +332,17 @@ jobs:
         with:
           path: artifacts
 
-      - name: Get version from tag
+      - name: Get version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+            echo "IS_TAG=true" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+            echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+            echo "IS_TAG=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: List downloaded artifacts
         run: |
@@ -358,7 +385,37 @@ jobs:
           echo "Release files:"
           ls -la release_files/
 
-      - name: Create Release
+      - name: Delete existing snapshot release
+        if: steps.version.outputs.IS_TAG == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete snapshot --yes --cleanup-tag 2>/dev/null || true
+
+      - name: Create Snapshot Release
+        if: steps.version.outputs.IS_TAG == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: snapshot
+          name: "Snapshot (${{ steps.version.outputs.VERSION }})"
+          prerelease: true
+          files: |
+            release_files/*
+          body: |
+            ## ⚠️ Snapshot Build
+            
+            This is an automated snapshot build from the latest `main` branch.
+            It is **not a stable release** and may contain untested changes.
+            
+            **Commit:** ${{ github.sha }}
+            **Version:** ${{ steps.version.outputs.VERSION }}
+            
+            For stable releases, see the [latest release](https://github.com/${{ github.repository }}/releases/latest).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Versioned Release
+        if: steps.version.outputs.IS_TAG == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: |

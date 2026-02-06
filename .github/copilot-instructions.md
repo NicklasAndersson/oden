@@ -71,10 +71,18 @@ A read-only web interface runs automatically at `http://127.0.0.1:8080` (localho
 
 ### Versioning
 - `__version__` in `oden/__init__.py` is set to `0.0.0-dev`
-- CI injects actual version from git tag during release build
+- CI injects actual version from git tag or commit SHA during build
 - Don't manually update version - it's managed by the release workflow
 
-### Release Process
+### Snapshot Releases
+Every push to `main` triggers a full build (macOS, Linux, Windows) and creates a **snapshot pre-release** on GitHub:
+- Version is set to `snapshot-<short-sha>` (e.g., `snapshot-abc1234`)
+- The snapshot release is tagged `snapshot` and marked as pre-release
+- Each new snapshot replaces the previous one (the old snapshot release is deleted first)
+- Snapshot releases are **not** shown as the "latest release" on GitHub
+
+### Versioned Releases
+For stable releases, use git tags:
 1. Update `CHANGELOG.md` with new version section
 2. Commit changes to a feature branch
 3. Create a pull request to `main`
@@ -82,7 +90,7 @@ A read-only web interface runs automatically at `http://127.0.0.1:8080` (localho
 5. Merge the pull request
 6. Create annotated tag on main: `git tag -a v0.5.0 -m "description"`
 7. Push tag: `git push origin v0.5.0`
-8. GitHub Actions builds binaries and creates release
+8. GitHub Actions builds binaries and creates a versioned release
 
 **IMPORTANT:** Once a tag has been pushed and a build has started, that tag is immutable. Never delete and recreate a tag - always create a new patch version (e.g., v0.9.1 → v0.9.2).
 
