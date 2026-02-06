@@ -2021,6 +2021,7 @@ SETUP_HTML_TEMPLATE = """
             try {
                 const response = await fetch('/api/setup/status?accounts=true');
                 const data = await response.json();
+                console.log('Existing accounts response:', data);
 
                 document.getElementById('accounts-loading').classList.add('hidden');
 
@@ -2032,6 +2033,7 @@ SETUP_HTML_TEMPLATE = """
                 document.getElementById('method-selection').classList.remove('hidden');
 
             } catch (error) {
+                console.error('Error loading existing accounts:', error);
                 document.getElementById('accounts-loading').classList.add('hidden');
                 document.getElementById('method-selection').classList.remove('hidden');
             }

@@ -75,7 +75,12 @@ async def setup_status_handler(request: web.Request) -> web.Response:
     if include_accounts:
         from oden.signal_manager import get_existing_accounts
 
-        existing_accounts = get_existing_accounts()
+        try:
+            existing_accounts = get_existing_accounts()
+            logger.info(f"Found {len(existing_accounts)} existing Signal accounts")
+        except Exception as e:
+            logger.exception(f"Error getting existing accounts: {e}")
+            existing_accounts = []
 
     # Check configuration status
     configured, config_error = is_configured()
@@ -83,9 +88,19 @@ async def setup_status_handler(request: web.Request) -> web.Response:
     # Get current oden_home from pointer file
     current_oden_home = get_oden_home_path()
 
-    # Check for existing INI file at default location
+    # Check for existing INI file - first in default location, then in bundle location
     default_ini_path = DEFAULT_ODEN_HOME / "config.ini"
-    has_existing_ini = default_ini_path.exists()
+    bundle_ini_path = get_bundle_path() / "config.ini"
+
+    existing_ini_path = None
+    if default_ini_path.exists():
+        existing_ini_path = default_ini_path
+        logger.debug(f"Found config.ini at default location: {default_ini_path}")
+    elif bundle_ini_path.exists():
+        existing_ini_path = bundle_ini_path
+        logger.debug(f"Found config.ini at bundle location: {bundle_ini_path}")
+
+    has_existing_ini = existing_ini_path is not None
 
     if _linker is None:
         return web.json_response(
@@ -97,7 +112,7 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                 "default_oden_home": str(DEFAULT_ODEN_HOME),
                 "default_vault": str(DEFAULT_VAULT_PATH),
                 "has_existing_ini": has_existing_ini,
-                "existing_ini_path": str(default_ini_path) if has_existing_ini else None,
+                "existing_ini_path": str(existing_ini_path) if has_existing_ini else None,
                 "existing_accounts": existing_accounts,
             }
         )
@@ -221,13 +236,19 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
 
         ini_path_obj: Path | None = None
         if ini_path_value:
-            # Validate INI file path using centralized validation
+            # Try validating INI file path - first within home dir, then within bundle
             ini_path_obj, ini_error = validate_ini_file_path(ini_path_value)
             if ini_error:
-                return web.json_response(
-                    {"success": False, "error": ini_error},
-                    status=400,
-                )
+                # If home validation failed, try bundle location
+                bundle_path = get_bundle_path()
+                ini_path_obj, bundle_error = validate_ini_file_path(ini_path_value, must_be_within=bundle_path)
+                if bundle_error:
+                    # Both failed - return the original error
+                    return web.json_response(
+                        {"success": False, "error": ini_error},
+                        status=400,
+                    )
+                logger.info(f"Using config.ini from bundle location: {ini_path_obj}")
 
         # Validate and set up; primary path validation is handled inside setup_oden_home
         success, error = setup_oden_home(Path(oden_home_path), ini_path_obj)
