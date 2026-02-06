@@ -17,6 +17,7 @@ from oden import __version__
 from oden.app_state import get_app_state
 from oden.config import (
     DISPLAY_NAME,
+    LOG_FILE,
     LOG_LEVEL,
     SIGNAL_CLI_HOST,
     SIGNAL_CLI_PORT,
@@ -35,15 +36,33 @@ logger = logging.getLogger(__name__)
 
 
 def configure_logging() -> None:
-    """Configure logging with both console output and in-memory buffer."""
+    """Configure logging with console output, file output, and in-memory buffer."""
+    from logging.handlers import RotatingFileHandler
+    from pathlib import Path
+
     root_logger = logging.getLogger()
     root_logger.setLevel(LOG_LEVEL)
+
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(LOG_LEVEL)
-    console_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
+
+    # File handler with rotation (5MB max, keep 3 backups)
+    if LOG_FILE:
+        try:
+            log_path = Path(LOG_FILE).expanduser()
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+            file_handler.setLevel(LOG_LEVEL)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+            root_logger.info(f"Logging to file: {log_path}")
+        except Exception as e:
+            root_logger.warning(f"Could not set up file logging: {e}")
 
     # In-memory log buffer for web GUI
     log_buffer = get_log_buffer()
