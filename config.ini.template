@@ -93,3 +93,10 @@ access_log = web_access.log
 # Loggnivå: DEBUG, INFO, WARNING, ERROR, CRITICAL
 #level = INFO
 
+# Loggfil för Oden-applikationen (roteras vid 5MB, 3 backupfiler behålls)
+# Standard: ~/Library/Logs/Oden/oden.log (macOS)
+#           ~/.local/state/oden/oden.log (Linux)
+#           %LOCALAPPDATA%\Oden\Logs\oden.log (Windows)
+# Sätt till tom sträng för att inaktivera filloggning
+#log_file = ~/Library/Logs/Oden/oden.log
+

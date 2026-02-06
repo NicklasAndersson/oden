@@ -31,6 +31,7 @@ DEFAULT_CONFIG = {
     "plus_plus_enabled": False,
     "filename_format": "classic",
     "log_level": "INFO",
+    "log_file": None,  # Default set per-platform in config.py
     "web_enabled": True,
     "web_port": 8080,
     "web_access_log": None,
@@ -59,6 +60,7 @@ TYPE_MAP = {
     "plus_plus_enabled": "bool",
     "filename_format": "str",
     "log_level": "str",
+    "log_file": "str",
     "web_enabled": "bool",
     "web_port": "int",
     "web_access_log": "str",

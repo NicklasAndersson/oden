@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-02-06
+
+### Added
+
+- **Standardloggning till fil**: Loggar nu automatiskt till fil för enklare felsökning av krascher
+  - macOS: `~/Library/Logs/Oden/oden.log`
+  - Linux: `~/.local/state/oden/oden.log`
+  - Windows: `%LOCALAPPDATA%\Oden\Logs\oden.log`
+  - Roterande loggar (5MB max, 3 backupfiler behålls)
+  - Konfigurerbar via `log_file` i inställningar
+
 ## [0.14.0] - 2026-02-06
 
 ### Added

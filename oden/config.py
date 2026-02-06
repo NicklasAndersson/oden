@@ -9,6 +9,7 @@ module-level exports pattern.
 import datetime
 import logging
 import os
+import platform
 import sys
 import zoneinfo
 from pathlib import Path
@@ -45,6 +46,17 @@ SIGNAL_DATA_PATH: Path = DEFAULT_ODEN_HOME / "signal-data"
 
 # Legacy compatibility
 CONFIG_FILE: Path = DEFAULT_ODEN_HOME / "config.ini"
+
+
+def get_default_log_path() -> Path:
+    """Get platform-specific default log file path."""
+    system = platform.system()
+    if system == "Darwin":
+        return Path.home() / "Library" / "Logs" / "Oden" / "oden.log"
+    elif system == "Windows":
+        return Path.home() / "AppData" / "Local" / "Oden" / "Logs" / "oden.log"
+    else:
+        return Path.home() / ".local" / "state" / "oden" / "oden.log"
 
 
 def _update_paths(oden_home: Path) -> None:
@@ -190,7 +202,7 @@ def reload_config() -> dict:
     global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, REGEX_PATTERNS
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
-    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL
+    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_PORT, WEB_ACCESS_LOG
 
     # Re-check oden_home in case it changed
@@ -216,6 +228,7 @@ def reload_config() -> dict:
     FILENAME_FORMAT = app_config.get("filename_format", "classic")
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     LOG_LEVEL = app_config["log_level"]
+    LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
@@ -351,6 +364,7 @@ try:
     FILENAME_FORMAT = app_config.get("filename_format", "classic")
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     LOG_LEVEL = app_config.get("log_level", logging.INFO)
+    LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
@@ -376,6 +390,7 @@ except Exception as e:
     FILENAME_FORMAT = "classic"
     SIGNAL_CLI_LOG_FILE = None
     LOG_LEVEL = logging.INFO
+    LOG_FILE = str(get_default_log_path())
     WEB_ENABLED = True
     WEB_PORT = 8080
     WEB_ACCESS_LOG = None
