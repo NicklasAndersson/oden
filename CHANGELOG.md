@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-02-06
+
+### Fixed
+
+- **Setup wizard startar korrekt**: Fixade bugg där `is_configured()` returnerar tuple men anropades som bool, vilket gjorde att setup wizard aldrig startade
+
 ## [0.14.1] - 2026-02-06
 
 ### Added

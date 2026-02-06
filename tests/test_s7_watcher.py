@@ -12,7 +12,7 @@ from oden.signal_manager import SignalManager, is_signal_cli_running
 
 
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
-    @patch("oden.s7_watcher.is_configured", return_value=True)
+    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
     @patch("oden.s7_watcher.WEB_ENABLED", False)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", False)
     @patch("oden.s7_watcher.SignalManager")
@@ -33,7 +33,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)
         mock_manager_instance.stop.assert_called_once()
 
-    @patch("oden.s7_watcher.is_configured", return_value=True)
+    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
     @patch("oden.s7_watcher.WEB_ENABLED", False)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=True)
@@ -50,7 +50,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_is_running.assert_called_once_with("1.2.3.4", 1234)
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)
 
-    @patch("oden.s7_watcher.is_configured", return_value=True)
+    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=False)
     @patch("sys.exit", side_effect=SystemExit)
