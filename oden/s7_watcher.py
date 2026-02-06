@@ -344,8 +344,9 @@ def main() -> None:
     logger.info(f"Starting Oden v{__version__}...")
 
     # Check if this is first run (not configured)
-    if not is_configured():
-        logger.info("First run detected - starting setup wizard...")
+    _is_configured, _config_error = is_configured()
+    if not _is_configured:
+        logger.info(f"First run detected ({_config_error}) - starting setup wizard...")
         try:
             setup_complete = asyncio.run(run_setup_mode(WEB_PORT))
             if setup_complete:
