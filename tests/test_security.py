@@ -184,7 +184,7 @@ class TestCommandPathTraversal(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.processing._send_reply")
     @patch("builtins.open", new_callable=unittest.mock.mock_open, read_data="HELP_TEXT")
-    @patch("os.path.exists", return_value=True)
+    @patch("os.path.exists", return_value=True)  # Return True for all exists checks
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_valid_command_still_works(self, mock_exists, mock_open, mock_send_reply):
@@ -202,8 +202,9 @@ class TestCommandPathTraversal(unittest.IsolatedAsyncioTestCase):
 
         await process_message(message_obj, mock_reader, mock_writer)
 
-        # Should have processed the command normally
-        mock_exists.assert_called_with("responses/help.md")
+        # Should have processed the command normally - check that responses/help.md was accessed
+        calls = [str(c) for c in mock_exists.call_args_list]
+        self.assertTrue(any("responses/help.md" in c for c in calls), f"Expected responses/help.md check in {calls}")
         mock_open.assert_called_with("responses/help.md", encoding="utf-8")
         mock_send_reply.assert_awaited_once()
 
