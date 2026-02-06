@@ -504,6 +504,145 @@ HTML_TEMPLATE = """
         .config-actions {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
+        }
+        /* Template editor styles */
+        .template-split-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            min-height: 400px;
+            margin-bottom: 15px;
+        }
+        @media (max-width: 900px) {
+            .template-split-view {
+                grid-template-columns: 1fr;
+            }
+        }
+        .template-editor-pane, .template-preview-pane {
+            display: flex;
+            flex-direction: column;
+        }
+        .template-editor-pane textarea {
+            flex: 1;
+            width: 100%;
+            min-height: 350px;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #16213e;
+            color: #fff;
+            font-family: Monaco, Menlo, 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.5;
+            resize: vertical;
+        }
+        .template-editor-pane textarea:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+        .template-preview-content {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #0d1421;
+            color: #e0e0e0;
+            font-family: Monaco, Menlo, 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.5;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 350px;
+        }
+        .template-error {
+            padding: 10px 15px;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid #f44336;
+            border-radius: 4px;
+            color: #f44336;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        .template-variables-section {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(79, 195, 247, 0.05);
+            border-radius: 4px;
+        }
+        .template-variables-section summary {
+            cursor: pointer;
+            color: #4fc3f7;
+            font-weight: 500;
+            padding: 5px 0;
+        }
+        .template-variables-list {
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
+        }
+        .template-var-item {
+            padding: 8px 12px;
+            background: #16213e;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        .template-var-name {
+            font-family: Monaco, Menlo, monospace;
+            color: #4fc3f7;
+        }
+        .template-var-required {
+            color: #f44336;
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+        .template-var-desc {
+            color: #888;
+            font-size: 0.85em;
+            margin-top: 3px;
+        }
+        /* Toggle switch styles */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #333;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #888;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: rgba(79, 195, 247, 0.3);
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+            background-color: #4fc3f7;
         }
     </style>
 </head>
@@ -565,6 +704,7 @@ HTML_TEMPLATE = """
                 <div class="tabs">
                     <button class="tab-btn active" onclick="showTab('basic')">Grundläggande</button>
                     <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
+                    <button class="tab-btn" onclick="showTab('templates')">Mallar</button>
                     <button class="tab-btn" onclick="showTab('raw')">Rå config</button>
                 </div>
 
@@ -716,6 +856,62 @@ HTML_TEMPLATE = """
                             <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
                         </div>
                     </form>
+                </div>
+
+                <div id="tab-templates" class="tab-content">
+                    <div class="config-section">
+                        <h3>📝 Rapportmallar</h3>
+                        <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                            Redigera Jinja2-mallar som används för att generera rapporter. Ändringar sparas i databasen.
+                        </p>
+
+                        <div style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center; flex-wrap: wrap;">
+                            <div>
+                                <label for="template-select" style="margin-right: 8px;">Mall:</label>
+                                <select id="template-select" onchange="loadTemplate()">
+                                    <option value="report.md.j2">Rapportmall (report.md.j2)</option>
+                                    <option value="append.md.j2">Tilläggsmall (append.md.j2)</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="template-full-data" onchange="previewTemplate()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span style="color: #888; font-size: 0.9em;">Visa alla variabler</span>
+                            </div>
+                        </div>
+
+                        <div class="template-split-view">
+                            <div class="template-editor-pane">
+                                <h4 style="margin: 0 0 10px 0; color: #4fc3f7;">Editor</h4>
+                                <textarea id="template-editor" placeholder="Laddar mall..."></textarea>
+                            </div>
+                            <div class="template-preview-pane">
+                                <h4 style="margin: 0 0 10px 0; color: #4fc3f7;">Förhandsvisning</h4>
+                                <div id="template-preview" class="template-preview-content">
+                                    <div class="empty-state">Klicka "Förhandsgranska" för att se resultatet</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="template-error" class="template-error" style="display: none;"></div>
+
+                        <details class="template-variables-section">
+                            <summary>📋 Tillgängliga variabler</summary>
+                            <div id="template-variables" class="template-variables-list">
+                                <div class="empty-state">Välj en mall för att se tillgängliga variabler</div>
+                            </div>
+                        </details>
+
+                        <div class="config-actions" style="margin-top: 15px;">
+                            <button type="button" class="btn btn-primary" onclick="previewTemplate()">👁️ Förhandsgranska</button>
+                            <button type="button" class="btn btn-primary" onclick="saveTemplate()">💾 Spara mall</button>
+                            <button type="button" class="btn btn-secondary" onclick="resetTemplate()">↩️ Återställ standard</button>
+                            <button type="button" class="btn btn-secondary" onclick="exportCurrentTemplate()">⬇️ Ladda ner</button>
+                            <button type="button" class="btn btn-secondary" onclick="exportAllTemplates()">⬇️ Ladda ner alla</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="tab-raw" class="tab-content">
@@ -1005,6 +1201,10 @@ HTML_TEMPLATE = """
             if (tabName === 'raw') {
                 loadRawConfig();
             }
+            // Load template when switching to templates tab
+            if (tabName === 'templates') {
+                loadTemplate();
+            }
         }
 
         // Config message helper
@@ -1197,6 +1397,181 @@ HTML_TEMPLATE = """
 
         // Polling - refresh groups every 30 seconds
         setInterval(fetchGroups, 30000);
+
+        // ========== Template Editor Functions ==========
+
+        // Store API token for template operations
+        let apiToken = null;
+
+        async function getApiToken() {
+            if (!apiToken) {
+                try {
+                    const response = await fetch('/api/token');
+                    const data = await response.json();
+                    apiToken = data.token;
+                } catch (error) {
+                    console.error('Failed to get API token:', error);
+                }
+            }
+            return apiToken;
+        }
+
+        async function loadTemplate() {
+            const templateName = document.getElementById('template-select').value;
+            const editor = document.getElementById('template-editor');
+            const variablesContainer = document.getElementById('template-variables');
+            const errorDiv = document.getElementById('template-error');
+
+            errorDiv.style.display = 'none';
+
+            try {
+                const token = await getApiToken();
+                const response = await fetch(`/api/templates/${templateName}?token=${token}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    editor.value = data.content;
+
+                    // Display variables
+                    if (data.variables && data.variables.length > 0) {
+                        variablesContainer.innerHTML = data.variables.map(v => `
+                            <div class="template-var-item">
+                                <span class="template-var-name">{{ ${v.name} }}</span>
+                                ${v.required ? '<span class="template-var-required">*</span>' : ''}
+                                <div class="template-var-desc">${escapeHtml(v.description)}</div>
+                            </div>
+                        `).join('');
+                    }
+
+                    // Auto-preview
+                    await previewTemplate();
+                } else {
+                    errorDiv.textContent = data.error || 'Kunde inte ladda mall';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Nätverksfel: ' + error.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        async function previewTemplate() {
+            const templateName = document.getElementById('template-select').value;
+            const content = document.getElementById('template-editor').value;
+            const previewDiv = document.getElementById('template-preview');
+            const errorDiv = document.getElementById('template-error');
+            const useFullData = document.getElementById('template-full-data').checked;
+
+            errorDiv.style.display = 'none';
+
+            if (!content.trim()) {
+                previewDiv.innerHTML = '<div class="empty-state">Ingen mall att förhandsgranska</div>';
+                return;
+            }
+
+            try {
+                const token = await getApiToken();
+                const response = await fetch(`/api/templates/${templateName}/preview?token=${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content, full: useFullData })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    previewDiv.textContent = data.preview;
+                } else {
+                    errorDiv.textContent = data.error || 'Förhandsvisning misslyckades';
+                    errorDiv.style.display = 'block';
+                    previewDiv.innerHTML = '<div class="empty-state">Fel i mallen - se felmeddelande ovan</div>';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Nätverksfel: ' + error.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        async function saveTemplate() {
+            const templateName = document.getElementById('template-select').value;
+            const content = document.getElementById('template-editor').value;
+            const errorDiv = document.getElementById('template-error');
+
+            errorDiv.style.display = 'none';
+
+            if (!content.trim()) {
+                errorDiv.textContent = 'Mallinnehåll kan inte vara tomt';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const token = await getApiToken();
+                const response = await fetch(`/api/templates/${templateName}?token=${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    let message = 'Mall sparad!';
+                    if (data.warning) {
+                        message += ' ' + data.warning;
+                        showConfigMessage(message, 'warning');
+                    } else {
+                        showConfigMessage(message, 'success');
+                    }
+                } else {
+                    errorDiv.textContent = data.error || 'Kunde inte spara mall';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Nätverksfel: ' + error.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        async function resetTemplate() {
+            const templateName = document.getElementById('template-select').value;
+            const errorDiv = document.getElementById('template-error');
+
+            if (!confirm('Är du säker på att du vill återställa mallen till standardvärdet? Dina ändringar kommer att försvinna.')) {
+                return;
+            }
+
+            errorDiv.style.display = 'none';
+
+            try {
+                const token = await getApiToken();
+                const response = await fetch(`/api/templates/${templateName}/reset?token=${token}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('template-editor').value = data.content;
+                    showConfigMessage('Mall återställd till standard!', 'success');
+                    await previewTemplate();
+                } else {
+                    errorDiv.textContent = data.error || 'Kunde inte återställa mall';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Nätverksfel: ' + error.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        async function exportCurrentTemplate() {
+            const templateName = document.getElementById('template-select').value;
+            const token = await getApiToken();
+            window.location.href = `/api/templates/${templateName}/export?token=${token}`;
+        }
+
+        async function exportAllTemplates() {
+            const token = await getApiToken();
+            window.location.href = `/api/templates/export?token=${token}`;
+        }
     </script>
 </body>
 </html>

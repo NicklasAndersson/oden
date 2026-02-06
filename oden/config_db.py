@@ -63,6 +63,8 @@ TYPE_MAP = {
     "web_port": "int",
     "web_access_log": "str",
     "regex_patterns": "json",
+    "report_template": "str",
+    "append_template": "str",
 }
 
 
