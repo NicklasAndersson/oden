@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, Template, TemplateSyntaxError
+from jinja2.sandbox import SandboxedEnvironment
 
 from oden.bundle_utils import get_bundle_path
 
@@ -239,10 +240,21 @@ def save_template_content(template_name: str, content: str) -> bool:
 def clear_template_cache() -> None:
     """Clear the cached Jinja2 environment to reload templates."""
     _get_jinja_env.cache_clear()
+    # Clear sandboxed environment cache if it exists
+    if hasattr(_get_sandboxed_env, "cache_clear"):
+        _get_sandboxed_env.cache_clear()
     # Clear _get_template_from_db cache if it exists (it may not be called yet)
     if hasattr(_get_template_from_db, "cache_clear"):
         _get_template_from_db.cache_clear()
     logger.debug("Template cache cleared")
+
+
+@lru_cache(maxsize=1)
+def _get_sandboxed_env() -> SandboxedEnvironment:
+    """Get a cached sandboxed Jinja2 environment for user-provided templates."""
+    # We use a separate environment for templates constructed from strings
+    # (for example, user-edited templates) to avoid server-side template injection.
+    return SandboxedEnvironment()
 
 
 @lru_cache(maxsize=2)
@@ -256,7 +268,7 @@ def _get_template_from_db(template_name: str) -> Template:
         Compiled Jinja2 Template object.
     """
     content = get_template_content(template_name)
-    env = _get_jinja_env()
+    env = _get_sandboxed_env()
     return env.from_string(content)
 
 
@@ -270,7 +282,7 @@ def validate_template(content: str) -> tuple[bool, str | None]:
         (True, None) if valid, (False, error_message) if invalid.
     """
     try:
-        env = _get_jinja_env()
+        env = _get_sandboxed_env()
         env.parse(content)
         return True, None
     except TemplateSyntaxError as e:
@@ -290,7 +302,7 @@ def render_template_from_string(content: str, context: dict[str, Any]) -> str:
     Raises:
         jinja2.TemplateSyntaxError: If template syntax is invalid.
     """
-    env = _get_jinja_env()
+    env = _get_sandboxed_env()
     template = env.from_string(content)
     return template.render(**context)
 
