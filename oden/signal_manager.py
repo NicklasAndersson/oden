@@ -214,8 +214,11 @@ def get_existing_accounts() -> list[dict]:
     # Also check our custom location
     data_paths.append(SIGNAL_DATA_PATH)
 
+    logger.debug(f"Searching for Signal accounts in: {data_paths}")
+
     for data_path in data_paths:
         accounts_file = data_path / "data" / "accounts.json"
+        logger.debug(f"Checking {accounts_file} (exists: {accounts_file.exists()})")
         if accounts_file.exists():
             try:
                 with open(accounts_file) as f:
@@ -228,6 +231,7 @@ def get_existing_accounts() -> list[dict]:
             except (json_module.JSONDecodeError, OSError, KeyError) as e:
                 logger.warning(f"Error reading {accounts_file}: {e}")
 
+    logger.info(f"Total accounts found: {len(accounts)}")
     return accounts
 
 
