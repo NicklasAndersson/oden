@@ -63,9 +63,11 @@ sequenceDiagram
 ### Komponenter
 
 * **Externt (Utanför):** En person som skickar ett meddelande via Signal-appen till det nummer som applikationen bevakar.
+* **System Tray (`tray.py`):** En ikon i systemfältet (macOS/Linux/Windows) via pystray. Ger knappar för att starta/stoppa signal-cli, öppna Web GUI i webbläsaren, och avsluta Oden. Vid första start öppnas istället en **setup-wizard** i webbläsaren som guidar genom konfigurationen (välja hemkatalog, länka Signal-konto via QR-kod, välja vault-sökväg).
 * **`signal-cli`:** Körs som en bakgrundsprocess (daemon) och hanterar den direkta kommunikationen med Signals servrar. Den tar emot meddelanden och exponerar ett lokalt JSON-RPC API över en TCP-socket. Den kan också ta emot anrop för att skicka meddelanden eller hämta data.
-* **`s7_watcher.py` (Watcher):** En Python-process som kontinuerligt är ansluten till `signal-cli`-daemonen. Dess enda syfte är att lyssna efter inkommande meddelanden, och när ett tas emot, skicka det vidare till `processing.py` för behandling.
-* **`processing.py` (Processor):** Applikationens kärna. Detta skript innehåller all logik för att tolka, formatera och agera på ett meddelande.
+* **`s7_watcher.py` (Watcher):** Applikationens huvudprocess. Startar tray-ikonen, hanterar signal-cli-processen, Web GUI, TCP-anslutningen och skickar meddelanden vidare till `processing.py` för behandling.
+* **`processing.py` (Processor):** Applikationens kärna. Innehåller all logik för att tolka, formatera och agera på ett meddelande. Använder Jinja2-mallar (via `template_loader.py`) för att formatera rapporter.
+* **`config_db.py` (Konfiguration):** All konfiguration lagras i en SQLite-databas (`config.db`). Modulen `config.py` läser in värden från databasen och exponerar dem som modulglobala konstanter.
 * **Vault (Filsystem):** En mappstruktur (`/vault`) på datorn där meddelanden och deras bilagor sparas som Markdown-filer i ett [Obsidian](https://obsidian.md)-kompatibelt format.
 
 ### Flöde 1: Vanligt meddelande
@@ -76,7 +78,7 @@ sequenceDiagram
 4. `processing.py` parsar meddelandet:
    * Extraherar text, avsändare, grupp, tidsstämpel och eventuella bilagor.
    * Om en bilaga är för stor för att ha skickats med direkt i JSON, görs ett anrop tillbaka till `signal-cli` för att hämta den.
-   * Textinnehållet analyseras för specifika mönster (definierade i `config.ini`) som automatiskt omvandlas till Obsidian-länkar (`[[länk]]`).
+   * Textinnehållet analyseras för specifika mönster (definierade i konfigurationsdatabasen) som automatiskt omvandlas till Obsidian-länkar (`[[länk]]`). Platslänkar (Google Maps, Apple Maps, OSM) extraheras till geo-koordinater.
    * En sökväg till en Markdown-fil bestäms baserat på gruppnamn och datum.
 5. Processorn sparar bilagor i en unik undermapp i valvet.
 6. Processorn skriver eller lägger till det formaterade innehållet (metadata, text, länkar till bilagor) i rätt `.md`-fil i valvet.
