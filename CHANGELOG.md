@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-02-07
+
+### Added
+
+- **GUI-testning med Playwright**: Automatiska GUI-tester med screenshots som byggsteg i CI
+- **Screenshots i release-noter**: Dashboard- och setup-screenshots visas i GitHub release-noter
+- **Robust URL-parsing för platser**: Stöd för Google Maps, Apple Maps och OpenStreetMap-länkar
+- **Platsdata i append-läge**: Koordinater extraheras även vid append till befintlig rapport
+
+### Fixed
+
+- **Snapshot-releaser**: Unika taggar per commit (`snapshot-<sha>`) istället för att återanvända immutable `snapshot`-tagg
+- **Borttagen oanvänd frontmatter**: `locations: ""` som aldrig fylldes i har tagits bort från rapportmallen
+
+### Changed
+
+- **Uppdaterade README-screenshots**: Nya `dashboard.png` och `setup.png` ersätter gamla GUI-bilder
+- **Automatisk rensning av mergade branches**: Aktiverat via GitHub repository-inställningar
+
 ## [0.14.5] - 2026-02-06
 
 ### Fixed
