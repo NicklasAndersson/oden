@@ -7,3 +7,4 @@ branches:
         contexts:
           - "Python tests / lint"
           - "Python tests / test"
+          - "Python tests / pip-check"
