@@ -430,8 +430,8 @@ jobs:
             
             ### macOS (Apple Silicon & Intel)
             1. Download `Oden-${{ steps.version.outputs.VERSION }}-macOS-universal.dmg`
-            2. Open the DMG and drag Oden to Applications
-            3. Run `xattr -cr /Applications/Oden.app` in Terminal (required because the app isn't signed with an Apple certificate)
+            2. Open the DMG and drag Oden to `/Applications`
+            3. Run `xattr -cr /Applications/Oden.app` in Terminal before first launch (required because the app isn't signed with an Apple certificate)
             
             ### Linux
             1. Download and extract `Oden-${{ steps.version.outputs.VERSION }}-linux.zip`
