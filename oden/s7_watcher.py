@@ -360,6 +360,10 @@ def main() -> None:
     When pystray is available, a system tray icon is shown with Start/Stop,
     Open Web GUI, and Quit controls.  The watcher loop can be stopped and
     restarted from the tray without quitting the application.
+
+    On macOS the tray event loop must run on the **main thread**, so
+    ``tray.run()`` blocks main while the watcher logic runs in a
+    background thread spawned by pystray's *setup* callback.
     """
     # Configure logging with console and buffer handlers
     configure_logging()
@@ -433,50 +437,61 @@ def main() -> None:
     if tray is not None:
         tray.set_callbacks(on_start=request_start, on_stop=request_stop, on_quit=request_quit)
 
-    try:
-        while not quit_requested:
-            # Start signal-cli if managed
-            if signal_manager is not None:
-                signal_manager.start()
-            elif not is_signal_cli_running(new_host, new_port):
-                logger.error("signal-cli is not running. Please start it manually.")
-                if tray is None:
-                    sys.exit(1)
-                # Wait for user to click Start again
-                logger.info("Waiting for Start from tray menu...")
-                _wait_for_start(tray)
-                if quit_requested:
-                    break
-                continue
-
-            # Mark as running
-            if tray is not None:
-                tray.running = True
-
-            try:
-                asyncio.run(run_all(new_host, new_port))
-            except (KeyboardInterrupt, SystemExit):
-                logger.info("Watcher loop stopped.")
-            except Exception as e:
-                logger.exception(f"An unexpected error occurred: {e}")
-            finally:
-                if tray is not None:
-                    tray.running = False
+    def _watcher_loop() -> None:
+        """Run the watcher loop (may be called from a background thread)."""
+        nonlocal quit_requested
+        try:
+            while not quit_requested:
+                # Start signal-cli if managed
                 if signal_manager is not None:
-                    signal_manager.stop()
+                    signal_manager.start()
+                elif not is_signal_cli_running(new_host, new_port):
+                    logger.error("signal-cli is not running. Please start it manually.")
+                    if tray is None:
+                        sys.exit(1)
+                    # Wait for user to click Start again
+                    logger.info("Waiting for Start from tray menu...")
+                    _wait_for_start(tray)
+                    if quit_requested:
+                        break
+                    continue
 
-            # If no tray, exit after first run
-            if tray is None:
-                break
+                # Mark as running
+                if tray is not None:
+                    tray.running = True
 
-            if not quit_requested:
-                logger.info("Watcher stopped. Use tray menu to Start or Quit.")
-                _wait_for_start(tray)
+                try:
+                    asyncio.run(run_all(new_host, new_port))
+                except (KeyboardInterrupt, SystemExit):
+                    logger.info("Watcher loop stopped.")
+                except Exception as e:
+                    logger.exception(f"An unexpected error occurred: {e}")
+                finally:
+                    if tray is not None:
+                        tray.running = False
+                    if signal_manager is not None:
+                        signal_manager.stop()
 
-    finally:
-        if tray is not None:
-            tray.stop()
-        logger.info("Oden shut down.")
+                # If no tray, exit after first run
+                if tray is None:
+                    break
+
+                if not quit_requested:
+                    logger.info("Watcher stopped. Use tray menu to Start or Quit.")
+                    _wait_for_start(tray)
+
+        finally:
+            if tray is not None:
+                tray.stop()
+            logger.info("Oden shut down.")
+
+    if tray is not None:
+        # tray.run() blocks main thread (required for macOS NSApp loop).
+        # The watcher loop runs in pystray's setup-callback thread.
+        tray.run(on_ready=_watcher_loop)
+    else:
+        # No tray — run the watcher directly on the main thread.
+        _watcher_loop()
 
     sys.exit(0)
 
@@ -487,7 +502,7 @@ def _create_tray() -> OdenTray | None:
         from oden.tray import OdenTray
 
         tray = OdenTray(version=__version__, web_port=WEB_PORT)
-        if tray.start():
+        if tray.setup():
             return tray
         return None
     except Exception as e:

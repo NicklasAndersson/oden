@@ -3,6 +3,13 @@ Native system tray icon for Oden.
 
 Provides Start/Stop control, Open Web GUI, and version display
 via a cross-platform system tray icon using pystray.
+
+On macOS the NSApplication event loop must run on the main thread,
+so ``icon.run(setup=...)`` is used: it blocks the main thread while
+the watcher logic runs in the *setup* callback thread.
+
+On Linux / Windows ``run_detached()`` works fine, but for consistency
+all platforms use the same ``run()`` approach.
 """
 
 from __future__ import annotations
@@ -11,6 +18,7 @@ import contextlib
 import logging
 import os
 import sys
+import threading
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
@@ -88,6 +96,15 @@ class OdenTray:
 
     Provides Start/Stop toggle for the watcher loop,
     Open Web GUI button, and Quit.
+
+    Usage::
+
+        tray = OdenTray(version="1.0", web_port=8080)
+        tray.set_callbacks(on_start=..., on_stop=..., on_quit=...)
+
+        # Blocks the main thread (required for macOS NSApp loop).
+        # *on_ready* is called in a background thread once the icon is visible.
+        tray.run(on_ready=lambda: run_watcher_loop(tray))
     """
 
     def __init__(self, version: str, web_port: int) -> None:
@@ -98,6 +115,11 @@ class OdenTray:
         self._on_start: Callable[[], None] | None = None
         self._on_stop: Callable[[], None] | None = None
         self._on_quit: Callable[[], None] | None = None
+        self._ready = threading.Event()
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
 
     @property
     def running(self) -> bool:
@@ -110,6 +132,10 @@ class OdenTray:
         if self._icon is not None:
             with contextlib.suppress(Exception):
                 self._icon.update_menu()
+
+    # ------------------------------------------------------------------
+    # Callbacks
+    # ------------------------------------------------------------------
 
     def set_callbacks(
         self,
@@ -127,6 +153,10 @@ class OdenTray:
         self._on_start = on_start
         self._on_stop = on_stop
         self._on_quit = on_quit
+
+    # ------------------------------------------------------------------
+    # Menu helpers (private)
+    # ------------------------------------------------------------------
 
     def _get_start_stop_text(self, item: Any) -> str:
         """Dynamic text for the Start/Stop menu item."""
@@ -159,11 +189,15 @@ class OdenTray:
             self._on_quit()
         self.stop()
 
-    def start(self) -> bool:
-        """Create and show the tray icon (non-blocking).
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def setup(self) -> bool:
+        """Build the icon and menu. Call before :meth:`run`.
 
         Returns:
-            True if tray icon was started, False if pystray is not available.
+            True if pystray is available and the icon was created.
         """
         if not _ensure_imports():
             return False
@@ -180,17 +214,39 @@ class OdenTray:
         )
 
         self._icon = pystray.Icon("Oden", image, "Oden", menu)
+        logger.info("System tray icon created")
+        return True
+
+    def run(self, on_ready: Callable[[], None] | None = None) -> None:
+        """Start the tray event loop (**blocks the calling thread**).
+
+        On macOS this runs the NSApplication loop on the main thread.
+        *on_ready* is invoked in a background thread once the icon is
+        visible — put your app logic there.
+
+        Returns only after :meth:`stop` has been called (e.g. via *Quit*).
+
+        Args:
+            on_ready: Callback executed in a background thread once the
+                      tray icon is visible.
+        """
+        if self._icon is None:
+            return
+
+        def _setup(icon: Any) -> None:
+            icon.visible = True
+            self._ready.set()
+            logger.info("System tray icon visible")
+            if on_ready:
+                on_ready()
 
         try:
-            self._icon.run_detached()
-            logger.info("System tray icon started")
-            return True
+            self._icon.run(setup=_setup)
         except Exception as e:
-            logger.error("Failed to start tray icon: %s", e)
-            return False
+            logger.error("Tray event loop error: %s", e)
 
     def stop(self) -> None:
-        """Remove the tray icon."""
+        """Remove the tray icon and exit the tray event loop."""
         if self._icon is not None:
             try:
                 self._icon.stop()
