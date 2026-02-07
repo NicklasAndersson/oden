@@ -20,13 +20,18 @@ Se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) för mer info.
 
 ### macOS: "Oden.app är skadat"
 
-Om du får meddelandet *"Oden.app är skadat och kan inte öppnas"* beror det på macOS Gatekeeper som blockerar osignerade appar. Lös det genom att köra i Terminal:
+För att kunna köra och uppdatera releasen på macOS relativt smärtfritt, följ:
+
+1. Ladda ner `.dmg` från releasen
+2. Öppna den och dra **Oden.app** till **Applications**
+3. Kör i Terminal innan första start:
 
 ```bash
 xattr -cr /Applications/Oden.app
 ```
 
-Eller om appen ligger i Downloads:
+Sista steget behövs eftersom vi saknar Apple-certifikat. Om appen ligger kvar i Downloads, kör istället:
+
 ```bash
 xattr -cr ~/Downloads/Oden.app
 ```

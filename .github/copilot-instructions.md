@@ -92,6 +92,8 @@ For stable releases, use git tags:
 7. Push tag: `git push origin v0.5.0`
 8. GitHub Actions builds binaries and creates a versioned release
 
+Release instructions shown on GitHub Releases are defined in `.github/workflows/release.yml` (the `body:` field). Keep the macOS DMG + `xattr` guidance updated there when install steps change, since builds are unsigned.
+
 **IMPORTANT:** Once a tag has been pushed and a build has started, that tag is immutable. Never delete and recreate a tag - always create a new patch version (e.g., v0.9.1 → v0.9.2).
 
 **Note:** Direct pushes to `main` are blocked by branch protection rules. All changes must go through pull requests with passing status checks.
