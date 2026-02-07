@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import AsyncMock, mock_open, patch
 
-from oden.processing import _extract_message_details, process_message
+from oden.processing import _extract_message_details, extract_coordinates, process_message
 
 
 class TestProcessing(unittest.IsolatedAsyncioTestCase):
@@ -140,7 +140,9 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_process_message_with_maps_link(self, mock_exists, mock_makedirs, mock_open, mock_render):
         mock_exists.return_value = False
-        mock_render.return_value = '---\nfileid: 161410-456-Jane_Doe\nlocations: ""\n---\n\n# Maps Group\n\n[Position](geo:59.514828,17.767852)\n'
+        mock_render.return_value = (
+            "---\nfileid: 161410-456-Jane_Doe\n---\n\n# Maps Group\n\n[Position](geo:59.514828,17.767852)\n"
+        )
         message_obj = {
             "envelope": {
                 "sourceName": "Jane Doe",
@@ -497,6 +499,89 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
             mock_open.assert_not_called()
             self.assertTrue(any("Skipping message: Starts with '--'." in message for message in log.output))
+
+
+class TestExtractCoordinates(unittest.TestCase):
+    """Tests for the extract_coordinates() helper function."""
+
+    def test_google_maps_percent_2c_uppercase(self):
+        msg = "Check this https://maps.google.com/maps?q=59.514828%2C17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_google_maps_percent_2c_lowercase(self):
+        msg = "Location: https://maps.google.com/maps?q=59.514828%2c17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_google_maps_raw_comma(self):
+        msg = "Here: https://maps.google.com/maps?q=59.514828,17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_google_maps_www_prefix(self):
+        msg = "https://www.google.com/maps?q=59.33619252903436%2C18.075111752615083"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.33619252903436", "18.075111752615083"))
+
+    def test_google_maps_with_address_text(self):
+        msg = "Bomullsvägen 2, 196 38 Kungsängen\n\nhttps://maps.google.com/maps?q=59.509960%2C17.765860"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.509960", "17.765860"))
+
+    def test_apple_maps_q_param(self):
+        msg = "https://maps.apple.com/?q=59.514828,17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_apple_maps_ll_param(self):
+        msg = "Look here https://maps.apple.com/?ll=59.514828,17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_apple_maps_ll_with_label(self):
+        msg = "https://maps.apple.com/?ll=59.514828,17.767852&q=Dropped%20Pin"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_openstreetmap_query_params(self):
+        msg = "https://www.openstreetmap.org/?mlat=59.514828&mlon=17.767852#map=15/59.514828/17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_openstreetmap_hash_only(self):
+        msg = "https://www.openstreetmap.org/#map=15/59.514828/17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_openstreetmap_without_www(self):
+        msg = "https://openstreetmap.org/?mlat=59.514828&mlon=17.767852"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("59.514828", "17.767852"))
+
+    def test_negative_coordinates_southern_hemisphere(self):
+        msg = "https://maps.google.com/maps?q=-33.868800%2C151.209296"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("-33.868800", "151.209296"))
+
+    def test_negative_coordinates_western_hemisphere(self):
+        msg = "https://maps.apple.com/?q=40.712776,-74.005974"
+        result = extract_coordinates(msg)
+        self.assertEqual(result, ("40.712776", "-74.005974"))
+
+    def test_no_location_url(self):
+        msg = "Just a normal message with no maps link"
+        result = extract_coordinates(msg)
+        self.assertIsNone(result)
+
+    def test_empty_message(self):
+        result = extract_coordinates("")
+        self.assertIsNone(result)
+
+    def test_non_maps_url(self):
+        msg = "Check this out https://www.google.com/search?q=hello"
+        result = extract_coordinates(msg)
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,9 @@
 
 TNR: {{ tnr }} ({{ timestamp_iso }})
 Avsändare: {{ sender_display }}
+{% if lat and lon %}
+[Position](geo:{{ lat }},{{ lon }})
+{% endif %}
 {% if message %}
 
 {{ message }}
