@@ -5,13 +5,21 @@ Main entry point that connects to signal-cli daemon and processes incoming messa
 Supports first-run setup wizard for initial configuration.
 """
 
+from __future__ import annotations
+
 import asyncio
 import datetime
 import json
 import logging
+import os
+import signal as signal_mod
 import sys
 import time
 import webbrowser
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oden.tray import OdenTray
 
 from oden import __version__
 from oden.app_state import get_app_state
@@ -347,7 +355,12 @@ async def run_setup_mode(port: int) -> bool:
 
 
 def main() -> None:
-    """Sets up the vault path, starts signal-cli, and begins listening."""
+    """Sets up the vault path, starts signal-cli, and begins listening.
+
+    When pystray is available, a system tray icon is shown with Start/Stop,
+    Open Web GUI, and Quit controls.  The watcher loop can be stopped and
+    restarted from the tray without quitting the application.
+    """
     # Configure logging with console and buffer handlers
     configure_logging()
 
@@ -393,31 +406,99 @@ def main() -> None:
         logger.error("Please run Oden again to complete setup.")
         sys.exit(1)
 
-    if new_unmanaged:
-        if not is_signal_cli_running(new_host, new_port):
-            logger.error("signal-cli is not running. Please start it manually.")
-            sys.exit(1)
-        logger.info("Running in unmanaged mode. Assuming signal-cli is already running.")
-        try:
-            asyncio.run(run_all(new_host, new_port))
-        except (KeyboardInterrupt, SystemExit):
-            logger.info("Exiting on user request.")
-        except Exception as e:
-            logger.exception(f"An unexpected error occurred: {e}")
-        sys.exit(0)
-    else:
-        signal_manager = SignalManager(new_number, new_host, new_port)
-        try:
-            signal_manager.start()
-            asyncio.run(run_all(new_host, new_port))
-        except (KeyboardInterrupt, SystemExit):
-            logger.info("Exiting on user request.")
-        except Exception as e:
-            logger.exception(f"An unexpected error occurred: {e}")
-        finally:
-            signal_manager.stop()
-            logger.info("Oden shut down.")
-        sys.exit(0)
+    # Set up system tray icon
+    tray = _create_tray()
+    app_state = get_app_state()
+    app_state.tray = tray
+
+    signal_manager = None if new_unmanaged else SignalManager(new_number, new_host, new_port)
+
+    # --- Tray loop: keeps running until Quit is clicked ---
+    quit_requested = False
+
+    def request_quit() -> None:
+        nonlocal quit_requested
+        quit_requested = True
+        # Interrupt any running asyncio loop
+        os.kill(os.getpid(), signal_mod.SIGINT)
+
+    def request_stop() -> None:
+        # Interrupt the asyncio loop to stop the watcher
+        os.kill(os.getpid(), signal_mod.SIGINT)
+
+    def request_start() -> None:
+        # No-op here – the outer loop restarts automatically
+        pass
+
+    if tray is not None:
+        tray.set_callbacks(on_start=request_start, on_stop=request_stop, on_quit=request_quit)
+
+    try:
+        while not quit_requested:
+            # Start signal-cli if managed
+            if signal_manager is not None:
+                signal_manager.start()
+            elif not is_signal_cli_running(new_host, new_port):
+                logger.error("signal-cli is not running. Please start it manually.")
+                if tray is None:
+                    sys.exit(1)
+                # Wait for user to click Start again
+                logger.info("Waiting for Start from tray menu...")
+                _wait_for_start(tray)
+                if quit_requested:
+                    break
+                continue
+
+            # Mark as running
+            if tray is not None:
+                tray.running = True
+
+            try:
+                asyncio.run(run_all(new_host, new_port))
+            except (KeyboardInterrupt, SystemExit):
+                logger.info("Watcher loop stopped.")
+            except Exception as e:
+                logger.exception(f"An unexpected error occurred: {e}")
+            finally:
+                if tray is not None:
+                    tray.running = False
+                if signal_manager is not None:
+                    signal_manager.stop()
+
+            # If no tray, exit after first run
+            if tray is None:
+                break
+
+            if not quit_requested:
+                logger.info("Watcher stopped. Use tray menu to Start or Quit.")
+                _wait_for_start(tray)
+
+    finally:
+        if tray is not None:
+            tray.stop()
+        logger.info("Oden shut down.")
+
+    sys.exit(0)
+
+
+def _create_tray() -> OdenTray | None:
+    """Create the system tray icon, or return *None* if pystray is unavailable."""
+    try:
+        from oden.tray import OdenTray
+
+        tray = OdenTray(version=__version__, web_port=WEB_PORT)
+        if tray.start():
+            return tray
+        return None
+    except Exception as e:
+        logger.debug("System tray not available: %s", e)
+        return None
+
+
+def _wait_for_start(tray: OdenTray) -> None:
+    """Block until the user clicks Start or Quit in the tray menu."""
+    while not tray.running:
+        time.sleep(0.5)
 
 
 if __name__ == "__main__":
