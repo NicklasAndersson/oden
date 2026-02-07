@@ -7,6 +7,7 @@ Provides a singleton to share the signal-cli writer between watcher and web serv
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,8 @@ class AppState:
     _request_id: int = field(default=0, repr=False)
     # Cached groups list, updated by the main watcher loop
     groups: list[dict] = field(default_factory=list)
+    # System tray icon controller (set by main if available)
+    tray: Any = None  # OdenTray | None
 
     def get_next_request_id(self) -> str:
         """Generate a unique request ID for JSON-RPC calls."""

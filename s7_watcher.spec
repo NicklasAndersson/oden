@@ -13,6 +13,7 @@ datas = [
     ('responses', 'responses'),
     ('templates', 'templates'),
     ('config.ini', '.'),
+    ('images/logo_small.jpg', 'images'),
 ]
 
 # Add bundled JRE and signal-cli if directories exist (set up by build script)
@@ -42,6 +43,13 @@ a = Analysis(
         'oden.web_server',
         'oden.log_buffer',
         'oden.app_state',
+        'oden.tray',
+        'pystray._darwin',
+        'pystray._win32',
+        'pystray._gtk',
+        'pystray._appindicator',
+        'pystray._xorg',
+        'PIL',
     ],
     hookspath=[],
     hooksconfig={},
