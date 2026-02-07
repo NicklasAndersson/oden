@@ -29,6 +29,7 @@ wheels/
 .pytest_cache/
 .coverage
 .mypy_cache/
+screenshots/
 
 # Editors
 .vscode/

@@ -135,9 +135,9 @@ access_log = web_access.log
 
 Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0.1:8080`.
 
-![Web GUI - Översikt](images/gui.png)
-![Web GUI - Grupper](images/gui2.png)
-![Web GUI - Config Editor](images/gui3.png)
+### Dashboard
+
+![Web GUI - Dashboard](images/dashboard.png)
 
 **Funktioner:**
 - Visa aktuell konfiguration
@@ -147,11 +147,17 @@ Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0
 - **Visa alla grupper** kontot är med i
 - **Ignorera grupper** direkt från GUI (klicka "Ignorera")
 - **Whitelist-grupper** direkt från GUI (klicka "Whitelist" – om satt sparas endast dessa grupper)
-- **Redigera config.ini** direkt i webbläsaren
+- **Redigera config** direkt i webbläsaren
 
 **Obs:** Ändringar i config kräver omstart för att börja gälla.
 
 **Säkerhet:** Lyssnar endast på localhost - ingen autentisering krävs.
+
+### Setup-wizard
+
+Vid första start visas en setup-wizard som guidar dig genom konfigurationen.
+
+![Web GUI - Setup](images/setup.png)
 
 ## Dokumentation
 

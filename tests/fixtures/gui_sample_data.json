@@ -1,0 +1,112 @@
+{
+  "config": {
+    "vault_path": "/home/user/oden-vault",
+    "signal_number": "+46701234567",
+    "display_name": "oden",
+    "timezone": "Europe/Stockholm",
+    "append_window_minutes": 30,
+    "startup_message": "self",
+    "plus_plus_enabled": true,
+    "filename_format": "classic",
+    "ignored_groups": ["Spam Group"],
+    "whitelist_groups": [],
+    "web_enabled": true,
+    "web_port": 8080,
+    "log_level": "INFO",
+    "regex_patterns": {
+      "registration_number": "[A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}",
+      "phone_number": "(\\+46|0)[1-9][0-9]{7,8}"
+    }
+  },
+  "logs": [
+    {
+      "timestamp": "2026-02-07 09:00:01",
+      "level": "INFO",
+      "name": "oden.s7_watcher",
+      "message": "Oden v0.4.0 startar..."
+    },
+    {
+      "timestamp": "2026-02-07 09:00:02",
+      "level": "INFO",
+      "name": "oden.signal_manager",
+      "message": "signal-cli daemon startad (PID 12345)"
+    },
+    {
+      "timestamp": "2026-02-07 09:00:03",
+      "level": "INFO",
+      "name": "oden.s7_watcher",
+      "message": "Ansluten till signal-cli på 127.0.0.1:7583"
+    },
+    {
+      "timestamp": "2026-02-07 09:00:04",
+      "level": "INFO",
+      "name": "oden.web_server",
+      "message": "Web GUI started at http://127.0.0.1:8080"
+    },
+    {
+      "timestamp": "2026-02-07 09:00:05",
+      "level": "INFO",
+      "name": "oden.web_server",
+      "message": "API token for protected endpoints has been generated."
+    },
+    {
+      "timestamp": "2026-02-07 09:01:15",
+      "level": "INFO",
+      "name": "oden.processing",
+      "message": "WROTE: /home/user/oden-vault/7s-test/071501-46701234567-Nicklas.md"
+    },
+    {
+      "timestamp": "2026-02-07 09:02:30",
+      "level": "INFO",
+      "name": "oden.processing",
+      "message": "APPENDED (reply or ++) TO: /home/user/oden-vault/7s-test/071501-46701234567-Nicklas.md"
+    },
+    {
+      "timestamp": "2026-02-07 09:05:00",
+      "level": "INFO",
+      "name": "oden.processing",
+      "message": "Sent 'help' response."
+    },
+    {
+      "timestamp": "2026-02-07 09:10:22",
+      "level": "WARNING",
+      "name": "oden.processing",
+      "message": "Skipping message from ignored group: Spam Group"
+    },
+    {
+      "timestamp": "2026-02-07 09:15:45",
+      "level": "INFO",
+      "name": "oden.processing",
+      "message": "WROTE: /home/user/oden-vault/7s-block/071545-46709876543-Anna.md"
+    }
+  ],
+  "groups": [
+    {
+      "id": "abc123",
+      "name": "7s-test",
+      "isMember": true,
+      "members": [
+        {"number": "+46701234567", "uuid": "uuid-1"},
+        {"number": "+46709876543", "uuid": "uuid-2"}
+      ]
+    },
+    {
+      "id": "def456",
+      "name": "7s-block",
+      "isMember": true,
+      "members": [
+        {"number": "+46701234567", "uuid": "uuid-1"},
+        {"number": "+46709876543", "uuid": "uuid-2"},
+        {"number": "+46708765432", "uuid": "uuid-3"}
+      ]
+    },
+    {
+      "id": "ghi789",
+      "name": "Spam Group",
+      "isMember": true,
+      "members": [
+        {"number": "+46701234567", "uuid": "uuid-1"}
+      ]
+    }
+  ]
+}
