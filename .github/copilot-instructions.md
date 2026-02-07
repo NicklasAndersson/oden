@@ -77,8 +77,8 @@ A read-only web interface runs automatically at `http://127.0.0.1:8080` (localho
 ### Snapshot Releases
 Every push to `main` triggers a full build (macOS, Linux, Windows) and creates a **snapshot pre-release** on GitHub:
 - Version is set to `snapshot-<short-sha>` (e.g., `snapshot-abc1234`)
-- The snapshot release is tagged `snapshot` and marked as pre-release
-- Each new snapshot replaces the previous one (the old snapshot release is deleted first)
+- The snapshot release is tagged `snapshot-<short-sha>` and marked as pre-release
+- Each new snapshot deletes all previous snapshot releases first
 - Snapshot releases are **not** shown as the "latest release" on GitHub
 
 ### Versioned Releases

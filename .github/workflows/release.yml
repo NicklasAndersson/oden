@@ -385,12 +385,19 @@ jobs:
           echo "Release files:"
           ls -la release_files/
 
-      - name: Delete existing snapshot release
+      - name: Delete previous snapshot release
         if: steps.version.outputs.IS_TAG == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Clean up legacy 'snapshot' tag/release (one-time migration)
           gh release delete snapshot --yes --cleanup-tag 2>/dev/null || true
+          
+          # Find and delete any existing snapshot-* releases (keep only the new one)
+          gh release list --limit 20 --json tagName,isPrerelease -q '.[] | select(.isPrerelease and (.tagName | startswith("snapshot-"))) | .tagName' | while read -r tag; do
+            echo "Deleting old snapshot release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          done
           sleep 5
 
       - name: Create Snapshot Release
@@ -399,6 +406,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
+          TAG="snapshot-$(echo '${{ github.sha }}' | cut -c1-7)"
           cat > /tmp/snapshot_notes.md << EOF
           ## ⚠️ Snapshot Build
 
@@ -411,7 +419,7 @@ jobs:
           For stable releases, see the [latest release](https://github.com/${{ github.repository }}/releases/latest).
           EOF
 
-          gh release create snapshot \
+          gh release create "$TAG" \
             --title "Snapshot (${VERSION})" \
             --notes-file /tmp/snapshot_notes.md \
             --prerelease \
