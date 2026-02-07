@@ -407,6 +407,8 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
           TAG="snapshot-$(echo '${{ github.sha }}' | cut -c1-7)"
+          REPO="${{ github.repository }}"
+          SCREENSHOTS_BASE="https://raw.githubusercontent.com/${REPO}/main/images"
           cat > /tmp/snapshot_notes.md << EOF
           ## ⚠️ Snapshot Build
 
@@ -416,7 +418,15 @@ jobs:
           **Commit:** ${{ github.sha }}
           **Version:** ${VERSION}
 
-          For stable releases, see the [latest release](https://github.com/${{ github.repository }}/releases/latest).
+          For stable releases, see the [latest release](https://github.com/${REPO}/releases/latest).
+
+          ## Screenshots
+
+          ### Dashboard
+          ![Dashboard](${SCREENSHOTS_BASE}/dashboard.png)
+
+          ### Setup Wizard
+          ![Setup](${SCREENSHOTS_BASE}/setup.png)
           EOF
 
           gh release create "$TAG" \
@@ -455,5 +465,13 @@ jobs:
             3. `pip install -e .` then `python -m oden`
             
             All packages include signal-cli bundled. The web-based setup wizard will guide you through configuration on first run.
+            
+            ## Screenshots
+            
+            ### Dashboard
+            ![Dashboard](https://raw.githubusercontent.com/${{ github.repository }}/main/images/dashboard.png)
+            
+            ### Setup Wizard
+            ![Setup](https://raw.githubusercontent.com/${{ github.repository }}/main/images/setup.png)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
