@@ -69,7 +69,11 @@ async def save_attachments(
         dt.strftime("%Y%m%d%H%M%S") + "_" + create_message_filename(dt, source_name, source_number).replace(".md", "")
     )
     attachment_dir = os.path.join(group_dir, attachment_subdir_name)
-    os.makedirs(attachment_dir, exist_ok=True)
+    try:
+        os.makedirs(attachment_dir, exist_ok=True)
+    except OSError as e:
+        logger.error("Failed to create attachment directory %s: %s", attachment_dir, e)
+        return attachment_links
 
     for i, attachment in enumerate(attachments):
         data = attachment.get("data")

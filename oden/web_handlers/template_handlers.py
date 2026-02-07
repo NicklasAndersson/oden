@@ -176,6 +176,7 @@ async def template_save_handler(request: web.Request) -> web.Response:
 
         # Save template (even with syntax errors, as per requirements)
         if save_template_content(name, content):
+            logger.info("Template '%s' saved successfully via web GUI", name)
             result = {
                 "success": True,
                 "message": "Mall sparad",
@@ -275,6 +276,7 @@ async def template_reset_handler(request: web.Request) -> web.Response:
 
         # Save to database (overwrites custom content)
         if save_template_content(name, default_content):
+            logger.info("Template '%s' reset to default via web GUI", name)
             return web.json_response(
                 {
                     "success": True,

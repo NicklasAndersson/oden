@@ -18,7 +18,6 @@ from oden.app_state import get_app_state
 from oden.config import (
     DISPLAY_NAME,
     LOG_FILE,
-    LOG_LEVEL,
     SIGNAL_CLI_HOST,
     SIGNAL_CLI_PORT,
     SIGNAL_NUMBER,
@@ -29,6 +28,7 @@ from oden.config import (
     reload_config,
 )
 from oden.log_buffer import get_log_buffer
+from oden.log_utils import apply_log_level, read_log_level, write_log_level
 from oden.processing import process_message
 from oden.signal_manager import SignalManager, is_signal_cli_running
 
@@ -36,18 +36,26 @@ logger = logging.getLogger(__name__)
 
 
 def configure_logging() -> None:
-    """Configure logging with console output, file output, and in-memory buffer."""
+    """Configure logging with console output, file output, and in-memory buffer.
+
+    The log level is read from a persistent file next to the config database.
+    If the file doesn't exist (first run / setup), DEBUG is used so that all
+    setup activity is captured. After setup completes, the configured level
+    is written to the file and applied via apply_log_level().
+    """
     from logging.handlers import RotatingFileHandler
     from pathlib import Path
 
+    level = read_log_level()
+
     root_logger = logging.getLogger()
-    root_logger.setLevel(LOG_LEVEL)
+    root_logger.setLevel(level)
 
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Console handler
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(LOG_LEVEL)
+    console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
@@ -57,7 +65,7 @@ def configure_logging() -> None:
             log_path = Path(LOG_FILE).expanduser()
             log_path.parent.mkdir(parents=True, exist_ok=True)
             file_handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
-            file_handler.setLevel(LOG_LEVEL)
+            file_handler.setLevel(level)
             file_handler.setFormatter(formatter)
             root_logger.addHandler(file_handler)
             root_logger.info(f"Logging to file: {log_path}")
@@ -66,8 +74,10 @@ def configure_logging() -> None:
 
     # In-memory log buffer for web GUI
     log_buffer = get_log_buffer()
-    log_buffer.setLevel(LOG_LEVEL)
+    log_buffer.setLevel(level)
     root_logger.addHandler(log_buffer)
+
+    root_logger.info(f"Logging initialized at {logging.getLevelName(level)} level")
 
 
 async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
@@ -357,6 +367,10 @@ def main() -> None:
                 new_host = new_config["signal_cli_host"]
                 new_port = new_config["signal_cli_port"]
                 new_unmanaged = new_config["unmanaged_signal_cli"]
+                # Persist and apply the configured log level
+                log_level_str = new_config.get("log_level_str", "INFO")
+                write_log_level(log_level_str)
+                apply_log_level(new_config["log_level"])
             else:
                 logger.error("Setup was not completed. Exiting.")
                 sys.exit(1)

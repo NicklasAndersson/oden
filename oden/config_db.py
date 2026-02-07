@@ -96,6 +96,7 @@ def _deserialize_value(value: str, value_type: str) -> Any:
 
 def init_db(db_path: Path) -> None:
     """Initialize the config database with schema."""
+    is_new = not db_path.exists()
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     conn = sqlite3.connect(db_path)
@@ -120,6 +121,10 @@ def init_db(db_path: Path) -> None:
             ("schema_version", "1"),
         )
         conn.commit()
+        if is_new:
+            logger.info("Created new config database: %s", db_path)
+        else:
+            logger.debug("Config database schema verified: %s", db_path)
     finally:
         conn.close()
 

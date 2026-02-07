@@ -10,7 +10,6 @@ import datetime
 import logging
 import os
 import platform
-import sys
 import zoneinfo
 from pathlib import Path
 
@@ -37,6 +36,8 @@ from oden.path_utils import (
     validate_ini_file_path,
     validate_path_within_home,
 )
+
+logger = logging.getLogger(__name__)
 
 # Computed paths - these depend on ODEN_HOME which may not be set yet
 ODEN_HOME: Path = DEFAULT_ODEN_HOME
@@ -82,6 +83,7 @@ def get_config_template_path() -> Path:
 
 def ensure_oden_directories() -> None:
     """Create Oden directories if they don't exist."""
+    logger.debug("Ensuring Oden directories exist")
     ensure_directory(ODEN_HOME)
     ensure_directory(SIGNAL_DATA_PATH)
     ensure_directory(DEFAULT_VAULT_PATH)
@@ -103,6 +105,7 @@ def is_configured() -> tuple[bool, str | None]:
     # Check if pointer file exists and points to valid directory
     oden_home = get_oden_home_path()
     if oden_home is None:
+        logger.debug("Configuration check: no pointer file found")
         return False, "no_pointer"
 
     # Update paths based on actual oden_home
@@ -132,6 +135,7 @@ def get_config_path() -> Path:
 
 def save_config(config_dict: dict) -> None:
     """Save configuration to the database."""
+    logger.info("Saving configuration to database")
     ensure_oden_directories()
     save_all_config(CONFIG_DB, config_dict)
 
@@ -166,11 +170,11 @@ def get_config() -> dict:
     try:
         timezone = zoneinfo.ZoneInfo(timezone_str)
     except Exception as e:
-        print(f"Warning: Invalid timezone '{timezone_str}': {e}. Trying fallback...", file=sys.stderr)
+        logger.warning("Invalid timezone '%s': %s. Trying fallback...", timezone_str, e)
         try:
             timezone = zoneinfo.ZoneInfo("Europe/Stockholm")
         except Exception:
-            print("Warning: tzdata not available, using UTC", file=sys.stderr)
+            logger.warning("tzdata not available, using UTC")
             timezone = datetime.timezone.utc
     config["timezone"] = timezone
 
@@ -181,6 +185,7 @@ def get_config() -> dict:
     except AttributeError:
         log_level = logging.INFO
     config["log_level"] = log_level
+    config["log_level_str"] = log_level_str.upper()
 
     # Expand user path for vault_path
     vault_path = config.get("vault_path", str(DEFAULT_VAULT_PATH))
@@ -204,6 +209,8 @@ def reload_config() -> dict:
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
     global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_PORT, WEB_ACCESS_LOG
+
+    logger.info("Reloading configuration from database")
 
     # Re-check oden_home in case it changed
     oden_home = get_oden_home_path()
@@ -233,6 +240,14 @@ def reload_config() -> dict:
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
 
+    # Persist and apply the log level so it takes effect immediately
+    from oden.log_utils import apply_log_level, write_log_level
+
+    log_level_str = app_config.get("log_level_str", "INFO")
+    write_log_level(log_level_str)
+    apply_log_level(LOG_LEVEL)
+
+    logger.info("Configuration reloaded successfully")
     return app_config
 
 
@@ -370,7 +385,7 @@ try:
     WEB_ACCESS_LOG = app_config.get("web_access_log")
 
 except Exception as e:
-    print(f"Error loading configuration: {e}")
+    logger.error("Error loading configuration: %s", e)
     # Don't exit - let the web server show setup wizard
     app_config = {}
     VAULT_PATH = str(DEFAULT_VAULT_PATH)

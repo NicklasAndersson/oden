@@ -5,7 +5,10 @@ Provides a singleton to share the signal-cli writer between watcher and web serv
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -26,6 +29,7 @@ class AppState:
     def update_groups(self, groups: list[dict]) -> None:
         """Update the cached groups list."""
         self.groups = groups
+        logger.info("Updated cached groups list (%d groups)", len(groups))
 
     def get_pending_invitations(self) -> list[dict]:
         """Get groups where the user has a pending invitation."""

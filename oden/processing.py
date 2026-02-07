@@ -212,9 +212,12 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                     attachments=attachment_links or None,
                 )
 
-                with open(latest_file, "a", encoding="utf-8") as f:
-                    f.write(append_content)
-                logger.info(f"APPENDED (reply or ++) TO: {latest_file}")
+                try:
+                    with open(latest_file, "a", encoding="utf-8") as f:
+                        f.write(append_content)
+                    logger.info(f"APPENDED (reply or ++) TO: {latest_file}")
+                except OSError as e:
+                    logger.error(f"Failed to append to file {latest_file}: {e}")
             else:
                 logger.info("Ignoring empty append message.")
 
@@ -315,7 +318,9 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         attachments=attachment_links or None,
     )
 
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    logger.info(f"WROTE: {path}")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        logger.info(f"WROTE: {path}")
+    except OSError as e:
+        logger.error(f"Failed to write file {path}: {e}")

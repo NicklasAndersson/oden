@@ -109,6 +109,7 @@ def render_report(
     Returns:
         Rendered markdown content string.
     """
+    logger.debug("Rendering report template for group '%s'", group_title)
     template = get_template_with_db_fallback(REPORT_TEMPLATE)
     return template.render(
         fileid=fileid,
@@ -146,6 +147,7 @@ def render_append(
     Returns:
         Rendered markdown content string (without leading separator).
     """
+    logger.debug("Rendering append template")
     template = get_template_with_db_fallback(APPEND_TEMPLATE)
     return template.render(
         tnr=tnr,
@@ -205,9 +207,11 @@ def get_template_content(template_name: str) -> str:
 
     # If database has content, use it
     if content:
+        logger.debug("Using template '%s' from database", template_name)
         return content
 
     # Otherwise load from file
+    logger.debug("Template '%s' not in database, falling back to file", template_name)
     return load_template_from_file(template_name)
 
 
@@ -234,7 +238,12 @@ def save_template_content(template_name: str, content: str) -> bool:
     # Clear the template cache since content changed
     clear_template_cache()
 
-    return set_config_value(CONFIG_DB, config_key, content)
+    result = set_config_value(CONFIG_DB, config_key, content)
+    if result:
+        logger.info("Template '%s' saved to database", template_name)
+    else:
+        logger.error("Failed to save template '%s' to database", template_name)
+    return result
 
 
 def clear_template_cache() -> None:

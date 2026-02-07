@@ -6,9 +6,12 @@ directory operations to prevent directory traversal attacks and ensure
 consistent path handling across the codebase.
 """
 
+import logging
 import os
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Characters not allowed in filenames (cross-platform safe)
 UNSAFE_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -84,6 +87,7 @@ def validate_path_within_home(
         return None, f"Ogiltig sökväg: {e}"
 
     if is_filesystem_root(resolved):
+        logger.warning("Path rejected: filesystem root is not allowed")
         return None, "Sökväg kan inte vara filsystemets rot"
 
     # Allow specific whitelisted path
@@ -99,6 +103,7 @@ def validate_path_within_home(
     try:
         user_home = Path.home().resolve()
         if not is_within_directory(resolved, user_home):
+            logger.warning("Path rejected: %s is outside home directory %s", resolved, user_home)
             return None, f"Sökväg måste vara under {user_home}"
     except (OSError, RuntimeError):
         return None, "Kunde inte verifiera hemkatalog"
@@ -128,6 +133,7 @@ def validate_path_within_directory(
         return None, f"Ogiltig sökväg: {e}"
 
     if not is_within_directory(resolved, parent_resolved):
+        logger.warning("Path rejected: %s is outside parent %s", resolved, parent_resolved)
         return None, f"Sökväg måste vara under {parent_resolved}"
 
     return resolved, None
@@ -225,6 +231,8 @@ def ensure_directory(path: Path | str, parents: bool = True) -> tuple[bool, str 
         Path(path).mkdir(parents=parents, exist_ok=True)
         return True, None
     except PermissionError:
+        logger.warning("Permission denied creating directory: %s", path)
         return False, "Behörighet nekad"
     except OSError as e:
+        logger.warning("Failed to create directory %s: %s", path, e)
         return False, f"Kunde inte skapa katalog: {e}"
