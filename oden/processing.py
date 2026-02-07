@@ -44,6 +44,40 @@ def _apply_regex_links(text: str | None) -> str | None:
     return apply_regex_links(text)
 
 
+# Coordinate pattern: optional minus, digits, dot, digits (e.g. 59.514828 or -33.8688)
+_COORD = r"(-?\d+\.\d+)"
+
+# Compiled location URL patterns, tried in order.
+_LOCATION_PATTERNS: list[re.Pattern[str]] = [
+    # Google Maps: maps.google.com/maps?q=LAT%2CLON  or  www.google.com/maps?q=LAT,LON
+    re.compile(rf"https://(?:www\.)?(?:maps\.)?google\.com/maps\?q={_COORD}(?:%2[cC]|,){_COORD}"),
+    # Apple Maps: maps.apple.com/?q=LAT,LON  or  maps.apple.com/?ll=LAT,LON
+    re.compile(rf"https://maps\.apple\.com/\?(?:[^\s]*&)?(?:q|ll)={_COORD},{_COORD}"),
+    # OpenStreetMap query params: ?mlat=LAT&mlon=LON
+    re.compile(rf"https://(?:www\.)?openstreetmap\.org/?\?(?:[^\s]*&)?mlat={_COORD}&(?:[^\s]*&)?mlon={_COORD}"),
+    # OpenStreetMap hash fragment: #map=ZOOM/LAT/LON
+    re.compile(rf"https://(?:www\.)?openstreetmap\.org/?[^\s]*#map=[\d.]+/{_COORD}/{_COORD}"),
+]
+
+
+def extract_coordinates(msg: str) -> tuple[str, str] | None:
+    """Extract latitude and longitude from a location URL in a message.
+
+    Supports Google Maps, Apple Maps, and OpenStreetMap URLs.
+
+    Args:
+        msg: The message text to search for location URLs.
+
+    Returns:
+        A (lat, lon) tuple of strings, or None if no location URL is found.
+    """
+    for pattern in _LOCATION_PATTERNS:
+        match = pattern.search(msg)
+        if match:
+            return match.group(1), match.group(2)
+    return None
+
+
 def _extract_message_details(
     envelope: dict[str, Any],
 ) -> tuple[str | None, str | None, str | None, list[dict[str, Any]]]:
@@ -204,12 +238,21 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                 sender_display = format_sender_display(source_name, source_number)
                 linked_text = _apply_regex_links(new_text) if new_text else None
 
+                # Extract location coordinates from the message
+                append_lat, append_lon = None, None
+                if msg:
+                    append_coords = extract_coordinates(msg)
+                    if append_coords:
+                        append_lat, append_lon = append_coords
+
                 append_content = render_append(
                     tnr=now.strftime("%d%H%M"),
                     timestamp_iso=now.isoformat(),
                     sender_display=sender_display,
                     message=linked_text,
                     attachments=attachment_links or None,
+                    lat=append_lat,
+                    lon=append_lon,
                 )
 
                 try:
@@ -284,9 +327,9 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     lat, lon = None, None
     if msg:
-        maps_url_match = re.search(r"https://maps\.google\.com/maps\?q=([\d.-]+)%2C([\d.-]+)", msg)
-        if maps_url_match:
-            lat, lon = maps_url_match.groups()
+        coords = extract_coordinates(msg)
+        if coords:
+            lat, lon = coords
 
     attachment_links = await _save_attachments(attachments, group_dir, dt, source_name, source_number, reader, writer)
 

@@ -391,28 +391,32 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete snapshot --yes --cleanup-tag 2>/dev/null || true
+          sleep 5
 
       - name: Create Snapshot Release
         if: steps.version.outputs.IS_TAG == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: snapshot
-          name: "Snapshot (${{ steps.version.outputs.VERSION }})"
-          prerelease: true
-          files: |
-            release_files/*
-          body: |
-            ## ⚠️ Snapshot Build
-            
-            This is an automated snapshot build from the latest `main` branch.
-            It is **not a stable release** and may contain untested changes.
-            
-            **Commit:** ${{ github.sha }}
-            **Version:** ${{ steps.version.outputs.VERSION }}
-            
-            For stable releases, see the [latest release](https://github.com/${{ github.repository }}/releases/latest).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          cat > /tmp/snapshot_notes.md << EOF
+          ## ⚠️ Snapshot Build
+
+          This is an automated snapshot build from the latest \`main\` branch.
+          It is **not a stable release** and may contain untested changes.
+
+          **Commit:** ${{ github.sha }}
+          **Version:** ${VERSION}
+
+          For stable releases, see the [latest release](https://github.com/${{ github.repository }}/releases/latest).
+          EOF
+
+          gh release create snapshot \
+            --title "Snapshot (${VERSION})" \
+            --notes-file /tmp/snapshot_notes.md \
+            --prerelease \
+            --target ${{ github.sha }} \
+            release_files/*
 
       - name: Create Versioned Release
         if: steps.version.outputs.IS_TAG == 'true'

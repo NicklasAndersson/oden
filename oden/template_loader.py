@@ -134,6 +134,8 @@ def render_append(
     sender_display: str,
     message: str | None = None,
     attachments: list[str] | None = None,
+    lat: str | None = None,
+    lon: str | None = None,
 ) -> str:
     """Render content to append to an existing report.
 
@@ -143,6 +145,8 @@ def render_append(
         sender_display: Formatted sender display string.
         message: Message text with regex links applied (optional).
         attachments: List of Obsidian embed links (optional).
+        lat: Latitude coordinate string (optional).
+        lon: Longitude coordinate string (optional).
 
     Returns:
         Rendered markdown content string (without leading separator).
@@ -155,6 +159,8 @@ def render_append(
         sender_display=sender_display,
         message=message,
         attachments=attachments or [],
+        lat=lat,
+        lon=lon,
     )
 
 
