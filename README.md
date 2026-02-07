@@ -107,57 +107,64 @@ ruff format .
 
 ### Funktioner
 
-- **Web GUI** - Webbgränssnitt för att visa config, loggar och hantera gruppinbjudningar
+- **Setup-wizard** - Guidar dig genom konfigurationen vid första start
+- **Web GUI** - Dashboard med config, loggar, grupphantering och template-editor
+- **System Tray** - Starta/stoppa, öppna GUI och avsluta Oden från systemfältet (macOS/Linux/Windows)
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
-- **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten *(avstängt per default, aktiveras med `plus_plus_enabled = true` i config)*
+- **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten *(avstängt per default, aktiveras i config)*
+- **Platslänkar** - Google Maps, Apple Maps och OSM-länkar omvandlas automatiskt till geo-koordinater
+- **Anpassningsbara rapportmallar** - Redigera Jinja2-mallar direkt i GUI:ns template-editor
+- **Regex-länkar** - Konfigurera mönster (t.ex. registreringsnummer) som automatiskt blir Obsidian-länkar
 
 ## Konfiguration
 
-`config.ini` skapas automatiskt av run-skripten, eller redigera manuellt:
+Konfigurationen hanteras via **setup-wizarden** som öppnas automatiskt vid första start. All config sparas i en SQLite-databas (`config.db`) i din Oden-hemkatalog.
 
-```ini
-[Vault]
-path = /sökväg/till/obsidian-valv
+Ändringar kan också göras via Web GUI:ns konfigurationssida. Export/import till INI-format stöds för bakåtkompatibilitet.
 
-[Signal]
-number = +46701234567
+## System Tray
 
-[Timezone]
-timezone = Europe/Stockholm
+På macOS, Linux och Windows visas Oden som en ikon i systemfältet:
 
-[Web]
-enabled = true
-port = 8080
-access_log = web_access.log
-```
+![System Tray](images/tray.png)
+
+- **Starta/Stoppa** - Starta eller stoppa signal-cli-processen
+- **Öppna Web GUI** - Öppnar dashboarden i din webbläsare
+- **Avsluta** - Stänger ner Oden helt
+
+Om `pystray` inte är installerat körs Oden i terminalläge utan tray-ikon.
 
 ## Web GUI
 
 Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0.1:8080`.
+
+### Setup-wizard
+
+Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
+
+1. Välj Oden-hemkatalog
+2. Länka eller registrera Signal-konto (QR-kod visas i webbläsaren)
+3. Välj sökväg till Obsidian-valv
+4. Klart — Oden startar automatiskt
+
+![Web GUI - Setup](images/setup.png)
 
 ### Dashboard
 
 ![Web GUI - Dashboard](images/dashboard.png)
 
 **Funktioner:**
-- Visa aktuell konfiguration
+- Visa och redigera konfiguration
 - Live-loggar (uppdateras var 3:e sekund)
 - Gå med i grupper via inbjudningslänk
 - Visa och hantera väntande gruppinbjudningar
 - **Visa alla grupper** kontot är med i
 - **Ignorera grupper** direkt från GUI (klicka "Ignorera")
 - **Whitelist-grupper** direkt från GUI (klicka "Whitelist" – om satt sparas endast dessa grupper)
-- **Redigera config** direkt i webbläsaren
+- **Template-editor** - Redigera rapportmallar med live-förhandsvisning
+- **Stäng av Oden** - Shutdown-knapp i GUI
 
-**Obs:** Ändringar i config kräver omstart för att börja gälla.
-
-**Säkerhet:** Lyssnar endast på localhost - ingen autentisering krävs.
-
-### Setup-wizard
-
-Vid första start visas en setup-wizard som guidar dig genom konfigurationen.
-
-![Web GUI - Setup](images/setup.png)
+**Säkerhet:** Lyssnar endast på localhost. Känsliga API-anrop skyddas med token-baserad autentisering.
 
 ## Dokumentation
 

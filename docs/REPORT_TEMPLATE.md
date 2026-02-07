@@ -148,9 +148,20 @@ Avsändare: {{ sender_display }}
 
 ## Customization
 
-To customize templates, edit the files in `templates/`. Changes take effect on the next message received.
+### Via Web GUI (recommended)
 
-**Note:** When running as a bundled application (PyInstaller build), templates are bundled inside the app. To customize, you'll need to rebuild or modify the templates before building.
+The easiest way to customize templates is through the **Template Editor** in Oden's Web GUI:
+
+1. Open the Web GUI (`http://127.0.0.1:8080`)
+2. Navigate to the **Templates** section
+3. Edit templates with a split-screen live preview
+4. Save — changes take effect on the next message received
+
+Customized templates are stored in the SQLite config database (`config.db`) and persist across updates.
+
+### Via template files
+
+Alternatively, edit the template files directly in the `templates/` directory. Database-stored templates take priority over file-based templates.
 
 ## Example Output
 

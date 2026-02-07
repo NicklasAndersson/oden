@@ -15,7 +15,6 @@ from pathlib import Path
 
 from oden.bundle_utils import (
     DEFAULT_ODEN_HOME,
-    get_bundle_path,
     get_oden_home_path,
     set_oden_home_path,
     validate_oden_home,
@@ -67,18 +66,6 @@ def _update_paths(oden_home: Path) -> None:
     CONFIG_DB = oden_home / "config.db"
     SIGNAL_DATA_PATH = oden_home / "signal-data"
     CONFIG_FILE = oden_home / "config.ini"  # Legacy
-
-
-def get_config_template_path() -> Path:
-    """Get path to config.ini.template (for migration reference)."""
-    bundle_path = get_bundle_path()
-    template_path = bundle_path / "config.ini.template"
-    if template_path.exists():
-        return template_path
-    config_ini = bundle_path / "config.ini"
-    if config_ini.exists():
-        return config_ini
-    return template_path
 
 
 def ensure_oden_directories() -> None:
