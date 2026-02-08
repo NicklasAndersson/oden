@@ -219,9 +219,6 @@ jobs:
           cp scripts/run_linux.sh release-linux/
           chmod +x release-linux/run_linux.sh
           
-          # Copy responses directory
-          cp -r responses release-linux/
-          
           # Copy docs
           cp README.md release-linux/
           
@@ -301,9 +298,6 @@ jobs:
           # Copy run script
           Copy-Item "scripts\run_windows.ps1" "release-windows\"
           
-          # Copy responses directory
-          Copy-Item -Recurse "responses" "release-windows\"
-          
           # Copy docs
           Copy-Item "README.md" "release-windows\"
           
@@ -366,7 +360,6 @@ jobs:
           # Create source package for developers
           mkdir -p source_package
           cp -r oden source_package/
-          cp -r responses source_package/
           cp -r obsidian-template source_package/
           cp -r docs source_package/
           cp pyproject.toml source_package/
