@@ -717,10 +717,12 @@ HTML_TEMPLATE = """
                                 <div class="config-field">
                                     <label for="cfg-signal-number">Telefonnummer</label>
                                     <input type="text" id="cfg-signal-number" name="signal_number" placeholder="+46...">
+                                    <span class="help-text">Ditt Signal-nummer i internationellt format, t.ex. +46701234567</span>
                                 </div>
                                 <div class="config-field">
                                     <label for="cfg-display-name">Visningsnamn</label>
                                     <input type="text" id="cfg-display-name" name="display_name" placeholder="oden">
+                                    <span class="help-text">Namn som visas i rapporthuvuden och filnamn</span>
                                 </div>
                             </div>
                         </div>
@@ -731,6 +733,7 @@ HTML_TEMPLATE = """
                                 <div class="config-field full-width">
                                     <label for="cfg-vault-path">Sökväg till vault</label>
                                     <input type="text" id="cfg-vault-path" name="vault_path" placeholder="~/oden-vault">
+                                    <span class="help-text">Mapp där rapporter sparas som Markdown-filer (Obsidian vault)</span>
                                 </div>
                             </div>
                         </div>
@@ -741,10 +744,12 @@ HTML_TEMPLATE = """
                                 <div class="config-field">
                                     <label for="cfg-timezone">Tidszon</label>
                                     <input type="text" id="cfg-timezone" name="timezone" placeholder="Europe/Stockholm">
+                                    <span class="help-text">IANA-tidszon för tidsstämplar i rapporter, t.ex. Europe/Stockholm</span>
                                 </div>
                                 <div class="config-field">
                                     <label for="cfg-append-window">Append-fönster (minuter)</label>
                                     <input type="number" id="cfg-append-window" name="append_window_minutes" min="1" max="1440">
+                                    <span class="help-text">Svar inom detta antal minuter läggs till i samma rapport</span>
                                 </div>
                                 <div class="config-field">
                                     <label for="cfg-startup-message">Startup-meddelande</label>
@@ -753,6 +758,7 @@ HTML_TEMPLATE = """
                                         <option value="all">Skicka till alla grupper</option>
                                         <option value="off">Av</option>
                                     </select>
+                                    <span class="help-text">Skicka ett statusmeddelande när Oden startar</span>
                                 </div>
                                 <div class="config-field">
                                     <label for="cfg-filename-format">Filnamnsformat</label>
@@ -761,6 +767,7 @@ HTML_TEMPLATE = """
                                         <option value="tnr">TNR (DDHHMM.md)</option>
                                         <option value="tnr-name">TNR-namn (DDHHMM-namn.md)</option>
                                     </select>
+                                    <span class="help-text">Format på filnamn för sparade rapporter</span>
                                 </div>
                                 <div class="config-field">
                                     <label>Funktioner</label>
@@ -768,6 +775,7 @@ HTML_TEMPLATE = """
                                         <input type="checkbox" id="cfg-plus-plus" name="plus_plus_enabled">
                                         <label for="cfg-plus-plus" style="color: #fff;">Aktivera ++ (append-läge)</label>
                                     </div>
+                                    <span class="help-text">Meddelanden som börjar med ++ läggs till i senaste rapporten</span>
                                 </div>
                                 <div class="config-field full-width">
                                     <label for="cfg-ignored-groups">Ignorerade grupper (kommaseparerade)</label>
@@ -799,14 +807,17 @@ HTML_TEMPLATE = """
                                 <div class="config-field">
                                     <label for="cfg-signal-host">Host</label>
                                     <input type="text" id="cfg-signal-host" name="signal_cli_host" placeholder="127.0.0.1">
+                                    <span class="help-text">IP-adress där signal-cli lyssnar (normalt 127.0.0.1)</span>
                                 </div>
                                 <div class="config-field">
                                     <label for="cfg-signal-port">Port</label>
                                     <input type="number" id="cfg-signal-port" name="signal_cli_port" placeholder="7583">
+                                    <span class="help-text">TCP-port för JSON-RPC-anslutning till signal-cli</span>
                                 </div>
                                 <div class="config-field full-width">
                                     <label for="cfg-signal-path">Sökväg till signal-cli (valfritt)</label>
                                     <input type="text" id="cfg-signal-path" name="signal_cli_path" placeholder="Lämna tomt för auto">
+                                    <span class="help-text">Absolut sökväg till signal-cli-binären. Lämna tomt för automatisk sökning</span>
                                 </div>
                                 <div class="config-field">
                                     <label>Extern signal-cli</label>
@@ -814,6 +825,7 @@ HTML_TEMPLATE = """
                                         <input type="checkbox" id="cfg-unmanaged" name="unmanaged_signal_cli">
                                         <label for="cfg-unmanaged" style="color: #fff;">Ohanterad (startas inte av Oden)</label>
                                     </div>
+                                    <span class="help-text">Aktivera om signal-cli redan körs separat och inte ska hanteras av Oden</span>
                                 </div>
                             </div>
                         </div>
@@ -827,10 +839,12 @@ HTML_TEMPLATE = """
                                         <input type="checkbox" id="cfg-web-enabled" name="web_enabled" checked>
                                         <label for="cfg-web-enabled" style="color: #fff;">Aktivera webbgränssnitt</label>
                                     </div>
+                                    <span class="help-text">Starta webbgränssnittet för konfiguration och övervakning</span>
                                 </div>
                                 <div class="config-field">
                                     <label for="cfg-web-port">Port</label>
                                     <input type="number" id="cfg-web-port" name="web_port" placeholder="8080">
+                                    <span class="help-text">Port för webbgränssnittet (localhost)</span>
                                 </div>
                             </div>
                         </div>
@@ -846,6 +860,7 @@ HTML_TEMPLATE = """
                                         <option value="WARNING">WARNING</option>
                                         <option value="ERROR">ERROR</option>
                                     </select>
+                                    <span class="help-text">Detaljnivå för loggning. DEBUG ger mest information, ERROR ger minst</span>
                                 </div>
                             </div>
                         </div>
