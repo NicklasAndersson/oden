@@ -195,7 +195,7 @@ def reload_config() -> dict:
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, REGEX_PATTERNS
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
     global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, LOG_FILE
-    global WEB_ENABLED, WEB_PORT, WEB_ACCESS_LOG
+    global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
 
     logger.info("Reloading configuration from database")
 
@@ -224,6 +224,7 @@ def reload_config() -> dict:
     LOG_LEVEL = app_config["log_level"]
     LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
+    WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
 
@@ -368,6 +369,7 @@ try:
     LOG_LEVEL = app_config.get("log_level", logging.INFO)
     LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
+    WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
 
@@ -394,5 +396,6 @@ except Exception as e:
     LOG_LEVEL = logging.INFO
     LOG_FILE = str(get_default_log_path())
     WEB_ENABLED = True
+    WEB_HOST = os.environ.get("WEB_HOST", "127.0.0.1")
     WEB_PORT = 8080
     WEB_ACCESS_LOG = None

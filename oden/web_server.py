@@ -14,7 +14,7 @@ import signal
 from aiohttp import web
 
 from oden import __version__
-from oden.config import WEB_ACCESS_LOG
+from oden.config import WEB_ACCESS_LOG, WEB_HOST
 from oden.log_buffer import get_log_buffer
 from oden.web_handlers import (
     accept_invitation_handler,
@@ -258,10 +258,10 @@ async def start_web_server(port: int = 8080, setup_mode: bool = False) -> web.Ap
 
     runner = web.AppRunner(app, access_log=access_log)
     await runner.setup()
-    site = web.TCPSite(runner, "127.0.0.1", port)
+    site = web.TCPSite(runner, WEB_HOST, port)
     await site.start()
     mode_str = " (setup mode)" if setup_mode else ""
-    logger.info(f"Web GUI started at http://127.0.0.1:{port}{mode_str}")
+    logger.info(f"Web GUI started at http://{WEB_HOST}:{port}{mode_str}")
     if not setup_mode:
         # Generate the API token for protected endpoints without logging its value
         get_api_token()

@@ -155,20 +155,16 @@ jobs:
           name: oden-macos-dmg
           path: dist/Oden-*.dmg
 
-  # Build Linux executable and create release package
-  build-linux:
+  # Build multi-arch Docker image and push to GitHub Container Registry
+  build-docker:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
 
       - name: Get version
         id: version
@@ -185,134 +181,41 @@ jobs:
           VERSION=${{ steps.version.outputs.VERSION }}
           sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller
-          pip install -e .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build executable
-        run: pyinstaller --onefile --name oden_linux oden/s7_watcher.py
-
-      - name: Download signal-cli
-        run: |
-          SIGNAL_CLI_VERSION="0.13.23"
-          curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
-          tar -xzf signal-cli.tar.gz
-          mv signal-cli-${SIGNAL_CLI_VERSION} signal-cli
-          rm signal-cli.tar.gz
-
-      - name: Create release package
-        run: |
-          VERSION=${{ steps.version.outputs.VERSION }}
-          mkdir -p release-linux
-          
-          # Copy binary
-          cp dist/oden_linux release-linux/
-          chmod +x release-linux/oden_linux
-          
-          # Copy signal-cli
-          cp -r signal-cli release-linux/
-          chmod +x release-linux/signal-cli/bin/signal-cli
-          
-          # Copy run script
-          cp scripts/run_linux.sh release-linux/
-          chmod +x release-linux/run_linux.sh
-          
-          # Copy docs
-          cp README.md release-linux/
-          
-          # Create zip
-          cd release-linux
-          zip -r "../Oden-${VERSION}-linux.zip" .
-          cd ..
-
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v6
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          name: oden-linux
-          path: Oden-*-linux.zip
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-  # Build Windows executable and create release package
-  build-windows:
-    runs-on: windows-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          python-version: '3.12'
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=snapshot-,enable=${{ !startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
-      - name: Get version
-        id: version
-        shell: bash
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          else
-            SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
-            echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set version in source
-        shell: bash
-        run: |
-          VERSION=${{ steps.version.outputs.VERSION }}
-          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller
-          pip install -e .
-
-      - name: Build executable
-        run: pyinstaller --onefile --name oden_windows oden/s7_watcher.py
-
-      - name: Download signal-cli
-        shell: bash
-        run: |
-          SIGNAL_CLI_VERSION="0.13.23"
-          curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
-          tar -xzf signal-cli.tar.gz
-          mv signal-cli-${SIGNAL_CLI_VERSION} signal-cli
-          rm signal-cli.tar.gz
-
-      - name: Create release package
-        shell: pwsh
-        run: |
-          $VERSION = "${{ steps.version.outputs.VERSION }}"
-          New-Item -ItemType Directory -Path release-windows -Force
-          
-          # Copy binary
-          Copy-Item "dist\oden_windows.exe" "release-windows\"
-          
-          # Copy signal-cli
-          Copy-Item -Recurse "signal-cli" "release-windows\"
-          
-          # Copy run script
-          Copy-Item "scripts\run_windows.ps1" "release-windows\"
-          
-          # Copy docs
-          Copy-Item "README.md" "release-windows\"
-          
-          # Create zip
-          Compress-Archive -Path "release-windows\*" -DestinationPath "Oden-$VERSION-windows.zip"
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v6
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
         with:
-          name: oden-windows
-          path: Oden-*-windows.zip
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # Create release with all artifacts
   release:
-    needs: [build-macos, build-linux, build-windows]
+    needs: [build-macos, build-docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -351,12 +254,6 @@ jobs:
           # Copy macOS DMG
           find artifacts/oden-macos-dmg -name "*.dmg" -exec cp {} release_files/ \;
           
-          # Copy Linux zip
-          find artifacts/oden-linux -name "*.zip" -exec cp {} release_files/ \;
-          
-          # Copy Windows zip
-          find artifacts/oden-windows -name "*.zip" -exec cp {} release_files/ \;
-          
           # Create source package for developers
           mkdir -p source_package
           cp -r oden source_package/
@@ -366,6 +263,8 @@ jobs:
           cp README.md source_package/
           cp CHANGELOG.md source_package/
           cp LICENSE source_package/
+          cp Dockerfile source_package/
+          cp docker-compose.yml source_package/
           
           # Set version in source
           sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" source_package/oden/__init__.py
@@ -440,24 +339,31 @@ jobs:
             ## Installation
             
             ### macOS (Apple Silicon & Intel)
-            1. Download `Oden-${{ steps.version.outputs.VERSION }}-macOS-universal.dmg`
+            1. Download `Oden-${{ steps.version.outputs.VERSION }}-macOS.dmg`
             2. Open the DMG and drag Oden to Applications
             3. First launch: Right-click → Open (to bypass Gatekeeper)
             
-            ### Linux
-            1. Download and extract `Oden-${{ steps.version.outputs.VERSION }}-linux.zip`
-            2. Run `./run_linux.sh` (will install Java if needed)
-            
-            ### Windows
-            1. Download and extract `Oden-${{ steps.version.outputs.VERSION }}-windows.zip`
-            2. Run `run_windows.ps1` in PowerShell (will install Java if needed)
+            ### Docker (Linux, Windows, Raspberry Pi)
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
+            docker run -d \
+              -p 8080:8080 \
+              -v oden-data:/data \
+              -v ./vault:/vault \
+              ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
+            ```
+            Or use `docker compose`:
+            ```bash
+            curl -O https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml
+            docker compose up -d
+            ```
             
             ### From Source
             1. Download `Oden-${{ steps.version.outputs.VERSION }}-source.zip`
             2. Install signal-cli and Java 21+
             3. `pip install -e .` then `python -m oden`
             
-            All packages include signal-cli bundled. The web-based setup wizard will guide you through configuration on first run.
+            The web-based setup wizard will guide you through configuration on first run at `http://localhost:8080/setup`.
             
             ## Screenshots
             

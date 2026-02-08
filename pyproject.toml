@@ -15,14 +15,16 @@ dependencies = [
     "jinja2>=3.1.0",
     "qrcode>=7.4.0",
     "tzdata>=2024.1",
-    "pystray>=0.19.0",
-    "Pillow>=9.0.0",
 ]
 
 [project.scripts]
 oden = "oden.s7_watcher:main"
 
 [project.optional-dependencies]
+tray = [
+    "pystray>=0.19.0",
+    "Pillow>=9.0.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
