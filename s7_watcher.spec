@@ -3,6 +3,7 @@
 # Builds an app with bundled JRE and signal-cli
 
 import os
+import sys
 
 # Data files to include
 datas = [
@@ -56,6 +57,7 @@ pyz = PYZ(a.pure)
 icon_path = 'images/oden.icns' if os.path.exists('images/oden.icns') else None
 
 # macOS: Create .app bundle with --windowed --onedir
+if sys.platform == 'darwin':
     # Build for x86_64 (Intel) - works natively on Intel and via Rosetta 2 on Apple Silicon
     exe = EXE(
         pyz,
