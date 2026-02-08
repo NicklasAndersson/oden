@@ -224,10 +224,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Download all artifacts
+      - name: Download macOS artifacts
         uses: actions/download-artifact@v7
         with:
-          path: artifacts
+          name: oden-macos-dmg
+          path: artifacts/oden-macos-dmg
 
       - name: Get version
         id: version
