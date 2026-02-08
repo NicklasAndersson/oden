@@ -705,6 +705,7 @@ HTML_TEMPLATE = """
                     <button class="tab-btn active" onclick="showTab('basic')">Grundläggande</button>
                     <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
                     <button class="tab-btn" onclick="showTab('templates')">Mallar</button>
+                    <button class="tab-btn" onclick="showTab('responses')">Svar</button>
                     <button class="tab-btn" onclick="showTab('raw')">Rå config</button>
                 </div>
 
@@ -910,6 +911,42 @@ HTML_TEMPLATE = """
                             <button type="button" class="btn btn-secondary" onclick="resetTemplate()">↩️ Återställ standard</button>
                             <button type="button" class="btn btn-secondary" onclick="exportCurrentTemplate()">⬇️ Ladda ner</button>
                             <button type="button" class="btn btn-secondary" onclick="exportAllTemplates()">⬇️ Ladda ner alla</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-responses" class="tab-content">
+                    <div class="config-section">
+                        <h3>💬 Kommandosvar</h3>
+                        <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                            Hantera automatiska svar som skickas när användare skriver kommandon som <code>#help</code> eller <code>#ok</code>.
+                            Varje svar kan ha flera nyckelord (t.ex. <code>help, hjälp</code>).
+                        </p>
+
+                        <div id="responses-list" style="margin-bottom: 20px;">
+                            <div class="empty-state">Laddar svar...</div>
+                        </div>
+
+                        <div id="response-editor" style="display: none; border: 1px solid #333; border-radius: 8px; padding: 15px; background: #16213e; margin-bottom: 15px;">
+                            <h4 id="response-editor-title" style="margin: 0 0 10px 0; color: #4fc3f7;">Nytt svar</h4>
+                            <input type="hidden" id="response-edit-id" value="">
+                            <div class="config-field" style="margin-bottom: 10px;">
+                                <label for="response-keywords">Nyckelord (kommaseparerade)</label>
+                                <input type="text" id="response-keywords" placeholder="help, hjälp" style="width: 100%; padding: 8px; border: 1px solid #333; border-radius: 4px; background: #0a1628; color: #fff; font-size: 0.95em;">
+                                <span class="help-text" style="color: #666; font-size: 0.85em;">Utan #-tecken. Flera nyckelord separeras med komma.</span>
+                            </div>
+                            <div class="config-field" style="margin-bottom: 10px;">
+                                <label for="response-body">Svarstext (Markdown)</label>
+                                <textarea id="response-body" rows="10" placeholder="Skriv svarstext här..." style="width: 100%; padding: 8px; border: 1px solid #333; border-radius: 4px; background: #0a1628; color: #fff; font-family: Monaco, Menlo, monospace; font-size: 0.9em; resize: vertical;"></textarea>
+                            </div>
+                            <div class="config-actions">
+                                <button type="button" class="btn btn-primary" onclick="saveResponse()">💾 Spara</button>
+                                <button type="button" class="btn btn-secondary" onclick="cancelResponseEdit()">Avbryt</button>
+                            </div>
+                        </div>
+
+                        <div class="config-actions">
+                            <button type="button" class="btn btn-primary" onclick="newResponse()">➕ Nytt svar</button>
                         </div>
                     </div>
                 </div>
@@ -1205,6 +1242,143 @@ HTML_TEMPLATE = """
             if (tabName === 'templates') {
                 loadTemplate();
             }
+            // Load responses when switching to responses tab
+            if (tabName === 'responses') {
+                loadResponses();
+            }
+        }
+
+        // ============================================================
+        // Response (auto-reply) management
+        // ============================================================
+
+        async function loadResponses() {
+            const container = document.getElementById('responses-list');
+            try {
+                const response = await fetch('/api/responses');
+                const data = await response.json();
+
+                if (!data.length) {
+                    container.innerHTML = '<div class="empty-state">Inga svar konfigurerade. Klicka "Nytt svar" för att lägga till.</div>';
+                    return;
+                }
+
+                let html = '<table style="width:100%; border-collapse:collapse;">';
+                html += '<thead><tr style="border-bottom:1px solid #333;">';
+                html += '<th style="text-align:left; padding:8px; color:#888;">Nyckelord</th>';
+                html += '<th style="text-align:left; padding:8px; color:#888;">Förhandsvisning</th>';
+                html += '<th style="text-align:right; padding:8px; color:#888;">Åtgärder</th>';
+                html += '</tr></thead><tbody>';
+
+                data.forEach(r => {
+                    const keywords = r.keywords.map(k => '<code style="background:#1a2744; padding:2px 6px; border-radius:3px; margin-right:4px; color:#4fc3f7;">#' + k + '</code>').join(' ');
+                    const preview = r.body.length > 80 ? r.body.substring(0, 80) + '…' : r.body;
+                    html += '<tr style="border-bottom:1px solid #222;">';
+                    html += '<td style="padding:8px;">' + keywords + '</td>';
+                    html += '<td style="padding:8px; color:#aaa; font-size:0.9em;">' + preview.replace(/</g, '&lt;') + '</td>';
+                    html += '<td style="padding:8px; text-align:right; white-space:nowrap;">';
+                    html += '<button class="btn btn-secondary" style="padding:4px 10px; font-size:0.85em; margin-left:4px;" onclick="editResponse(' + r.id + ')">✏️ Redigera</button>';
+                    html += '<button class="btn btn-secondary" style="padding:4px 10px; font-size:0.85em; margin-left:4px; color:#ff6b6b;" onclick="deleteResponse(' + r.id + ')">🗑️ Ta bort</button>';
+                    html += '</td></tr>';
+                });
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = '<div class="empty-state" style="color:#ff6b6b;">Kunde inte ladda svar: ' + error.message + '</div>';
+            }
+        }
+
+        function newResponse() {
+            document.getElementById('response-edit-id').value = '';
+            document.getElementById('response-keywords').value = '';
+            document.getElementById('response-body').value = '';
+            document.getElementById('response-editor-title').textContent = 'Nytt svar';
+            document.getElementById('response-editor').style.display = 'block';
+        }
+
+        async function editResponse(id) {
+            try {
+                const token = await getApiToken();
+                const response = await fetch('/api/responses/' + id + '?token=' + token);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(data.error || 'Kunde inte hämta svar');
+                    return;
+                }
+
+                document.getElementById('response-edit-id').value = data.id;
+                document.getElementById('response-keywords').value = data.keywords.join(', ');
+                document.getElementById('response-body').value = data.body;
+                document.getElementById('response-editor-title').textContent = 'Redigera svar #' + data.keywords[0];
+                document.getElementById('response-editor').style.display = 'block';
+            } catch (error) {
+                alert('Nätverksfel: ' + error.message);
+            }
+        }
+
+        async function saveResponse() {
+            const id = document.getElementById('response-edit-id').value;
+            const keywordsStr = document.getElementById('response-keywords').value;
+            const body = document.getElementById('response-body').value;
+
+            const keywords = keywordsStr.split(',').map(k => k.trim()).filter(k => k);
+
+            if (!keywords.length) {
+                alert('Ange minst ett nyckelord.');
+                return;
+            }
+            if (!body.trim()) {
+                alert('Svarstext kan inte vara tom.');
+                return;
+            }
+
+            try {
+                const token = await getApiToken();
+                const url = id ? '/api/responses/' + id + '?token=' + token : '/api/responses/new?token=' + token;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({keywords, body})
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showConfigMessage(result.message, 'success');
+                    cancelResponseEdit();
+                    await loadResponses();
+                } else {
+                    alert(result.error || 'Något gick fel');
+                }
+            } catch (error) {
+                alert('Nätverksfel: ' + error.message);
+            }
+        }
+
+        async function deleteResponse(id) {
+            if (!confirm('Vill du verkligen ta bort detta svar?')) return;
+
+            try {
+                const token = await getApiToken();
+                const response = await fetch('/api/responses/' + id + '?token=' + token, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showConfigMessage(result.message, 'success');
+                    await loadResponses();
+                } else {
+                    alert(result.error || 'Något gick fel');
+                }
+            } catch (error) {
+                alert('Nätverksfel: ' + error.message);
+            }
+        }
+
+        function cancelResponseEdit() {
+            document.getElementById('response-editor').style.display = 'none';
         }
 
         // Config message helper
