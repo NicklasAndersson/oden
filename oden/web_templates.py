@@ -995,6 +995,22 @@ HTML_TEMPLATE = """
     <script>
         const version = '{{version}}';
 
+        // API token for authenticated requests
+        let apiToken = null;
+
+        async function getApiToken() {
+            if (!apiToken) {
+                try {
+                    const response = await fetch('/api/token');
+                    const data = await response.json();
+                    apiToken = data.token;
+                } catch (error) {
+                    console.error('Failed to get API token:', error);
+                }
+            }
+            return apiToken;
+        }
+
         async function fetchConfig() {
             try {
                 const response = await fetch('/api/config');
@@ -1061,9 +1077,10 @@ HTML_TEMPLATE = """
             messageDiv.textContent = '';
 
             try {
+                const token = await getApiToken();
                 const response = await fetch('/api/join-group', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                     body: JSON.stringify({ link })
                 });
                 const result = await response.json();
@@ -1120,9 +1137,10 @@ HTML_TEMPLATE = """
             buttons.forEach(btn => btn.disabled = true);
 
             try {
+                const token = await getApiToken();
                 const response = await fetch(`/api/invitations/${action}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                     body: JSON.stringify({ groupId })
                 });
                 const result = await response.json();
@@ -1195,9 +1213,10 @@ HTML_TEMPLATE = """
 
         async function toggleIgnoreGroup(groupName) {
             try {
+                const token = await getApiToken();
                 const response = await fetch('/api/toggle-ignore-group', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                     body: JSON.stringify({ groupName })
                 });
                 const result = await response.json();
@@ -1218,9 +1237,10 @@ HTML_TEMPLATE = """
 
         async function toggleWhitelistGroup(groupName) {
             try {
+                const token = await getApiToken();
                 const response = await fetch('/api/toggle-whitelist-group', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                     body: JSON.stringify({ groupName })
                 });
                 const result = await response.json();
@@ -1475,9 +1495,10 @@ HTML_TEMPLATE = """
             };
 
             try {
+                const token = await getApiToken();
                 const response = await fetch('/api/config-save', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                     body: JSON.stringify(configData)
                 });
                 const result = await response.json();
@@ -1501,7 +1522,8 @@ HTML_TEMPLATE = """
         // Raw config functions
         async function loadRawConfig() {
             try {
-                const response = await fetch('/api/config-file');
+                const token = await getApiToken();
+                const response = await fetch('/api/config-file?token=' + token);
                 const data = await response.json();
                 document.getElementById('config-content').value = data.content || '';
             } catch (error) {
@@ -1513,9 +1535,10 @@ HTML_TEMPLATE = """
         async function saveRawConfig() {
             const content = document.getElementById('config-content').value;
             try {
+                const token = await getApiToken();
                 const response = await fetch('/api/config-file', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                     body: JSON.stringify({ content, reload: true })
                 });
                 const result = await response.json();
@@ -1561,7 +1584,11 @@ HTML_TEMPLATE = """
                 return;
             }
             try {
-                const response = await fetch('/api/shutdown', { method: 'POST' });
+                const token = await getApiToken();
+                const response = await fetch('/api/shutdown', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
                 const data = await response.json();
                 if (data.success) {
                     showMessage('Stänger av Oden...', true);
@@ -1588,22 +1615,6 @@ HTML_TEMPLATE = """
         setInterval(fetchGroups, 30000);
 
         // ========== Template Editor Functions ==========
-
-        // Store API token for template operations
-        let apiToken = null;
-
-        async function getApiToken() {
-            if (!apiToken) {
-                try {
-                    const response = await fetch('/api/token');
-                    const data = await response.json();
-                    apiToken = data.token;
-                } catch (error) {
-                    console.error('Failed to get API token:', error);
-                }
-            }
-            return apiToken;
-        }
 
         async function loadTemplate() {
             const templateName = document.getElementById('template-select').value;
