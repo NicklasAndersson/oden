@@ -40,6 +40,3 @@ jre-*/
 *.md
 !README.md
 LICENSE
-SECURITY.md
-GEMINI.md
-CHANGELOG.md

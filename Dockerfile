@@ -38,7 +38,7 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Install Python dependencies first (better layer caching)
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml README.md ./
 COPY oden/ oden/
 COPY templates/ templates/
 COPY config.ini ./
