@@ -107,92 +107,19 @@ class TestAttachmentPathTraversal(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(filepath.endswith("1_file.jpg"))
 
 
-class TestCommandPathTraversal(unittest.IsolatedAsyncioTestCase):
-    """Test that command names are validated to prevent path traversal."""
+class TestCommandLookup(unittest.IsolatedAsyncioTestCase):
+    """Test that commands are looked up from the database safely."""
 
     @patch("oden.processing._send_reply")
-    @patch("os.path.exists", return_value=True)
+    @patch("oden.processing.get_response_by_keyword", return_value=None)
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_command_path_traversal_blocked(self, mock_exists, mock_send_reply):
-        """Test that path traversal in command name is blocked."""
-        # Try to access a file outside the responses directory
+    async def test_command_with_path_traversal_no_match(self, mock_get_response, mock_send_reply):
+        """Test that path traversal attempts simply find no match in the database."""
         message_obj = {
             "envelope": {
                 "dataMessage": {
-                    "message": "#../../../etc/passwd",  # Malicious command
-                    "groupV2": {"name": "Test Group", "id": "group123"},
-                }
-            }
-        }
-        mock_reader = AsyncMock()
-        mock_writer = AsyncMock()
-
-        with self.assertLogs("oden.processing", level="WARNING") as log:
-            await process_message(message_obj, mock_reader, mock_writer)
-            # Should log a warning about blocked command
-            self.assertTrue(any("Blocked potentially malicious command" in msg for msg in log.output))
-
-        # Should NOT have tried to read any file
-        mock_send_reply.assert_not_awaited()
-
-    @patch("oden.processing._send_reply")
-    @patch("os.path.exists", return_value=True)
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_command_with_forward_slash_blocked(self, mock_exists, mock_send_reply):
-        """Test that forward slashes in command name are blocked."""
-        message_obj = {
-            "envelope": {
-                "dataMessage": {
-                    "message": "#config/secret",  # Contains forward slash
-                    "groupV2": {"name": "Test Group", "id": "group123"},
-                }
-            }
-        }
-        mock_reader = AsyncMock()
-        mock_writer = AsyncMock()
-
-        with self.assertLogs("oden.processing", level="WARNING") as log:
-            await process_message(message_obj, mock_reader, mock_writer)
-            self.assertTrue(any("Blocked potentially malicious command" in msg for msg in log.output))
-
-        mock_send_reply.assert_not_awaited()
-
-    @patch("oden.processing._send_reply")
-    @patch("os.path.exists", return_value=True)
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_command_with_backslash_blocked(self, mock_exists, mock_send_reply):
-        """Test that backslashes in command name are blocked."""
-        message_obj = {
-            "envelope": {
-                "dataMessage": {
-                    "message": "#config\\secret",  # Contains backslash
-                    "groupV2": {"name": "Test Group", "id": "group123"},
-                }
-            }
-        }
-        mock_reader = AsyncMock()
-        mock_writer = AsyncMock()
-
-        with self.assertLogs("oden.processing", level="WARNING") as log:
-            await process_message(message_obj, mock_reader, mock_writer)
-            self.assertTrue(any("Blocked potentially malicious command" in msg for msg in log.output))
-
-        mock_send_reply.assert_not_awaited()
-
-    @patch("oden.processing._send_reply")
-    @patch("builtins.open", new_callable=unittest.mock.mock_open, read_data="HELP_TEXT")
-    @patch("os.path.exists", return_value=True)  # Return True for all exists checks
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_valid_command_still_works(self, mock_exists, mock_open, mock_send_reply):
-        """Test that valid commands without path traversal still work."""
-        message_obj = {
-            "envelope": {
-                "dataMessage": {
-                    "message": "#help",  # Valid command
+                    "message": "#../../../etc/passwd",
                     "groupV2": {"name": "Test Group", "id": "group123"},
                 }
             }
@@ -202,10 +129,75 @@ class TestCommandPathTraversal(unittest.IsolatedAsyncioTestCase):
 
         await process_message(message_obj, mock_reader, mock_writer)
 
-        # Should have processed the command normally - check that responses/help.md was accessed
-        calls = [str(c) for c in mock_exists.call_args_list]
-        self.assertTrue(any("responses/help.md" in c for c in calls), f"Expected responses/help.md check in {calls}")
-        mock_open.assert_called_with("responses/help.md", encoding="utf-8")
+        # The command is just looked up in the DB — no file access, no match
+        mock_get_response.assert_called_once()
+        mock_send_reply.assert_not_awaited()
+
+    @patch("oden.processing._send_reply")
+    @patch("oden.processing.get_response_by_keyword", return_value=None)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
+    async def test_command_with_special_chars_no_match(self, mock_get_response, mock_send_reply):
+        """Test that special characters in commands are harmless with DB lookup."""
+        message_obj = {
+            "envelope": {
+                "dataMessage": {
+                    "message": "#config/secret",
+                    "groupV2": {"name": "Test Group", "id": "group123"},
+                }
+            }
+        }
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_get_response.assert_called_once()
+        mock_send_reply.assert_not_awaited()
+
+    @patch("oden.processing._send_reply")
+    @patch("oden.processing.get_response_by_keyword", return_value="HELP_TEXT")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
+    async def test_valid_command_still_works(self, mock_get_response, mock_send_reply):
+        """Test that valid commands are looked up from the database."""
+        message_obj = {
+            "envelope": {
+                "dataMessage": {
+                    "message": "#help",
+                    "groupV2": {"name": "Test Group", "id": "group123"},
+                }
+            }
+        }
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        mock_get_response.assert_called_once()
+        mock_send_reply.assert_awaited_once()
+
+    @patch("oden.processing._send_reply")
+    @patch("oden.processing.get_response_by_keyword", return_value="HELP_TEXT")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
+    async def test_command_case_insensitive(self, mock_get_response, mock_send_reply):
+        """Test that commands are case-insensitive."""
+        message_obj = {
+            "envelope": {
+                "dataMessage": {
+                    "message": "#Help",
+                    "groupV2": {"name": "Test Group", "id": "group123"},
+                }
+            }
+        }
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        # Command should be lowercased before lookup
+        mock_get_response.assert_called_once()
         mock_send_reply.assert_awaited_once()
 
 

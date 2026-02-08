@@ -22,6 +22,13 @@ from oden.web_handlers.group_handlers import (
     toggle_ignore_group_handler,
     toggle_whitelist_group_handler,
 )
+from oden.web_handlers.response_handlers import (
+    response_create_handler,
+    response_delete_handler,
+    response_get_handler,
+    response_save_handler,
+    responses_list_handler,
+)
 from oden.web_handlers.setup_handlers import (
     setup_cancel_link_handler,
     setup_handler,
@@ -73,6 +80,12 @@ __all__ = [
     "setup_oden_home_handler",
     "setup_validate_path_handler",
     "setup_reset_config_handler",
+    # Response handlers
+    "responses_list_handler",
+    "response_get_handler",
+    "response_save_handler",
+    "response_create_handler",
+    "response_delete_handler",
     # Template handlers
     "templates_list_handler",
     "template_get_handler",

@@ -214,11 +214,10 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(call_kwargs["message"], "Another message")
 
     @patch("oden.processing._send_reply")
-    @patch("builtins.open", new_callable=mock_open, read_data="HELP_TEXT")
-    @patch("os.path.exists", return_value=True)
+    @patch("oden.processing.get_response_by_keyword", return_value="HELP_TEXT")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_command_exists(self, mock_exists, mock_open, mock_send_reply):
+    async def test_process_message_command_exists(self, mock_get_response, mock_send_reply):
         message_obj = {
             "envelope": {"dataMessage": {"message": "#help", "groupV2": {"name": "Test Group", "id": "group123"}}}
         }
@@ -227,16 +226,14 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_exists.assert_called_once_with("responses/help.md")
-        mock_open.assert_called_once_with("responses/help.md", encoding="utf-8")
+        mock_get_response.assert_called_once()
         mock_send_reply.assert_awaited_once_with("group123", "HELP_TEXT", mock_writer)
 
     @patch("oden.processing._send_reply")
-    @patch("builtins.open", new_callable=mock_open, read_data="OK_TEXT")
-    @patch("os.path.exists", return_value=True)
+    @patch("oden.processing.get_response_by_keyword", return_value="OK_TEXT")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_command_exists_ok(self, mock_exists, mock_open, mock_send_reply):
+    async def test_process_message_command_exists_ok(self, mock_get_response, mock_send_reply):
         message_obj = {
             "envelope": {"dataMessage": {"message": "#ok", "groupV2": {"name": "Test Group", "id": "group123"}}}
         }
@@ -245,15 +242,14 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_exists.assert_called_once_with("responses/ok.md")
-        mock_open.assert_called_once_with("responses/ok.md", encoding="utf-8")
+        mock_get_response.assert_called_once()
         mock_send_reply.assert_awaited_once_with("group123", "OK_TEXT", mock_writer)
 
     @patch("oden.processing._send_reply")
-    @patch("os.path.exists", return_value=False)
+    @patch("oden.processing.get_response_by_keyword", return_value=None)
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_command_not_exists(self, mock_exists, mock_send_reply):
+    async def test_process_message_command_not_exists(self, mock_get_response, mock_send_reply):
         message_obj = {
             "envelope": {"dataMessage": {"message": "#foo", "groupV2": {"name": "Test Group", "id": "group123"}}}
         }
@@ -262,7 +258,7 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_exists.assert_called_once_with("responses/foo.md")
+        mock_get_response.assert_called_once()
         mock_send_reply.assert_not_awaited()
 
     @patch("builtins.open", new_callable=mock_open)

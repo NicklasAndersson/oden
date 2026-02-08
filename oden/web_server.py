@@ -28,6 +28,11 @@ from oden.web_handlers import (
     groups_handler,
     invitations_handler,
     join_group_handler,
+    response_create_handler,
+    response_delete_handler,
+    response_get_handler,
+    response_save_handler,
+    responses_list_handler,
     setup_cancel_link_handler,
     setup_handler,
     setup_install_obsidian_template_handler,
@@ -70,6 +75,7 @@ PROTECTED_ENDPOINTS = {
 
 # Endpoints that require auth and use path parameters (checked with startswith)
 PROTECTED_PREFIXES = {
+    "/api/responses/",  # All response modification endpoints
     "/api/templates/",  # All template modification endpoints
 }
 
@@ -205,6 +211,13 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/config/export", config_export_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)
         app.router.add_post("/api/shutdown", shutdown_handler)
+
+        # Response (auto-reply) routes
+        app.router.add_get("/api/responses", responses_list_handler)
+        app.router.add_post("/api/responses/new", response_create_handler)
+        app.router.add_get("/api/responses/{id}", response_get_handler)
+        app.router.add_post("/api/responses/{id}", response_save_handler)
+        app.router.add_delete("/api/responses/{id}", response_delete_handler)
 
         # Template routes
         app.router.add_get("/api/templates", templates_list_handler)

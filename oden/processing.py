@@ -8,6 +8,8 @@ from typing import Any
 
 from oden import config as cfg
 from oden.attachment_handler import save_attachments
+from oden.config import CONFIG_DB
+from oden.config_db import get_response_by_keyword
 from oden.formatting import (
     _format_quote,
     create_fileid,
@@ -282,25 +284,18 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     # --- Handle Standard Commands (#) ---
     if msg and msg.strip().startswith("#"):
-        command = msg.strip()[1:]
+        command = msg.strip()[1:].lower()
         if not command:
             return
-        # Validate command to prevent path traversal attacks
-        # Block path separators and parent directory references
-        if "/" in command or "\\" in command or ".." in command:
-            logger.warning(f"Blocked potentially malicious command: #{command}")
-            return
-        response_filepath = os.path.join("responses", f"{command}.md")
-        if os.path.exists(response_filepath):
+        response_text = get_response_by_keyword(CONFIG_DB, command)
+        if response_text:
             try:
-                with open(response_filepath, encoding="utf-8") as f:
-                    response_text = f.read()
                 await _send_reply(group_id, response_text, writer)
                 logger.info(f"Sent '{command}' response.")
             except Exception as e:
                 logger.error(f"Could not process #{command} command: {e}")
         else:
-            logger.info(f"No response file found for command: #{command}")
+            logger.info(f"No response found for command: #{command}")
         return
 
     # If no message body and no attachments, skip.
