@@ -11,6 +11,8 @@ import os
 import secrets
 import signal
 
+import aiohttp_jinja2
+import jinja2
 from aiohttp import web
 
 from oden import __version__
@@ -54,7 +56,6 @@ from oden.web_handlers import (
     toggle_ignore_group_handler,
     toggle_whitelist_group_handler,
 )
-from oden.web_templates import HTML_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +134,7 @@ async def token_handler(request: web.Request) -> web.Response:
 
 async def index_handler(request: web.Request) -> web.Response:
     """Serve the main HTML page."""
-    html = HTML_TEMPLATE.replace("{{version}}", __version__)
-    return web.Response(text=html, content_type="text/html")
+    return aiohttp_jinja2.render_template("dashboard.html", request, {"version": __version__})
 
 
 async def logs_handler(request: web.Request) -> web.Response:
@@ -172,6 +172,13 @@ def create_app(setup_mode: bool = False) -> web.Application:
     # In setup mode, don't use auth middleware
     middlewares = [] if setup_mode else [auth_middleware]
     app = web.Application(middlewares=middlewares)
+
+    # Set up Jinja2 template engine for HTML rendering
+    aiohttp_jinja2.setup(
+        app,
+        loader=jinja2.PackageLoader("oden", "templates/web"),
+        autoescape=jinja2.select_autoescape(["html"]),
+    )
 
     # Setup routes (always available)
     app.router.add_get("/setup", setup_handler)

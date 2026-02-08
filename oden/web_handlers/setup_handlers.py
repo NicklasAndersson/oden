@@ -14,6 +14,7 @@ import logging
 import shutil
 from pathlib import Path
 
+import aiohttp_jinja2
 import qrcode
 import qrcode.image.svg
 from aiohttp import web
@@ -39,7 +40,6 @@ from oden.path_utils import (
     normalize_path,
     validate_ini_file_path,
 )
-from oden.web_templates import SETUP_HTML_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +53,7 @@ _registrar = None
 
 async def setup_handler(request: web.Request) -> web.Response:
     """Serve the setup wizard HTML page."""
-    # Try to load from static file first (bundled app)
-    bundle_path = get_bundle_path()
-    static_file = bundle_path / "static" / "setup.html"
-
-    if static_file.exists():
-        return web.FileResponse(static_file)
-
-    # Fallback to inline HTML for development
-    return web.Response(text=SETUP_HTML_TEMPLATE.replace("{{version}}", __version__), content_type="text/html")
+    return aiohttp_jinja2.render_template("setup.html", request, {"version": __version__})
 
 
 async def setup_status_handler(request: web.Request) -> web.Response:

@@ -1,0 +1,131 @@
+/* Oden Web GUI - Setup wizard styles */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+.setup-container {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 40px;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+h1 { color: #4fc3f7; margin-bottom: 10px; text-align: center; }
+.version { color: #666; text-align: center; margin-bottom: 30px; }
+.step { display: none; }
+.step.active { display: block; }
+.step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+.step-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #333;
+    transition: background 0.3s;
+}
+.step-dot.active { background: #4fc3f7; }
+.step-dot.completed { background: #4caf50; }
+.form-group { margin-bottom: 20px; }
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #aaa;
+}
+.form-group input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #0d1421;
+    color: #fff;
+    font-size: 1em;
+}
+.form-group input:focus {
+    outline: none;
+    border-color: #4fc3f7;
+}
+.btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-primary {
+    background: #4fc3f7;
+    color: #1a1a2e;
+    font-weight: 600;
+}
+.btn-primary:hover { background: #81d4fa; }
+.btn-primary:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
+.btn-secondary {
+    background: transparent;
+    border: 1px solid #555;
+    color: #aaa;
+    margin-top: 10px;
+}
+.btn-secondary:hover { border-color: #888; color: #fff; }
+.qr-container {
+    text-align: center;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+.qr-container img, .qr-container canvas {
+    max-width: 250px;
+    height: auto;
+}
+.countdown {
+    text-align: center;
+    color: #888;
+    margin: 15px 0;
+    font-size: 0.9em;
+}
+.countdown.warning { color: #ffb74d; }
+.instructions {
+    background: #0d1421;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 0.9em;
+    line-height: 1.6;
+}
+.instructions ol {
+    margin-left: 20px;
+}
+.instructions li {
+    margin: 8px 0;
+}
+.manual-instructions {
+    background: #0d1421;
+    border: 1px solid #ffb74d;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+    white-space: pre-wrap;
+    font-family: 'Monaco', monospace;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #333;
+    border-top-color: #4fc3f7;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}

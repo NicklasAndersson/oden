@@ -28,6 +28,10 @@ if os.path.exists('signal-cli'):
 if os.path.exists('oden/static'):
     datas.append(('oden/static', 'static'))
 
+# Add Jinja2 web templates
+if os.path.exists('oden/templates/web'):
+    datas.append(('oden/templates/web', 'oden/templates/web'))
+
 a = Analysis(
     ['oden/s7_watcher.py'],
     pathex=[],
