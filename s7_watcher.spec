@@ -10,7 +10,6 @@ is_macos = platform.system() == 'Darwin'
 
 # Data files to include
 datas = [
-    ('responses', 'responses'),
     ('templates', 'templates'),
     ('config.ini', '.'),
     ('images/logo_small.jpg', 'images'),
