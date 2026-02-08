@@ -53,8 +53,8 @@ jobs:
         run: |
           # Use x86_64 Python
           arch -x86_64 /usr/local/bin/python3.12 -m pip install --upgrade pip
-          arch -x86_64 /usr/local/bin/python3.12 -m pip install pyinstaller pillow
-          arch -x86_64 /usr/local/bin/python3.12 -m pip install -e .
+          arch -x86_64 /usr/local/bin/python3.12 -m pip install pyinstaller
+          arch -x86_64 /usr/local/bin/python3.12 -m pip install -e ".[tray]"
 
       # Cache JRE download (x64 only for Intel build)
       - name: Cache JRE x64
