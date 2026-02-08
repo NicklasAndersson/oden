@@ -296,8 +296,13 @@ async def setup_validate_path_handler(request: web.Request) -> web.Response:
             )
 
         # Constrain the path to be within the default Oden home directory
+        # (Skip this check when ODEN_HOME env var is set, e.g. Docker)
+        import os
+
         safe_root = normalize_path(DEFAULT_ODEN_HOME)
-        if not (resolved_path == safe_root or is_within_directory(resolved_path, safe_root)):
+        if not os.environ.get("ODEN_HOME") and not (
+            resolved_path == safe_root or is_within_directory(resolved_path, safe_root)
+        ):
             return web.json_response(
                 {"valid": False, "error": "Sökvägen är inte tillåten"},
                 status=400,

@@ -73,6 +73,10 @@ def validate_path_within_home(
 ) -> tuple[Path | None, str | None]:
     """Validate a user-provided path is within user's home directory.
 
+    When the ODEN_HOME environment variable is set (e.g. Docker), the
+    home-directory constraint is relaxed — only the filesystem root check
+    is enforced.
+
     Args:
         path: User-provided path.
         allow_path: Optional specific path to allow even if outside home.
@@ -89,6 +93,10 @@ def validate_path_within_home(
     if is_filesystem_root(resolved):
         logger.warning("Path rejected: filesystem root is not allowed")
         return None, "Sökväg kan inte vara filsystemets rot"
+
+    # When ODEN_HOME is set (Docker), skip the home-directory constraint
+    if os.environ.get("ODEN_HOME"):
+        return resolved, None
 
     # Allow specific whitelisted path
     if allow_path is not None:

@@ -1,12 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec file for Oden macOS app bundle
-# Builds a universal app with bundled JRE and signal-cli
+# Builds an app with bundled JRE and signal-cli
 
 import os
-import platform
-
-# Determine if we're building for macOS app bundle
-is_macos = platform.system() == 'Darwin'
+import sys
 
 # Data files to include
 datas = [
@@ -48,10 +45,6 @@ a = Analysis(
         'oden.app_state',
         'oden.tray',
         'pystray._darwin',
-        'pystray._win32',
-        'pystray._gtk',
-        'pystray._appindicator',
-        'pystray._xorg',
         'PIL',
     ],
     hookspath=[],
@@ -67,8 +60,8 @@ pyz = PYZ(a.pure)
 # Determine icon path
 icon_path = 'images/oden.icns' if os.path.exists('images/oden.icns') else None
 
-if is_macos:
-    # macOS: Create .app bundle with --windowed --onedir
+# macOS: Create .app bundle with --windowed --onedir
+if sys.platform == 'darwin':
     # Build for x86_64 (Intel) - works natively on Intel and via Rosetta 2 on Apple Silicon
     exe = EXE(
         pyz,

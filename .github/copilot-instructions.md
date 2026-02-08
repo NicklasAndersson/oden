@@ -38,10 +38,10 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 - **template_loader.py**: Jinja2 template engine for report formatting. Templates loaded from config_db or files, with LRU cache and validation
 - **attachment_handler.py**: Downloads and saves Signal attachments to vault subdirectories
 - **link_formatter.py**: Regex-based linking and location extraction (Google Maps, Apple Maps, OSM → geo coordinates)
-- **path_utils.py**: Platform-aware path detection (macOS/Linux/Windows) for logs, config, app support directories
+- **path_utils.py**: Path validation, sanitization, directory operations. When `ODEN_HOME` env var is set (Docker), the home-directory constraint is relaxed
 - **log_utils.py**: Logging setup with file rotation, log level persistence
 - **log_buffer.py**: In-memory log buffer for web GUI display
-- **bundle_utils.py**: PyInstaller bundle path detection
+- **bundle_utils.py**: PyInstaller bundle path detection, `ODEN_HOME` env var support (highest priority), pointer file resolution
 
 ## Key Patterns
 
@@ -77,25 +77,25 @@ macOS uses externally-managed Python (PEP 668), so use a virtual environment:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[tray]"
 ```
 
 The `.venv/` directory is gitignored.
 
 ### Commands
 ```bash
-source .venv/bin/activate # Activate virtual environment (required)
-pip install -e .          # Install in dev mode
-pytest                    # Run tests
-pytest --cov=oden         # With coverage
-ruff check . && ruff format .  # Lint and format
-python -m oden            # Run application
+source .venv/bin/activate       # Activate virtual environment (required)
+pip install -e ".[tray]"        # Install in dev mode (with system tray support)
+pytest                          # Run tests
+pytest --cov=oden               # With coverage
+ruff check . && ruff format .   # Lint and format
+python -m oden                  # Run application
 ```
 
 **IMPORTANT:** Always run `ruff check . && ruff format .` before committing to fix lint errors.
 
 ### Web GUI
-A web interface runs automatically at `http://127.0.0.1:8080` (localhost only).
+A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, or `0.0.0.0:8080` in Docker via `WEB_HOST` env var).
 
 **Setup mode** (first run): Wizard for choosing Oden home dir, linking Signal account (QR code), setting vault path.
 
@@ -110,7 +110,18 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only).
 
 **Security:** Token-based auth for sensitive endpoints (generated per session). Localhost only.
 
-**Tray icon:** On macOS/Linux/Windows, a system tray icon (pystray) provides start/stop, open GUI, and quit buttons. Falls back to terminal-only mode if pystray is unavailable.
+**Tray icon:** On macOS, a system tray icon (pystray) provides start/stop, open GUI, and quit buttons. `pystray` and `Pillow` are optional extras (`pip install .[tray]`). Falls back to terminal-only mode if unavailable (always the case in Docker).
+
+### Docker
+Oden is distributed as a multi-arch Docker image (`linux/amd64`, `linux/arm64`) alongside the macOS DMG.
+
+Key environment variables for Docker:
+- `ODEN_HOME=/data` — where config.db and signal-data live (volume mount)
+- `WEB_HOST=0.0.0.0` — bind web GUI to all interfaces
+
+```bash
+docker compose up -d  # Uses docker-compose.yml in repo root
+```
 
 ### Versioning
 - `__version__` in `oden/__init__.py` is set to `0.0.0-dev`
@@ -118,8 +129,9 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only).
 - Don't manually update version - it's managed by the release workflow
 
 ### Snapshot Releases
-Every push to `main` triggers a full build (macOS, Linux, Windows) and creates a **snapshot pre-release** on GitHub:
+Every push to `main` triggers a macOS DMG build and a multi-arch Docker image push to `ghcr.io`, and creates a **snapshot pre-release** on GitHub:
 - Version is set to `snapshot-<short-sha>` (e.g., `snapshot-abc1234`)
+- Docker image tagged `snapshot-<short-sha>` is pushed to GitHub Container Registry
 - The snapshot release is tagged `snapshot-<short-sha>` and marked as pre-release
 - Each new snapshot deletes all previous snapshot releases first
 - Snapshot releases are **not** shown as the "latest release" on GitHub
@@ -133,7 +145,7 @@ For stable releases, use git tags:
 5. Merge the pull request
 6. Create annotated tag on main: `git tag -a v0.5.0 -m "description"`
 7. Push tag: `git push origin v0.5.0`
-8. GitHub Actions builds binaries and creates a versioned release
+8. GitHub Actions builds macOS DMG, pushes Docker image to ghcr.io, and creates a versioned release
 
 **IMPORTANT:** Once a tag has been pushed and a build has started, that tag is immutable. Never delete and recreate a tag - always create a new patch version (e.g., v0.9.1 → v0.9.2).
 
