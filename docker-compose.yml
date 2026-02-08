@@ -1,0 +1,16 @@
+services:
+  oden:
+    build: .
+    image: ghcr.io/nicklasandersson/oden:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - oden-data:/data
+      - ./vault:/vault
+    environment:
+      - ODEN_HOME=/data
+      - WEB_HOST=0.0.0.0
+    restart: unless-stopped
+
+volumes:
+  oden-data:

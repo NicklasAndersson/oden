@@ -4,25 +4,11 @@
 
 Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidian-valv.
 
-## Snabbstart (Release)
+## Snabbstart
 
-Ladda ner senaste releasen och kör skriptet för ditt OS:
+### macOS (DMG)
 
-| OS | Kommando |
-|----|----------|
-| macOS | `./run_mac.sh` |
-| Linux | `./run_linux.sh` |
-| Windows | `.\run_windows.ps1` |
-
-Skriptet hanterar allt: beroenden, Signal-konfiguration och start.
-
-Se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) för mer info.
-
-### macOS: "Oden.app är skadat"
-
-För att kunna köra och uppdatera releasen på macOS relativt smärtfritt, följ:
-
-1. Ladda ner `.dmg` från releasen
+1. Ladda ner `.dmg` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
 2. Öppna den och dra **Oden.app** till **Applications**
 3. Kör i Terminal:
 
@@ -30,13 +16,29 @@ För att kunna köra och uppdatera releasen på macOS relativt smärtfritt, föl
 xattr -cr /Applications/Oden.app
 ```
 
-Sista steget behövs eftersom vi saknar Apple-certifikat. Om appen ligger kvar i Downloads, kör istället:
+Sista steget behövs eftersom vi saknar Apple-certifikat. Alternativt kan du högerklicka på appen och välja **"Öppna"** — då får du möjlighet att öppna den trots varningen.
+
+### Docker (Linux, Windows, Raspberry Pi)
 
 ```bash
-xattr -cr ~/Downloads/Oden.app
+docker run -d \
+  --name oden \
+  -p 8080:8080 \
+  -v oden-data:/data \
+  -v ./vault:/vault \
+  ghcr.io/nicklasandersson/oden:latest
 ```
 
-Alternativt kan du högerklicka på appen och välja **"Öppna"** – då får du möjlighet att öppna den trots varningen.
+Eller med `docker compose`:
+
+```bash
+curl -O https://raw.githubusercontent.com/NicklasAndersson/oden/main/docker-compose.yml
+docker compose up -d
+```
+
+Öppna sedan `http://localhost:8080/setup` i din webbläsare för att konfigurera.
+
+Se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) för mer info.
 
 ### Signal-konto
 
@@ -57,12 +59,14 @@ Det finns två sätt att konfigurera Signal:
 
 ```text
 oden/
-├── oden/           # Python-paket med källkod
-├── tests/          # Enhetstester
-├── scripts/        # run_*.sh/ps1 skript för installation och körning
-├── docs/           # Dokumentation
-├── responses/      # Svarsmallar för kommandon
-└── images/         # Bilder
+├── oden/              # Python-paket med källkod
+├── tests/             # Enhetstester
+├── scripts/           # Byggskript (macOS DMG, ikoner)
+├── docs/              # Dokumentation
+├── templates/         # Rapportmallar (Jinja2)
+├── Dockerfile         # Docker-image
+├── docker-compose.yml # Docker Compose-konfiguration
+└── images/            # Bilder
 ```
 
 ### Installation för utveckling
@@ -76,8 +80,8 @@ cd oden
 python -m venv .venv
 source .venv/bin/activate  # På Windows: .venv\Scripts\activate
 
-# Installera paketet i utvecklingsläge
-pip install -e .
+# Installera paketet i utvecklingsläge (med system tray-stöd)
+pip install -e ".[tray]"
 
 # Kör tester
 pytest
@@ -124,7 +128,7 @@ Konfigurationen hanteras via **setup-wizarden** som öppnas automatiskt vid för
 
 ## System Tray
 
-På macOS, Linux och Windows visas Oden som en ikon i systemfältet:
+På macOS visas Oden som en ikon i systemfältet:
 
 ![System Tray](images/tray.png)
 

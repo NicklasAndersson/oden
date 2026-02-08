@@ -1,0 +1,45 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+oden.egg-info/
+dist/
+build/
+
+# Development
+tests/
+docs/
+screenshots/
+images/
+scripts/
+
+# Local data
+vault/
+config.db
+*.db
+
+# Bundled signal-cli (downloaded separately in Dockerfile)
+signal-cli-*/
+signal-cli/
+jre-*/
+
+# macOS
+*.dmg
+*.icns
+*.spec
+.DS_Store
+
+# Misc
+*.md
+!README.md
+LICENSE
+SECURITY.md
+GEMINI.md
+CHANGELOG.md

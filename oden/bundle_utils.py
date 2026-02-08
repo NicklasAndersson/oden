@@ -107,14 +107,31 @@ def get_pointer_file_path() -> Path:
 
 
 def get_oden_home_path() -> Path | None:
-    """Get the Oden home directory path from the pointer file.
+    """Get the Oden home directory path.
+
+    Resolution order:
+    1. ODEN_HOME environment variable (highest priority, for Docker)
+    2. Pointer file (oden_home.txt in platform app-support dir)
 
     Returns:
         Path to the Oden home directory, or None if:
-        - Pointer file doesn't exist
+        - No ODEN_HOME env var and no pointer file
         - Pointer file is empty
         - Pointed directory doesn't exist
     """
+    import os
+
+    # Check ODEN_HOME environment variable first (used in Docker)
+    env_home = os.environ.get("ODEN_HOME")
+    if env_home:
+        try:
+            oden_home = normalize_path(env_home)
+            # Create the directory if it doesn't exist (Docker volumes)
+            oden_home.mkdir(parents=True, exist_ok=True)
+            return oden_home
+        except (OSError, ValueError) as e:
+            logger.error(f"Invalid ODEN_HOME environment variable '{env_home}': {e}")
+
     pointer_file = get_pointer_file_path()
 
     if not pointer_file.exists():
