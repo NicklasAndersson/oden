@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+
+{% block title %}Oden - Web GUI{% endblock %}
+
+{% block extra_css %}
+{% include "css/dashboard.css" %}
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <header>
+            <div>
+                <h1>🛡️ Oden</h1>
+                <span class="version">v{{ version }}</span>
+            </div>
+            <div class="header-actions">
+                <div class="status">
+                    <div class="status-dot"></div>
+                    <span>Lyssnar</span>
+                </div>
+                <button class="btn btn-danger" onclick="shutdownApp()" title="Stäng av Oden">
+                    ⏻ Stäng av
+                </button>
+            </div>
+        </header>
+
+        <div class="grid">
+            <div class="card full-width">
+                <h2>👥 Grupper</h2>
+                <div id="groups-container" class="group-list">
+                    <div class="empty-state">Laddar grupper...</div>
+                </div>
+                <div class="refresh-info">Klicka på "Ignorera" för att dölja gruppen, eller "Whitelist" för att endast tillåta den. Om whitelist är satt ignoreras alla andra grupper.</div>
+            </div>
+
+            <div class="card full-width">
+                <h2>🔗 Gå med i grupp</h2>
+                <form id="join-group-form">
+                    <div class="form-group">
+                        <label for="group-link">Grupplänk</label>
+                        <input type="text" id="group-link" name="link"
+                               placeholder="https://signal.group/#..." required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="join-btn">Gå med i grupp</button>
+                </form>
+                <div id="join-message" class="message"></div>
+            </div>
+
+            <div class="card full-width">
+                <h2>💾 Gruppinbjudningar</h2>
+                <div id="invitations-container" class="invitation-list">
+                    <div class="empty-state">Laddar inbjudningar...</div>
+                </div>
+                <div class="refresh-info">Uppdateras automatiskt var 10:e sekund</div>
+            </div>
+
+            <div class="card full-width">
+                <h2>⚙️ Inställningar</h2>
+                <div id="config-message" class="warning-banner">
+                    <span class="icon">✓</span>
+                    <span id="config-message-text"></span>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showTab('basic')">Grundläggande</button>
+                    <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
+                    <button class="tab-btn" onclick="showTab('templates')">Mallar</button>
+                    <button class="tab-btn" onclick="showTab('responses')">Svar</button>
+                    <button class="tab-btn" onclick="showTab('raw')">Rå config</button>
+                </div>
+
+                <div id="tab-basic" class="tab-content active">
+                    <form id="config-form" class="config-form">
+                        <div class="config-section">
+                            <h3>📱 Signal</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-signal-number">Telefonnummer</label>
+                                    <input type="text" id="cfg-signal-number" name="signal_number" placeholder="+46...">
+                                    <span class="help-text">Ditt Signal-nummer i internationellt format, t.ex. +46701234567</span>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-display-name">Visningsnamn</label>
+                                    <input type="text" id="cfg-display-name" name="display_name" placeholder="oden">
+                                    <span class="help-text">Namn som visas i rapporthuvuden och filnamn</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>📁 Vault</h3>
+                            <div class="config-grid">
+                                <div class="config-field full-width">
+                                    <label for="cfg-vault-path">Sökväg till vault</label>
+                                    <input type="text" id="cfg-vault-path" name="vault_path" placeholder="~/oden-vault">
+                                    <span class="help-text">Mapp där rapporter sparas som Markdown-filer (Obsidian vault)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>⏱️ Inställningar</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-timezone">Tidszon</label>
+                                    <input type="text" id="cfg-timezone" name="timezone" placeholder="Europe/Stockholm">
+                                    <span class="help-text">IANA-tidszon för tidsstämplar i rapporter, t.ex. Europe/Stockholm</span>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-append-window">Append-fönster (minuter)</label>
+                                    <input type="number" id="cfg-append-window" name="append_window_minutes" min="1" max="1440">
+                                    <span class="help-text">Svar inom detta antal minuter läggs till i samma rapport</span>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-startup-message">Startup-meddelande</label>
+                                    <select id="cfg-startup-message" name="startup_message">
+                                        <option value="self">Skicka till mig själv</option>
+                                        <option value="all">Skicka till alla grupper</option>
+                                        <option value="off">Av</option>
+                                    </select>
+                                    <span class="help-text">Skicka ett statusmeddelande när Oden startar</span>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-filename-format">Filnamnsformat</label>
+                                    <select id="cfg-filename-format" name="filename_format">
+                                        <option value="classic">Classic (DDHHMM-telefon-namn.md)</option>
+                                        <option value="tnr">TNR (DDHHMM.md)</option>
+                                        <option value="tnr-name">TNR-namn (DDHHMM-namn.md)</option>
+                                    </select>
+                                    <span class="help-text">Format på filnamn för sparade rapporter</span>
+                                </div>
+                                <div class="config-field">
+                                    <label>Funktioner</label>
+                                    <div class="checkbox-wrapper">
+                                        <input type="checkbox" id="cfg-plus-plus" name="plus_plus_enabled">
+                                        <label for="cfg-plus-plus" style="color: #fff;">Aktivera ++ (append-läge)</label>
+                                    </div>
+                                    <span class="help-text">Meddelanden som börjar med ++ läggs till i senaste rapporten</span>
+                                </div>
+                                <div class="config-field full-width">
+                                    <label for="cfg-ignored-groups">Ignorerade grupper (kommaseparerade)</label>
+                                    <input type="text" id="cfg-ignored-groups" name="ignored_groups" placeholder="Grupp1, Grupp2">
+                                    <span class="help-text">Meddelanden från dessa grupper sparas inte</span>
+                                </div>
+                                <div class="config-field full-width">
+                                    <label for="cfg-whitelist-groups">Whitelist-grupper (kommaseparerade)</label>
+                                    <input type="text" id="cfg-whitelist-groups" name="whitelist_groups" placeholder="Grupp1, Grupp2">
+                                    <span class="help-text">Om satt sparas ENDAST meddelanden från dessa grupper (har prioritet över ignorerade)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-actions">
+                            <button type="submit" class="btn btn-primary" id="save-config-btn">
+                                Spara och applicera
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="tab-advanced" class="tab-content">
+                    <form id="config-form-advanced" class="config-form">
+                        <div class="config-section">
+                            <h3>🔧 signal-cli</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-signal-host">Host</label>
+                                    <input type="text" id="cfg-signal-host" name="signal_cli_host" placeholder="127.0.0.1">
+                                    <span class="help-text">IP-adress där signal-cli lyssnar (normalt 127.0.0.1)</span>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-signal-port">Port</label>
+                                    <input type="number" id="cfg-signal-port" name="signal_cli_port" placeholder="7583">
+                                    <span class="help-text">TCP-port för JSON-RPC-anslutning till signal-cli</span>
+                                </div>
+                                <div class="config-field full-width">
+                                    <label for="cfg-signal-path">Sökväg till signal-cli (valfritt)</label>
+                                    <input type="text" id="cfg-signal-path" name="signal_cli_path" placeholder="Lämna tomt för auto">
+                                    <span class="help-text">Absolut sökväg till signal-cli-binären. Lämna tomt för automatisk sökning</span>
+                                </div>
+                                <div class="config-field">
+                                    <label>Extern signal-cli</label>
+                                    <div class="checkbox-wrapper">
+                                        <input type="checkbox" id="cfg-unmanaged" name="unmanaged_signal_cli">
+                                        <label for="cfg-unmanaged" style="color: #fff;">Ohanterad (startas inte av Oden)</label>
+                                    </div>
+                                    <span class="help-text">Aktivera om signal-cli redan körs separat och inte ska hanteras av Oden</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>🌐 Webbserver</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label>Status</label>
+                                    <div class="checkbox-wrapper">
+                                        <input type="checkbox" id="cfg-web-enabled" name="web_enabled" checked>
+                                        <label for="cfg-web-enabled" style="color: #fff;">Aktivera webbgränssnitt</label>
+                                    </div>
+                                    <span class="help-text">Starta webbgränssnittet för konfiguration och övervakning</span>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-web-port">Port</label>
+                                    <input type="number" id="cfg-web-port" name="web_port" placeholder="8080">
+                                    <span class="help-text">Port för webbgränssnittet (localhost)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>📝 Loggning</h3>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label for="cfg-log-level">Loggnivå</label>
+                                    <select id="cfg-log-level" name="log_level">
+                                        <option value="DEBUG">DEBUG</option>
+                                        <option value="INFO">INFO</option>
+                                        <option value="WARNING">WARNING</option>
+                                        <option value="ERROR">ERROR</option>
+                                    </select>
+                                    <span class="help-text">Detaljnivå för loggning. DEBUG ger mest information, ERROR ger minst</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-actions">
+                            <button type="submit" class="btn btn-primary" id="save-config-adv-btn">
+                                Spara och applicera
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="tab-templates" class="tab-content">
+                    <div class="config-section">
+                        <h3>📝 Rapportmallar</h3>
+                        <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                            Redigera Jinja2-mallar som används för att generera rapporter. Ändringar sparas i databasen.
+                        </p>
+
+                        <div style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center; flex-wrap: wrap;">
+                            <div>
+                                <label for="template-select" style="margin-right: 8px;">Mall:</label>
+                                <select id="template-select" onchange="loadTemplate()">
+                                    <option value="report.md.j2">Rapportmall (report.md.j2)</option>
+                                    <option value="append.md.j2">Tilläggsmall (append.md.j2)</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="template-full-data" onchange="previewTemplate()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span style="color: #888; font-size: 0.9em;">Visa alla variabler</span>
+                            </div>
+                        </div>
+
+                        <div class="template-split-view">
+                            <div class="template-editor-pane">
+                                <h4 style="margin: 0 0 10px 0; color: #4fc3f7;">Editor</h4>
+                                <textarea id="template-editor" placeholder="Laddar mall..."></textarea>
+                            </div>
+                            <div class="template-preview-pane">
+                                <h4 style="margin: 0 0 10px 0; color: #4fc3f7;">Förhandsvisning</h4>
+                                <div id="template-preview" class="template-preview-content">
+                                    <div class="empty-state">Klicka "Förhandsgranska" för att se resultatet</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="template-error" class="template-error" style="display: none;"></div>
+
+                        <details class="template-variables-section">
+                            <summary>📋 Tillgängliga variabler</summary>
+                            <div id="template-variables" class="template-variables-list">
+                                <div class="empty-state">Välj en mall för att se tillgängliga variabler</div>
+                            </div>
+                        </details>
+
+                        <div class="config-actions" style="margin-top: 15px;">
+                            <button type="button" class="btn btn-primary" onclick="previewTemplate()">👁️ Förhandsgranska</button>
+                            <button type="button" class="btn btn-primary" onclick="saveTemplate()">💾 Spara mall</button>
+                            <button type="button" class="btn btn-secondary" onclick="resetTemplate()">↩️ Återställ standard</button>
+                            <button type="button" class="btn btn-secondary" onclick="exportCurrentTemplate()">⬇️ Ladda ner</button>
+                            <button type="button" class="btn btn-secondary" onclick="exportAllTemplates()">⬇️ Ladda ner alla</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-responses" class="tab-content">
+                    <div class="config-section">
+                        <h3>💬 Kommandosvar</h3>
+                        <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                            Hantera automatiska svar som skickas när användare skriver kommandon som <code>#help</code> eller <code>#ok</code>.
+                            Varje svar kan ha flera nyckelord (t.ex. <code>help, hjälp</code>).
+                        </p>
+
+                        <div id="responses-list" style="margin-bottom: 20px;">
+                            <div class="empty-state">Laddar svar...</div>
+                        </div>
+
+                        <div id="response-editor" style="display: none; border: 1px solid #333; border-radius: 8px; padding: 15px; background: #16213e; margin-bottom: 15px;">
+                            <h4 id="response-editor-title" style="margin: 0 0 10px 0; color: #4fc3f7;">Nytt svar</h4>
+                            <input type="hidden" id="response-edit-id" value="">
+                            <div class="config-field" style="margin-bottom: 10px;">
+                                <label for="response-keywords">Nyckelord (kommaseparerade)</label>
+                                <input type="text" id="response-keywords" placeholder="help, hjälp" style="width: 100%; padding: 8px; border: 1px solid #333; border-radius: 4px; background: #0a1628; color: #fff; font-size: 0.95em;">
+                                <span class="help-text" style="color: #666; font-size: 0.85em;">Utan #-tecken. Flera nyckelord separeras med komma.</span>
+                            </div>
+                            <div class="config-field" style="margin-bottom: 10px;">
+                                <label for="response-body">Svarstext (Markdown)</label>
+                                <textarea id="response-body" rows="10" placeholder="Skriv svarstext här..." style="width: 100%; padding: 8px; border: 1px solid #333; border-radius: 4px; background: #0a1628; color: #fff; font-family: Monaco, Menlo, monospace; font-size: 0.9em; resize: vertical;"></textarea>
+                            </div>
+                            <div class="config-actions">
+                                <button type="button" class="btn btn-primary" onclick="saveResponse()">💾 Spara</button>
+                                <button type="button" class="btn btn-secondary" onclick="cancelResponseEdit()">Avbryt</button>
+                            </div>
+                        </div>
+
+                        <div class="config-actions">
+                            <button type="button" class="btn btn-primary" onclick="newResponse()">➕ Nytt svar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-raw" class="tab-content">
+                    <div class="config-section">
+                        <h3>📄 Konfiguration (INI-format)</h3>
+                        <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">
+                            Konfigurationen sparas nu i SQLite-databas. Nedan visas en INI-export som kan importeras igen.
+                        </p>
+                        <textarea id="config-content" style="width:100%;min-height:300px;padding:12px;border:1px solid #333;border-radius:4px;background:#16213e;color:#fff;font-family:Monaco,Menlo,monospace;font-size:0.9em;resize:vertical;" placeholder="Laddar config..."></textarea>
+                        <div class="config-actions" style="margin-top:15px;">
+                            <button type="button" class="btn btn-primary" onclick="saveRawConfig()">Importera INI</button>
+                            <button type="button" class="btn btn-secondary" onclick="loadRawConfig()">Återställ</button>
+                            <button type="button" class="btn btn-secondary" onclick="exportConfig()">⬇️ Ladda ner INI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card full-width">
+                <h2>📜 Logg</h2>
+                <div class="logs" id="log-container">
+                    <div class="empty-state">Laddar loggar...</div>
+                </div>
+                <div class="refresh-info">Uppdateras automatiskt var 3:e sekund</div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+    const version = '{{ version }}';
+    {% include "js/dashboard.js" %}
+    </script>
+{% endblock %}

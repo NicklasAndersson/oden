@@ -153,6 +153,7 @@ For stable releases, use git tags:
 
 ## Testing Guidelines
 - Tests are in `tests/` using pytest
+- The full test suite (~130 tests) runs in about **10 seconds** — always wait for it to finish
 - Mock config values when testing: patch `oden.config.VAULT_PATH` etc.
 - Don't get stuck fixing difficult tests - note the issue and move on
 - **Terminal output**: Always read terminal output using `get_terminal_output` tool before continuing. Run commands directly without piping or redirection tricks like `2>&1`, `| tail`, `| head`, `echo $?` etc. Just run `python -m pytest -v` straight up.

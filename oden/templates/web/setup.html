@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Oden - Setup{% endblock %}
+
+{% block extra_css %}
+{% include "css/setup.css" %}
+{% endblock %}
+
+{% block content %}
+    <div class="setup-container">
+        <h1>🛡️ Oden Setup</h1>
+        <p class="version">v{{ version }}</p>
+
+        <div class="step-indicator">
+            <div class="step-dot active" id="dot-1"></div>
+            <div class="step-dot" id="dot-2"></div>
+            <div class="step-dot" id="dot-3"></div>
+        </div>
+
+        <!-- Step 1: Vault Path -->
+        <div class="step active" id="step-1">
+            <h2 style="margin-bottom: 20px;">📁 Välj Vault-sökväg</h2>
+            <p style="color: #888; margin-bottom: 20px;">
+                Ange sökvägen där Oden ska spara markdown-filer från Signal.
+            </p>
+            <div class="form-group">
+                <label for="vault-path">Vault-sökväg</label>
+                <input type="text" id="vault-path" placeholder="~/oden-vault">
+            </div>
+            <div class="form-group" style="margin-top: 20px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="install-obsidian" checked style="width: 20px; height: 20px;">
+                    <span>Installera Obsidian-inställningar (Map View plugin)</span>
+                </label>
+                <p style="color: #666; font-size: 0.85em; margin-top: 5px; margin-left: 30px;">
+                    Rekommenderas för att visa platser på karta i Obsidian.
+                </p>
+            </div>
+            <button class="btn btn-primary" onclick="goToStep(2)">Nästa →</button>
+        </div>
+
+        <!-- Step 2: Signal Linking -->
+        <div class="step" id="step-2">
+            <h2 style="margin-bottom: 20px;">📱 Signal-konto</h2>
+
+            <!-- Loading indicator -->
+            <div id="accounts-loading" style="text-align: center; padding: 40px;">
+                <div class="spinner"></div>
+                <p style="color: #888; margin-top: 15px;">Letar efter befintliga Signal-konton...</p>
+            </div>
+
+            <!-- Existing accounts section -->
+            <div id="existing-accounts" class="hidden">
+                <div style="background: #1a3a1a; border: 1px solid #2d5a2d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #4ade80;">✓ Befintliga Signal-konton hittades</h3>
+                    <p style="color: #888; margin-bottom: 15px;">Du har redan konfigurerade Signal-konton. Välj ett att använda eller konfigurera nytt.</p>
+                    <div id="accounts-list"></div>
+                </div>
+            </div>
+
+            <!-- Method selection -->
+            <div id="method-selection" class="hidden">
+                <p style="color: #888; margin-bottom: 15px;">Välj hur du vill konfigurera Signal:</p>
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #0d1421; border-radius: 6px; border: 1px solid #333;">
+                        <input type="radio" name="setup-method" value="link" checked style="width: 18px; height: 18px;">
+                        <div>
+                            <strong style="color: #4fc3f7;">Länka befintligt konto</strong>
+                            <p style="color: #888; font-size: 0.85em; margin: 4px 0 0 0;">Använd QR-kod för att länka till din Signal-app</p>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #0d1421; border-radius: 6px; border: 1px solid #333;">
+                        <input type="radio" name="setup-method" value="register" style="width: 18px; height: 18px;">
+                        <div>
+                            <strong style="color: #ffb74d;">Registrera nytt nummer</strong>
+                            <p style="color: #888; font-size: 0.85em; margin: 4px 0 0 0;">⚠️ Använd INTE ditt huvudnummer!</p>
+                        </div>
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="startSelectedMethod()">Fortsätt</button>
+                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+            </div>
+
+            <!-- Link form -->
+            <div id="link-start" class="hidden">
+                <p style="color: #888; margin-bottom: 20px;">
+                    Klicka på knappen nedan för att starta länkningen. En QR-kod visas som du scannar med Signal-appen.
+                </p>
+                <div class="form-group">
+                    <label for="device-name">Enhetsnamn</label>
+                    <input type="text" id="device-name" value="Oden" placeholder="Oden">
+                </div>
+                <button class="btn btn-primary" onclick="startLinking()">Länka konto</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">← Tillbaka</button>
+            </div>
+
+            <!-- Registration form -->
+            <div id="register-start" class="hidden">
+                <div style="background: #3a2a1a; border: 1px solid #5a4a2a; border-radius: 6px; padding: 12px; margin-bottom: 20px;">
+                    <strong style="color: #ffb74d;">⚠️ Varning</strong>
+                    <p style="color: #888; font-size: 0.9em; margin: 5px 0 0 0;">
+                        Använd ett separat telefonnummer, INTE ditt huvudnummer på Signal!
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label for="register-phone">Telefonnummer</label>
+                    <input type="text" id="register-phone" placeholder="+46701234567">
+                </div>
+                <div class="form-group">
+                    <label style="color: #888;">Verifieringsmetod</label>
+                    <div style="display: flex; gap: 15px; margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="verify-method" value="sms" checked>
+                            <span>SMS</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="verify-method" value="voice">
+                            <span>Samtal</span>
+                        </label>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="startRegistration()">Registrera</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">← Tillbaka</button>
+            </div>
+
+            <!-- CAPTCHA required -->
+            <div id="register-captcha" class="hidden">
+                <div style="background: #2a2a3a; border: 1px solid #4a4a5a; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #ffb74d;">🔒 CAPTCHA krävs</h3>
+                    <ol style="color: #aaa; margin: 0; padding-left: 20px; line-height: 1.8;">
+                        <li>Öppna länken nedan i din webbläsare</li>
+                        <li>Lös CAPTCHA-uppgiften</li>
+                        <li>Högerklicka på "Open Signal" och <strong>kopiera länkadressen</strong></li>
+                        <li>Klistra in länken nedan</li>
+                    </ol>
+                </div>
+                <a href="https://signalcaptchas.org/registration/generate.html" target="_blank"
+                   style="display: block; background: #0d1421; padding: 12px; border-radius: 6px; margin-bottom: 15px; color: #4fc3f7; text-decoration: none; word-break: break-all;">
+                    https://signalcaptchas.org/registration/generate.html ↗
+                </a>
+                <div class="form-group">
+                    <label for="captcha-token">Klistra in signalcaptcha:// länken</label>
+                    <input type="text" id="captcha-token" placeholder="signalcaptcha://signal-recaptcha-v2...">
+                </div>
+                <button class="btn btn-primary" onclick="submitCaptcha()">Fortsätt</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">Avbryt</button>
+            </div>
+
+            <!-- Verification code -->
+            <div id="register-verify" class="hidden">
+                <div class="success" style="margin-bottom: 20px;">
+                    📱 Verifieringskod skickad!
+                </div>
+                <p style="color: #888; margin-bottom: 20px;">
+                    Ange koden du fick via <span id="verify-method-text">SMS</span> till <strong id="verify-phone-text"></strong>
+                </p>
+                <div class="form-group">
+                    <label for="verify-code">Verifieringskod</label>
+                    <input type="text" id="verify-code" placeholder="123456" maxlength="10" style="font-size: 1.5em; text-align: center; letter-spacing: 5px;">
+                </div>
+                <button class="btn btn-primary" onclick="submitVerifyCode()">Verifiera</button>
+                <button class="btn btn-secondary" onclick="showMethodSelection()">Avbryt</button>
+            </div>
+
+            <div id="link-waiting" class="hidden">
+                <div class="instructions">
+                    <ol>
+                        <li>Öppna <strong>Signal</strong> på din telefon</li>
+                        <li>Gå till <strong>Inställningar → Länkade enheter</strong></li>
+                        <li>Tryck på <strong>"+"</strong> eller <strong>"Länka ny enhet"</strong></li>
+                        <li>Scanna QR-koden nedan</li>
+                    </ol>
+                </div>
+                <div class="qr-container" id="qr-container">
+                    <div class="spinner"></div>
+                </div>
+                <div class="countdown" id="countdown">Väntar på scan... 60s</div>
+                <button class="btn btn-secondary" onclick="cancelLinking()">Avbryt</button>
+            </div>
+
+            <div id="link-success" class="hidden">
+                <div class="success">
+                    ✅ Länkning lyckades!<br>
+                    <strong id="linked-number"></strong>
+                </div>
+                <button class="btn btn-primary" onclick="goToStep(3)">Nästa →</button>
+            </div>
+
+            <div id="link-timeout" class="hidden">
+                <div class="error">
+                    ⏱️ Länkningen tog för lång tid. Försök igen eller följ de manuella stegen nedan.
+                </div>
+                <div class="manual-instructions" id="manual-instructions"></div>
+                <div class="form-group">
+                    <label for="manual-number">Ange ditt Signal-nummer manuellt</label>
+                    <input type="text" id="manual-number" placeholder="+46701234567">
+                </div>
+                <button class="btn btn-primary" onclick="useManualNumber()">Använd detta nummer</button>
+                <button class="btn btn-secondary" onclick="retryLinking()">Försök igen</button>
+            </div>
+
+            <div id="link-error" class="hidden">
+                <div class="error" id="error-message"></div>
+                <button class="btn btn-secondary" onclick="retryLinking()">Försök igen</button>
+                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Confirmation -->
+        <div class="step" id="step-3">
+            <h2 style="margin-bottom: 20px;">✅ Bekräfta inställningar</h2>
+            <div class="instructions">
+                <table style="width: 100%;">
+                    <tr><td style="color: #888;">Vault:</td><td id="confirm-vault">-</td></tr>
+                    <tr><td style="color: #888;">Signal:</td><td id="confirm-number">-</td></tr>
+                    <tr><td style="color: #888;">Enhetsnamn:</td><td id="confirm-device">-</td></tr>
+                </table>
+            </div>
+            <button class="btn btn-primary" onclick="saveConfig()" id="save-btn">Spara och starta Oden</button>
+            <button class="btn btn-secondary" onclick="goToStep(2)">← Tillbaka</button>
+            <div id="save-message"></div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+    {% include "js/setup.js" %}
+    </script>
+{% endblock %}
