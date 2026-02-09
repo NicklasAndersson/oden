@@ -189,7 +189,9 @@ class OdenTray:
         self.quit_event.set()
         if self._on_quit:
             self._on_quit()
-        self.stop()
+        # Note: self.stop() is NOT called here — the watcher loop's
+        # finally block handles tray cleanup after the async lifecycle
+        # has finished shutting down all components.
 
     # ------------------------------------------------------------------
     # Lifecycle

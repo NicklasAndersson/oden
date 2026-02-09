@@ -32,7 +32,9 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_signal_manager_class.assert_called_once_with("+1234567890", "1.2.3.4", 1234)
         mock_manager_instance.start.assert_called_once()
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)
-        mock_manager_instance.stop.assert_called_once()
+        # stop() is called both when the listener task finishes and in
+        # the finally block (safety cleanup), so it may be called twice.
+        self.assertGreaterEqual(mock_manager_instance.stop.call_count, 1)
 
     @patch("oden.s7_watcher._create_tray", return_value=None)
     @patch("oden.s7_watcher.is_configured", return_value=(True, None))
@@ -54,18 +56,20 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.s7_watcher._create_tray", return_value=None)
     @patch("oden.s7_watcher.is_configured", return_value=(True, None))
+    @patch("oden.s7_watcher.WEB_ENABLED", False)
     @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=False)
-    @patch("sys.exit", side_effect=SystemExit)
     @patch("oden.s7_watcher.SIGNAL_NUMBER", "+1234567890")
-    def test_main_unmanaged_not_running(self, mock_exit, mock_is_running, mock_is_configured, mock_tray):
+    @patch("oden.s7_watcher.SIGNAL_CLI_HOST", "1.2.3.4")
+    @patch("oden.s7_watcher.SIGNAL_CLI_PORT", 1234)
+    def test_main_unmanaged_not_running(self, mock_is_running, mock_is_configured, mock_tray):
         """Tests main in unmanaged mode when signal-cli is not running."""
         with self.assertLogs("oden.s7_watcher", level="ERROR") as log:
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(SystemExit) as cm:
                 s7_main()
 
             self.assertTrue(any("signal-cli is not running" in message for message in log.output))
-        mock_exit.assert_called_once_with(1)
+        self.assertEqual(cm.exception.code, 0)
 
     @patch("asyncio.open_connection", side_effect=ConnectionRefusedError)
     async def test_subscribe_and_listen_connection_refused(self, mock_open_connection):

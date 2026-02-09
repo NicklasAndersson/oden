@@ -12,8 +12,6 @@ import contextlib
 import datetime
 import json
 import logging
-import os
-import signal as signal_mod
 import sys
 import time
 import webbrowser
@@ -133,7 +131,6 @@ async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] 
             active_groups = [g for g in groups if g.get("name") not in cfg.IGNORED_GROUPS]
             if not active_groups:
                 logger.info("No active groups to send startup message to (all groups ignored)")
-                return
                 return
 
             logger.info(f"Sending startup message to {len(active_groups)} group(s)...")
@@ -303,17 +300,148 @@ async def subscribe_and_listen(host: str, port: int) -> None:
         logger.info("Connection closed.")
 
 
-async def run_all(host: str, port: int) -> None:
-    """Run signal-cli listener and optionally web server concurrently."""
-    tasks = [subscribe_and_listen(host, port)]
+async def _run_lifecycle(
+    host: str,
+    port: int,
+    signal_manager: SignalManager | None,
+    tray: OdenTray | None,
+) -> None:
+    """Long-lived async lifecycle that keeps the web server running.
 
+    The signal-cli listener is started/stopped independently via
+    asyncio events stored on AppState.  The web server persists
+    across stop/start cycles so the GUI is always reachable.
+    """
+    from oden.web_server import start_web_server
+
+    app_state = get_app_state()
+    loop = asyncio.get_running_loop()
+
+    # Create lifecycle events and store on AppState
+    stop_event = asyncio.Event()
+    start_event = asyncio.Event()
+    quit_event = asyncio.Event()
+
+    app_state.loop = loop
+    app_state.stop_event = stop_event
+    app_state.start_event = start_event
+    app_state.quit_event = quit_event
+    app_state.signal_manager = signal_manager
+
+    # Start the web server once — it stays alive for the entire lifetime
+    web_runner = None
     if WEB_ENABLED:
-        from oden.web_server import run_web_server
-
-        tasks.append(run_web_server(WEB_PORT))
+        web_runner = await start_web_server(WEB_PORT)
         logger.info(f"Web GUI enabled on port {WEB_PORT}")
 
-    await asyncio.gather(*tasks)
+    listener_task: asyncio.Task | None = None
+
+    try:
+        while not quit_event.is_set():
+            # Reset events for this cycle
+            stop_event.clear()
+            start_event.clear()
+
+            # Start signal-cli if managed
+            if signal_manager is not None:
+                await asyncio.to_thread(signal_manager.start)
+            elif not is_signal_cli_running(host, port):
+                logger.error("signal-cli is not running. Please start it manually.")
+                if tray is None:
+                    break
+                logger.info("Waiting for Start from tray menu...")
+                if tray is not None:
+                    tray.running = False
+                # Wait for start or quit
+                await _wait_for_event(start_event, quit_event)
+                if quit_event.is_set():
+                    break
+                continue
+
+            # Mark as running
+            if tray is not None:
+                tray.running = True
+
+            # Run the listener as a cancellable task
+            listener_task = asyncio.create_task(subscribe_and_listen(host, port))
+
+            # Wait for either the listener to finish or a stop/quit signal
+            stop_waiter = asyncio.create_task(stop_event.wait())
+            done, pending = await asyncio.wait(
+                {listener_task, stop_waiter},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            # Cancel whichever is still pending
+            for task in pending:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await task
+
+            # If the listener finished on its own (disconnect / error),
+            # retrieve and log any exception
+            if listener_task in done:
+                exc = listener_task.exception() if not listener_task.cancelled() else None
+                if exc is not None:
+                    logger.error("Listener stopped with error: %s", exc)
+                else:
+                    logger.info("Listener disconnected.")
+            listener_task = None
+
+            # Stop signal-cli
+            if tray is not None:
+                tray.running = False
+            if signal_manager is not None:
+                await asyncio.to_thread(signal_manager.stop)
+
+            # If no tray, exit after first run
+            if tray is None:
+                break
+
+            if quit_event.is_set():
+                break
+
+            logger.info("Watcher stopped. Use tray menu to Start or Quit.")
+            # Wait for user to click Start or Quit
+            await _wait_for_event(start_event, quit_event)
+
+    except asyncio.CancelledError:
+        logger.info("Lifecycle cancelled.")
+    finally:
+        # Cancel listener if still running
+        if listener_task is not None and not listener_task.done():
+            listener_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await listener_task
+
+        # Stop signal-cli
+        if signal_manager is not None:
+            await asyncio.to_thread(signal_manager.stop)
+
+        # Clean up web server
+        if web_runner is not None:
+            await web_runner.cleanup()
+
+        # Clear lifecycle state
+        app_state.loop = None
+        app_state.stop_event = None
+        app_state.start_event = None
+        app_state.quit_event = None
+        app_state.signal_manager = None
+
+        logger.info("Oden shut down.")
+
+
+async def _wait_for_event(*events: asyncio.Event) -> None:
+    """Wait until any of the given events is set."""
+    waiters = [asyncio.create_task(e.wait()) for e in events]
+    try:
+        await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for w in waiters:
+            w.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await w
 
 
 async def run_setup_mode(port: int) -> bool:
@@ -418,74 +546,32 @@ def main() -> None:
 
     signal_manager = None if new_unmanaged else SignalManager(new_number, new_host, new_port)
 
-    # --- Tray loop: keeps running until Quit is clicked ---
-    quit_requested = False
-
-    def request_quit() -> None:
-        nonlocal quit_requested
-        quit_requested = True
-        # Interrupt any running asyncio loop
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(os.getpid(), signal_mod.SIGINT)
-
-    def request_stop() -> None:
-        # Interrupt the asyncio loop to stop the watcher
-        os.kill(os.getpid(), signal_mod.SIGINT)
-
-    def request_start() -> None:
-        # No-op here – the outer loop restarts automatically
-        pass
-
+    # --- Tray callbacks use AppState lifecycle helpers ---
     if tray is not None:
-        tray.set_callbacks(on_start=request_start, on_stop=request_stop, on_quit=request_quit)
+        tray.set_callbacks(
+            on_start=app_state.request_start,
+            on_stop=app_state.request_stop,
+            on_quit=app_state.request_quit,
+        )
 
     def _watcher_loop() -> None:
-        """Run the watcher loop (may be called from a background thread)."""
-        nonlocal quit_requested
+        """Run the async lifecycle (may be called from a background thread)."""
         try:
-            while not quit_requested:
-                # Start signal-cli if managed
-                if signal_manager is not None:
-                    signal_manager.start()
-                elif not is_signal_cli_running(new_host, new_port):
-                    logger.error("signal-cli is not running. Please start it manually.")
-                    if tray is None:
-                        sys.exit(1)
-                    # Wait for user to click Start again
-                    logger.info("Waiting for Start from tray menu...")
-                    _wait_for_start(tray)
-                    if quit_requested:
-                        break
-                    continue
-
-                # Mark as running
-                if tray is not None:
-                    tray.running = True
-
-                try:
-                    asyncio.run(run_all(new_host, new_port))
-                except (KeyboardInterrupt, SystemExit):
-                    logger.info("Watcher loop stopped.")
-                except Exception as e:
-                    logger.exception(f"An unexpected error occurred: {e}")
-                finally:
-                    if tray is not None:
-                        tray.running = False
-                    if signal_manager is not None:
-                        signal_manager.stop()
-
-                # If no tray, exit after first run
-                if tray is None:
-                    break
-
-                if not quit_requested:
-                    logger.info("Watcher stopped. Use tray menu to Start or Quit.")
-                    _wait_for_start(tray)
-
+            asyncio.run(
+                _run_lifecycle(
+                    host=new_host,
+                    port=new_port,
+                    signal_manager=signal_manager,
+                    tray=tray,
+                )
+            )
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Watcher loop stopped.")
+        except Exception as e:
+            logger.exception(f"An unexpected error occurred: {e}")
         finally:
             if tray is not None:
                 tray.stop()
-            logger.info("Oden shut down.")
 
     if tray is not None:
         # tray.run() blocks main thread (required for macOS NSApp loop).
@@ -510,12 +596,6 @@ def _create_tray() -> OdenTray | None:
     except Exception as e:
         logger.debug("System tray not available: %s", e)
         return None
-
-
-def _wait_for_start(tray: OdenTray) -> None:
-    """Block until the user clicks Start or Quit in the tray menu."""
-    while not tray.running and not tray.quit_event.is_set():
-        time.sleep(0.5)
 
 
 if __name__ == "__main__":
