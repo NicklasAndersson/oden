@@ -129,24 +129,29 @@ print_header "Steg 3: Installerar ${APP_NAME}"
 # Check if Oden is already running
 if pgrep -f "/Applications/Oden.app/Contents/MacOS/" &>/dev/null; then
     print_warning "Oden verkar köra. Stäng appen innan du fortsätter."
-    read -rp "Vill du fortsätta ändå? (j/N): " CONTINUE
-    if [[ ! "$CONTINUE" =~ ^[JjYy]$ ]]; then
-        echo "Avbryter."
-        exit 0
+    if [[ -t 0 ]]; then
+        read -rp "Vill du fortsätta ändå? (j/N): " CONTINUE
+        if [[ ! "$CONTINUE" =~ ^[JjYy]$ ]]; then
+            echo "Avbryter."
+            exit 0
+        fi
+    else
+        print_info "Kör via pipe — hoppar över frågan och fortsätter."
     fi
 fi
 
 # Mount DMG
-MOUNT_OUTPUT=$(hdiutil attach "$DMG_PATH" -nobrowse -quiet 2>&1) || {
+MOUNT_OUTPUT=$(hdiutil attach "$DMG_PATH" -nobrowse 2>&1) || {
     print_error "Kunde inte montera DMG-filen."
     echo "$MOUNT_OUTPUT"
     exit 1
 }
 
-MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep -o '/Volumes/.*' | head -1)
+MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep -o '/Volumes/.*' | head -1 || true)
 
 if [[ -z "$MOUNT_POINT" ]] || [[ ! -d "$MOUNT_POINT" ]]; then
     print_error "Kunde inte hitta monteringspunkten."
+    echo "$MOUNT_OUTPUT"
     exit 1
 fi
 
