@@ -80,7 +80,12 @@ class TestWebAPIEndpoints(AioHTTPTestCase):
         self.assertEqual(resp.content_type, "application/json")
 
     async def test_api_config_export_returns_text(self):
-        resp = await self.client.get("/api/config/export")
+        resp = await self.client.get("/api/token")
+        token_data = await resp.json()
+        resp = await self.client.get(
+            "/api/config/export",
+            headers={"Authorization": f"Bearer {token_data['token']}"},
+        )
         self.assertEqual(resp.status, 200)
 
 
@@ -132,31 +137,15 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         self.assertNotEqual(resp.status, 401)
 
     # ------------------------------------------------------------------
-    # /api/config-file (GET and POST)
+    # /api/config/export (requires auth)
     # ------------------------------------------------------------------
-    async def test_config_file_get_rejects_without_token(self):
-        resp = await self.client.get("/api/config-file")
+    async def test_config_export_rejects_without_token(self):
+        resp = await self.client.get("/api/config/export")
         self.assertEqual(resp.status, 401)
 
-    async def test_config_file_get_accepts_valid_token(self):
+    async def test_config_export_accepts_valid_token(self):
         token = await self._get_valid_token()
-        resp = await self.client.get("/api/config-file", headers=self._auth_header(token))
-        self.assertNotEqual(resp.status, 401)
-
-    async def test_config_file_post_rejects_without_token(self):
-        resp = await self.client.post(
-            "/api/config-file",
-            json={"content": "[Signal]\nsignal_number = +46700000000"},
-        )
-        self.assertEqual(resp.status, 401)
-
-    async def test_config_file_post_accepts_valid_token(self):
-        token = await self._get_valid_token()
-        resp = await self.client.post(
-            "/api/config-file",
-            json={"content": "[Signal]\nsignal_number = +46700000000"},
-            headers=self._auth_header(token),
-        )
+        resp = await self.client.get("/api/config/export", headers=self._auth_header(token))
         self.assertNotEqual(resp.status, 401)
 
     # ------------------------------------------------------------------

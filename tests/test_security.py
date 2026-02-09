@@ -209,7 +209,7 @@ class TestWebAuthentication(AioHTTPTestCase):
 
     async def test_protected_endpoint_requires_token(self):
         """Test that protected endpoints return 401 without token."""
-        resp = await self.client.get("/api/config-file")
+        resp = await self.client.post("/api/config-save", json={"signal_number": "+46700000000"})
         self.assertEqual(resp.status, 401)
         data = await resp.json()
         self.assertFalse(data["success"])
@@ -218,20 +218,24 @@ class TestWebAuthentication(AioHTTPTestCase):
     async def test_protected_endpoint_with_valid_token_query(self):
         """Test that protected endpoints work with valid token in query."""
         token = get_api_token()
-        resp = await self.client.get(f"/api/config-file?token={token}")
-        # Should not be 401 (might be 404 if config doesn't exist, but not 401)
+        resp = await self.client.post(f"/api/config-save?token={token}", json={"signal_number": "+46700000000"})
+        # Should not be 401 (might be 400 for missing fields, but not 401)
         self.assertNotEqual(resp.status, 401)
 
     async def test_protected_endpoint_with_valid_token_header(self):
         """Test that protected endpoints work with valid token in header."""
         token = get_api_token()
-        resp = await self.client.get("/api/config-file", headers={"Authorization": f"Bearer {token}"})
-        # Should not be 401 (might be 404 if config doesn't exist, but not 401)
+        resp = await self.client.post(
+            "/api/config-save", json={"signal_number": "+46700000000"}, headers={"Authorization": f"Bearer {token}"}
+        )
+        # Should not be 401 (might be 400 for missing fields, but not 401)
         self.assertNotEqual(resp.status, 401)
 
     async def test_protected_endpoint_with_invalid_token(self):
         """Test that protected endpoints reject invalid token."""
-        resp = await self.client.get("/api/config-file?token=invalid_token_here")
+        resp = await self.client.post(
+            "/api/config-save?token=invalid_token_here", json={"signal_number": "+46700000000"}
+        )
         self.assertEqual(resp.status, 401)
 
     async def test_unprotected_endpoint_no_token_needed(self):

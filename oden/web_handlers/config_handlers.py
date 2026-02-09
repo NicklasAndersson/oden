@@ -17,6 +17,7 @@ from oden.config import (
     reset_config,
     save_config,
 )
+from oden.config_db import get_all_config
 
 logger = logging.getLogger(__name__)
 
@@ -137,12 +138,19 @@ async def config_file_save_handler(request: web.Request) -> web.Response:
 
 
 async def config_save_handler(request: web.Request) -> web.Response:
-    """Save configuration from structured form data and trigger live reload."""
+    """Save configuration from structured form data and trigger live reload.
+
+    Merges form data with existing config to preserve fields not shown
+    in the form (e.g. regex_patterns, templates, log paths).
+    """
     try:
         data = await request.json()
 
-        # Build config dict
-        config_dict = {
+        # Read existing config first so we only overwrite form-managed keys
+        existing = get_all_config(CONFIG_DB)
+
+        # Keys managed by the web form — update only these
+        form_updates = {
             "signal_number": data.get("signal_number", ""),
             "display_name": data.get("display_name", "oden"),
             "vault_path": data.get("vault_path", str(DEFAULT_VAULT_PATH)),
@@ -160,15 +168,17 @@ async def config_save_handler(request: web.Request) -> web.Response:
             "web_port": data.get("web_port", 8080),
             "log_level": data.get("log_level", "INFO"),
             "filename_format": data.get("filename_format", "classic"),
-            "regex_patterns": data.get("regex_patterns", {}),
         }
 
         # Validate required fields
-        if not config_dict["signal_number"] or config_dict["signal_number"] == "+46XXXXXXXXX":
+        if not form_updates["signal_number"] or form_updates["signal_number"] == "+46XXXXXXXXX":
             return web.json_response(
                 {"success": False, "error": "Signal-nummer måste anges"},
                 status=400,
             )
+
+        # Merge: existing config + form updates (form wins)
+        config_dict = {**existing, **form_updates}
 
         # Save config
         save_config(config_dict)

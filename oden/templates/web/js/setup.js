@@ -4,12 +4,20 @@ let countdownInterval = null;
 let pollInterval = null;
 let existingAccounts = [];
 let registerPhone = null;
+let iniFound = false;
+let iniPath = null;
 
 // Check for recovery candidate and set default vault path on page load
 fetch('/api/setup/status')
     .then(r => r.json())
     .then(data => {
         document.getElementById('vault-path').value = data.default_vault || '~/oden-vault';
+
+        // Store INI migration info
+        if (data.has_existing_ini && data.existing_ini_path) {
+            iniFound = true;
+            iniPath = data.existing_ini_path;
+        }
 
         // If a recovery candidate was found, show the recovery step
         if (data.recovery_candidate) {
@@ -82,6 +90,11 @@ async function loadExistingAccounts() {
 }
 
 function goToStep(step) {
+    // Auto-skip INI migration step if no INI found
+    if (step === 2 && !iniFound) {
+        step = 3;
+    }
+
     document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
     document.getElementById('step-' + step).classList.add('active');
 
@@ -94,10 +107,14 @@ function goToStep(step) {
     currentStep = step;
 
     if (step === 2) {
-        loadExistingAccounts();
+        loadIniPreview();
     }
 
     if (step === 3) {
+        loadExistingAccounts();
+    }
+
+    if (step === 4) {
         document.getElementById('confirm-vault').textContent = document.getElementById('vault-path').value;
         document.getElementById('confirm-number').textContent = linkedNumber || '(ej konfigurerad)';
         document.getElementById('confirm-device').textContent = document.getElementById('device-name')?.value || 'Oden';
@@ -321,7 +338,7 @@ function useManualNumber() {
         return;
     }
     linkedNumber = number;
-    goToStep(3);
+    goToStep(4);
 }
 
 async function saveConfig() {
@@ -412,6 +429,74 @@ async function pollForMainServer() {
     };
 
     setTimeout(poll, 2000);
+}
+
+// === INI migration functions ===
+
+async function loadIniPreview() {
+    const preview = document.getElementById('ini-preview');
+    const sourceInfo = document.getElementById('ini-source-path');
+
+    if (!iniPath) {
+        preview.value = '# Ingen config.ini hittad';
+        return;
+    }
+
+    sourceInfo.textContent = iniPath;
+
+    try {
+        const response = await fetch('/api/setup/status');
+        const data = await response.json();
+
+        if (data.existing_ini_content) {
+            preview.value = data.existing_ini_content;
+        } else {
+            preview.value = '# Kunde inte läsa config.ini';
+        }
+    } catch (error) {
+        preview.value = '# Fel vid läsning: ' + error.message;
+    }
+}
+
+async function migrateIni() {
+    const btn = document.getElementById('migrate-btn');
+    const msgDiv = document.getElementById('migration-message');
+    const content = document.getElementById('ini-preview').value;
+
+    if (!content || content.startsWith('#')) {
+        msgDiv.innerHTML = '<div class="error">Ingen giltig konfiguration att migrera</div>';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Migrerar...';
+    msgDiv.innerHTML = '';
+
+    try {
+        const response = await fetch('/api/config-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, reload: false })
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            msgDiv.innerHTML = '<div class="success">✅ Konfiguration migrerad!</div>';
+            setTimeout(() => goToStep(3), 1000);
+        } else {
+            msgDiv.innerHTML = '<div class="error">' + (result.error || 'Migrering misslyckades') + '</div>';
+            btn.disabled = false;
+            btn.textContent = 'Migrera';
+        }
+    } catch (error) {
+        msgDiv.innerHTML = '<div class="error">Nätverksfel: ' + error.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = 'Migrera';
+    }
+}
+
+function skipMigration() {
+    goToStep(3);
 }
 
 // === Recovery functions ===

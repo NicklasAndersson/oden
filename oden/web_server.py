@@ -19,7 +19,6 @@ from oden.log_buffer import get_log_buffer
 from oden.web_handlers import (
     accept_invitation_handler,
     config_export_handler,
-    config_file_get_handler,
     config_file_save_handler,
     config_handler,
     config_reset_handler,
@@ -62,7 +61,6 @@ _api_token: str | None = None
 
 # Endpoints that require authentication (sensitive operations)
 PROTECTED_ENDPOINTS = {
-    "/api/config-file",  # GET and POST - read/write config file
     "/api/config-save",  # POST - save config
     "/api/shutdown",  # POST - shutdown application
     "/api/join-group",  # POST - join Signal group
@@ -70,6 +68,8 @@ PROTECTED_ENDPOINTS = {
     "/api/toggle-whitelist-group",  # POST - modify group settings
     "/api/invitations/accept",  # POST - accept group invitation
     "/api/invitations/decline",  # POST - decline group invitation
+    "/api/config/export",  # GET - export config as INI
+    "/api/setup/reset",  # DELETE - re-run setup
 }
 
 # Endpoints that require auth and use path parameters (checked with startswith)
@@ -191,6 +191,8 @@ def create_app(setup_mode: bool = False) -> web.Application:
     app.router.add_post("/api/setup/oden-home", setup_oden_home_handler)
     app.router.add_post("/api/setup/validate-path", setup_validate_path_handler)
     app.router.add_delete("/api/setup/reset", setup_reset_config_handler)
+    # INI import is only available during setup (migration step)
+    app.router.add_post("/api/config-file", config_file_save_handler)
 
     if setup_mode:
         # In setup mode, redirect root to setup
@@ -211,8 +213,6 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/groups", groups_handler)
         app.router.add_post("/api/toggle-ignore-group", toggle_ignore_group_handler)
         app.router.add_post("/api/toggle-whitelist-group", toggle_whitelist_group_handler)
-        app.router.add_get("/api/config-file", config_file_get_handler)
-        app.router.add_post("/api/config-file", config_file_save_handler)
         app.router.add_post("/api/config-save", config_save_handler)
         app.router.add_get("/api/config/export", config_export_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)

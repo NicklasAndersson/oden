@@ -71,7 +71,6 @@
                     <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
                     <button class="tab-btn" onclick="showTab('templates')">Mallar</button>
                     <button class="tab-btn" onclick="showTab('responses')">Svar</button>
-                    <button class="tab-btn" onclick="showTab('raw')">Rå config</button>
                 </div>
 
                 <div id="tab-basic" class="tab-content active">
@@ -235,6 +234,15 @@
                                 Spara och applicera
                             </button>
                             <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
+                            <button type="button" class="btn btn-secondary" onclick="exportConfig()">⬇️ Exportera INI</button>
+                        </div>
+
+                        <div class="config-section" style="margin-top: 30px; border-top: 1px solid #333; padding-top: 20px;">
+                            <h3>🔄 Setup</h3>
+                            <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                                Kör om setup-guiden för att länka nytt Signal-konto eller importera konfiguration.
+                            </p>
+                            <button type="button" class="btn btn-danger" onclick="rerunSetup()">Kör om setup</button>
                         </div>
                     </form>
                 </div>
@@ -331,20 +339,6 @@
                     </div>
                 </div>
 
-                <div id="tab-raw" class="tab-content">
-                    <div class="config-section">
-                        <h3>📄 Konfiguration (INI-format)</h3>
-                        <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">
-                            Konfigurationen sparas nu i SQLite-databas. Nedan visas en INI-export som kan importeras igen.
-                        </p>
-                        <textarea id="config-content" style="width:100%;min-height:300px;padding:12px;border:1px solid #333;border-radius:4px;background:#16213e;color:#fff;font-family:Monaco,Menlo,monospace;font-size:0.9em;resize:vertical;" placeholder="Laddar config..."></textarea>
-                        <div class="config-actions" style="margin-top:15px;">
-                            <button type="button" class="btn btn-primary" onclick="saveRawConfig()">Importera INI</button>
-                            <button type="button" class="btn btn-secondary" onclick="loadRawConfig()">Återställ</button>
-                            <button type="button" class="btn btn-secondary" onclick="exportConfig()">⬇️ Ladda ner INI</button>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div class="card full-width">

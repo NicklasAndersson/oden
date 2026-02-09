@@ -15,6 +15,7 @@
             <div class="step-dot active" id="dot-1"></div>
             <div class="step-dot" id="dot-2"></div>
             <div class="step-dot" id="dot-3"></div>
+            <div class="step-dot" id="dot-4"></div>
         </div>
 
         <!-- Step 0: Recovery (hidden by default, shown when existing config found) -->
@@ -60,8 +61,25 @@
             <button class="btn btn-primary" onclick="goToStep(2)">Nästa →</button>
         </div>
 
-        <!-- Step 2: Signal Linking -->
+        <!-- Step 2: INI Migration (auto-skipped if no INI found) -->
         <div class="step" id="step-2">
+            <h2 style="margin-bottom: 20px;">📥 Importera befintlig konfiguration</h2>
+            <p style="color: #888; margin-bottom: 20px;">
+                En befintlig konfigurationsfil (config.ini) hittades. Du kan importera den
+                till den nya databasen eller hoppa över för att börja med standardinställningar.
+            </p>
+            <div id="ini-source-info" style="background: #1a3a1a; border: 1px solid #2d5a2d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <p style="margin: 0; color: #4ade80;">✓ config.ini hittad: <span id="ini-source-path" style="color: #888;"></span></p>
+            </div>
+            <textarea id="ini-preview" readonly style="width:100%;min-height:250px;padding:12px;border:1px solid #333;border-radius:4px;background:#16213e;color:#fff;font-family:Monaco,Menlo,monospace;font-size:0.9em;resize:vertical;margin-bottom:15px;" placeholder="Laddar config..."></textarea>
+            <div id="migration-message"></div>
+            <button class="btn btn-primary" id="migrate-btn" onclick="migrateIni()">Migrera</button>
+            <button class="btn btn-secondary" onclick="skipMigration()">Hoppa över →</button>
+            <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+        </div>
+
+        <!-- Step 3: Signal Linking -->
+        <div class="step" id="step-3">
             <h2 style="margin-bottom: 20px;">📱 Signal-konto</h2>
 
             <!-- Loading indicator -->
@@ -99,7 +117,7 @@
                     </label>
                 </div>
                 <button class="btn btn-primary" onclick="startSelectedMethod()">Fortsätt</button>
-                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+                <button class="btn btn-secondary" onclick="goToStep(2)">← Tillbaka</button>
             </div>
 
             <!-- Link form -->
@@ -204,7 +222,7 @@
                     ✅ Länkning lyckades!<br>
                     <strong id="linked-number"></strong>
                 </div>
-                <button class="btn btn-primary" onclick="goToStep(3)">Nästa →</button>
+                <button class="btn btn-primary" onclick="goToStep(4)">Nästa →</button>
             </div>
 
             <div id="link-timeout" class="hidden">
@@ -223,12 +241,12 @@
             <div id="link-error" class="hidden">
                 <div class="error" id="error-message"></div>
                 <button class="btn btn-secondary" onclick="retryLinking()">Försök igen</button>
-                <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
+                <button class="btn btn-secondary" onclick="goToStep(2)">← Tillbaka</button>
             </div>
         </div>
 
-        <!-- Step 3: Confirmation -->
-        <div class="step" id="step-3">
+        <!-- Step 4: Confirmation -->
+        <div class="step" id="step-4">
             <h2 style="margin-bottom: 20px;">✅ Bekräfta inställningar</h2>
             <div class="instructions">
                 <table style="width: 100%;">
@@ -238,7 +256,7 @@
                 </table>
             </div>
             <button class="btn btn-primary" onclick="saveConfig()" id="save-btn">Spara och starta Oden</button>
-            <button class="btn btn-secondary" onclick="goToStep(2)">← Tillbaka</button>
+            <button class="btn btn-secondary" onclick="goToStep(3)">← Tillbaka</button>
             <div id="save-message"></div>
         </div>
     </div>

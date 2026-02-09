@@ -211,7 +211,10 @@ def get_all_config(db_path: Path) -> dict[str, Any]:
         cursor.execute("SELECT key, value, type FROM config")
 
         for key, value, value_type in cursor.fetchall():
-            config[key] = _deserialize_value(value, value_type)
+            deserialized = _deserialize_value(value, value_type)
+            # Don't let None overwrite meaningful defaults
+            if deserialized is not None:
+                config[key] = deserialized
 
     except sqlite3.Error as e:
         logger.error(f"Error reading config from database: {e}")
