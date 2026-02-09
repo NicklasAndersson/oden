@@ -1,3 +1,5 @@
+import asyncio
+import json
 import socket
 import unittest
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
@@ -7,6 +9,7 @@ from oden.s7_watcher import (
 )
 from oden.s7_watcher import (
     subscribe_and_listen,
+    verify_signal_number,
 )
 from oden.signal_manager import SignalManager, is_signal_cli_running
 
@@ -153,6 +156,87 @@ class TestIsSignalCliRunning(unittest.TestCase):
         mock_socket.return_value.__enter__.return_value = mock_sock_instance
         mock_sock_instance.connect.side_effect = socket.error
         self.assertFalse(is_signal_cli_running("host", "port"))
+
+
+class TestVerifySignalNumber(unittest.IsolatedAsyncioTestCase):
+    """Tests for auto-detecting and updating the Signal number."""
+
+    def _make_mocks(self, accounts: list) -> tuple[AsyncMock, AsyncMock]:
+        """Create mock reader/writer pair.
+
+        The reader dynamically returns a response whose ``id`` matches
+        whatever the function actually sent, so the id-check inside
+        ``verify_signal_number`` always passes.
+        """
+        writer = AsyncMock()
+
+        async def _readline() -> bytes:
+            # Extract the id from what was written
+            call_args = writer.write.call_args
+            sent = json.loads(call_args[0][0].decode("utf-8"))
+            response = {
+                "jsonrpc": "2.0",
+                "id": sent["id"],
+                "result": accounts,
+            }
+            return (json.dumps(response) + "\n").encode("utf-8")
+
+        reader = AsyncMock()
+        reader.readline = _readline
+        return reader, writer
+
+    @patch("oden.s7_watcher.reload_config")
+    @patch("oden.config.save_config")
+    @patch("oden.config_db.get_all_config", return_value={"signal_number": "+46700000000"})
+    @patch("oden.config.SIGNAL_NUMBER", "+46700000000")
+    async def test_updates_config_when_number_differs(self, mock_get_all, mock_save, mock_reload):
+        """When actual number differs from configured, config is updated."""
+        reader, writer = self._make_mocks([{"number": "+46701234567"}])
+
+        with self.assertLogs("oden.s7_watcher", level="WARNING") as log:
+            await verify_signal_number(reader, writer)
+
+        self.assertTrue(any("does not match" in msg for msg in log.output))
+        mock_save.assert_called_once()
+        saved_config = mock_save.call_args[0][0]
+        self.assertEqual(saved_config["signal_number"], "+46701234567")
+        mock_reload.assert_called_once()
+
+    @patch("oden.s7_watcher.reload_config")
+    @patch("oden.config.save_config")
+    @patch("oden.config.SIGNAL_NUMBER", "+46701234567")
+    async def test_no_update_when_number_matches(self, mock_save, mock_reload):
+        """When actual number matches configured, no update happens."""
+        reader, writer = self._make_mocks([{"number": "+46701234567"}])
+
+        await verify_signal_number(reader, writer)
+
+        mock_save.assert_not_called()
+        mock_reload.assert_not_called()
+
+    @patch("oden.s7_watcher.reload_config")
+    @patch("oden.config.save_config")
+    async def test_handles_timeout_gracefully(self, mock_save, mock_reload):
+        """Timeout when querying signal-cli is handled without crashing."""
+        reader = AsyncMock()
+        reader.readline = AsyncMock(side_effect=asyncio.TimeoutError)
+        writer = AsyncMock()
+
+        with self.assertLogs("oden.s7_watcher", level="WARNING") as log:
+            await verify_signal_number(reader, writer)
+
+        self.assertTrue(any("Timeout" in msg for msg in log.output))
+        mock_save.assert_not_called()
+
+    @patch("oden.s7_watcher.reload_config")
+    @patch("oden.config.save_config")
+    async def test_handles_empty_accounts(self, mock_save, mock_reload):
+        """Empty accounts list is handled gracefully."""
+        reader, writer = self._make_mocks([])
+
+        await verify_signal_number(reader, writer)
+
+        mock_save.assert_not_called()
 
 
 if __name__ == "__main__":
