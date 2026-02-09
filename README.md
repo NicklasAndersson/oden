@@ -8,6 +8,16 @@ Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidi
 
 ### macOS (DMG)
 
+**Automatisk installation** — kör i Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
+```
+
+Skriptet laddar ner senaste DMG, installerar Oden.app i Applications och tar bort karantänattributet (Gatekeeper).
+
+**Manuell installation:**
+
 1. Ladda ner `.dmg` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
 2. Öppna den och dra **Oden.app** till **Applications**
 3. Kör i Terminal:
@@ -61,7 +71,7 @@ Det finns två sätt att konfigurera Signal:
 oden/
 ├── oden/              # Python-paket med källkod
 ├── tests/             # Enhetstester
-├── scripts/           # Byggskript (macOS DMG, ikoner)
+├── scripts/           # Bygg- och installationsskript (macOS DMG)
 ├── docs/              # Dokumentation
 ├── templates/         # Rapportmallar (Jinja2)
 ├── Dockerfile         # Docker-image
