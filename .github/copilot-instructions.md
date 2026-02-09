@@ -72,6 +72,9 @@ from oden.config_db import get_config_value, set_config_value
 
 ## Development
 
+### IMPORTANT: Never modify the local environment
+Never run scripts, migrations, or commands that modify the user's local environment (databases like `~/.oden/config.db`, config files outside the repo, etc.) unless explicitly asked. Code changes should be tested via snapshot builds from the CI pipeline, not by running directly against the local setup.
+
 ### Environment Setup
 macOS uses externally-managed Python (PEP 668), so use a virtual environment:
 ```bash
