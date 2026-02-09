@@ -64,9 +64,10 @@ document.getElementById('join-group-form').addEventListener('submit', async (e) 
     messageDiv.textContent = '';
 
     try {
+        const token = await getApiToken();
         const response = await fetch('/api/join-group', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify({ link })
         });
         const result = await response.json();
@@ -123,9 +124,10 @@ async function handleInvitation(groupId, action) {
     buttons.forEach(btn => btn.disabled = true);
 
     try {
+        const token = await getApiToken();
         const response = await fetch(`/api/invitations/${action}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify({ groupId })
         });
         const result = await response.json();
@@ -198,9 +200,10 @@ async function fetchGroups() {
 
 async function toggleIgnoreGroup(groupName) {
     try {
+        const token = await getApiToken();
         const response = await fetch('/api/toggle-ignore-group', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify({ groupName })
         });
         const result = await response.json();
@@ -221,9 +224,10 @@ async function toggleIgnoreGroup(groupName) {
 
 async function toggleWhitelistGroup(groupName) {
     try {
+        const token = await getApiToken();
         const response = await fetch('/api/toggle-whitelist-group', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify({ groupName })
         });
         const result = await response.json();
@@ -478,9 +482,10 @@ async function saveConfigForm(event) {
     };
 
     try {
+        const token = await getApiToken();
         const response = await fetch('/api/config-save', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify(configData)
         });
         const result = await response.json();
@@ -504,7 +509,10 @@ async function saveConfigForm(event) {
 // Raw config functions
 async function loadRawConfig() {
     try {
-        const response = await fetch('/api/config-file');
+        const token = await getApiToken();
+        const response = await fetch('/api/config-file', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
         const data = await response.json();
         document.getElementById('config-content').value = data.content || '';
     } catch (error) {
@@ -516,9 +524,10 @@ async function loadRawConfig() {
 async function saveRawConfig() {
     const content = document.getElementById('config-content').value;
     try {
+        const token = await getApiToken();
         const response = await fetch('/api/config-file', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify({ content, reload: true })
         });
         const result = await response.json();
@@ -564,7 +573,11 @@ async function shutdownApp() {
         return;
     }
     try {
-        const response = await fetch('/api/shutdown', { method: 'POST' });
+        const token = await getApiToken();
+        const response = await fetch('/api/shutdown', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
         const data = await response.json();
         if (data.success) {
             showMessage('Stänger av Oden...', true);

@@ -83,6 +83,232 @@ class TestWebAPIEndpoints(AioHTTPTestCase):
         self.assertEqual(resp.status, 200)
 
 
+class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
+    """Test that all protected endpoints reject requests without a valid token
+    and accept requests with a valid token.
+
+    This prevents regressions where auth token headers are accidentally
+    removed from the dashboard JavaScript.
+    """
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    async def _get_valid_token(self) -> str:
+        """Fetch a valid API token from the /api/token endpoint."""
+        resp = await self.client.get("/api/token")
+        data = await resp.json()
+        return data["token"]
+
+    def _auth_header(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    # ------------------------------------------------------------------
+    # /api/config-save
+    # ------------------------------------------------------------------
+    async def test_config_save_rejects_without_token(self):
+        resp = await self.client.post(
+            "/api/config-save",
+            json={"signal_number": "+46700000000"},
+        )
+        self.assertEqual(resp.status, 401)
+
+    async def test_config_save_rejects_wrong_token(self):
+        resp = await self.client.post(
+            "/api/config-save",
+            json={"signal_number": "+46700000000"},
+            headers={"Authorization": "Bearer wrong-token"},
+        )
+        self.assertEqual(resp.status, 401)
+
+    async def test_config_save_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/config-save",
+            json={"signal_number": "+46700000000"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/config-file (GET and POST)
+    # ------------------------------------------------------------------
+    async def test_config_file_get_rejects_without_token(self):
+        resp = await self.client.get("/api/config-file")
+        self.assertEqual(resp.status, 401)
+
+    async def test_config_file_get_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.get("/api/config-file", headers=self._auth_header(token))
+        self.assertNotEqual(resp.status, 401)
+
+    async def test_config_file_post_rejects_without_token(self):
+        resp = await self.client.post(
+            "/api/config-file",
+            json={"content": "[Signal]\nsignal_number = +46700000000"},
+        )
+        self.assertEqual(resp.status, 401)
+
+    async def test_config_file_post_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/config-file",
+            json={"content": "[Signal]\nsignal_number = +46700000000"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/shutdown
+    # ------------------------------------------------------------------
+    async def test_shutdown_rejects_without_token(self):
+        resp = await self.client.post("/api/shutdown")
+        self.assertEqual(resp.status, 401)
+
+    async def test_shutdown_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post("/api/shutdown", headers=self._auth_header(token))
+        # Should not be 401 (it will be 200 and trigger shutdown)
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/join-group
+    # ------------------------------------------------------------------
+    async def test_join_group_rejects_without_token(self):
+        resp = await self.client.post("/api/join-group", json={"link": "https://signal.group/#test"})
+        self.assertEqual(resp.status, 401)
+
+    async def test_join_group_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/join-group",
+            json={"link": "https://signal.group/#test"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/toggle-ignore-group
+    # ------------------------------------------------------------------
+    async def test_toggle_ignore_rejects_without_token(self):
+        resp = await self.client.post("/api/toggle-ignore-group", json={"groupName": "TestGroup"})
+        self.assertEqual(resp.status, 401)
+
+    async def test_toggle_ignore_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-ignore-group",
+            json={"groupName": "TestGroup"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/toggle-whitelist-group
+    # ------------------------------------------------------------------
+    async def test_toggle_whitelist_rejects_without_token(self):
+        resp = await self.client.post("/api/toggle-whitelist-group", json={"groupName": "TestGroup"})
+        self.assertEqual(resp.status, 401)
+
+    async def test_toggle_whitelist_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-whitelist-group",
+            json={"groupName": "TestGroup"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/invitations/accept and /api/invitations/decline
+    # ------------------------------------------------------------------
+    async def test_invitation_accept_rejects_without_token(self):
+        resp = await self.client.post("/api/invitations/accept", json={"groupId": "abc123"})
+        self.assertEqual(resp.status, 401)
+
+    async def test_invitation_accept_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/invitations/accept",
+            json={"groupId": "abc123"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    async def test_invitation_decline_rejects_without_token(self):
+        resp = await self.client.post("/api/invitations/decline", json={"groupId": "abc123"})
+        self.assertEqual(resp.status, 401)
+
+    async def test_invitation_decline_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/invitations/decline",
+            json={"groupId": "abc123"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/templates/* (prefix-protected)
+    # ------------------------------------------------------------------
+    async def test_template_get_rejects_without_token(self):
+        resp = await self.client.get("/api/templates/report.md.j2")
+        self.assertEqual(resp.status, 401)
+
+    async def test_template_get_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.get(f"/api/templates/report.md.j2?token={token}")
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # /api/responses/* (prefix-protected)
+    # ------------------------------------------------------------------
+    async def test_response_create_rejects_without_token(self):
+        resp = await self.client.post(
+            "/api/responses/new",
+            json={"keywords": ["test"], "body": "Test response"},
+        )
+        self.assertEqual(resp.status, 401)
+
+    async def test_response_create_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            f"/api/responses/new?token={token}",
+            json={"keywords": ["test"], "body": "Test response"},
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # Verify query-param token also works
+    # ------------------------------------------------------------------
+    async def test_config_save_accepts_query_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            f"/api/config-save?token={token}",
+            json={"signal_number": "+46700000000"},
+        )
+        self.assertNotEqual(resp.status, 401)
+
+    # ------------------------------------------------------------------
+    # Verify unprotected endpoints still work without token
+    # ------------------------------------------------------------------
+    async def test_unprotected_config_get_works_without_token(self):
+        resp = await self.client.get("/api/config")
+        self.assertEqual(resp.status, 200)
+
+    async def test_unprotected_logs_works_without_token(self):
+        resp = await self.client.get("/api/logs")
+        self.assertEqual(resp.status, 200)
+
+    async def test_unprotected_groups_works_without_token(self):
+        resp = await self.client.get("/api/groups")
+        self.assertEqual(resp.status, 200)
+
+    async def test_unprotected_invitations_works_without_token(self):
+        resp = await self.client.get("/api/invitations")
+        self.assertEqual(resp.status, 200)
+
+
 class TestWebSetupMode(AioHTTPTestCase):
     """Test the setup mode routes."""
 
