@@ -134,11 +134,14 @@ def get_config() -> dict:
     """
     ensure_oden_directories()
 
-    # Initialize DB if not exists
+    # Initialize DB and run migrations (safe to call on existing DB)
     if not CONFIG_DB.exists():
         init_db(CONFIG_DB)
         # Save default config
         save_all_config(CONFIG_DB, DEFAULT_CONFIG)
+    else:
+        # Run migrations on existing DB
+        init_db(CONFIG_DB)
 
     config = get_all_config(CONFIG_DB)
 
