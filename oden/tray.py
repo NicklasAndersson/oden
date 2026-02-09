@@ -14,7 +14,6 @@ all platforms use the same ``run()`` approach.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import os
 import sys
@@ -130,9 +129,11 @@ class OdenTray:
     @running.setter
     def running(self, value: bool) -> None:
         self._running = value
-        if self._icon is not None:
-            with contextlib.suppress(Exception):
-                self._icon.update_menu()
+        # Note: we intentionally do NOT call self._icon.update_menu() here.
+        # The menu text is dynamic (via the _get_start_stop_text callable),
+        # so pystray re-evaluates it each time the user opens the menu.
+        # Calling update_menu() from a background thread causes native
+        # crashes on macOS because AppKit objects are not thread-safe.
 
     # ------------------------------------------------------------------
     # Callbacks
