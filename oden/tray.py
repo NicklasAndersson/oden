@@ -116,6 +116,7 @@ class OdenTray:
         self._on_stop: Callable[[], None] | None = None
         self._on_quit: Callable[[], None] | None = None
         self._ready = threading.Event()
+        self.quit_event = threading.Event()
 
     # ------------------------------------------------------------------
     # Properties
@@ -185,6 +186,7 @@ class OdenTray:
     def _on_quit_clicked(self, icon: Any, item: Any) -> None:
         """Handle Quit menu click."""
         logger.info("Tray: Quit requested")
+        self.quit_event.set()
         if self._on_quit:
             self._on_quit()
         self.stop()
