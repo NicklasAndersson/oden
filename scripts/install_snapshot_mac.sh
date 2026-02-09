@@ -85,27 +85,12 @@ RELEASES_JSON=$(curl -fsSL "${API_URL}?per_page=20") || {
     exit 1
 }
 
-# Find the first pre-release with a snapshot tag
-# Snapshot tags look like: snapshot-abc1234
-SNAPSHOT_JSON=$(echo "$RELEASES_JSON" \
-    | grep -o '{[^{}]*"tag_name" *: *"snapshot-[^"]*"[^{}]*"prerelease" *: *true[^{}]*}' \
-    | head -1 || true)
-
-# Also try the reverse field order (prerelease before tag_name)
-if [[ -z "$SNAPSHOT_JSON" ]]; then
-    SNAPSHOT_JSON=$(echo "$RELEASES_JSON" \
-        | grep -o '{[^{}]*"prerelease" *: *true[^{}]*"tag_name" *: *"snapshot-[^"]*"[^{}]*}' \
-        | head -1 || true)
-fi
-
-if [[ -z "$SNAPSHOT_JSON" ]]; then
-    print_error "Kunde inte hitta någon snapshot-release."
-    print_info "Besök https://github.com/${REPO}/releases för att kontrollera."
-    exit 1
-fi
-
-# Extract tag name
-SNAPSHOT_TAG=$(echo "$SNAPSHOT_JSON" | grep -o '"tag_name" *: *"snapshot-[^"]*"' | sed 's/.*"tag_name" *: *"//;s/"$//')
+# Find the first snapshot tag (snapshot-<sha>)
+# The JSON is complex with nested objects, so just search for the tag pattern
+SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
+    | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
+    | head -1 \
+    | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
 
 if [[ -z "$SNAPSHOT_TAG" ]]; then
     print_error "Kunde inte tolka snapshot-taggen."
