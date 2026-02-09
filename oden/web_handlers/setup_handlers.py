@@ -80,6 +80,19 @@ async def setup_status_handler(request: web.Request) -> web.Response:
     # Get current oden_home from pointer file
     current_oden_home = get_oden_home_path()
 
+    # Check for recovery candidate: pointer file missing but config.db exists
+    recovery_candidate = None
+    if config_error == "no_pointer":
+        candidate_db = DEFAULT_ODEN_HOME / "config.db"
+        if candidate_db.exists():
+            is_valid, _db_error = validate_oden_home(DEFAULT_ODEN_HOME)
+            if is_valid:
+                recovery_candidate = str(DEFAULT_ODEN_HOME)
+                logger.warning(
+                    "Pointer file missing — found existing config at %s",
+                    DEFAULT_ODEN_HOME,
+                )
+
     # Check for existing INI file - first in default location, then in bundle location
     default_ini_path = DEFAULT_ODEN_HOME / "config.ini"
     bundle_ini_path = get_bundle_path() / "config.ini"
@@ -106,6 +119,7 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                 "has_existing_ini": has_existing_ini,
                 "existing_ini_path": str(existing_ini_path) if has_existing_ini else None,
                 "existing_accounts": existing_accounts,
+                "recovery_candidate": recovery_candidate,
             }
         )
 
@@ -246,6 +260,7 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
         success, error = setup_oden_home(Path(oden_home_path), ini_path_obj)
 
         if success:
+            logger.info("Oden home directory set to: %s", oden_home_path)
             return web.json_response(
                 {
                     "success": True,
