@@ -8,6 +8,7 @@ Supports first-run setup wizard for initial configuration.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime
 import json
 import logging
@@ -424,10 +425,8 @@ def main() -> None:
         nonlocal quit_requested
         quit_requested = True
         # Interrupt any running asyncio loop
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.kill(os.getpid(), signal_mod.SIGINT)
-        except ProcessLookupError:
-            pass
 
     def request_stop() -> None:
         # Interrupt the asyncio loop to stop the watcher
