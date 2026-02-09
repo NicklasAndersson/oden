@@ -1,3 +1,66 @@
+// ========== Unsaved Changes Tracking ==========
+let originalConfig = {};
+let configDirty = false;
+
+// Field IDs per tab for per-tab dirty dots
+const basicFieldIds = [
+    'cfg-signal-number', 'cfg-display-name', 'cfg-vault-path', 'cfg-timezone',
+    'cfg-append-window', 'cfg-startup-message', 'cfg-filename-format',
+    'cfg-plus-plus', 'cfg-ignored-groups', 'cfg-whitelist-groups'
+];
+const advancedFieldIds = [
+    'cfg-signal-host', 'cfg-signal-port', 'cfg-signal-path', 'cfg-unmanaged',
+    'cfg-web-enabled', 'cfg-web-port', 'cfg-log-level'
+];
+
+function getFieldValue(id) {
+    const el = document.getElementById(id);
+    if (!el) return '';
+    return el.type === 'checkbox' ? el.checked : el.value;
+}
+
+function snapshotConfig() {
+    originalConfig = {};
+    [...basicFieldIds, ...advancedFieldIds].forEach(id => {
+        originalConfig[id] = getFieldValue(id);
+    });
+}
+
+function isFieldDirty(id) {
+    if (!(id in originalConfig)) return false;
+    return getFieldValue(id) !== originalConfig[id];
+}
+
+function updateDirtyState() {
+    const basicDirty = basicFieldIds.some(isFieldDirty);
+    const advDirty = advancedFieldIds.some(isFieldDirty);
+    configDirty = basicDirty || advDirty;
+
+    // Banner
+    const indicator = document.getElementById('unsaved-indicator');
+    if (indicator) {
+        indicator.classList.toggle('show', configDirty);
+    }
+
+    // Tab dots
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+        const label = btn.textContent.trim();
+        if (label === 'Grundläggande') {
+            btn.classList.toggle('has-changes', basicDirty);
+        } else if (label === 'Avancerat') {
+            btn.classList.toggle('has-changes', advDirty);
+        }
+    });
+}
+
+window.addEventListener('beforeunload', function(e) {
+    if (configDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
 async function fetchConfig() {
     try {
         const response = await fetch('/api/config');
@@ -445,6 +508,10 @@ async function loadConfigForm() {
         document.getElementById('cfg-web-enabled').checked = config.web_enabled !== false;
         document.getElementById('cfg-web-port').value = config.web_port || 8080;
         document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
+
+        // Snapshot values so we can detect changes
+        snapshotConfig();
+        updateDirtyState();
     } catch (error) {
         console.error('Error loading config:', error);
     }
@@ -495,6 +562,9 @@ async function saveConfigForm(event) {
             // Refresh the config display
             await fetchConfig();
             await fetchGroups();
+            // Re-snapshot to clear dirty state
+            snapshotConfig();
+            updateDirtyState();
         } else {
             showConfigMessage(result.error || 'Kunde inte spara', 'error');
         }
@@ -595,6 +665,13 @@ async function shutdownApp() {
 // Attach form handlers
 document.getElementById('config-form').addEventListener('submit', saveConfigForm);
 document.getElementById('config-form-advanced').addEventListener('submit', saveConfigForm);
+
+// Track changes for unsaved-indicator
+['config-form', 'config-form-advanced'].forEach(formId => {
+    const form = document.getElementById(formId);
+    form.addEventListener('input', updateDirtyState);
+    form.addEventListener('change', updateDirtyState);
+});
 
 // Initial fetch for groups and config
 fetchGroups();

@@ -287,6 +287,24 @@ td {
 .warning-banner .icon {
     font-size: 1.2em;
 }
+#unsaved-indicator {
+    background: rgba(255, 183, 77, 0.15);
+    border: 1px solid #ffb74d;
+    color: #ffb74d;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+}
+#unsaved-indicator.show {
+    display: flex;
+}
+#unsaved-indicator .icon {
+    font-size: 1.1em;
+}
 .config-form {
     display: flex;
     flex-direction: column;
@@ -369,6 +387,7 @@ td {
     padding-bottom: 10px;
 }
 .tab-btn {
+    position: relative;
     padding: 8px 16px;
     border: none;
     background: transparent;
@@ -384,6 +403,16 @@ td {
 .tab-btn.active {
     color: #4fc3f7;
     background: rgba(79, 195, 247, 0.2);
+}
+.tab-btn.has-changes::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ffb74d;
 }
 .tab-content {
     display: none;
