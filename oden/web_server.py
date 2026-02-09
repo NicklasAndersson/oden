@@ -7,9 +7,7 @@ and initial setup wizard for first-run configuration.
 
 import asyncio
 import logging
-import os
 import secrets
-import signal
 
 import aiohttp_jinja2
 import jinja2
@@ -155,8 +153,9 @@ async def shutdown_handler(request: web.Request) -> web.Response:
     async def delayed_shutdown():
         await asyncio.sleep(0.5)  # Give time for response to be sent
         logger.info("Initiating shutdown...")
-        # Raise SystemExit to trigger graceful shutdown
-        os.kill(os.getpid(), signal.SIGTERM)
+        from oden.app_state import get_app_state
+
+        get_app_state().request_quit()
 
     asyncio.create_task(delayed_shutdown())
 
