@@ -8,6 +8,7 @@ Supports first-run setup wizard for initial configuration.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime
 import json
 import logging
@@ -424,7 +425,8 @@ def main() -> None:
         nonlocal quit_requested
         quit_requested = True
         # Interrupt any running asyncio loop
-        os.kill(os.getpid(), signal_mod.SIGINT)
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(os.getpid(), signal_mod.SIGINT)
 
     def request_stop() -> None:
         # Interrupt the asyncio loop to stop the watcher
@@ -512,7 +514,7 @@ def _create_tray() -> OdenTray | None:
 
 def _wait_for_start(tray: OdenTray) -> None:
     """Block until the user clicks Start or Quit in the tray menu."""
-    while not tray.running:
+    while not tray.running and not tray.quit_event.is_set():
         time.sleep(0.5)
 
 
