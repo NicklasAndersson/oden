@@ -11,10 +11,31 @@
         <h1>🛡️ Oden Setup</h1>
         <p class="version">v{{ version }}</p>
 
-        <div class="step-indicator">
+        <div class="step-indicator" id="step-indicator">
             <div class="step-dot active" id="dot-1"></div>
             <div class="step-dot" id="dot-2"></div>
             <div class="step-dot" id="dot-3"></div>
+        </div>
+
+        <!-- Step 0: Recovery (hidden by default, shown when existing config found) -->
+        <div class="step" id="step-recovery">
+            <h2 style="margin-bottom: 20px;">🔄 Befintlig konfiguration hittad</h2>
+            <p style="color: #888; margin-bottom: 20px;">
+                Oden hittade en befintlig konfigurationsdatabas. Det kan hända vid uppdatering
+                av appen. Ange sökvägen till din Oden-hemkatalog nedan för att återställa.
+            </p>
+            <div style="background: #1a3a1a; border: 1px solid #2d5a2d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <p style="margin: 0; color: #4ade80;">
+                    ✓ Konfigurationsdatabas hittad
+                </p>
+            </div>
+            <div class="form-group">
+                <label for="recovery-path">Sökväg till Oden-hemkatalog</label>
+                <input type="text" id="recovery-path" placeholder="~/.oden">
+            </div>
+            <div id="recovery-message"></div>
+            <button class="btn btn-primary" id="recovery-btn" onclick="confirmRecovery()">Återställ</button>
+            <button class="btn btn-secondary" onclick="skipRecovery()">Ny installation →</button>
         </div>
 
         <!-- Step 1: Vault Path -->

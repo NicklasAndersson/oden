@@ -7,6 +7,7 @@ Playwright tests require: pip install playwright && playwright install chromium
 
 import json
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from aiohttp.test_utils import AioHTTPTestCase
@@ -329,6 +330,81 @@ class TestWebSetupMode(AioHTTPTestCase):
         resp = await self.client.get("/api/setup/status")
         self.assertEqual(resp.status, 200)
         self.assertEqual(resp.content_type, "application/json")
+
+    async def test_setup_status_includes_recovery_candidate(self):
+        """Test that recovery_candidate is present in status response."""
+        resp = await self.client.get("/api/setup/status")
+        data = await resp.json()
+        # recovery_candidate should be a key in the response (may be null)
+        self.assertIn("recovery_candidate", data)
+
+
+class TestSetupRecoveryFlow(AioHTTPTestCase):
+    """Test the config recovery flow when pointer file is missing but config.db exists."""
+
+    async def get_application(self):
+        return create_app(setup_mode=True)
+
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.validate_oden_home")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.DEFAULT_ODEN_HOME")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.is_configured")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.get_oden_home_path")
+    async def test_recovery_candidate_returned_when_config_exists(
+        self, mock_get_home, mock_is_configured, mock_default_home, mock_validate
+    ):
+        """When pointer is missing but config.db exists, recovery_candidate is returned."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            # Create a fake config.db
+            (tmp_path / "config.db").touch()
+
+            mock_get_home.return_value = None
+            mock_is_configured.return_value = (False, "no_pointer")
+            mock_default_home.__truediv__ = lambda self, x: tmp_path / x
+            mock_default_home.__str__ = lambda self: str(tmp_path)
+            mock_default_home.exists = lambda: True
+            # Make validate_oden_home return valid
+            mock_validate.return_value = (True, None)
+
+            resp = await self.client.get("/api/setup/status")
+            data = await resp.json()
+            self.assertEqual(data["recovery_candidate"], str(tmp_path))
+
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.validate_oden_home")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.DEFAULT_ODEN_HOME")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.is_configured")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.get_oden_home_path")
+    async def test_no_recovery_candidate_when_no_config_db(
+        self, mock_get_home, mock_is_configured, mock_default_home, mock_validate
+    ):
+        """When pointer is missing and no config.db exists, recovery_candidate is None."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            # Empty directory — no config.db
+
+            mock_get_home.return_value = None
+            mock_is_configured.return_value = (False, "no_pointer")
+            mock_default_home.__truediv__ = lambda self, x: tmp_path / x
+            mock_default_home.__str__ = lambda self: str(tmp_path)
+
+            resp = await self.client.get("/api/setup/status")
+            data = await resp.json()
+            self.assertIsNone(data["recovery_candidate"])
+
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.is_configured")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.get_oden_home_path")
+    async def test_no_recovery_candidate_when_configured(self, mock_get_home, mock_is_configured):
+        """When already configured, recovery_candidate is None."""
+        mock_get_home.return_value = Path("/some/path")
+        mock_is_configured.return_value = (True, None)
+
+        resp = await self.client.get("/api/setup/status")
+        data = await resp.json()
+        self.assertIsNone(data["recovery_candidate"])
 
 
 # ==============================================================================

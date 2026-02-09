@@ -5,11 +5,17 @@ let pollInterval = null;
 let existingAccounts = [];
 let registerPhone = null;
 
-// Set default vault path on page load (quick, no signal-cli needed)
+// Check for recovery candidate and set default vault path on page load
 fetch('/api/setup/status')
     .then(r => r.json())
     .then(data => {
         document.getElementById('vault-path').value = data.default_vault || '~/oden-vault';
+
+        // If a recovery candidate was found, show the recovery step
+        if (data.recovery_candidate) {
+            document.getElementById('recovery-path').value = data.recovery_candidate;
+            showRecoveryStep();
+        }
     });
 
 function hideAllStep2Sections() {
@@ -406,4 +412,91 @@ async function pollForMainServer() {
     };
 
     setTimeout(poll, 2000);
+}
+
+// === Recovery functions ===
+
+function showRecoveryStep() {
+    // Hide step 1, show recovery step
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step-recovery').classList.add('active');
+    // Hide the step indicator dots during recovery
+    document.getElementById('step-indicator').style.display = 'none';
+}
+
+function skipRecovery() {
+    // User wants fresh install — go to normal step 1
+    document.getElementById('step-recovery').classList.remove('active');
+    document.getElementById('step-1').classList.add('active');
+    document.getElementById('step-indicator').style.display = 'flex';
+    currentStep = 1;
+}
+
+async function confirmRecovery() {
+    const recoveryPath = document.getElementById('recovery-path').value.trim();
+    const btn = document.getElementById('recovery-btn');
+    const msgDiv = document.getElementById('recovery-message');
+
+    if (!recoveryPath) {
+        msgDiv.innerHTML = '<div class="error">Ange en sökväg</div>';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Validerar...';
+    msgDiv.innerHTML = '';
+
+    try {
+        // First validate the path
+        const valResponse = await fetch('/api/setup/validate-path', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: recoveryPath })
+        });
+        const valData = await valResponse.json();
+
+        if (!valData.valid) {
+            msgDiv.innerHTML = '<div class="error">Ogiltig sökväg: ' + (valData.error || 'okänt fel') + '</div>';
+            btn.disabled = false;
+            btn.textContent = 'Återställ';
+            return;
+        }
+
+        if (!valData.has_config_db) {
+            msgDiv.innerHTML = '<div class="error" style="margin-bottom: 15px;">' +
+                '⚠️ Ingen konfigurationsdatabas hittades på angiven sökväg.</div>';
+            btn.disabled = false;
+            btn.textContent = 'Återställ';
+            return;
+        }
+
+        // Path is valid and has config.db — set up oden home (creates pointer file)
+        btn.textContent = 'Återställer...';
+        const response = await fetch('/api/setup/oden-home', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oden_home: recoveryPath })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            msgDiv.innerHTML = '<div class="success" style="padding: 20px; text-align: center;">' +
+                '<h2 style="margin: 0 0 10px 0;">✅ Konfiguration återställd!</h2>' +
+                '<p style="margin: 0;">Oden startar om med befintlig konfiguration...</p>' +
+                '<p style="margin: 10px 0 0 0; color: #888;" id="reload-status">Väntar på att Oden ska starta...</p>' +
+                '</div>';
+            btn.style.display = 'none';
+            // Hide the "Ny installation" button too
+            btn.nextElementSibling.style.display = 'none';
+            pollForMainServer();
+        } else {
+            msgDiv.innerHTML = '<div class="error">' + (data.error || 'Kunde inte återställa') + '</div>';
+            btn.disabled = false;
+            btn.textContent = 'Återställ';
+        }
+    } catch (error) {
+        msgDiv.innerHTML = '<div class="error">Nätverksfel: ' + error.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = 'Återställ';
+    }
 }
