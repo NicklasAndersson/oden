@@ -209,7 +209,9 @@ def reload_config() -> dict:
 
     app_config = get_config()
     VAULT_PATH = app_config["vault_path"]
-    SIGNAL_NUMBER = app_config["signal_number"]
+    SIGNAL_NUMBER = app_config.get("signal_number") or ""
+    if not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
+        logger.warning("SIGNAL_NUMBER is not configured after reload")
     DISPLAY_NAME = app_config.get("display_name")
     SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
     UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
@@ -354,7 +356,9 @@ try:
 
     # Export module-level variables
     VAULT_PATH = app_config.get("vault_path", str(DEFAULT_VAULT_PATH))
-    SIGNAL_NUMBER = app_config.get("signal_number", "+46XXXXXXXXX")
+    SIGNAL_NUMBER = app_config.get("signal_number") or ""
+    if not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
+        logger.debug("SIGNAL_NUMBER not yet configured")
     DISPLAY_NAME = app_config.get("display_name")
     SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
     UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)

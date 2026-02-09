@@ -319,10 +319,6 @@ function showTab(tabName) {
     document.getElementById('tab-' + tabName).classList.add('active');
     event.target.classList.add('active');
 
-    // Load raw config when switching to raw tab
-    if (tabName === 'raw') {
-        loadRawConfig();
-    }
     // Load template when switching to templates tab
     if (tabName === 'templates') {
         loadTemplate();
@@ -576,39 +572,23 @@ async function saveConfigForm(event) {
     }
 }
 
-// Raw config functions
-async function loadRawConfig() {
+// Re-run setup wizard
+async function rerunSetup() {
+    if (!confirm('Är du säker? Detta startar om Oden i setup-läge. Befintlig konfiguration behålls tills du sparar ny.')) {
+        return;
+    }
     try {
         const token = await getApiToken();
-        const response = await fetch('/api/config-file', {
+        const response = await fetch('/api/setup/reset', {
+            method: 'DELETE',
             headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await response.json();
-        document.getElementById('config-content').value = data.content || '';
-    } catch (error) {
-        console.error('Error loading config:', error);
-        document.getElementById('config-content').value = '# Kunde inte ladda config.ini';
-    }
-}
-
-async function saveRawConfig() {
-    const content = document.getElementById('config-content').value;
-    try {
-        const token = await getApiToken();
-        const response = await fetch('/api/config-file', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ content, reload: true })
-        });
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            showConfigMessage('✓ Config importerad och applicerad!', 'success');
-            await fetchConfig();
-            await fetchGroups();
-            await loadConfigForm();
+        if (response.ok && data.success) {
+            showConfigMessage('Setup startar om...', 'success');
+            setTimeout(() => { window.location.href = '/setup'; }, 1500);
         } else {
-            showConfigMessage(result.error || 'Kunde inte importera config', 'error');
+            showConfigMessage(data.error || 'Kunde inte starta om setup', 'error');
         }
     } catch (error) {
         showConfigMessage('Nätverksfel: ' + error.message, 'error');

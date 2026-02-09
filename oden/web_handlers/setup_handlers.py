@@ -107,6 +107,14 @@ async def setup_status_handler(request: web.Request) -> web.Response:
 
     has_existing_ini = existing_ini_path is not None
 
+    # Read INI content for migration preview
+    existing_ini_content = None
+    if has_existing_ini:
+        try:
+            existing_ini_content = existing_ini_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Could not read INI file for preview: {e}")
+
     if _linker is None:
         return web.json_response(
             {
@@ -118,6 +126,7 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                 "default_vault": str(DEFAULT_VAULT_PATH),
                 "has_existing_ini": has_existing_ini,
                 "existing_ini_path": str(existing_ini_path) if has_existing_ini else None,
+                "existing_ini_content": existing_ini_content,
                 "existing_accounts": existing_accounts,
                 "recovery_candidate": recovery_candidate,
             }
