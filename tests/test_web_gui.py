@@ -317,6 +317,167 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         self.assertEqual(resp.status, 200)
 
 
+class TestToggleGroupPersistence(AioHTTPTestCase):
+    """Test that toggling whitelist/ignore groups persists to config_db."""
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    async def _get_valid_token(self) -> str:
+        resp = await self.client.get("/api/token")
+        data = await resp.json()
+        return data["token"]
+
+    def _auth_header(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
+    async def test_toggle_whitelist_adds_group(self, mock_get, mock_set, mock_reload):
+        """Toggling whitelist for a new group adds it to config_db."""
+        mock_get.return_value = []
+
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-whitelist-group",
+            json={"groupName": "TestGroup"},
+            headers=self._auth_header(token),
+        )
+        data = await resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("TestGroup", data["whitelistGroups"])
+
+        # Verify set_config_value was called with the updated list
+        mock_set.assert_called_once()
+        call_args = mock_set.call_args
+        self.assertEqual(call_args[0][1], "whitelist_groups")
+        self.assertIn("TestGroup", call_args[0][2])
+        mock_reload.assert_called_once()
+
+    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
+    async def test_toggle_whitelist_removes_group(self, mock_get, mock_set, mock_reload):
+        """Toggling whitelist for an existing group removes it from config_db."""
+        mock_get.return_value = ["TestGroup", "OtherGroup"]
+
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-whitelist-group",
+            json={"groupName": "TestGroup"},
+            headers=self._auth_header(token),
+        )
+        data = await resp.json()
+        self.assertTrue(data["success"])
+        self.assertNotIn("TestGroup", data["whitelistGroups"])
+        self.assertIn("OtherGroup", data["whitelistGroups"])
+
+        call_args = mock_set.call_args
+        saved_list = call_args[0][2]
+        self.assertNotIn("TestGroup", saved_list)
+        self.assertIn("OtherGroup", saved_list)
+
+    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
+    async def test_toggle_ignore_adds_group(self, mock_get, mock_set, mock_reload):
+        """Toggling ignore for a new group adds it to config_db."""
+        mock_get.return_value = []
+
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-ignore-group",
+            json={"groupName": "IgnoredGroup"},
+            headers=self._auth_header(token),
+        )
+        data = await resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("IgnoredGroup", data["ignoredGroups"])
+
+        call_args = mock_set.call_args
+        self.assertEqual(call_args[0][1], "ignored_groups")
+        self.assertIn("IgnoredGroup", call_args[0][2])
+        mock_reload.assert_called_once()
+
+    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
+    async def test_toggle_ignore_removes_group(self, mock_get, mock_set, mock_reload):
+        """Toggling ignore for an existing group removes it from config_db."""
+        mock_get.return_value = ["IgnoredGroup"]
+
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-ignore-group",
+            json={"groupName": "IgnoredGroup"},
+            headers=self._auth_header(token),
+        )
+        data = await resp.json()
+        self.assertTrue(data["success"])
+        self.assertNotIn("IgnoredGroup", data["ignoredGroups"])
+
+        call_args = mock_set.call_args
+        saved_list = call_args[0][2]
+        self.assertNotIn("IgnoredGroup", saved_list)
+
+    async def test_toggle_whitelist_empty_name_rejected(self):
+        """Toggling whitelist with empty group name returns 400."""
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-whitelist-group",
+            json={"groupName": ""},
+            headers=self._auth_header(token),
+        )
+        self.assertEqual(resp.status, 400)
+
+    async def test_toggle_ignore_empty_name_rejected(self):
+        """Toggling ignore with empty group name returns 400."""
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/toggle-ignore-group",
+            json={"groupName": ""},
+            headers=self._auth_header(token),
+        )
+        self.assertEqual(resp.status, 400)
+
+
+class TestGroupsHandlerResponse(AioHTTPTestCase):
+    """Test that groups_handler returns whitelist and ignore lists correctly."""
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
+    async def test_groups_response_includes_whitelist(self, mock_cfg):
+        """groups_handler returns whitelistGroups from config."""
+        mock_cfg.IGNORED_GROUPS = []
+        mock_cfg.WHITELIST_GROUPS = ["Alpha", "Bravo"]
+        from oden.app_state import get_app_state
+
+        app_state = get_app_state()
+        app_state.update_groups(
+            [
+                {"id": "1", "name": "Alpha", "isMember": True, "members": []},
+                {"id": "2", "name": "Bravo", "isMember": True, "members": []},
+                {"id": "3", "name": "Charlie", "isMember": True, "members": []},
+            ]
+        )
+
+        resp = await self.client.get("/api/groups")
+        data = await resp.json()
+        self.assertEqual(data["whitelistGroups"], ["Alpha", "Bravo"])
+        self.assertEqual(data["ignoredGroups"], [])
+        # All 3 groups should be in the list regardless of whitelist
+        group_names = [g["name"] for g in data["groups"]]
+        self.assertIn("Alpha", group_names)
+        self.assertIn("Bravo", group_names)
+        self.assertIn("Charlie", group_names)
+
+        # Clean up
+        app_state.update_groups([])
+
+
 class TestWebSetupMode(AioHTTPTestCase):
     """Test the setup mode routes."""
 

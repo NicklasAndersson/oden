@@ -2,43 +2,17 @@
 Group-related handlers for Oden web GUI.
 """
 
-import configparser
 import json
 import logging
-import re
 
 from aiohttp import web
 
 from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.config import CONFIG_FILE, reload_config
+from oden.config import CONFIG_DB, reload_config
+from oden.config_db import get_config_value, set_config_value
 
 logger = logging.getLogger(__name__)
-
-
-def _update_config_value(content: str, key: str, new_value: str) -> str:
-    """Update a config value while preserving comments.
-
-    Handles both existing keys and adding new keys under [Settings].
-    """
-    # Pattern to match the key (possibly commented out)
-    pattern = rf"^(#?\s*{re.escape(key)}\s*=\s*)(.*)$"
-
-    if re.search(pattern, content, re.MULTILINE):
-        # Key exists (possibly commented) - replace it
-        return re.sub(pattern, f"{key} = {new_value}", content, flags=re.MULTILINE)
-    else:
-        # Key doesn't exist - add it under [Settings]
-        settings_pattern = r"(\[Settings\][^\[]*)"
-        match = re.search(settings_pattern, content, re.DOTALL)
-        if match:
-            settings_section = match.group(1)
-            # Add the new key at the end of the settings section
-            new_settings = settings_section.rstrip() + f"\n{key} = {new_value}\n\n"
-            return content.replace(settings_section, new_settings)
-        else:
-            # No [Settings] section - add it
-            return content + f"\n[Settings]\n{key} = {new_value}\n"
 
 
 async def groups_handler(request: web.Request) -> web.Response:
@@ -61,7 +35,7 @@ async def groups_handler(request: web.Request) -> web.Response:
 
 
 async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
-    """Toggle ignore status for a group by updating config.ini."""
+    """Toggle ignore status for a group."""
     try:
         data = await request.json()
         group_name = data.get("groupName", "").strip()
@@ -69,39 +43,19 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
         if not group_name:
             return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
 
-        # Read current config
-        try:
-            with open(CONFIG_FILE, encoding="utf-8") as f:
-                config_content = f.read()
-        except FileNotFoundError:
-            return web.json_response({"success": False, "error": f"{CONFIG_FILE} hittades inte"}, status=404)
-
-        # Parse to get current ignored groups
-        config = configparser.RawConfigParser()
-        config.read_string(config_content)
-
-        ignored_groups = []
-        if config.has_section("Settings") and config.has_option("Settings", "ignored_groups"):
-            ignored_str = config.get("Settings", "ignored_groups")
-            ignored_groups = [g.strip() for g in ignored_str.split(",") if g.strip()]
+        # Read current ignored groups from config_db
+        ignored_groups = get_config_value(CONFIG_DB, "ignored_groups") or []
 
         # Toggle the group
         if group_name in ignored_groups:
             ignored_groups.remove(group_name)
-            action = "removed from"
+            action = "borttagen från"
         else:
             ignored_groups.append(group_name)
-            action = "added to"
+            action = "tillagd i"
 
-        # Update config content while preserving comments
-        new_value = ", ".join(ignored_groups) if ignored_groups else ""
-        config_content = _update_config_value(config_content, "ignored_groups", new_value)
-
-        # Write back
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            f.write(config_content)
-
-        # Reload config to apply changes
+        # Persist to config_db and reload
+        set_config_value(CONFIG_DB, "ignored_groups", ignored_groups)
         reload_config()
 
         logger.info(f"Group '{group_name}' {action} ignored_groups")
@@ -121,7 +75,7 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
 
 
 async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
-    """Toggle whitelist status for a group by updating config.ini."""
+    """Toggle whitelist status for a group."""
     try:
         data = await request.json()
         group_name = data.get("groupName", "").strip()
@@ -129,21 +83,8 @@ async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
         if not group_name:
             return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
 
-        # Read current config
-        try:
-            with open(CONFIG_FILE, encoding="utf-8") as f:
-                config_content = f.read()
-        except FileNotFoundError:
-            return web.json_response({"success": False, "error": f"{CONFIG_FILE} hittades inte"}, status=404)
-
-        # Parse to get current whitelist groups
-        config = configparser.RawConfigParser()
-        config.read_string(config_content)
-
-        whitelist_groups = []
-        if config.has_section("Settings") and config.has_option("Settings", "whitelist_groups"):
-            whitelist_str = config.get("Settings", "whitelist_groups")
-            whitelist_groups = [g.strip() for g in whitelist_str.split(",") if g.strip()]
+        # Read current whitelist groups from config_db
+        whitelist_groups = get_config_value(CONFIG_DB, "whitelist_groups") or []
 
         # Toggle the group
         if group_name in whitelist_groups:
@@ -153,15 +94,8 @@ async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
             whitelist_groups.append(group_name)
             action = "tillagd i"
 
-        # Update config content while preserving comments
-        new_value = ", ".join(whitelist_groups) if whitelist_groups else ""
-        config_content = _update_config_value(config_content, "whitelist_groups", new_value)
-
-        # Write back
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            f.write(config_content)
-
-        # Reload config to apply changes
+        # Persist to config_db and reload
+        set_config_value(CONFIG_DB, "whitelist_groups", whitelist_groups)
         reload_config()
 
         logger.info(f"Group '{group_name}' {action} whitelist_groups")
