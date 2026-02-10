@@ -367,6 +367,16 @@
 {% block scripts %}
     <script>
     const version = '{{ version }}';
-    {% include "js/dashboard.js" %}
+    {% include "js/dashboard/shared.js" %}
+    {% include "js/dashboard/regex.js" %}
+    {% include "js/dashboard/dirty-tracking.js" %}
+    {% include "js/dashboard/logs.js" %}
+    {% include "js/dashboard/groups.js" %}
+    {% include "js/dashboard/invitations.js" %}
+    {% include "js/dashboard/config.js" %}
+    {% include "js/dashboard/responses.js" %}
+    {% include "js/dashboard/templates.js" %}
+    {% include "js/dashboard/tabs.js" %}
+    {% include "js/dashboard/init.js" %}
     </script>
 {% endblock %}
