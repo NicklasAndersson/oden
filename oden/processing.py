@@ -166,6 +166,11 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     if not envelope:
         return
 
+    # Skip syncMessages — these are our own outgoing messages echoed back by signal-cli
+    if "syncMessage" in envelope and "dataMessage" not in envelope:
+        logger.debug("Skipping sync message (own outgoing message)")
+        return
+
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
 
     # Whitelist has priority: if set, only allow whitelisted groups
