@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-02-10
+
+### 🎉 Oden 1.0 — Production-ready release
+
+Oden har gått från prototyp till fullt funktionell produktionsversion. Sedan v0.15.0
+har fokus legat på stabilitet, korrekthet och en bättre utvecklarupplevelse.
+
+### Added
+
+- **Regex-mönsterredigerare i GUI**: Redigera och testa regex-mönster direkt i webbgränssnittet (#120)
+- **Indikator för osparade ändringar**: Amber-banner och prickar på flikar visar om config-ändringar inte sparats (#111)
+- **Config-återställning vid uppdatering**: Automatisk detektering och återställning av befintlig config.db när pointer-filen saknas efter .app-uppdatering (#113)
+- **Snapshot-installationsskript**: Nytt `install_snapshot_mac.sh` för att installera senaste snapshot-DMG på macOS
+- **Hjälptexter i config-GUI**: Beskrivande hjälptext under varje konfigurationsfält
+- **Autosvar i databas**: `#help`, `#ok` m.fl. svar migrerade från filer till SQLite med CRUD-API och ny "Svar"-flik i GUI (#97)
+- **System tray-ikon**: pystray-baserad menyrad med Start/Stopp, öppna GUI och Avsluta (#95)
+- **Docker-distribution**: Multi-arch Docker-image (amd64/arm64) som alternativ till macOS DMG
+
+### Fixed
+
+- **Whitelist/ignore-toggle fungerar nu**: Knappar skrev till legacy config.ini men läste från SQLite — omskrivet till config_db
+- **Setup bevarar config.db**: "Kör om setup" raderade hela databasen — nu görs en soft reset som bara rensar pointer-filen
+- **Inga fler självsvar**: Utgående syncMessages filtreras bort så Oden inte skriver sina egna svar till markdown
+- **Config skrivs inte över vid sparande**: Sparning av enskilda fält överskrev inte längre hela konfigurationen
+- **Tray-krasch vid Stopp**: Tog bort osäkert `update_menu()`-anrop som kraschade appen (#112)
+- **Tray Stoppa vs Avsluta**: Stoppa pausar nu bara signal-cli, medan Avsluta stänger allt (#110)
+- **DB-migrationer körs alltid**: Befintliga databaser fastnade på schema v1 — init_db() körs nu alltid (#109)
+- **Auth-tokens på alla endpoints**: Fixade saknade auth-headers på 8 skyddade API-endpoints med 34 regressionstester
+- **Installationsskript**: Fixade tysta fel vid DMG-montering och pipe-exekvering (#116)
+
+### Changed
+
+- **Modulär dashboard.js**: Bröt ut 911-raders monolitisk JS till 11 fokuserade filer under `js/dashboard/`
+- **Jinja2-baserade webbmallar**: Ersatte inline HTML i Python med filbaserade Jinja2-templates
+- **Förbättrad livscykelhantering**: Async event-baserad signalering istället för `os.kill(SIGINT)`
+
 ## [0.15.0] - 2026-02-07
 
 ### Added
