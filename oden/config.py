@@ -267,6 +267,22 @@ def reset_config() -> bool:
     return success
 
 
+def soft_reset_config() -> bool:
+    """
+    Clear the pointer file without deleting config.db.
+
+    This puts Oden into setup mode while preserving all existing
+    configuration values. The setup wizard will merge its changes
+    into the existing database instead of starting from scratch.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    from oden.bundle_utils import clear_oden_home_pointer
+
+    return clear_oden_home_pointer()
+
+
 def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str | None]:
     """
     Set up the Oden home directory.

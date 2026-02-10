@@ -30,9 +30,9 @@ from oden.config import (
     CONFIG_DB,
     DEFAULT_VAULT_PATH,
     is_configured,
-    reset_config,
     save_config,
     setup_oden_home,
+    soft_reset_config,
 )
 from oden.path_utils import (
     is_filesystem_root,
@@ -365,13 +365,13 @@ async def setup_validate_path_handler(request: web.Request) -> web.Response:
 
 
 async def setup_reset_config_handler(request: web.Request) -> web.Response:
-    """Reset configuration by deleting the database and pointer file."""
+    """Clear pointer file to re-enter setup mode (preserves config.db)."""
     try:
-        if reset_config():
+        if soft_reset_config():
             return web.json_response(
                 {
                     "success": True,
-                    "message": "Konfiguration återställd. Starta om Oden för att köra setup igen.",
+                    "message": "Setup startas om. Befintlig konfiguration behålls.",
                 }
             )
         else:
@@ -424,18 +424,40 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
                 status=500,
             )
 
-        # Save config
-        config_dict = {
+        # Read existing config from the (possibly surviving) database
+        # so we preserve customized values like regex_patterns, templates, etc.
+        from oden.config_db import get_all_config
+
+        existing = {}
+        if CONFIG_DB.exists():
+            try:
+                existing = get_all_config(CONFIG_DB)
+                logger.info("Merging setup values with existing config (%d keys)", len(existing))
+            except Exception as e:
+                logger.warning(f"Could not read existing config for merge: {e}")
+
+        # Setup-managed keys — only these are set during initial setup
+        setup_updates = {
             "vault_path": vault_path,
             "signal_number": signal_number,
             "display_name": display_name,
-            "append_window_minutes": 30,
-            "startup_message": "self",
-            "plus_plus_enabled": False,
-            "timezone": "Europe/Stockholm",
-            "web_enabled": True,
-            "web_port": 8080,
         }
+
+        # For fresh installs (no existing config), add sensible defaults
+        if not existing:
+            setup_updates.update(
+                {
+                    "append_window_minutes": 30,
+                    "startup_message": "self",
+                    "plus_plus_enabled": False,
+                    "timezone": "Europe/Stockholm",
+                    "web_enabled": True,
+                    "web_port": 8080,
+                }
+            )
+
+        # Merge: existing config + setup updates (setup wins)
+        config_dict = {**existing, **setup_updates}
 
         save_config(config_dict)
         logger.info(f"Setup complete. Config saved to {CONFIG_DB}")
