@@ -48,7 +48,7 @@ docker compose up -d
 
 Öppna sedan `http://localhost:8080/setup` i din webbläsare för att konfigurera.
 
-Se [docs/HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) för mer info.
+Se [docs/FEATURES.md](./docs/FEATURES.md) för komplett funktionsdokumentation.
 
 ### Signal-konto
 
@@ -182,8 +182,10 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 
 ## Dokumentation
 
-- [HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) - Körinstruktioner
-- [Flow.md](./docs/Flow.md) - Flödesdiagram
+- [FEATURES.md](./docs/FEATURES.md) - Komplett funktions- och kravspecifikation
+- [SETUP_FLOW.md](./docs/SETUP_FLOW.md) - Setup-wizardens alla steg
+- [WEB_GUI.md](./docs/WEB_GUI.md) - Web-gränssnitt och API-referens
+- [REPORT_TEMPLATE.md](./docs/REPORT_TEMPLATE.md) - Mallsystem (Jinja2)
 
 ## Rekommenderad programvara
 
