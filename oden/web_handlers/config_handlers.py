@@ -4,6 +4,7 @@ Configuration-related handlers for Oden web GUI.
 
 import json
 import logging
+import re
 
 from aiohttp import web
 
@@ -141,7 +142,7 @@ async def config_save_handler(request: web.Request) -> web.Response:
     """Save configuration from structured form data and trigger live reload.
 
     Merges form data with existing config to preserve fields not shown
-    in the form (e.g. regex_patterns, templates, log paths).
+    in the form (e.g. templates, log paths).
     """
     try:
         data = await request.json()
@@ -169,6 +170,35 @@ async def config_save_handler(request: web.Request) -> web.Response:
             "log_level": data.get("log_level", "INFO"),
             "filename_format": data.get("filename_format", "classic"),
         }
+
+        # Handle regex_patterns if provided
+        if "regex_patterns" in data:
+            patterns = data["regex_patterns"]
+            if not isinstance(patterns, dict):
+                return web.json_response(
+                    {"success": False, "error": "regex_patterns måste vara ett objekt"},
+                    status=400,
+                )
+            # Validate each pattern is a valid regex
+            for name, pattern in patterns.items():
+                if not isinstance(name, str) or not name.strip():
+                    return web.json_response(
+                        {"success": False, "error": "Regex-mönsternamn får inte vara tomt"},
+                        status=400,
+                    )
+                if not isinstance(pattern, str) or not pattern.strip():
+                    return web.json_response(
+                        {"success": False, "error": f"Regex-mönster för '{name}' får inte vara tomt"},
+                        status=400,
+                    )
+                try:
+                    re.compile(pattern)
+                except re.error as e:
+                    return web.json_response(
+                        {"success": False, "error": f"Ogiltigt regex-mönster '{name}': {e}"},
+                        status=400,
+                    )
+            form_updates["regex_patterns"] = patterns
 
         # Validate required fields
         if not form_updates["signal_number"] or form_updates["signal_number"] == "+46XXXXXXXXX":

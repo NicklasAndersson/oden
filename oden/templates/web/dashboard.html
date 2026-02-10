@@ -229,6 +229,18 @@
                             </div>
                         </div>
 
+                        <div class="config-section">
+                            <h3>🔗 Regex-mönster</h3>
+                            <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                                Text som matchar dessa mönster länkas automatiskt som <code>[[...]]</code> i Obsidian.
+                                Varje mönster har ett namn och ett reguljärt uttryck (regex).
+                            </p>
+                            <div id="regex-patterns-list"></div>
+                            <button type="button" class="btn btn-secondary" onclick="addRegexRow('', '')" style="margin-top: 10px;">
+                                ➕ Lägg till mönster
+                            </button>
+                        </div>
+
                         <div class="config-actions">
                             <button type="submit" class="btn btn-primary" id="save-config-adv-btn">
                                 Spara och applicera
