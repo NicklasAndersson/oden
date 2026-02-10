@@ -270,8 +270,8 @@ Filnamnet för sparade rapporter konfigureras via `filename_format`.
 | Format | Mönster | Exempel |
 |--------|---------|---------|
 | `classic` (standard) | `DDHHMM-telefon-namn.md` | `261427-46762320406-Nicklas.md` |
-| `timestamp_only` | `DDHHMM.md` | `261427.md` |
-| `timestamp_name` | `DDHHMM-namn.md` | `261427-Nicklas.md` |
+| `tnr` | `DDHHMM.md` | `261427.md` |
+| `tnr-name` | `DDHHMM-namn.md` | `261427-Nicklas.md` |
 
 ### Filid och deduplicering
 
@@ -382,7 +382,7 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 | `signal_number` | string | `+46XXXXXXXXX` | Signal-telefonnummer |
 | `display_name` | string | *(tomt)* | Signal-visningsnamn |
 | `timezone` | string | `Europe/Stockholm` | Tidszon för tidsstämplar |
-| `filename_format` | string | `classic` | Filnamnsformat: `classic`, `timestamp_only`, `timestamp_name` |
+| `filename_format` | string | `classic` | Filnamnsformat: `classic`, `tnr`, `tnr-name` |
 | `log_level` | string | `INFO` | Loggnivå: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
 #### Signal-cli

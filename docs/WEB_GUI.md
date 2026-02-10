@@ -159,10 +159,10 @@ Dessa är enbart tillgängliga i setup-mode.
 | GET | `/` | Nej | Dashboard HTML-sida |
 | GET | `/api/token` | Nej | Hämta autentiseringstoken |
 | GET | `/api/config` | Nej | Hämta all konfiguration (JSON) |
-| POST | `/api/config` | ✅ | Spara konfiguration (formulärdata) |
+| POST | `/api/config-save` | ✅ | Spara konfiguration (formulärdata) |
 | GET | `/api/config/export` | ✅ | Exportera som INI-fil (nedladdning) |
 | POST | `/api/config-file` | Nej | Importera INI-konfiguration |
-| DELETE | `/api/config/reset` | Nej | Återställ konfiguration |
+| DELETE | `/api/config/reset` | ✅ | Återställ konfiguration |
 | POST | `/api/shutdown` | ✅ | Stäng ner Oden |
 
 #### Loggar
@@ -176,9 +176,9 @@ Dessa är enbart tillgängliga i setup-mode.
 | Metod | Sökväg | Auth | Beskrivning |
 |-------|--------|------|-------------|
 | GET | `/api/groups` | Nej | Lista alla grupper |
-| POST | `/api/groups/join` | ✅ | Gå med i grupp via inbjudningslänk |
-| POST | `/api/groups/ignore` | ✅ | Toggla ignorera-status för en grupp |
-| POST | `/api/groups/whitelist` | ✅ | Toggla whitelist-status för en grupp |
+| POST | `/api/join-group` | ✅ | Gå med i grupp via inbjudningslänk |
+| POST | `/api/toggle-ignore-group` | ✅ | Toggla ignorera-status för en grupp |
+| POST | `/api/toggle-whitelist-group` | ✅ | Toggla whitelist-status för en grupp |
 | GET | `/api/invitations` | Nej | Lista väntande gruppinbjudningar |
 | POST | `/api/invitations/accept` | ✅ | Acceptera gruppinbjudan |
 | POST | `/api/invitations/decline` | ✅ | Avböj gruppinbjudan |
@@ -188,7 +188,7 @@ Dessa är enbart tillgängliga i setup-mode.
 | Metod | Sökväg | Auth | Beskrivning |
 |-------|--------|------|-------------|
 | GET | `/api/templates` | Nej | Lista tillgängliga mallar |
-| GET | `/api/templates/{name}` | Nej | Hämta mallinnehåll |
+| GET | `/api/templates/{name}` | ✅ | Hämta mallinnehåll |
 | POST | `/api/templates/{name}` | ✅ | Spara mall |
 | POST | `/api/templates/{name}/preview` | ✅ | Förhandsgranska mall med exempeldata |
 | POST | `/api/templates/{name}/reset` | ✅ | Återställ mall till standard |
@@ -200,7 +200,7 @@ Dessa är enbart tillgängliga i setup-mode.
 | Metod | Sökväg | Auth | Beskrivning |
 |-------|--------|------|-------------|
 | GET | `/api/responses` | Nej | Lista alla autosvar |
-| GET | `/api/responses/{id}` | Nej | Hämta enskilt autosvar |
-| POST | `/api/responses` | ✅ | Skapa nytt autosvar |
+| GET | `/api/responses/{id}` | ✅ | Hämta enskilt autosvar |
+| POST | `/api/responses/new` | ✅ | Skapa nytt autosvar |
 | POST | `/api/responses/{id}` | ✅ | Uppdatera autosvar |
 | DELETE | `/api/responses/{id}` | ✅ | Ta bort autosvar |

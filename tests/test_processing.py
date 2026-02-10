@@ -346,11 +346,20 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value=None)
+    @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
+    @patch("os.makedirs")
+    @patch("os.path.exists")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_append_plus_plus_failure(self, mock_open, mock_find_latest):
-        """Tests that a '++' message fails gracefully when no recent file is found."""
+    async def test_process_message_append_plus_plus_failure(
+        self, mock_exists, mock_makedirs, mock_open, mock_render, mock_find_latest
+    ):
+        """Tests that a '++' message falls through to create a new file when no recent file is found."""
+        mock_exists.return_value = False
+        mock_render.return_value = "---\nfileid: 000000-123-John_Doe\n---\n\nthis should fail\n"
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
@@ -365,8 +374,13 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             await process_message(message_obj, mock_reader, mock_writer)
 
             mock_find_latest.assert_called_once()
-            mock_open.assert_not_called()
             self.assertTrue(any("APPEND FAILED" in message for message in log.output))
+
+            # The message should fall through and be saved as a new file (without ++ prefix)
+            mock_open.assert_called_once()
+            mock_render.assert_called_once()
+            call_kwargs = mock_render.call_args.kwargs
+            self.assertEqual(call_kwargs["message"], "this should fail")
 
     @patch("oden.processing.render_append")
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")

@@ -282,9 +282,9 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                 if msg:
                     msg = msg.strip().removeprefix("++").strip()
 
-        # If the append was successful (or a ++ which always consumes the message), we are done.
-        # If a reply-append fails, we continue on to process it as a new message.
-        if is_plus_plus_append or (is_reply_append and latest_file):
+        # If the append was successful, we are done.
+        # If append fails (both ++ and reply), we continue to process as a new message.
+        if latest_file:
             return
 
     # --- Handle Standard Commands (#) ---
