@@ -558,3 +558,61 @@ td {
     transform: translateX(20px);
     background-color: #4fc3f7;
 }
+/* Regex pattern editor */
+.regex-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.regex-row input {
+    padding: 8px 10px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #16213e;
+    color: #fff;
+    font-size: 0.9em;
+}
+.regex-row input.regex-name {
+    width: 160px;
+    flex-shrink: 0;
+}
+.regex-row input.regex-pattern {
+    flex: 1;
+    font-family: Monaco, Menlo, 'Courier New', monospace;
+}
+.regex-row input.regex-error {
+    border-color: #ef5350;
+}
+.regex-row .btn-remove {
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid #555;
+    color: #888;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    flex-shrink: 0;
+}
+.regex-row .btn-remove:hover {
+    border-color: #ef5350;
+    color: #ef5350;
+}
+.regex-header {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 0.8em;
+    color: #888;
+}
+.regex-header span:first-child {
+    width: 160px;
+    flex-shrink: 0;
+}
+.regex-header span:nth-child(2) {
+    flex: 1;
+}
+.regex-header span:last-child {
+    width: 42px;
+    flex-shrink: 0;
+}
