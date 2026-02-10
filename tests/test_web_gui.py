@@ -79,6 +79,24 @@ class TestWebAPIEndpoints(AioHTTPTestCase):
         self.assertEqual(resp.status, 200)
         self.assertEqual(resp.content_type, "application/json")
 
+    async def test_dashboard_js_not_html_escaped(self):
+        """Verify that inline JS is not mangled by Jinja2 autoescape.
+
+        The dashboard template uses {% include "js/dashboard.js" %} inside a
+        <script> tag. If autoescape ever applies to the included content,
+        operators like && would become &amp;&amp; and break the JS.
+        """
+        resp = await self.client.get("/")
+        text = await resp.text()
+        # Core dirty-tracking functions must be present verbatim
+        self.assertIn("function updateDirtyState()", text)
+        self.assertIn("function snapshotConfig()", text)
+        self.assertIn("classList.toggle('show'", text)
+        # JS operators must NOT be HTML-escaped
+        # (note: &lt; may appear as a literal string in JS, e.g. replace(/</g, '&lt;'),
+        # so we only check && which should never appear as &amp;&amp;)
+        self.assertNotIn("&amp;&amp;", text)
+
     async def test_api_config_export_returns_text(self):
         resp = await self.client.get("/api/token")
         token_data = await resp.json()

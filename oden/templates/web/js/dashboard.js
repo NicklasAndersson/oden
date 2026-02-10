@@ -64,16 +64,6 @@ window.addEventListener('beforeunload', function(e) {
     }
 });
 
-async function fetchConfig() {
-    try {
-        const response = await fetch('/api/config');
-        const config = await response.json();
-
-    } catch (error) {
-        console.error('Error fetching config:', error);
-    }
-}
-
 async function fetchLogs() {
     try {
         const response = await fetch('/api/logs');
@@ -108,7 +98,6 @@ function escapeHtml(text) {
 }
 
 // Initial fetch
-fetchConfig();
 fetchLogs();
 
 // Polling - refresh logs every 3 seconds
@@ -562,12 +551,9 @@ async function saveConfigForm(event) {
 
         if (response.ok && result.success) {
             showConfigMessage('✓ Inställningar sparade och applicerade!', 'success');
-            // Refresh the config display
-            await fetchConfig();
+            // Refresh the config display and groups, then re-snapshot
+            await loadConfigForm();
             await fetchGroups();
-            // Re-snapshot to clear dirty state
-            snapshotConfig();
-            updateDirtyState();
         } else {
             showConfigMessage(result.error || 'Kunde inte spara', 'error');
         }
