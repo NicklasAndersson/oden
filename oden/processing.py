@@ -227,6 +227,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
             return
 
         latest_file = _find_latest_file_for_sender(group_dir, append_target_name, append_target_number)
+        append_succeeded = False
 
         if latest_file:
             new_text = ""
@@ -266,13 +267,17 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                     with open(latest_file, "a", encoding="utf-8") as f:
                         f.write(append_content)
                     logger.info(f"APPENDED (reply or ++) TO: {latest_file}")
+                    append_succeeded = True
                 except OSError as e:
                     logger.error(f"Failed to append to file {latest_file}: {e}")
             else:
                 logger.info("Ignoring empty append message.")
+                append_succeeded = True
 
         else:
             logger.info("APPEND FAILED: No recent file found for sender.")
+
+        if not append_succeeded:
             if is_reply_append:
                 # If reply-append fails, it should be treated as a new message,
                 # but with the quote intact.
@@ -282,9 +287,9 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                 if msg:
                     msg = msg.strip().removeprefix("++").strip()
 
-        # If the append was successful (or a ++ which always consumes the message), we are done.
-        # If a reply-append fails, we continue on to process it as a new message.
-        if is_plus_plus_append or (is_reply_append and latest_file):
+        # If the append was successful (or an empty append was intentionally consumed), we are done.
+        # If the append failed, we continue on to process it as a new message.
+        if append_succeeded:
             return
 
     # --- Handle Standard Commands (#) ---
