@@ -245,6 +245,67 @@ async def update_profile(writer: asyncio.StreamWriter, display_name: str | None)
         logger.error(f"ERROR sending updateProfile request: {e}")
 
 
+async def verify_signal_number(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """Verify that the configured Signal number matches the actual account.
+
+    Queries signal-cli for registered accounts and compares with the
+    configured number. If they differ, logs a warning and updates the
+    config database.
+    """
+    from oden import config as cfg
+    from oden.config import CONFIG_DB, save_config
+    from oden.config_db import get_all_config
+
+    request_id = f"list-accounts-{int(time.time())}"
+    json_request = {
+        "jsonrpc": "2.0",
+        "method": "listAccounts",
+        "id": request_id,
+    }
+
+    try:
+        writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
+        await writer.drain()
+
+        response_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+        if not response_line:
+            return
+
+        response = json.loads(response_line.decode("utf-8"))
+        if response.get("id") != request_id or "result" not in response:
+            return
+
+        accounts = response["result"]
+        if not accounts:
+            return
+
+        # Use the first account's number as the actual number
+        actual_number = accounts[0].get("number")
+        if not actual_number:
+            return
+
+        configured_number = cfg.SIGNAL_NUMBER
+        if actual_number != configured_number:
+            logger.warning(
+                "Configured Signal number (%s) does not match actual account number (%s) — updating config.",
+                configured_number,
+                actual_number,
+            )
+            # Update the database
+            current_config = get_all_config(CONFIG_DB)
+            current_config["signal_number"] = actual_number
+            save_config(current_config)
+            reload_config()
+            logger.info("Signal number updated to %s.", actual_number)
+        else:
+            logger.debug("Signal number verified: %s", actual_number)
+
+    except asyncio.TimeoutError:
+        logger.warning("Timeout verifying Signal account number")
+    except Exception as e:
+        logger.warning("Could not verify Signal account number: %s", e)
+
+
 async def subscribe_and_listen(host: str, port: int) -> None:
     """Connects to signal-cli via TCP socket, subscribes to messages, and processes them."""
     logger.info(f"Connecting to signal-cli at {host}:{port}...")
@@ -261,6 +322,7 @@ async def subscribe_and_listen(host: str, port: int) -> None:
         app_state.reader = reader
 
         await update_profile(writer, DISPLAY_NAME)
+        await verify_signal_number(reader, writer)
         groups = await log_groups(reader, writer)
         await send_startup_message(writer, groups)
 
