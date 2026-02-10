@@ -454,6 +454,7 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         self.assertEqual(resp.status, 400)
         data = await resp.json()
         self.assertFalse(data["success"])
+        self.assertIn("namn", data["error"].lower())
 
     async def test_save_empty_pattern_value_rejected(self):
         token = await self._get_valid_token()
