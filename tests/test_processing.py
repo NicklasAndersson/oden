@@ -27,6 +27,37 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(group_id, "group456")
         self.assertEqual(attachments, [])
 
+    @patch("oden.processing.render_report")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("os.makedirs")
+    @patch("os.path.exists")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    async def test_process_message_skips_sync_message(self, mock_exists, mock_makedirs, mock_open_file, mock_render):
+        """process_message must skip syncMessages (own outgoing messages echoed by signal-cli)."""
+        message_obj = {
+            "envelope": {
+                "sourceName": "Oden",
+                "sourceNumber": "+46700000000",
+                "timestamp": 1765890600000,
+                "syncMessage": {
+                    "sentMessage": {
+                        "message": "Mottaget.",
+                        "groupInfo": {"groupName": "Test Group", "groupId": "group123"},
+                    }
+                },
+            }
+        }
+
+        mock_reader = AsyncMock()
+        mock_writer = AsyncMock()
+        await process_message(message_obj, mock_reader, mock_writer)
+
+        # Nothing should have been written — the message was our own outgoing reply
+        mock_exists.assert_not_called()
+        mock_makedirs.assert_not_called()
+        mock_open_file.assert_not_called()
+        mock_render.assert_not_called()
+
     @patch("oden.config.REGEX_PATTERNS", {"reg": r"\bREG\d{3}\b"})
     def test_apply_regex_links(self):
         from oden.link_formatter import apply_regex_links
