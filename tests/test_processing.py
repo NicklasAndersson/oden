@@ -346,16 +346,23 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value=None)
+    @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
+    @patch("os.makedirs")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_append_plus_plus_failure(self, mock_open, mock_find_latest):
-        """Tests that a '++' message fails gracefully when no recent file is found."""
+    async def test_process_message_append_plus_plus_failure(
+        self, mock_makedirs, mock_open, mock_render, mock_find_latest
+    ):
+        """Tests that a '++' message falls through to create a new file when no recent file is found."""
+        mock_render.return_value = "rendered content"
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 123,
+                "timestamp": 1765890600000,
                 "dataMessage": {"message": "++ this should fail", "groupV2": {"name": "My Group"}},
             }
         }
@@ -365,8 +372,61 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
             await process_message(message_obj, mock_reader, mock_writer)
 
             mock_find_latest.assert_called_once()
-            mock_open.assert_not_called()
             self.assertTrue(any("APPEND FAILED" in message for message in log.output))
+
+            # Verify a new file was created (mode "w") with the ++ stripped from the message
+            open_args, open_kwargs = mock_open.call_args
+            opened_path = open_args[0]
+            opened_mode = open_args[1]
+            self.assertTrue(
+                opened_path.startswith(os.path.join("mock_vault", "My Group")),
+                msg=f"Unexpected path used for new file: {opened_path!r}",
+            )
+            self.assertEqual(opened_mode, "w")
+            self.assertEqual(open_kwargs.get("encoding"), "utf-8")
+
+    @patch("oden.processing.render_report")
+    @patch("oden.processing.render_append")
+    @patch("oden.config.PLUS_PLUS_ENABLED", True)
+    @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
+    @patch("os.makedirs")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
+    async def test_process_message_append_plus_plus_oserror_falls_through(
+        self, mock_makedirs, mock_find_latest, mock_render_append, mock_render_report
+    ):
+        """Tests that a '++' append falling back on OSError creates a new file."""
+        mock_render_append.return_value = "appended content"
+        mock_render_report.return_value = "rendered content"
+        message_obj = {
+            "envelope": {
+                "sourceName": "John Doe",
+                "sourceNumber": "+123",
+                "timestamp": 1765890600000,
+                "dataMessage": {"message": "++ this should fallback", "groupV2": {"name": "My Group"}},
+            }
+        }
+        mock_reader, mock_writer = AsyncMock(), AsyncMock()
+
+        with patch("builtins.open", new_callable=mock_open) as mocked_open:
+            # Make the append open call raise OSError, but allow the new-file open to succeed
+            mocked_open.side_effect = [OSError("disk full"), mock_open()()]
+
+            with self.assertLogs("oden.processing", level="INFO") as log:
+                await process_message(message_obj, mock_reader, mock_writer)
+
+                self.assertTrue(any("Failed to append" in message for message in log.output))
+
+                # Verify a new file was created after the append failed
+                calls = mocked_open.call_args_list
+                self.assertEqual(len(calls), 2)
+                # First call should be the failed append (mode "a")
+                self.assertEqual(calls[0][0][1], "a")
+                # Second call should be the new file creation (mode "w")
+                self.assertEqual(calls[1][0][1], "w")
+                self.assertEqual(calls[1][1].get("encoding"), "utf-8")
 
     @patch("oden.processing.render_append")
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
