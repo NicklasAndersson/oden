@@ -1,4 +1,4 @@
-# Oden - Copilot Instructions
+# Oden
 
 ## Project Overview
 Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cli` and saves them as Markdown files. It's a Python asyncio application connecting to signal-cli's JSON-RPC TCP socket.
