@@ -150,7 +150,7 @@ jobs:
           ls -la dist/
 
       - name: Upload macOS DMG
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: oden-macos-dmg
           path: dist/Oden-*.dmg
