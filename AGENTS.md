@@ -169,8 +169,34 @@ For stable releases, use git tags:
 - The full test suite (~250 tests) runs in about **10 seconds** — always wait for it to finish
 - Mock config values when testing: patch `oden.config.VAULT_PATH` etc.
 - Don't get stuck fixing difficult tests - note the issue and move on
-- **Terminal output**: Read terminal output directly using `get_terminal_output` or `terminal_last_command` tools. Do NOT create temporary files, pipe to `tee`, or use redirection tricks like `2>&1`, `| tail`, `| head`, `echo $?` etc. Just run commands straight up and read the output.
 - **Hanging tests**: If tests appear to hang, use `terminal_last_command` to check what's running
+
+### Terminal Usage
+- **Reading output**: Run commands in a **background terminal** (`isBackground=true`), then use `get_terminal_output` with the returned terminal ID to read the full output. This is the most reliable method.
+- **Do NOT** create temporary files, pipe to `tee`, or use redirection tricks like `2>&1`, `| tail`, `| head`, `echo $?`. Just run commands straight up.
+- `terminal_last_command` can be used but may return output from the wrong terminal when multiple terminals are open. Prefer `get_terminal_output` with a specific terminal ID.
+
+### Useful Commands
+```bash
+# Testing
+pytest                                    # Run all tests
+pytest -q                                 # Quiet output (just summary)
+pytest -k "not Screenshots"               # Skip slow Playwright tests
+pytest tests/test_processing.py            # Run one test file
+pytest -k "test_append"                    # Run tests matching a name pattern
+pytest --cov=oden                          # With coverage
+
+# Linting (run before committing)
+ruff check .                              # Check for lint errors
+ruff format --check .                     # Check formatting
+ruff check . && ruff format .             # Fix both
+
+# Git / GitHub CLI
+gh pr view --json comments                # View PR comments (pipe through cat to avoid pager)
+gh pr edit <number> --body-file file.md   # Update PR description from file
+gh pr list --state open                   # List open PRs
+gh pr checks                              # View CI check status for current branch
+```
 
 ## File Naming Convention
 Markdown files: `DDHHMM-{phone}-{name}.md` (e.g., `161430-46701234567-Nicklas.md`)
