@@ -10,7 +10,8 @@ from aiohttp import web
 from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.config import CONFIG_DB, reload_config
-from oden.config_db import get_all_groups, get_config_value, set_config_value, upsert_groups_bulk
+from oden.config_db import get_config_value, set_config_value
+from oden.groups_db import get_all_groups, upsert_groups_bulk
 
 logger = logging.getLogger(__name__)
 

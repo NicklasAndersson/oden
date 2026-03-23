@@ -157,7 +157,7 @@ async def setup_start_link_handler(request: web.Request) -> web.Response:
         device_name = "Oden"
 
     # Import here to avoid circular imports
-    from oden.signal_manager import SignalLinker
+    from oden.signal_linker import SignalLinker
 
     # Cancel any existing linking process
     if _linker and _linker.process:
@@ -500,7 +500,7 @@ async def setup_start_register_handler(request: web.Request) -> web.Response:
             )
 
         # Import here to avoid circular imports
-        from oden.signal_manager import SignalRegistrar
+        from oden.signal_registrar import SignalRegistrar
 
         _registrar = SignalRegistrar()
         result = await _registrar.start_register(phone_number, use_voice, captcha_token)

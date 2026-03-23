@@ -9,7 +9,7 @@ import logging
 from aiohttp import web
 
 from oden.config import CONFIG_DB
-from oden.config_db import (
+from oden.responses_db import (
     create_response,
     delete_response,
     get_all_responses,

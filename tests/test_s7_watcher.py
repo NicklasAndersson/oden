@@ -5,7 +5,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from oden.s7_watcher import (
     main as s7_main,
 )
-from oden.s7_watcher import (
+from oden.signal_listener import (
     subscribe_and_listen,
 )
 from oden.signal_manager import SignalManager, is_signal_cli_running
@@ -74,7 +74,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
     @patch("asyncio.open_connection", side_effect=ConnectionRefusedError)
     async def test_subscribe_and_listen_connection_refused(self, mock_open_connection):
         """Tests that a connection refusal is handled gracefully and re-raised."""
-        with self.assertLogs("oden.s7_watcher", level="ERROR") as log:
+        with self.assertLogs("oden.signal_listener", level="ERROR") as log:
             with self.assertRaises(ConnectionRefusedError):
                 await subscribe_and_listen("host", 1234)
 
@@ -82,14 +82,13 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_open_connection.assert_awaited_once_with("host", 1234, limit=ANY)
 
 
-@patch.object(SignalManager, "_find_executable", return_value="exec/path")
+@patch("oden.signal_manager.find_signal_cli_executable", return_value="exec/path")
 class TestSignalManager(unittest.TestCase):
     @patch("oden.config.SIGNAL_CLI_PATH", "/config/path/signal-cli")
     @patch("os.path.exists", return_value=True)
     def test_find_executable_from_config(self, mock_exists, mock_find_executable):
         """Tests finding executable from config path."""
-        with patch.object(SignalManager, "_find_executable", new_callable=MagicMock) as mock_find:
-            mock_find.return_value = "/config/path/signal-cli"
+        with patch("oden.signal_manager.find_signal_cli_executable", return_value="/config/path/signal-cli"):
             manager = SignalManager("host", "port")
             self.assertEqual(manager.executable, "/config/path/signal-cli")
 
@@ -97,8 +96,7 @@ class TestSignalManager(unittest.TestCase):
     @patch("shutil.which", return_value="/usr/bin/signal-cli")
     def test_find_executable_from_path(self, mock_which, mock_find_executable):
         """Tests finding executable from system PATH."""
-        with patch.object(SignalManager, "_find_executable", new_callable=MagicMock) as mock_find:
-            mock_find.return_value = "/usr/bin/signal-cli"
+        with patch("oden.signal_manager.find_signal_cli_executable", return_value="/usr/bin/signal-cli"):
             manager = SignalManager("host", "port")
             self.assertEqual(manager.executable, "/usr/bin/signal-cli")
 
@@ -108,8 +106,7 @@ class TestSignalManager(unittest.TestCase):
     @patch("os.path.abspath", return_value="/bundled/signal-cli")
     def test_find_executable_bundled(self, mock_abspath, mock_exists, mock_which, mock_find_executable):
         """Tests finding the bundled executable."""
-        with patch.object(SignalManager, "_find_executable", new_callable=MagicMock) as mock_find:
-            mock_find.return_value = "/bundled/signal-cli"
+        with patch("oden.signal_manager.find_signal_cli_executable", return_value="/bundled/signal-cli"):
             manager = SignalManager("host", "port")
             self.assertEqual(manager.executable, "/bundled/signal-cli")
 
@@ -162,7 +159,7 @@ class TestSignalLinkerInvalidACI(unittest.IsolatedAsyncioTestCase):
     @patch("shutil.which", return_value="/usr/bin/signal-cli")
     async def test_wait_for_link_invalid_aci_shows_friendly_error(self, mock_which, mock_bundled):
         """Tests that Invalid ACI error produces a user-friendly error message."""
-        from oden.signal_manager import SignalLinker
+        from oden.signal_linker import SignalLinker
 
         linker = SignalLinker(device_name="Test")
 
@@ -188,7 +185,7 @@ class TestSignalLinkerInvalidACI(unittest.IsolatedAsyncioTestCase):
     @patch("shutil.which", return_value="/usr/bin/signal-cli")
     async def test_wait_for_link_other_error_shows_raw_message(self, mock_which, mock_bundled):
         """Tests that non-ACI errors show the raw error message."""
-        from oden.signal_manager import SignalLinker
+        from oden.signal_linker import SignalLinker
 
         linker = SignalLinker(device_name="Test")
 
@@ -214,7 +211,7 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
     @patch("shutil.which", return_value="/usr/bin/signal-cli")
     async def test_start_link_uri_on_first_line(self, mock_which, mock_bundled):
         """Tests that a URI on the first line is detected."""
-        from oden.signal_manager import SignalLinker
+        from oden.signal_linker import SignalLinker
 
         linker = SignalLinker(device_name="Test")
         uri = "sgnl://linkdevice?uuid=abc123&pub_key=xyz"
@@ -236,7 +233,7 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
     @patch("shutil.which", return_value="/usr/bin/signal-cli")
     async def test_start_link_uri_after_warnings(self, mock_which, mock_bundled):
         """Tests that a URI is found even after warning lines."""
-        from oden.signal_manager import SignalLinker
+        from oden.signal_linker import SignalLinker
 
         linker = SignalLinker(device_name="Test")
         uri = "sgnl://linkdevice?uuid=abc123&pub_key=xyz"
@@ -272,7 +269,7 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
     @patch("shutil.which", return_value="/usr/bin/signal-cli")
     async def test_start_link_no_uri_eof(self, mock_which, mock_bundled):
         """Tests error when signal-cli exits without producing a URI."""
-        from oden.signal_manager import SignalLinker
+        from oden.signal_linker import SignalLinker
 
         linker = SignalLinker(device_name="Test")
 
@@ -308,7 +305,7 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
     @patch("shutil.which", return_value="/usr/bin/signal-cli")
     async def test_start_link_no_uri_no_stderr(self, mock_which, mock_bundled):
         """Tests error when signal-cli exits without URI and no stderr."""
-        from oden.signal_manager import SignalLinker
+        from oden.signal_linker import SignalLinker
 
         linker = SignalLinker(device_name="Test")
 

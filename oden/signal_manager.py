@@ -5,8 +5,6 @@ Handles starting, stopping, and monitoring the signal-cli daemon process.
 Supports bundled JRE and signal-cli for macOS .app distribution.
 """
 
-import asyncio
-import contextlib
 import logging
 import os
 import shutil
@@ -70,6 +68,42 @@ def is_signal_cli_running(host: str, port: int) -> bool:
             return False
 
 
+def find_signal_cli_executable() -> str:
+    """Finds the signal-cli executable.
+
+    Checks (in order): bundled PyInstaller path, config path,
+    system PATH, project directory.
+
+    Raises:
+        FileNotFoundError: If no signal-cli executable can be found.
+    """
+    bundled = get_bundled_signal_cli_path()
+    if bundled:
+        return bundled
+
+    if SIGNAL_CLI_PATH:
+        if os.path.exists(SIGNAL_CLI_PATH):
+            logger.info(f"Found signal-cli from config: {SIGNAL_CLI_PATH}")
+            return SIGNAL_CLI_PATH
+        else:
+            logger.warning(f"Configured signal_cli_path '{SIGNAL_CLI_PATH}' does not exist.")
+
+    if path := shutil.which("signal-cli"):
+        logger.info(f"Found signal-cli in PATH: {path}")
+        return path
+
+    # Check for signal-cli in project directory (development)
+    for version in ["0.14.1", "0.13.23"]:
+        bundled_path = f"./signal-cli-{version}/bin/signal-cli"
+        if os.path.exists(bundled_path):
+            logger.info(f"Found bundled signal-cli: {bundled_path}")
+            return os.path.abspath(bundled_path)
+
+    raise FileNotFoundError(
+        "signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in config.ini."
+    )
+
+
 class SignalManager:
     """Manages the signal-cli subprocess."""
 
@@ -77,43 +111,9 @@ class SignalManager:
         self.host = host
         self.port = port
         self.process = None
-        self.executable = self._find_executable()
+        self.executable = find_signal_cli_executable()
         self.log_file_handle = None
         self.env = get_signal_cli_env()
-
-    def _find_executable(self) -> str:
-        """Finds the signal-cli executable."""
-        # First check for bundled signal-cli (PyInstaller)
-        bundled = get_bundled_signal_cli_path()
-        if bundled:
-            return bundled
-
-        if SIGNAL_CLI_PATH:
-            if os.path.exists(SIGNAL_CLI_PATH):
-                logger.info(f"Found signal-cli from config: {SIGNAL_CLI_PATH}")
-                return SIGNAL_CLI_PATH
-            else:
-                logger.warning(f"Configured signal_cli_path '{SIGNAL_CLI_PATH}' does not exist.")
-
-        if path := shutil.which("signal-cli"):
-            logger.info(f"Found signal-cli in PATH: {path}")
-            return path
-
-        # Check for signal-cli in project directory (development)
-        bundled_path = "./signal-cli-0.14.1/bin/signal-cli"
-        if os.path.exists(bundled_path):
-            logger.info(f"Found bundled signal-cli: {bundled_path}")
-            return os.path.abspath(bundled_path)
-
-        # Also check older version
-        bundled_path_old = "./signal-cli-0.13.23/bin/signal-cli"
-        if os.path.exists(bundled_path_old):
-            logger.info(f"Found bundled signal-cli: {bundled_path_old}")
-            return os.path.abspath(bundled_path_old)
-
-        raise FileNotFoundError(
-            "signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in config.ini."
-        )
 
     def start(self) -> None:
         """Starts the signal-cli daemon."""
@@ -232,406 +232,3 @@ def get_existing_accounts() -> list[dict]:
 
     logger.info(f"Total accounts found: {len(accounts)}")
     return accounts
-
-
-class SignalLinker:
-    """Handles Signal account linking via QR code."""
-
-    def __init__(self, device_name: str = "Oden"):
-        self.device_name = device_name
-        self.executable = self._find_executable()
-        self.env = get_signal_cli_env()
-        self.process: subprocess.Popen | None = None
-        self.link_uri: str | None = None
-        self.linked_number: str | None = None
-        self.error: str | None = None
-        self.status: str = "idle"  # idle, waiting, linked, error, timeout
-
-    def _find_executable(self) -> str:
-        """Finds the signal-cli executable."""
-        bundled = get_bundled_signal_cli_path()
-        if bundled:
-            return bundled
-
-        if SIGNAL_CLI_PATH and os.path.exists(SIGNAL_CLI_PATH):
-            return SIGNAL_CLI_PATH
-
-        if path := shutil.which("signal-cli"):
-            return path
-
-        # Check for signal-cli in project directory
-        for version in ["0.14.1", "0.13.23"]:
-            bundled_path = f"./signal-cli-{version}/bin/signal-cli"
-            if os.path.exists(bundled_path):
-                return os.path.abspath(bundled_path)
-
-        raise FileNotFoundError("signal-cli executable not found.")
-
-    async def start_link(self) -> str | None:
-        """Start the linking process and return the device link URI.
-
-        Returns:
-            The sgnl:// URI for QR code generation, or None if failed.
-        """
-        self.status = "waiting"
-        self.link_uri = None
-        self.linked_number = None
-        self.error = None
-
-        command = [
-            self.executable,
-            "link",
-            "-n",
-            self.device_name,
-        ]
-
-        logger.info(f"Starting signal-cli link: {' '.join(command)}")
-
-        try:
-            self.process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=self.env,
-            )
-
-            # Read lines from stdout looking for the link URI.
-            # signal-cli may output warnings or other text before the
-            # actual sgnl:// URI, so we scan multiple lines.
-            non_uri_lines: list[str] = []
-            if self.process.stdout:
-                try:
-                    loop = asyncio.get_running_loop()
-                    deadline = loop.time() + 30.0
-                    while True:
-                        remaining = deadline - loop.time()
-                        if remaining <= 0:
-                            raise asyncio.TimeoutError()
-                        line = await asyncio.wait_for(
-                            self.process.stdout.readline(),
-                            timeout=remaining,
-                        )
-                        if not line:
-                            # EOF – process closed stdout without
-                            # producing a link URI
-                            break
-                        text = line.decode("utf-8").strip()
-                        if text.startswith("sgnl://"):
-                            self.link_uri = text
-                            logger.info(f"Got link URI: {text[:50]}...")
-                            return text
-                        if text:
-                            non_uri_lines.append(text)
-                            logger.debug("signal-cli output (not URI): %s", text)
-                except asyncio.TimeoutError:
-                    self.status = "error"
-                    self.error = _LINK_URI_TIMEOUT_MSG
-                    if non_uri_lines:
-                        logger.error(
-                            "Timeout waiting for link URI. signal-cli output so far: %s",
-                            "\n".join(non_uri_lines),
-                        )
-                    await self.cancel()
-                    return None
-
-            # Collect stderr for diagnostics
-            stderr_text = ""
-            if self.process.stderr:
-                try:
-                    stderr_data = await asyncio.wait_for(self.process.stderr.read(), timeout=2.0)
-                    stderr_text = stderr_data.decode("utf-8").strip()
-                except asyncio.TimeoutError:
-                    pass
-
-            self.status = "error"
-            if non_uri_lines:
-                logger.error(
-                    "No link URI found in signal-cli output: %s",
-                    "\n".join(non_uri_lines),
-                )
-            if stderr_text:
-                logger.error("signal-cli stderr: %s", stderr_text)
-
-            self.error = (
-                f"Kunde inte hämta länk-URI från signal-cli: {stderr_text}"
-                if stderr_text
-                else "Kunde inte hämta länk-URI från signal-cli"
-            )
-            return None
-
-        except asyncio.TimeoutError:
-            self.status = "error"
-            self.error = _LINK_URI_TIMEOUT_MSG
-            await self.cancel()
-            return None
-        except Exception as e:
-            self.status = "error"
-            self.error = str(e)
-            logger.error(f"Error starting link: {e}")
-            return None
-
-    async def wait_for_link(self, timeout: float = 60.0) -> bool:
-        """Wait for the linking to complete.
-
-        Args:
-            timeout: Maximum seconds to wait for linking.
-
-        Returns:
-            True if successfully linked, False otherwise.
-        """
-        if not self.process:
-            return False
-
-        try:
-            # Wait for process to complete (user scans QR code)
-            stdout, stderr = await asyncio.wait_for(
-                self.process.communicate(),
-                timeout=timeout,
-            )
-
-            if self.process.returncode == 0:
-                # Try to extract the phone number from output
-                output = stdout.decode("utf-8") if stdout else ""
-                # signal-cli outputs the number on success
-                for line in output.split("\n"):
-                    line = line.strip()
-                    if line.startswith("+"):
-                        self.linked_number = line
-                        break
-
-                self.status = "linked"
-                logger.info(f"Successfully linked to number: {self.linked_number}")
-                return True
-            else:
-                error_output = stderr.decode("utf-8") if stderr else "Unknown error"
-                self.status = "error"
-                if "Invalid ACI" in error_output:
-                    self.error = (
-                        "Länkning misslyckades: signal-cli-versionen är för gammal. "
-                        "Uppdatera till signal-cli 0.14.0 eller nyare för att åtgärda detta."
-                    )
-                else:
-                    self.error = error_output
-                logger.error(f"Link failed: {error_output}")
-                return False
-
-        except asyncio.TimeoutError:
-            self.status = "timeout"
-            self.error = "Timeout waiting for QR code scan"
-            logger.warning("Link timeout - user did not scan QR code in time")
-            await self.cancel()
-            return False
-        except Exception as e:
-            self.status = "error"
-            self.error = str(e)
-            logger.error(f"Error during linking: {e}")
-            return False
-
-    async def cancel(self) -> None:
-        """Cancel the linking process."""
-        if self.process:
-            try:
-                self.process.terminate()
-                await asyncio.wait_for(self.process.wait(), timeout=5.0)
-            except (asyncio.TimeoutError, ProcessLookupError):
-                with contextlib.suppress(ProcessLookupError):
-                    self.process.kill()
-            self.process = None
-
-    def get_manual_instructions(self) -> str:
-        """Get manual linking instructions for terminal."""
-        return f"""
-## Manuell Signal-länkning
-
-Länkningen tog för lång tid. Följ dessa steg i terminalen:
-
-1. Öppna Terminal
-
-2. Kör följande kommando:
-   {self.executable} link -n "{self.device_name}"
-
-3. En QR-kod visas. Scanna den med Signal-appen:
-   - Öppna Signal på din telefon
-   - Gå till Inställningar → Länkade enheter
-   - Tryck på "+" eller "Länka ny enhet"
-   - Scanna QR-koden
-
-4. När länkningen är klar, skriv in ditt telefonnummer i fältet ovan
-   och klicka "Spara konfiguration".
-"""
-
-
-class SignalRegistrar:
-    """Handles Signal account registration with CAPTCHA support."""
-
-    def __init__(self) -> None:
-        self.executable = self._find_executable()
-        self.env = get_signal_cli_env()
-        self.phone_number: str | None = None
-        self.use_voice: bool = False
-        self.needs_captcha: bool = False
-        self.captcha_url: str = "https://signalcaptchas.org/registration/generate.html"
-        self.error: str | None = None
-        self.status: str = "idle"  # idle, awaiting_captcha, awaiting_code, registered, error
-
-    def _find_executable(self) -> str:
-        """Finds the signal-cli executable."""
-        bundled = get_bundled_signal_cli_path()
-        if bundled:
-            return bundled
-
-        if SIGNAL_CLI_PATH and os.path.exists(SIGNAL_CLI_PATH):
-            return SIGNAL_CLI_PATH
-
-        if path := shutil.which("signal-cli"):
-            return path
-
-        # Check for signal-cli in project directory
-        for version in ["0.14.1", "0.13.23"]:
-            bundled_path = f"./signal-cli-{version}/bin/signal-cli"
-            if os.path.exists(bundled_path):
-                return os.path.abspath(bundled_path)
-
-        raise FileNotFoundError("signal-cli executable not found.")
-
-    async def start_register(
-        self, phone_number: str, use_voice: bool = False, captcha_token: str | None = None
-    ) -> dict:
-        """Start the registration process.
-
-        Args:
-            phone_number: Phone number in international format (e.g., +46701234567)
-            use_voice: If True, request voice call instead of SMS
-            captcha_token: Optional CAPTCHA token if required
-
-        Returns:
-            dict with keys: success, needs_captcha, error, status
-        """
-        self.phone_number = phone_number
-        self.use_voice = use_voice
-        self.error = None
-
-        command = [self.executable, "-u", phone_number, "register"]
-
-        if use_voice:
-            command.append("--voice")
-
-        if captcha_token:
-            command.extend(["--captcha", captcha_token])
-
-        logger.info(f"Starting registration: {' '.join(command[:4])}...")
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=self.env,
-            )
-
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60.0)
-
-            stdout_text = stdout.decode("utf-8") if stdout else ""
-            stderr_text = stderr.decode("utf-8") if stderr else ""
-
-            if process.returncode == 0:
-                self.status = "awaiting_code"
-                self.needs_captcha = False
-                logger.info(f"Registration started for {phone_number}, awaiting verification code")
-                return {
-                    "success": True,
-                    "needs_captcha": False,
-                    "status": "awaiting_code",
-                    "message": f"Verifieringskod skickad till {phone_number} via {'samtal' if use_voice else 'SMS'}",
-                }
-
-            # Check if CAPTCHA is required
-            combined_output = (stdout_text + stderr_text).lower()
-            if "captcha" in combined_output:
-                self.status = "awaiting_captcha"
-                self.needs_captcha = True
-                logger.info("CAPTCHA required for registration")
-                return {
-                    "success": False,
-                    "needs_captcha": True,
-                    "status": "awaiting_captcha",
-                    "captcha_url": self.captcha_url,
-                    "message": "CAPTCHA krävs. Lös CAPTCHA och klistra in länken.",
-                }
-
-            # Other error
-            self.status = "error"
-            self.error = stderr_text or stdout_text or "Registrering misslyckades"
-            logger.error(f"Registration failed: {self.error}")
-            return {
-                "success": False,
-                "needs_captcha": False,
-                "status": "error",
-                "error": self.error,
-            }
-
-        except asyncio.TimeoutError:
-            self.status = "error"
-            self.error = "Timeout vid registrering"
-            logger.error("Registration timeout")
-            return {"success": False, "status": "error", "error": self.error}
-        except Exception as e:
-            self.status = "error"
-            self.error = str(e)
-            logger.error(f"Registration error: {e}")
-            return {"success": False, "status": "error", "error": self.error}
-
-    async def verify(self, code: str) -> dict:
-        """Verify the registration with the received code.
-
-        Args:
-            code: The verification code received via SMS or voice call
-
-        Returns:
-            dict with keys: success, error, phone_number
-        """
-        if not self.phone_number:
-            return {"success": False, "error": "Inget telefonnummer registrerat"}
-
-        # Remove any spaces or dashes from code
-        code = code.replace(" ", "").replace("-", "")
-
-        command = [self.executable, "-u", self.phone_number, "verify", code]
-
-        logger.info(f"Verifying registration for {self.phone_number}")
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=self.env,
-            )
-
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
-
-            if process.returncode == 0:
-                self.status = "registered"
-                logger.info(f"Successfully registered {self.phone_number}")
-                return {
-                    "success": True,
-                    "status": "registered",
-                    "phone_number": self.phone_number,
-                    "message": f"Nummer {self.phone_number} registrerat!",
-                }
-
-            stderr_text = stderr.decode("utf-8") if stderr else ""
-            self.status = "error"
-            self.error = stderr_text or "Verifiering misslyckades"
-            logger.error(f"Verification failed: {self.error}")
-            return {"success": False, "status": "error", "error": self.error}
-
-        except asyncio.TimeoutError:
-            self.status = "error"
-            self.error = "Timeout vid verifiering"
-            return {"success": False, "status": "error", "error": self.error}
-        except Exception as e:
-            self.status = "error"
-            self.error = str(e)
-            logger.error(f"Verification error: {e}")
-            return {"success": False, "status": "error", "error": self.error}

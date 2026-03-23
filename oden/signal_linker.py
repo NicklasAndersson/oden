@@ -1,0 +1,220 @@
+"""Signal account linking via QR code."""
+
+import asyncio
+import contextlib
+import logging
+
+from oden.signal_manager import (
+    _LINK_URI_TIMEOUT_MSG,
+    find_signal_cli_executable,
+    get_signal_cli_env,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SignalLinker:
+    """Handles Signal account linking via QR code."""
+
+    def __init__(self, device_name: str = "Oden"):
+        self.device_name = device_name
+        self.executable = find_signal_cli_executable()
+        self.env = get_signal_cli_env()
+        self.process: asyncio.subprocess.Process | None = None
+        self.link_uri: str | None = None
+        self.linked_number: str | None = None
+        self.error: str | None = None
+        self.status: str = "idle"  # idle, waiting, linked, error, timeout
+
+    async def start_link(self) -> str | None:
+        """Start the linking process and return the device link URI.
+
+        Returns:
+            The sgnl:// URI for QR code generation, or None if failed.
+        """
+        self.status = "waiting"
+        self.link_uri = None
+        self.linked_number = None
+        self.error = None
+
+        command = [
+            self.executable,
+            "link",
+            "-n",
+            self.device_name,
+        ]
+
+        logger.info(f"Starting signal-cli link: {' '.join(command)}")
+
+        try:
+            self.process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self.env,
+            )
+
+            # Read lines from stdout looking for the link URI.
+            # signal-cli may output warnings or other text before the
+            # actual sgnl:// URI, so we scan multiple lines.
+            non_uri_lines: list[str] = []
+            if self.process.stdout:
+                try:
+                    loop = asyncio.get_running_loop()
+                    deadline = loop.time() + 30.0
+                    while True:
+                        remaining = deadline - loop.time()
+                        if remaining <= 0:
+                            raise asyncio.TimeoutError()
+                        line = await asyncio.wait_for(
+                            self.process.stdout.readline(),
+                            timeout=remaining,
+                        )
+                        if not line:
+                            # EOF – process closed stdout without
+                            # producing a link URI
+                            break
+                        text = line.decode("utf-8").strip()
+                        if text.startswith("sgnl://"):
+                            self.link_uri = text
+                            logger.info(f"Got link URI: {text[:50]}...")
+                            return text
+                        if text:
+                            non_uri_lines.append(text)
+                            logger.debug("signal-cli output (not URI): %s", text)
+                except asyncio.TimeoutError:
+                    self.status = "error"
+                    self.error = _LINK_URI_TIMEOUT_MSG
+                    if non_uri_lines:
+                        logger.error(
+                            "Timeout waiting for link URI. signal-cli output so far: %s",
+                            "\n".join(non_uri_lines),
+                        )
+                    await self.cancel()
+                    return None
+
+            # Collect stderr for diagnostics
+            stderr_text = ""
+            if self.process.stderr:
+                try:
+                    stderr_data = await asyncio.wait_for(self.process.stderr.read(), timeout=2.0)
+                    stderr_text = stderr_data.decode("utf-8").strip()
+                except asyncio.TimeoutError:
+                    pass
+
+            self.status = "error"
+            if non_uri_lines:
+                logger.error(
+                    "No link URI found in signal-cli output: %s",
+                    "\n".join(non_uri_lines),
+                )
+            if stderr_text:
+                logger.error("signal-cli stderr: %s", stderr_text)
+
+            self.error = (
+                f"Kunde inte hämta länk-URI från signal-cli: {stderr_text}"
+                if stderr_text
+                else "Kunde inte hämta länk-URI från signal-cli"
+            )
+            return None
+
+        except asyncio.TimeoutError:
+            self.status = "error"
+            self.error = _LINK_URI_TIMEOUT_MSG
+            await self.cancel()
+            return None
+        except Exception as e:
+            self.status = "error"
+            self.error = str(e)
+            logger.error(f"Error starting link: {e}")
+            return None
+
+    async def wait_for_link(self, timeout: float = 60.0) -> bool:
+        """Wait for the linking to complete.
+
+        Args:
+            timeout: Maximum seconds to wait for linking.
+
+        Returns:
+            True if successfully linked, False otherwise.
+        """
+        if not self.process:
+            return False
+
+        try:
+            # Wait for process to complete (user scans QR code)
+            stdout, stderr = await asyncio.wait_for(
+                self.process.communicate(),
+                timeout=timeout,
+            )
+
+            if self.process.returncode == 0:
+                # Try to extract the phone number from output
+                output = stdout.decode("utf-8") if stdout else ""
+                # signal-cli outputs the number on success
+                for line in output.split("\n"):
+                    line = line.strip()
+                    if line.startswith("+"):
+                        self.linked_number = line
+                        break
+
+                self.status = "linked"
+                logger.info(f"Successfully linked to number: {self.linked_number}")
+                return True
+            else:
+                error_output = stderr.decode("utf-8") if stderr else "Unknown error"
+                self.status = "error"
+                if "Invalid ACI" in error_output:
+                    self.error = (
+                        "Länkning misslyckades: signal-cli-versionen är för gammal. "
+                        "Uppdatera till signal-cli 0.14.0 eller nyare för att åtgärda detta."
+                    )
+                else:
+                    self.error = error_output
+                logger.error(f"Link failed: {error_output}")
+                return False
+
+        except asyncio.TimeoutError:
+            self.status = "timeout"
+            self.error = "Timeout waiting for QR code scan"
+            logger.warning("Link timeout - user did not scan QR code in time")
+            await self.cancel()
+            return False
+        except Exception as e:
+            self.status = "error"
+            self.error = str(e)
+            logger.error(f"Error during linking: {e}")
+            return False
+
+    async def cancel(self) -> None:
+        """Cancel the linking process."""
+        if self.process:
+            try:
+                self.process.terminate()
+                await asyncio.wait_for(self.process.wait(), timeout=5.0)
+            except (asyncio.TimeoutError, ProcessLookupError):
+                with contextlib.suppress(ProcessLookupError):
+                    self.process.kill()
+            self.process = None
+
+    def get_manual_instructions(self) -> str:
+        """Get manual linking instructions for terminal."""
+        return f"""
+## Manuell Signal-länkning
+
+Länkningen tog för lång tid. Följ dessa steg i terminalen:
+
+1. Öppna Terminal
+
+2. Kör följande kommando:
+   {self.executable} link -n "{self.device_name}"
+
+3. En QR-kod visas. Scanna den med Signal-appen:
+   - Öppna Signal på din telefon
+   - Gå till Inställningar → Länkade enheter
+   - Tryck på "+" eller "Länka ny enhet"
+   - Scanna QR-koden
+
+4. När länkningen är klar, skriv in ditt telefonnummer i fältet ovan
+   och klicka "Spara konfiguration".
+"""

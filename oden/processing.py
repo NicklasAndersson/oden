@@ -9,7 +9,6 @@ from typing import Any
 
 from oden import config as cfg
 from oden.attachment_handler import save_attachments
-from oden.config_db import get_response_by_keyword, upsert_group
 from oden.formatting import (
     _format_quote,
     create_fileid,
@@ -18,7 +17,9 @@ from oden.formatting import (
     get_message_filepath,
     get_safe_group_dir_path,
 )
+from oden.groups_db import upsert_group
 from oden.link_formatter import apply_regex_links
+from oden.responses_db import get_response_by_keyword
 from oden.template_loader import render_append, render_report
 
 logger = logging.getLogger(__name__)

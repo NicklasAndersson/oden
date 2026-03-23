@@ -80,3 +80,51 @@ def apply_log_level(level: int) -> None:
     for handler in root.handlers:
         handler.setLevel(level)
     logger.info("Log level set to %s", logging.getLevelName(level))
+
+
+def configure_logging() -> None:
+    """Configure logging with console output, file output, and in-memory buffer.
+
+    The log level is read from a persistent file next to the config database.
+    If the file doesn't exist (first run / setup), DEBUG is used so that all
+    setup activity is captured. After setup completes, the configured level
+    is written to the file and applied via apply_log_level().
+    """
+    from logging.handlers import RotatingFileHandler
+    from pathlib import Path
+
+    from oden.config import LOG_FILE
+    from oden.log_buffer import get_log_buffer
+
+    level = read_log_level()
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # File handler with rotation (5MB max, keep 3 backups)
+    if LOG_FILE:
+        try:
+            log_path = Path(LOG_FILE).expanduser()
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+            file_handler.setLevel(level)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+            root_logger.info(f"Logging to file: {log_path}")
+        except Exception as e:
+            root_logger.warning(f"Could not set up file logging: {e}")
+
+    # In-memory log buffer for web GUI
+    log_buffer = get_log_buffer()
+    log_buffer.setLevel(level)
+    root_logger.addHandler(log_buffer)
+
+    root_logger.info(f"Logging initialized at {logging.getLevelName(level)} level")
