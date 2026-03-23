@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-03-23
+
+### 🚀 Oden 2.0
+
+Uppgraderad signal-cli, buggfixar och förbättrad kodbas sedan 1.0.0.
+
+### Changed
+
+- **Uppgraderad signal-cli**: Från 0.13.23 till 0.14.1, fixar "Invalid ACI"-felet
+- **Förbättrad kodkvalitet**: Använder `get_running_loop()`, extraherad timeout-konstant, förbättrad läsbarhet
+
+### Fixed
+
+- **macOS JRE-sökväg**: Korrigerad sökvägsstruktur för bundlad Java (`Contents/Home/bin/java`)
+- **Signal-länkning**: `start_link()` skannar nu flera stdout-rader för `sgnl://`-URI
+- **++ append fallback**: Append-läge faller igenom till ny fil vid misslyckande istället för att tyst tappa meddelandet
+- **Dokumentation**: Korrigerade 5 API-endpointvägar och 3 auth-markeringar i WEB_GUI.md, filnamnsformat i FEATURES.md
+
+### Added
+
+- **Fler API-tester**: 40 nya endpointtester för svar, mallar och INI import/export (178 → 218 tester)
+
 ## [1.0.0] - 2026-02-10
 
 ### 🎉 Oden 1.0 — Production-ready release
