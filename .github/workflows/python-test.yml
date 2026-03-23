@@ -76,7 +76,7 @@ jobs:
         pytest tests/test_web_gui.py -v
     - name: Upload screenshots
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: gui-screenshots
         path: screenshots/
