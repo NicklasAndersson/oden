@@ -46,7 +46,7 @@ class SignalRegistrar:
         if captcha_token:
             command.extend(["--captcha", captcha_token])
 
-        logger.info(f"Starting registration: {' '.join(command[:4])}...")
+        logger.info("Starting registration (use_voice=%s, has_captcha=%s)", use_voice, bool(captcha_token))
 
         try:
             process = await asyncio.create_subprocess_exec(

@@ -47,7 +47,7 @@ async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] 
                 "params": {"account": cfg.SIGNAL_NUMBER, "recipient": [cfg.SIGNAL_NUMBER], "message": message},
                 "id": request_id,
             }
-            logger.info(f"Sending startup message to {cfg.SIGNAL_NUMBER}...")
+            logger.info("Sending startup message to configured account...")
             writer.write((json.dumps(json_request) + "\n").encode("utf-8"))
             await writer.drain()
             logger.info("Startup message sent to self.")

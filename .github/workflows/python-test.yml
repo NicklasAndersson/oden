@@ -73,7 +73,7 @@ jobs:
         playwright install chromium --with-deps
     - name: Run GUI tests with screenshots
       run: |
-        pytest tests/test_web_gui.py -v
+        pytest tests/test_web_screenshots.py -v
     - name: Upload screenshots
       if: always()
       uses: actions/upload-artifact@v7

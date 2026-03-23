@@ -19,8 +19,6 @@ from oden.config import SIGNAL_CLI_LOG_FILE, SIGNAL_CLI_PATH, SIGNAL_DATA_PATH
 
 logger = logging.getLogger(__name__)
 
-_LINK_URI_TIMEOUT_MSG = "Tidsgränsen överskreds i väntan på länk-URI från signal-cli"
-
 
 def get_bundled_signal_cli_path() -> str | None:
     """Get path to bundled signal-cli."""

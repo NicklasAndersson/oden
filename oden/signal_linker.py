@@ -5,12 +5,13 @@ import contextlib
 import logging
 
 from oden.signal_manager import (
-    _LINK_URI_TIMEOUT_MSG,
     find_signal_cli_executable,
     get_signal_cli_env,
 )
 
 logger = logging.getLogger(__name__)
+
+_LINK_URI_TIMEOUT_MSG = "Tidsgränsen överskreds i väntan på länk-URI från signal-cli"
 
 
 class SignalLinker:
