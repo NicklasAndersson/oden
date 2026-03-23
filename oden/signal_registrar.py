@@ -64,7 +64,7 @@ class SignalRegistrar:
             if process.returncode == 0:
                 self.status = "awaiting_code"
                 self.needs_captcha = False
-                logger.info(f"Registration started for {phone_number}, awaiting verification code")
+                logger.info("Registration started, awaiting verification code")
                 return {
                     "success": True,
                     "needs_captcha": False,
@@ -125,7 +125,7 @@ class SignalRegistrar:
 
         command = [self.executable, "-u", self.phone_number, "verify", code]
 
-        logger.info(f"Verifying registration for {self.phone_number}")
+        logger.info("Verifying registration code")
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -139,7 +139,7 @@ class SignalRegistrar:
 
             if process.returncode == 0:
                 self.status = "registered"
-                logger.info(f"Successfully registered {self.phone_number}")
+                logger.info("Registration verified successfully")
                 return {
                     "success": True,
                     "status": "registered",

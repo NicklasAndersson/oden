@@ -3,8 +3,6 @@
 Tests use aiohttp's built-in test client (no browser needed).
 """
 
-import unittest
-
 from aiohttp.test_utils import AioHTTPTestCase
 
 from oden.web_server import create_app
