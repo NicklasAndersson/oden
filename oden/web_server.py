@@ -92,6 +92,7 @@ PROTECTED_ENDPOINTS = {
     "/api/accounts/activate",  # POST - switch active account
     "/api/contacts/refresh",  # POST - re-fetch contacts from signal-cli
     "/api/groups/update",  # POST - update group settings
+    "/api/groups",  # GET - list groups (contains member details)
     "/api/signal-config",  # POST - update Signal protocol settings
 }
 

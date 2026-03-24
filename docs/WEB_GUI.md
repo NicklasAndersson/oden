@@ -63,7 +63,8 @@ Listar alla Signal-grupper som kontot är medlem i.
 | **Ignorera-knapp** | Lägger till/tar bort gruppen i `ignored_groups` |
 | **Whitelist-knapp** | Lägger till/tar bort gruppen i `whitelisted_groups` |
 | **Gå med via länk** | Textfält för att klistra in en `https://signal.group/…`-inbjudningslänk |
-| **Väntande inbjudningar** | Listar grupper som Oden har blivit inbjuden till, med Acceptera/Avböj-knappar || **Redigera grupp** | Modal för gruppadministration (namn, beskrivning, medlemmar, behörigheter, grupplänk, försvinnande meddelanden). Visas bara för grupper där Oden är administratör |
+| **Väntande inbjudningar** | Listar grupper som Oden har blivit inbjuden till, med Acceptera/Avböj-knappar |
+| **Redigera grupp** | Modal för gruppadministration (namn, beskrivning, medlemmar, behörigheter, grupplänk, försvinnande meddelanden). Visas bara för grupper där Oden är administratör |
 
 #### Kontakter
 

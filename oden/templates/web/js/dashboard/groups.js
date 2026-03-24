@@ -1,4 +1,4 @@
-// groups.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMsg,
+// groups.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMessage,
 //              currentIgnoredGroups, currentWhitelistGroups)
 //
 // Fetches and renders the groups list, handles ignore/whitelist toggles,
@@ -9,7 +9,10 @@ let _groupsCache = [];
 
 async function fetchGroups() {
     try {
-        const response = await fetch('/api/groups');
+        const token = getApiToken();
+        const response = await fetch('/api/groups', {
+            headers: token ? {'Authorization': 'Bearer ' + token} : {}
+        });
         const data = await response.json();
         const container = document.getElementById('groups-container');
         currentIgnoredGroups = data.ignoredGroups || [];
@@ -69,13 +72,16 @@ function openGroupEditModal(groupId) {
     document.getElementById('group-edit-perm-send').value = group.permissionSendMessages || 'every-member';
     document.getElementById('group-edit-title').textContent = 'Redigera: ' + (group.name || 'Grupp');
 
-    // Determine link setting from URL presence
-    const link = group.groupInviteLink;
-    if (!link) {
-        document.getElementById('group-edit-link').value = 'disabled';
+    // Determine link setting; signal-cli only provides the URL, not the mode,
+    // so we cannot distinguish 'enabled' from 'enabled-with-approval' here.
+    // Store the original value to avoid sending unchanged settings on save.
+    const linkSelect = document.getElementById('group-edit-link');
+    if (!group.groupInviteLink) {
+        linkSelect.value = 'disabled';
     } else {
-        document.getElementById('group-edit-link').value = 'enabled';
+        linkSelect.value = 'enabled';
     }
+    linkSelect.dataset.original = linkSelect.value;
 
     _renderGroupMembers(group.members || []);
 
@@ -122,6 +128,7 @@ async function saveGroupChanges() {
     btn.textContent = 'Sparar...';
     msgDiv.textContent = '';
 
+    const linkSelect = document.getElementById('group-edit-link');
     const payload = {
         groupId: document.getElementById('group-edit-id').value,
         name: document.getElementById('group-edit-name').value,
@@ -130,8 +137,12 @@ async function saveGroupChanges() {
         setPermissionAddMember: document.getElementById('group-edit-perm-add').value,
         setPermissionEditDetails: document.getElementById('group-edit-perm-edit').value,
         setPermissionSendMessages: document.getElementById('group-edit-perm-send').value,
-        link: document.getElementById('group-edit-link').value,
     };
+    // Only send link if the user explicitly changed it (we cannot detect
+    // 'enabled' vs 'enabled-with-approval' from signal-cli data alone).
+    if (linkSelect.value !== linkSelect.dataset.original) {
+        payload.link = linkSelect.value;
+    }
 
     try {
         const token = await getApiToken();

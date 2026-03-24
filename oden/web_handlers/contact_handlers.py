@@ -63,7 +63,20 @@ async def update_contact_handler(request: web.Request) -> web.Response:
             params[field] = str(data[field])
 
     if "expiration" in data:
-        params["expiration"] = int(data["expiration"])
+        try:
+            params["expiration"] = int(data["expiration"])
+        except (TypeError, ValueError):
+            return web.json_response(
+                {"success": False, "error": "Ogiltigt värde för expiration; måste vara ett heltal"},
+                status=400,
+            )
+
+    # Reject no-op updates (only account + recipient, no actual changes)
+    if len(params) <= 2:
+        return web.json_response(
+            {"success": False, "error": "Inga uppdateringsbara fält angavs"},
+            status=400,
+        )
 
     app_state = get_app_state()
     result = await app_state.send_jsonrpc("updateContact", params=params)

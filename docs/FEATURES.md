@@ -287,7 +287,7 @@ I webbgränssnittet kan kontakter redigeras via en redigeringsmodal.
 | **Anteckning** | Fritext-anteckning om kontakten |
 | **Försvinnande meddelanden** | Timer för hela konversationen (av, 1 tim, 1 dag, 1 vecka, 4 veckor) |
 
-> Kontaktnamn används för namupplösning i rapporter och gruppmedlemslistor.
+> Kontaktnamn används för namnupplösning i rapporter och gruppmedlemslistor.
 ---
 
 ## Multi-account-stöd

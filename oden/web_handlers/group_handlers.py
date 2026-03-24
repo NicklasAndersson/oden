@@ -282,7 +282,6 @@ async def decline_invitation_handler(request: web.Request) -> web.Response:
 
 @handle_errors("update group")
 @parse_json_body
-@require_writer
 async def update_group_handler(request: web.Request) -> web.Response:
     """Update group settings via signal-cli updateGroup RPC."""
     data = request["json_body"]
@@ -306,14 +305,34 @@ async def update_group_handler(request: web.Request) -> web.Response:
             params[field] = data[field]
 
     if "expiration" in data:
-        params["expiration"] = int(data["expiration"])
+        try:
+            params["expiration"] = int(data["expiration"])
+        except (TypeError, ValueError):
+            return web.json_response(
+                {"success": False, "error": "Ogiltigt värde för expiration; måste vara ett heltal"},
+                status=400,
+            )
 
     # Pass through list fields
     for list_field in ("member", "removeMember", "admin", "removeAdmin", "ban", "unban"):
         if list_field in data and data[list_field]:
             params[list_field] = data[list_field]
 
+    # Reject no-op updates (only account + groupId, no actual changes)
+    if len(params) <= 2:
+        return web.json_response(
+            {"success": False, "error": "Inga uppdateringsbara fält angavs"},
+            status=400,
+        )
+
+    # Check writer after validation so missing fields return 400, not 503
     app_state = get_app_state()
+    if not app_state.writer:
+        return web.json_response(
+            {"success": False, "error": "Inte ansluten till signal-cli"},
+            status=503,
+        )
+
     result = await app_state.send_jsonrpc("updateGroup", params=params)
 
     if result is None:
@@ -330,7 +349,7 @@ async def update_group_handler(request: web.Request) -> web.Response:
     )
     if refresh and "result" in refresh:
         app_state.update_groups(refresh["result"])
-        upsert_groups_bulk(CONFIG_DB, refresh["result"])
+        upsert_groups_bulk(cfg.CONFIG_DB, refresh["result"])
 
     logger.info("Group %s updated", group_id)
     return web.json_response({"success": True})

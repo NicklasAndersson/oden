@@ -45,7 +45,9 @@ class TestWebAPIEndpoints(AioHTTPTestCase):
         self.assertEqual(resp.content_type, "application/json")
 
     async def test_api_groups_returns_json(self):
-        resp = await self.client.get("/api/groups")
+        resp = await self.client.get("/api/token")
+        token = (await resp.json())["token"]
+        resp = await self.client.get("/api/groups", headers={"Authorization": f"Bearer {token}"})
         self.assertEqual(resp.status, 200)
         self.assertEqual(resp.content_type, "application/json")
 
@@ -283,9 +285,9 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         resp = await self.client.get("/api/logs")
         self.assertEqual(resp.status, 200)
 
-    async def test_unprotected_groups_works_without_token(self):
+    async def test_protected_groups_rejects_without_token(self):
         resp = await self.client.get("/api/groups")
-        self.assertEqual(resp.status, 200)
+        self.assertEqual(resp.status, 401)
 
     async def test_refresh_groups_rejects_without_token(self):
         resp = await self.client.post("/api/groups/refresh")
@@ -522,8 +524,7 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
             json={"name": "New Name"},
             headers=self._auth_header(token),
         )
-        # 503 because require_writer runs before body validation (no signal-cli in test)
-        self.assertIn(resp.status, (400, 503))
+        self.assertEqual(resp.status, 400)
 
     # ------------------------------------------------------------------
     # /api/contacts/{number} PUT (prefix-protected via /api/contacts/)

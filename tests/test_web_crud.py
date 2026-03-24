@@ -594,6 +594,14 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
     async def get_application(self):
         return create_app(setup_mode=False)
 
+    async def _get_valid_token(self) -> str:
+        resp = await self.client.get("/api/token")
+        data = await resp.json()
+        return data["token"]
+
+    def _auth_header(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_all_groups", return_value=[])
     @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
     async def test_groups_response_includes_whitelist(self, mock_cfg, _mock_db):
@@ -611,7 +619,8 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
             ]
         )
 
-        resp = await self.client.get("/api/groups")
+        token = await self._get_valid_token()
+        resp = await self.client.get("/api/groups", headers=self._auth_header(token))
         data = await resp.json()
         self.assertEqual(data["whitelistGroups"], ["Alpha", "Bravo"])
         self.assertEqual(data["ignoredGroups"], [])
@@ -649,7 +658,8 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
             ]
         )
 
-        resp = await self.client.get("/api/groups")
+        token = await self._get_valid_token()
+        resp = await self.client.get("/api/groups", headers=self._auth_header(token))
         data = await resp.json()
         names = {g["name"] for g in data["groups"]}
         self.assertIn("DB Only", names)
