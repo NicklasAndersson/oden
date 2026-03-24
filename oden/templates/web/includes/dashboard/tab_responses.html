@@ -1,0 +1,36 @@
+{#- Tab: Svar (command responses) -#}
+<div id="tab-responses" class="tab-content">
+    <div class="config-section">
+        <h3>💬 Kommandosvar</h3>
+        <p class="help-paragraph">
+            Hantera automatiska svar som skickas när användare skriver kommandon som <code>#help</code> eller <code>#ok</code>.
+            Varje svar kan ha flera nyckelord (t.ex. <code>help, hjälp</code>).
+        </p>
+
+        <div id="responses-list" style="margin-bottom: 20px;">
+            <div class="empty-state">Laddar svar...</div>
+        </div>
+
+        <div id="response-editor" class="response-editor hidden">
+            <h4 id="response-editor-title" class="pane-heading">Nytt svar</h4>
+            <input type="hidden" id="response-edit-id" value="">
+            <div class="config-field" style="margin-bottom: 10px;">
+                <label for="response-keywords">Nyckelord (kommaseparerade)</label>
+                <input type="text" id="response-keywords" placeholder="help, hjälp" class="response-input">
+                <span class="help-text">Utan #-tecken. Flera nyckelord separeras med komma.</span>
+            </div>
+            <div class="config-field" style="margin-bottom: 10px;">
+                <label for="response-body">Svarstext (Markdown)</label>
+                <textarea id="response-body" rows="10" placeholder="Skriv svarstext här..." class="response-textarea"></textarea>
+            </div>
+            <div class="config-actions">
+                <button type="button" class="btn btn-primary" onclick="saveResponse()">💾 Spara</button>
+                <button type="button" class="btn btn-secondary" onclick="cancelResponseEdit()">Avbryt</button>
+            </div>
+        </div>
+
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" onclick="newResponse()">➕ Nytt svar</button>
+        </div>
+    </div>
+</div>

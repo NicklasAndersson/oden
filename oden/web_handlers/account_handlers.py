@@ -17,8 +17,13 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.config import CONFIG_DB, SIGNAL_DATA_PATH, reload_config
-from oden.config_db import set_config_value
+from oden.config import SIGNAL_DATA_PATH
+from oden.web_handlers._helpers import (
+    handle_errors,
+    parse_json_body,
+    require_writer,
+    update_config_and_reload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +92,7 @@ def _read_accounts_from_disk(active_number: str) -> list[dict]:
     return accounts
 
 
+@require_writer
 async def accounts_link_handler(request: web.Request) -> web.Response:
     """Start linking a new Signal account via QR code.
 
@@ -96,11 +102,6 @@ async def accounts_link_handler(request: web.Request) -> web.Response:
     global _finish_link_task
 
     app_state = get_app_state()
-    if not app_state.writer:
-        return web.json_response(
-            {"success": False, "error": "Inte ansluten till signal-cli"},
-            status=503,
-        )
 
     # Cancel any existing link task
     if _finish_link_task and not _finish_link_task.done():
@@ -230,42 +231,37 @@ async def accounts_link_cancel_handler(request: web.Request) -> web.Response:
     return web.json_response({"success": True})
 
 
+@handle_errors("activate account")
+@parse_json_body
 async def accounts_activate_handler(request: web.Request) -> web.Response:
     """Set a specific account as the active account."""
-    try:
-        data = await request.json()
-        number = data.get("number", "").strip()
+    data = request["json_body"]
+    number = data.get("number", "").strip()
 
-        if not number:
-            return web.json_response(
-                {"success": False, "error": "Inget nummer angivet"},
-                status=400,
-            )
-
-        # Persist to config_db and reload
-        set_config_value(CONFIG_DB, "signal_number", number)
-        reload_config()
-
-        # Clear cached groups so they will be refreshed for the newly active account
-        app_state = get_app_state()
-        app_state.groups = []
-
-        logger.info(f"Active account changed to: {number}")
+    if not number:
         return web.json_response(
-            {
-                "success": True,
-                "message": f"Aktivt konto ändrat till {number}",
-                "number": number,
-            }
+            {"success": False, "error": "Inget nummer angivet"},
+            status=400,
         )
 
-    except json.JSONDecodeError:
-        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
-    except Exception as e:
-        logger.error(f"Error activating account: {e}")
-        return web.json_response({"success": False, "error": str(e)}, status=500)
+    # Persist to config_db and reload
+    update_config_and_reload("signal_number", number)
+
+    # Clear cached groups so they will be refreshed for the newly active account
+    app_state = get_app_state()
+    app_state.groups = []
+
+    logger.info(f"Active account changed to: {number}")
+    return web.json_response(
+        {
+            "success": True,
+            "message": f"Aktivt konto ändrat till {number}",
+            "number": number,
+        }
+    )
 
 
+@require_writer
 async def accounts_delete_handler(request: web.Request) -> web.Response:
     """Delete a Signal account's local data via JSON-RPC deleteLocalAccountData."""
     number = request.match_info.get("number", "").strip()
@@ -283,11 +279,6 @@ async def accounts_delete_handler(request: web.Request) -> web.Response:
         )
 
     app_state = get_app_state()
-    if not app_state.writer:
-        return web.json_response(
-            {"success": False, "error": "Inte ansluten till signal-cli"},
-            status=503,
-        )
 
     response = await app_state.send_jsonrpc(
         "deleteLocalAccountData",
@@ -400,22 +391,16 @@ async def accounts_force_delete_handler(request: web.Request) -> web.Response:
         )
 
 
+@handle_errors("list devices")
 async def accounts_devices_handler(request: web.Request) -> web.Response:
     """List linked devices for the active Signal account."""
     app_state = get_app_state()
 
-    try:
-        response = await app_state.send_jsonrpc(
-            "listDevices",
-            params={"account": cfg.SIGNAL_NUMBER},
-            timeout=10.0,
-        )
-        if response and "result" in response:
-            return web.json_response({"devices": response["result"]})
-        return web.json_response({"devices": []})
-    except Exception as e:
-        logger.error("Failed to list devices: %s", e)
-        return web.json_response(
-            {"success": False, "error": str(e)},
-            status=500,
-        )
+    response = await app_state.send_jsonrpc(
+        "listDevices",
+        params={"account": cfg.SIGNAL_NUMBER},
+        timeout=10.0,
+    )
+    if response and "result" in response:
+        return web.json_response({"devices": response["result"]})
+    return web.json_response({"devices": []})

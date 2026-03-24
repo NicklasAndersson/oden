@@ -25,7 +25,7 @@ async function loadAccounts() {
 
         // If not connected to signal-cli, show connecting state and auto-retry
         if (!connected && accounts.length === 0) {
-            warning.style.display = 'none';
+            warning.classList.add('hidden');
             container.innerHTML = '<div class="empty-state">⏳ Ansluter till signal-cli... Kontolistan laddas automatiskt.</div>';
             accountsRetryTimeout = setTimeout(loadAccounts, 3000);
             return;
@@ -33,11 +33,11 @@ async function loadAccounts() {
 
         // Show warning if active account is invalid (only when connected)
         if (!activeValid && data.active_number && connected) {
-            warning.style.display = 'block';
+            warning.classList.remove('hidden');
             document.getElementById('accounts-warning-text').textContent =
                 'Det konfigurerade kontot (' + escapeHtml(data.active_number) + ') finns inte bland de tillgängliga kontona. Välj ett giltigt konto eller lägg till ett nytt.';
         } else {
-            warning.style.display = 'none';
+            warning.classList.add('hidden');
         }
 
         if (accounts.length === 0) {
@@ -191,7 +191,7 @@ async function startAccountLink() {
     const doneBtn = document.getElementById('link-done-btn');
 
     // Show modal
-    modal.style.display = 'flex';
+    modal.classList.remove('hidden');
     qrContainer.innerHTML = '<div class="empty-state" style="color: #333;">Genererar QR-kod...</div>';
     statusText.textContent = 'Ansluter till signal-cli...';
     successDiv.style.display = 'none';
@@ -275,11 +275,11 @@ async function cancelAccountLink() {
         console.error('Failed to cancel account link on server:', error);
     }
 
-    document.getElementById('account-link-modal').style.display = 'none';
+    document.getElementById('account-link-modal').classList.add('hidden');
 }
 
 function finishAccountLink() {
-    document.getElementById('account-link-modal').style.display = 'none';
+    document.getElementById('account-link-modal').classList.add('hidden');
     loadAccounts();
 }
 

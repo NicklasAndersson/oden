@@ -1,0 +1,56 @@
+{#- Tab: Mallar (template editor) -#}
+<div id="tab-templates" class="tab-content">
+    <div class="config-section">
+        <h3>📝 Rapportmallar</h3>
+        <p class="help-paragraph">
+            Redigera Jinja2-mallar som används för att generera rapporter. Ändringar sparas i databasen.
+        </p>
+
+        <div style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center; flex-wrap: wrap;">
+            <div>
+                <label for="template-select" style="margin-right: 8px;">Mall:</label>
+                <select id="template-select" onchange="loadTemplate()">
+                    <option value="report.md.j2">Rapportmall (report.md.j2)</option>
+                    <option value="append.md.j2">Tilläggsmall (append.md.j2)</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="template-full-data" onchange="previewTemplate()">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="text-muted" style="font-size: 0.9em;">Visa alla variabler</span>
+            </div>
+        </div>
+
+        <div class="template-split-view">
+            <div class="template-editor-pane">
+                <h4 class="pane-heading">Editor</h4>
+                <textarea id="template-editor" placeholder="Laddar mall..."></textarea>
+            </div>
+            <div class="template-preview-pane">
+                <h4 class="pane-heading">Förhandsvisning</h4>
+                <div id="template-preview" class="template-preview-content">
+                    <div class="empty-state">Klicka "Förhandsgranska" för att se resultatet</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="template-error" class="template-error" style="display: none;"></div>
+
+        <details class="template-variables-section">
+            <summary>📋 Tillgängliga variabler</summary>
+            <div id="template-variables" class="template-variables-list">
+                <div class="empty-state">Välj en mall för att se tillgängliga variabler</div>
+            </div>
+        </details>
+
+        <div class="config-actions" style="margin-top: 15px;">
+            <button type="button" class="btn btn-primary" onclick="previewTemplate()">👁️ Förhandsgranska</button>
+            <button type="button" class="btn btn-primary" onclick="saveTemplate()">💾 Spara mall</button>
+            <button type="button" class="btn btn-secondary" onclick="resetTemplate()">↩️ Återställ standard</button>
+            <button type="button" class="btn btn-secondary" onclick="exportCurrentTemplate()">⬇️ Ladda ner</button>
+            <button type="button" class="btn btn-secondary" onclick="exportAllTemplates()">⬇️ Ladda ner alla</button>
+        </div>
+    </div>
+</div>

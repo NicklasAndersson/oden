@@ -44,7 +44,7 @@ function newResponse() {
     document.getElementById('response-keywords').value = '';
     document.getElementById('response-body').value = '';
     document.getElementById('response-editor-title').textContent = 'Nytt svar';
-    document.getElementById('response-editor').style.display = 'block';
+    document.getElementById('response-editor').classList.remove('hidden');
 }
 
 async function editResponse(id) {
@@ -62,7 +62,7 @@ async function editResponse(id) {
         document.getElementById('response-keywords').value = data.keywords.join(', ');
         document.getElementById('response-body').value = data.body;
         document.getElementById('response-editor-title').textContent = 'Redigera svar #' + data.keywords[0];
-        document.getElementById('response-editor').style.display = 'block';
+        document.getElementById('response-editor').classList.remove('hidden');
     } catch (error) {
         alert('Nätverksfel: ' + error.message);
     }
@@ -128,5 +128,5 @@ async function deleteResponse(id) {
 }
 
 function cancelResponseEdit() {
-    document.getElementById('response-editor').style.display = 'none';
+    document.getElementById('response-editor').classList.add('hidden');
 }

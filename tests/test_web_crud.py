@@ -25,8 +25,8 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
     def _auth_header(self, token: str) -> dict:
         return {"Authorization": f"Bearer {token}"}
 
-    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
+    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
     async def test_toggle_whitelist_adds_group(self, mock_get, mock_set, mock_reload):
         """Toggling whitelist for a new group adds it to config_db."""
@@ -49,8 +49,8 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
         self.assertIn("TestGroup", call_args[0][2])
         mock_reload.assert_called_once()
 
-    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
+    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
     async def test_toggle_whitelist_removes_group(self, mock_get, mock_set, mock_reload):
         """Toggling whitelist for an existing group removes it from config_db."""
@@ -72,8 +72,8 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
         self.assertNotIn("TestGroup", saved_list)
         self.assertIn("OtherGroup", saved_list)
 
-    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
+    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
     async def test_toggle_ignore_adds_group(self, mock_get, mock_set, mock_reload):
         """Toggling ignore for a new group adds it to config_db."""
@@ -94,8 +94,8 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
         self.assertIn("IgnoredGroup", call_args[0][2])
         mock_reload.assert_called_once()
 
-    @unittest.mock.patch("oden.web_handlers.group_handlers.reload_config")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.set_config_value")
+    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
+    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
     async def test_toggle_ignore_removes_group(self, mock_get, mock_set, mock_reload):
         """Toggling ignore for an existing group removes it from config_db."""

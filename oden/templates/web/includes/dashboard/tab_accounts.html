@@ -1,0 +1,52 @@
+{#- Tab: Signal-konton (accounts + modal + devices) -#}
+<div id="tab-accounts" class="tab-content">
+    <div class="config-section">
+        <h3>📱 Signal-konton</h3>
+        <p class="help-paragraph">
+            Hantera Signal-konton som signal-cli har konfigurerat. Lägg till, ta bort och välj aktivt konto.
+        </p>
+
+        <div id="accounts-warning" class="accounts-warning hidden">
+            <strong>⚠️ Ogiltigt aktivt konto:</strong>
+            <span id="accounts-warning-text">Det konfigurerade kontot finns inte bland de tillgängliga kontona.</span>
+        </div>
+
+        <div id="accounts-list" style="margin-bottom: 20px;">
+            <div class="empty-state">Laddar konton...</div>
+        </div>
+
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" onclick="startAccountLink()">➕ Lägg till konto</button>
+        </div>
+    </div>
+
+    <!-- QR Code Link Modal -->
+    <div id="account-link-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="pane-heading" style="margin-bottom: var(--spacing-md);">Länka nytt konto</h3>
+            <div id="link-qr-container" class="qr-container">
+                <div class="empty-state" style="color: #333;">Genererar QR-kod...</div>
+            </div>
+            <p id="link-status-text" style="color: #aaa; margin: 10px 0;">Skanna QR-koden med Signal-appen på din telefon</p>
+            <div id="link-success" style="display: none; color: #4caf50; margin: 10px 0;">
+                <strong>✅ Konto länkat!</strong>
+                <span id="link-success-number"></span>
+            </div>
+            <div class="config-actions" style="margin-top: 15px;">
+                <button type="button" class="btn btn-secondary" id="link-cancel-btn" onclick="cancelAccountLink()">Avbryt</button>
+                <button type="button" class="btn btn-primary" id="link-done-btn" style="display: none;" onclick="finishAccountLink()">Klar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Linked Devices Section -->
+    <div class="config-section" style="margin-top: var(--spacing-lg);">
+        <div class="flex-header-mb">
+            <h3>🔗 Länkade enheter</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="loadDevices()">Uppdatera</button>
+        </div>
+        <div id="devices-list">
+            <div class="empty-state">Klicka "Uppdatera" för att hämta enhetslista</div>
+        </div>
+    </div>
+</div>

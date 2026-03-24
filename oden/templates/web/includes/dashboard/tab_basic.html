@@ -1,0 +1,90 @@
+{#- Tab: Grundläggande (basic config) -#}
+<div id="tab-basic" class="tab-content active">
+    <form id="config-form" class="config-form">
+        <div class="config-section">
+            <h3>📱 Signal</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label for="cfg-signal-number">Telefonnummer</label>
+                    <input type="text" id="cfg-signal-number" name="signal_number" placeholder="+46...">
+                    <span class="help-text">Ditt Signal-nummer i internationellt format, t.ex. +46701234567</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-display-name">Visningsnamn</label>
+                    <input type="text" id="cfg-display-name" name="display_name" placeholder="oden">
+                    <span class="help-text">Namn som visas i rapporthuvuden och filnamn</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>📁 Vault</h3>
+            <div class="config-grid">
+                <div class="config-field full-width">
+                    <label for="cfg-vault-path">Sökväg till vault</label>
+                    <input type="text" id="cfg-vault-path" name="vault_path" placeholder="~/oden-vault">
+                    <span class="help-text">Mapp där rapporter sparas som Markdown-filer (Obsidian vault)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>⏱️ Inställningar</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label for="cfg-timezone">Tidszon</label>
+                    <input type="text" id="cfg-timezone" name="timezone" placeholder="Europe/Stockholm">
+                    <span class="help-text">IANA-tidszon för tidsstämplar i rapporter, t.ex. Europe/Stockholm</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-append-window">Append-fönster (minuter)</label>
+                    <input type="number" id="cfg-append-window" name="append_window_minutes" min="1" max="1440">
+                    <span class="help-text">Svar inom detta antal minuter läggs till i samma rapport</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-startup-message">Startup-meddelande</label>
+                    <select id="cfg-startup-message" name="startup_message">
+                        <option value="self">Skicka till mig själv</option>
+                        <option value="all">Skicka till alla grupper</option>
+                        <option value="off">Av</option>
+                    </select>
+                    <span class="help-text">Skicka ett statusmeddelande när Oden startar</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-filename-format">Filnamnsformat</label>
+                    <select id="cfg-filename-format" name="filename_format">
+                        <option value="classic">Classic (DDHHMM-telefon-namn.md)</option>
+                        <option value="tnr">TNR (DDHHMM.md)</option>
+                        <option value="tnr-name">TNR-namn (DDHHMM-namn.md)</option>
+                    </select>
+                    <span class="help-text">Format på filnamn för sparade rapporter</span>
+                </div>
+                <div class="config-field">
+                    <label>Funktioner</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="cfg-plus-plus" name="plus_plus_enabled">
+                        <label for="cfg-plus-plus">Aktivera ++ (append-läge)</label>
+                    </div>
+                    <span class="help-text">Meddelanden som börjar med ++ läggs till i senaste rapporten</span>
+                </div>
+                <div class="config-field full-width">
+                    <label for="cfg-ignored-groups">Ignorerade grupper (kommaseparerade)</label>
+                    <input type="text" id="cfg-ignored-groups" name="ignored_groups" placeholder="Grupp1, Grupp2">
+                    <span class="help-text">Meddelanden från dessa grupper sparas inte</span>
+                </div>
+                <div class="config-field full-width">
+                    <label for="cfg-whitelist-groups">Whitelist-grupper (kommaseparerade)</label>
+                    <input type="text" id="cfg-whitelist-groups" name="whitelist_groups" placeholder="Grupp1, Grupp2">
+                    <span class="help-text">Om satt sparas ENDAST meddelanden från dessa grupper (har prioritet över ignorerade)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-actions">
+            <button type="submit" class="btn btn-primary" id="save-config-btn">
+                Spara och applicera
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
+        </div>
+    </form>
+</div>

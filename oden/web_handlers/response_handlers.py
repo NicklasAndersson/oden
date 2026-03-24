@@ -16,18 +16,16 @@ from oden.responses_db import (
     get_response_by_id,
     save_response,
 )
+from oden.web_handlers._helpers import handle_errors, parse_json_body
 
 logger = logging.getLogger(__name__)
 
 
+@handle_errors("list responses")
 async def responses_list_handler(request: web.Request) -> web.Response:
     """Return all responses as JSON."""
-    try:
-        responses = get_all_responses(CONFIG_DB)
-        return web.json_response(responses)
-    except Exception as e:
-        logger.error(f"Error listing responses: {e}")
-        return web.json_response({"success": False, "error": str(e)}, status=500)
+    responses = get_all_responses(CONFIG_DB)
+    return web.json_response(responses)
 
 
 async def response_get_handler(request: web.Request) -> web.Response:
@@ -44,6 +42,8 @@ async def response_get_handler(request: web.Request) -> web.Response:
     return web.json_response(response)
 
 
+@handle_errors("save response")
+@parse_json_body
 async def response_save_handler(request: web.Request) -> web.Response:
     """Update an existing response."""
     try:
@@ -51,10 +51,7 @@ async def response_save_handler(request: web.Request) -> web.Response:
     except (KeyError, ValueError):
         return web.json_response({"success": False, "error": "Ogiltigt id"}, status=400)
 
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    data = request["json_body"]
 
     keywords = data.get("keywords")
     body = data.get("body")
@@ -70,12 +67,11 @@ async def response_save_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Kunde inte spara svar"}, status=500)
 
 
+@handle_errors("create response")
+@parse_json_body
 async def response_create_handler(request: web.Request) -> web.Response:
     """Create a new response."""
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    data = request["json_body"]
 
     keywords = data.get("keywords")
     body = data.get("body")

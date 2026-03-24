@@ -1,0 +1,159 @@
+{#- Tab: Avancerat (advanced config + signal protocol) -#}
+<div id="tab-advanced" class="tab-content">
+    <form id="config-form-advanced" class="config-form">
+        <div class="config-section">
+            <h3>🔧 signal-cli</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label for="cfg-signal-host">Host</label>
+                    <input type="text" id="cfg-signal-host" name="signal_cli_host" placeholder="127.0.0.1">
+                    <span class="help-text">IP-adress där signal-cli lyssnar (normalt 127.0.0.1)</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-signal-port">Port</label>
+                    <input type="number" id="cfg-signal-port" name="signal_cli_port" placeholder="7583">
+                    <span class="help-text">TCP-port för JSON-RPC-anslutning till signal-cli</span>
+                </div>
+                <div class="config-field full-width">
+                    <label for="cfg-signal-path">Sökväg till signal-cli (valfritt)</label>
+                    <input type="text" id="cfg-signal-path" name="signal_cli_path" placeholder="Lämna tomt för auto">
+                    <span class="help-text">Absolut sökväg till signal-cli-binären. Lämna tomt för automatisk sökning</span>
+                </div>
+                <div class="config-field">
+                    <label>Extern signal-cli</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="cfg-unmanaged" name="unmanaged_signal_cli">
+                        <label for="cfg-unmanaged">Ohanterad (startas inte av Oden)</label>
+                    </div>
+                    <span class="help-text">Aktivera om signal-cli redan körs separat och inte ska hanteras av Oden</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🌐 Webbserver</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label>Status</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="cfg-web-enabled" name="web_enabled" checked>
+                        <label for="cfg-web-enabled">Aktivera webbgränssnitt</label>
+                    </div>
+                    <span class="help-text">Starta webbgränssnittet för konfiguration och övervakning</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-web-port">Port</label>
+                    <input type="number" id="cfg-web-port" name="web_port" placeholder="8080">
+                    <span class="help-text">Port för webbgränssnittet (localhost)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>📝 Loggning</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label for="cfg-log-level">Loggnivå</label>
+                    <select id="cfg-log-level" name="log_level">
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARNING">WARNING</option>
+                        <option value="ERROR">ERROR</option>
+                    </select>
+                    <span class="help-text">Detaljnivå för loggning. DEBUG ger mest information, ERROR ger minst</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>✅ Signal-bekräftelser</h3>
+            <p class="help-paragraph">
+                Automatiska bekräftelser som skickas tillbaka till Signal när ett meddelande har sparats.
+            </p>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label>
+                        <input type="checkbox" id="cfg-auto-reaction" name="auto_reaction_enabled">
+                        Auto-reaktion
+                    </label>
+                    <span class="help-text">Reagera med emoji på sparade meddelanden</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-auto-reaction-emoji">Reaktions-emoji</label>
+                    <input type="text" id="cfg-auto-reaction-emoji" name="auto_reaction_emoji" style="width: 60px;">
+                    <span class="help-text">Emoji som används för auto-reaktion</span>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🔗 Regex-mönster</h3>
+            <p class="help-paragraph">
+                Text som matchar dessa mönster länkas automatiskt som <code>[[...]]</code> i Obsidian.
+                Varje mönster har ett namn och ett reguljärt uttryck (regex).
+            </p>
+            <div id="regex-patterns-list"></div>
+            <button type="button" class="btn btn-secondary" onclick="addRegexRow('', '')" style="margin-top: var(--spacing-sm);">
+                ➕ Lägg till mönster
+            </button>
+        </div>
+
+        <div class="config-actions">
+            <button type="submit" class="btn btn-primary" id="save-config-adv-btn">
+                Spara och applicera
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="loadConfigForm()">Återställ</button>
+            <button type="button" class="btn btn-secondary" onclick="exportConfig()">⬇️ Exportera INI</button>
+        </div>
+
+        <div class="config-section section-divider">
+            <h3>🔄 Setup</h3>
+            <p class="help-paragraph">
+                Kör om setup-guiden för att länka nytt Signal-konto eller importera konfiguration.
+            </p>
+            <button type="button" class="btn btn-danger" onclick="rerunSetup()">Kör om setup</button>
+        </div>
+    </form>
+
+    <!-- Signal Protocol Settings (separate from config form) -->
+    <div class="config-section" style="margin-top: var(--spacing-lg);">
+        <h3>📡 Signal-protokoll</h3>
+        <p class="help-paragraph">
+            Signal-protokollinställningar som styr vad kontot delar med andra. Sparas direkt i signal-cli.
+        </p>
+        <div class="config-grid">
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-auto-read-receipt" name="auto_read_receipt_enabled">
+                    Läskvitton
+                </label>
+                <span class="help-text">Skicka läskvitto när meddelande bearbetats</span>
+            </div>
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-signal-typing-indicators">
+                    Skrivindikator
+                </label>
+                <span class="help-text">Visa "skriver..."-indikator för andra</span>
+            </div>
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-signal-link-previews">
+                    Länkförhandsgranskning
+                </label>
+                <span class="help-text">Generera förhandsgranskning av delade länkar</span>
+            </div>
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-signal-unidentified-delivery">
+                    Sealed sender-indikatorer
+                </label>
+                <span class="help-text">Visa sealed sender-leveransindikatorer</span>
+            </div>
+        </div>
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" onclick="saveSignalConfig()">Spara Signal-inställningar</button>
+        </div>
+    </div>
+</div>

@@ -367,6 +367,9 @@ td {
     align-items: center;
     gap: 10px;
 }
+.config-field .checkbox-wrapper label {
+    color: #fff;
+}
 .config-field .help-text {
     font-size: 0.8em;
     color: #666;
@@ -615,4 +618,73 @@ td {
 .regex-header span:last-child {
     width: 42px;
     flex-shrink: 0;
+}
+/* Response editor */
+.response-editor {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: var(--spacing-md);
+    background: var(--color-bg-surface);
+    margin-bottom: var(--spacing-md);
+}
+.response-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-input);
+    color: #fff;
+    font-size: 0.95em;
+}
+.response-textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-input);
+    color: #fff;
+    font-family: Monaco, Menlo, monospace;
+    font-size: 0.9em;
+    resize: vertical;
+}
+/* Modal overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay:not(.hidden) {
+    display: flex;
+}
+.modal-content {
+    background: var(--color-bg-surface);
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    border: 1px solid var(--color-border);
+}
+/* QR code container */
+.qr-container {
+    margin: var(--spacing-lg) 0;
+    background: white;
+    padding: var(--spacing-md);
+    border-radius: 8px;
+    display: inline-block;
+}
+/* Accounts warning */
+.accounts-warning {
+    background: #4a3000;
+    border: 1px solid #ff9800;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: var(--spacing-md);
+    color: #ffcc80;
 }

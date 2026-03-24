@@ -1,0 +1,41 @@
+{#- Reusable Jinja2 macros for Oden web GUI -#}
+
+{%- macro config_field(id, label, help, type="text", name=none, placeholder="", full_width=false, extra_attrs="") -%}
+<div class="config-field{{ ' full-width' if full_width }}">
+    <label for="{{ id }}">{{ label }}</label>
+    <input type="{{ type }}" id="{{ id }}" name="{{ name or id.replace('cfg-', '') }}" placeholder="{{ placeholder }}"{{ (' ' + extra_attrs) if extra_attrs }}>
+    <span class="help-text">{{ help }}</span>
+</div>
+{%- endmacro -%}
+
+{%- macro config_select(id, label, help, options, name=none) -%}
+<div class="config-field">
+    <label for="{{ id }}">{{ label }}</label>
+    <select id="{{ id }}" name="{{ name or id.replace('cfg-', '') }}">
+        {%- for val, text in options %}
+        <option value="{{ val }}">{{ text }}</option>
+        {%- endfor %}
+    </select>
+    <span class="help-text">{{ help }}</span>
+</div>
+{%- endmacro -%}
+
+{%- macro config_checkbox(id, label, help, checkbox_label, name=none) -%}
+<div class="config-field">
+    <label>{{ label }}</label>
+    <div class="checkbox-wrapper">
+        <input type="checkbox" id="{{ id }}" name="{{ name or id.replace('cfg-', '') }}">
+        <label for="{{ id }}">{{ checkbox_label }}</label>
+    </div>
+    <span class="help-text">{{ help }}</span>
+</div>
+{%- endmacro -%}
+
+{%- macro config_section(icon, title) -%}
+<div class="config-section">
+    <h3>{{ icon }} {{ title }}</h3>
+    <div class="config-grid">
+        {{ caller() }}
+    </div>
+</div>
+{%- endmacro -%}

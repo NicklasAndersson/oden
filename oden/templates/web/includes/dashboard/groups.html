@@ -1,0 +1,32 @@
+{#- Groups section: group list, join group form, invitations -#}
+<div class="card full-width">
+    <div class="flex-header">
+        <h2>👥 Grupper</h2>
+        <button id="refresh-groups-btn" class="btn btn-secondary" onclick="refreshGroups()" title="Hämta grupper från signal-cli">Uppdatera</button>
+    </div>
+    <div id="groups-container" class="group-list">
+        <div class="empty-state">Laddar grupper...</div>
+    </div>
+    <div class="refresh-info">Klicka på "Ignorera" för att dölja gruppen, eller "Whitelist" för att endast tillåta den. Om whitelist är satt ignoreras alla andra grupper.</div>
+</div>
+
+<div class="card full-width">
+    <h2>🔗 Gå med i grupp</h2>
+    <form id="join-group-form">
+        <div class="form-group">
+            <label for="group-link">Grupplänk</label>
+            <input type="text" id="group-link" name="link"
+                   placeholder="https://signal.group/#..." required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="join-btn">Gå med i grupp</button>
+    </form>
+    <div id="join-message" class="message"></div>
+</div>
+
+<div class="card full-width">
+    <h2>💾 Gruppinbjudningar</h2>
+    <div id="invitations-container" class="invitation-list">
+        <div class="empty-state">Laddar inbjudningar...</div>
+    </div>
+    <div class="refresh-info">Uppdateras automatiskt var 10:e sekund</div>
+</div>

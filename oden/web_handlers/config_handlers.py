@@ -2,12 +2,12 @@
 Configuration-related handlers for Oden web GUI.
 """
 
-import json
 import logging
 import re
 
 from aiohttp import web
 
+from oden.app_state import get_app_state
 from oden.config import (
     CONFIG_DB,
     DEFAULT_VAULT_PATH,
@@ -19,6 +19,7 @@ from oden.config import (
     save_config,
 )
 from oden.config_db import get_all_config
+from oden.web_handlers._helpers import handle_errors, parse_json_body, require_writer
 
 logger = logging.getLogger(__name__)
 
@@ -81,181 +82,168 @@ async def config_export_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
+@handle_errors("import config")
+@parse_json_body
 async def config_file_save_handler(request: web.Request) -> web.Response:
     """Save configuration from INI format (for import)."""
+    import configparser
+
+    from oden.config_db import migrate_from_ini
+
+    data = request["json_body"]
+    content = data.get("content", "")
+    do_reload = data.get("reload", False)
+
+    if not content.strip():
+        return web.json_response({"success": False, "error": "Config kan inte vara tom"}, status=400)
+
+    # Validate by trying to parse it
+    config = configparser.RawConfigParser()
     try:
-        import configparser
+        config.read_string(content)
+    except configparser.Error as e:
+        return web.json_response({"success": False, "error": f"Ogiltig INI-syntax: {e}"}, status=400)
 
-        from oden.config_db import migrate_from_ini
+    # Check required sections
+    if not config.has_section("Vault") or not config.has_section("Signal"):
+        return web.json_response(
+            {"success": False, "error": "Config måste ha [Vault] och [Signal] sektioner"},
+            status=400,
+        )
 
-        data = await request.json()
-        content = data.get("content", "")
-        do_reload = data.get("reload", False)
+    # Write to temp file and migrate
+    import tempfile
 
-        if not content.strip():
-            return web.json_response({"success": False, "error": "Config kan inte vara tom"}, status=400)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".ini", delete=False) as f:
+        f.write(content)
+        temp_path = f.name
 
-        # Validate by trying to parse it
-        config = configparser.RawConfigParser()
-        try:
-            config.read_string(content)
-        except configparser.Error as e:
-            return web.json_response({"success": False, "error": f"Ogiltig INI-syntax: {e}"}, status=400)
+    try:
+        from pathlib import Path
 
-        # Check required sections
-        if not config.has_section("Vault") or not config.has_section("Signal"):
-            return web.json_response(
-                {"success": False, "error": "Config måste ha [Vault] och [Signal] sektioner"},
-                status=400,
-            )
+        success, error = migrate_from_ini(Path(temp_path), CONFIG_DB)
+        if not success:
+            return web.json_response({"success": False, "error": error}, status=400)
+    finally:
+        Path(temp_path).unlink(missing_ok=True)
 
-        # Write to temp file and migrate
-        import tempfile
+    logger.info(f"Config imported from INI via web GUI (reload={do_reload})")
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".ini", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
+    # Trigger live reload if requested
+    if do_reload:
+        reload_config()
+        logger.info("Configuration reloaded")
 
-        try:
-            from pathlib import Path
-
-            success, error = migrate_from_ini(Path(temp_path), CONFIG_DB)
-            if not success:
-                return web.json_response({"success": False, "error": error}, status=400)
-        finally:
-            Path(temp_path).unlink(missing_ok=True)
-
-        logger.info(f"Config imported from INI via web GUI (reload={do_reload})")
-
-        # Trigger live reload if requested
-        if do_reload:
-            reload_config()
-            logger.info("Configuration reloaded")
-
-        return web.json_response({"success": True, "message": "Config importerad"})
-
-    except json.JSONDecodeError:
-        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
-    except Exception as e:
-        logger.error(f"Error importing config: {e}")
-        return web.json_response({"success": False, "error": str(e)}, status=500)
+    return web.json_response({"success": True, "message": "Config importerad"})
 
 
+@handle_errors("save config")
+@parse_json_body
 async def config_save_handler(request: web.Request) -> web.Response:
     """Save configuration from structured form data and trigger live reload.
 
     Merges form data with existing config to preserve fields not shown
     in the form (e.g. templates, log paths).
     """
-    try:
-        data = await request.json()
+    data = request["json_body"]
 
-        # Read existing config first so we only overwrite form-managed keys
-        existing = get_all_config(CONFIG_DB)
+    # Read existing config first so we only overwrite form-managed keys
+    existing = get_all_config(CONFIG_DB)
 
-        # Keys managed by the web form — update only these
-        form_updates = {
-            "signal_number": data.get("signal_number", ""),
-            "display_name": data.get("display_name", "oden"),
-            "vault_path": data.get("vault_path", str(DEFAULT_VAULT_PATH)),
-            "timezone": data.get("timezone", "Europe/Stockholm"),
-            "append_window_minutes": data.get("append_window_minutes", 30),
-            "startup_message": data.get("startup_message", "self"),
-            "plus_plus_enabled": data.get("plus_plus_enabled", False),
-            "ignored_groups": data.get("ignored_groups", []),
-            "whitelist_groups": data.get("whitelist_groups", []),
-            "signal_cli_host": data.get("signal_cli_host", "127.0.0.1"),
-            "signal_cli_port": data.get("signal_cli_port", 7583),
-            "signal_cli_path": data.get("signal_cli_path"),
-            "unmanaged_signal_cli": data.get("unmanaged_signal_cli", False),
-            "web_enabled": data.get("web_enabled", True),
-            "web_port": data.get("web_port", 8080),
-            "log_level": data.get("log_level", "INFO"),
-            "filename_format": data.get("filename_format", "classic"),
-            "auto_reaction_enabled": data.get("auto_reaction_enabled", False),
-            "auto_reaction_emoji": data.get("auto_reaction_emoji", "✅"),
-            "auto_read_receipt_enabled": data.get("auto_read_receipt_enabled", False),
-        }
+    # Keys managed by the web form — update only these
+    form_updates = {
+        "signal_number": data.get("signal_number", ""),
+        "display_name": data.get("display_name", "oden"),
+        "vault_path": data.get("vault_path", str(DEFAULT_VAULT_PATH)),
+        "timezone": data.get("timezone", "Europe/Stockholm"),
+        "append_window_minutes": data.get("append_window_minutes", 30),
+        "startup_message": data.get("startup_message", "self"),
+        "plus_plus_enabled": data.get("plus_plus_enabled", False),
+        "ignored_groups": data.get("ignored_groups", []),
+        "whitelist_groups": data.get("whitelist_groups", []),
+        "signal_cli_host": data.get("signal_cli_host", "127.0.0.1"),
+        "signal_cli_port": data.get("signal_cli_port", 7583),
+        "signal_cli_path": data.get("signal_cli_path"),
+        "unmanaged_signal_cli": data.get("unmanaged_signal_cli", False),
+        "web_enabled": data.get("web_enabled", True),
+        "web_port": data.get("web_port", 8080),
+        "log_level": data.get("log_level", "INFO"),
+        "filename_format": data.get("filename_format", "classic"),
+        "auto_reaction_enabled": data.get("auto_reaction_enabled", False),
+        "auto_reaction_emoji": data.get("auto_reaction_emoji", "✅"),
+        "auto_read_receipt_enabled": data.get("auto_read_receipt_enabled", False),
+    }
 
-        # Handle regex_patterns if provided
-        if "regex_patterns" in data:
-            patterns = data["regex_patterns"]
-            if not isinstance(patterns, dict):
-                return web.json_response(
-                    {"success": False, "error": "regex_patterns måste vara ett objekt"},
-                    status=400,
-                )
-            # Validate each pattern is a valid regex
-            for name, pattern in patterns.items():
-                if not isinstance(name, str) or not name.strip():
-                    return web.json_response(
-                        {"success": False, "error": "Regex-mönsternamn får inte vara tomt"},
-                        status=400,
-                    )
-                if not isinstance(pattern, str) or not pattern.strip():
-                    return web.json_response(
-                        {"success": False, "error": f"Regex-mönster för '{name}' får inte vara tomt"},
-                        status=400,
-                    )
-                try:
-                    re.compile(pattern)
-                except re.error as e:
-                    return web.json_response(
-                        {"success": False, "error": f"Ogiltigt regex-mönster '{name}': {e}"},
-                        status=400,
-                    )
-            form_updates["regex_patterns"] = patterns
-
-        # Validate required fields
-        if not form_updates["signal_number"] or form_updates["signal_number"] == "+46XXXXXXXXX":
+    # Handle regex_patterns if provided
+    if "regex_patterns" in data:
+        patterns = data["regex_patterns"]
+        if not isinstance(patterns, dict):
             return web.json_response(
-                {"success": False, "error": "Signal-nummer måste anges"},
+                {"success": False, "error": "regex_patterns måste vara ett objekt"},
                 status=400,
             )
+        # Validate each pattern is a valid regex
+        for name, pattern in patterns.items():
+            if not isinstance(name, str) or not name.strip():
+                return web.json_response(
+                    {"success": False, "error": "Regex-mönsternamn får inte vara tomt"},
+                    status=400,
+                )
+            if not isinstance(pattern, str) or not pattern.strip():
+                return web.json_response(
+                    {"success": False, "error": f"Regex-mönster för '{name}' får inte vara tomt"},
+                    status=400,
+                )
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                return web.json_response(
+                    {"success": False, "error": f"Ogiltigt regex-mönster '{name}': {e}"},
+                    status=400,
+                )
+        form_updates["regex_patterns"] = patterns
 
-        # Merge: existing config + form updates (form wins)
-        config_dict = {**existing, **form_updates}
+    # Validate required fields
+    if not form_updates["signal_number"] or form_updates["signal_number"] == "+46XXXXXXXXX":
+        return web.json_response(
+            {"success": False, "error": "Signal-nummer måste anges"},
+            status=400,
+        )
 
-        # Save config
-        save_config(config_dict)
-        logger.info(f"Config saved via web GUI form to {CONFIG_DB}")
+    # Merge: existing config + form updates (form wins)
+    config_dict = {**existing, **form_updates}
 
-        # Trigger live reload
-        reload_config()
-        logger.info("Configuration reloaded (live reload)")
+    # Save config
+    save_config(config_dict)
+    logger.info(f"Config saved via web GUI form to {CONFIG_DB}")
 
+    # Trigger live reload
+    reload_config()
+    logger.info("Configuration reloaded (live reload)")
+
+    return web.json_response(
+        {
+            "success": True,
+            "message": "Konfiguration sparad och applicerad!",
+        }
+    )
+
+
+@handle_errors("reset config")
+async def config_reset_handler(request: web.Request) -> web.Response:
+    """Reset configuration by deleting the database and pointer file."""
+    if reset_config():
         return web.json_response(
             {
                 "success": True,
-                "message": "Konfiguration sparad och applicerad!",
+                "message": "Konfiguration återställd. Starta om Oden för att köra setup igen.",
             }
         )
-
-    except json.JSONDecodeError:
-        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
-    except Exception as e:
-        logger.error(f"Error saving config via form: {e}")
-        return web.json_response({"success": False, "error": str(e)}, status=500)
-
-
-async def config_reset_handler(request: web.Request) -> web.Response:
-    """Reset configuration by deleting the database and pointer file."""
-    try:
-        if reset_config():
-            return web.json_response(
-                {
-                    "success": True,
-                    "message": "Konfiguration återställd. Starta om Oden för att köra setup igen.",
-                }
-            )
-        else:
-            return web.json_response(
-                {"success": False, "error": "Kunde inte återställa konfiguration"},
-                status=500,
-            )
-    except Exception as e:
-        logger.error(f"Error resetting config: {e}")
-        return web.json_response({"success": False, "error": str(e)}, status=500)
+    else:
+        return web.json_response(
+            {"success": False, "error": "Kunde inte återställa konfiguration"},
+            status=500,
+        )
 
 
 # --- Signal protocol configuration ---
@@ -279,15 +267,14 @@ async def signal_config_handler(request: web.Request) -> web.Response:
     return web.json_response(result)
 
 
+@handle_errors("save signal config")
+@parse_json_body
+@require_writer
 async def signal_config_save_handler(request: web.Request) -> web.Response:
     """Save Signal protocol settings via updateConfiguration RPC."""
-    from oden.app_state import get_app_state
     from oden.config_db import set_config_value
 
-    try:
-        data = await request.json()
-    except (json.JSONDecodeError, Exception):
-        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+    data = request["json_body"]
 
     params: dict = {"account": get_all_config(CONFIG_DB).get("signal_number", "")}
     values_to_save: dict = {}
@@ -301,17 +288,7 @@ async def signal_config_save_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Inga inställningar att spara"}, status=400)
 
     app_state = get_app_state()
-    if not app_state.writer:
-        return web.json_response(
-            {"success": False, "error": "Inte ansluten till signal-cli"},
-            status=503,
-        )
-
-    try:
-        await app_state.send_jsonrpc("updateConfiguration", params=params, timeout=10.0)
-    except Exception as e:
-        logger.error("Failed to update Signal configuration: %s", e)
-        return web.json_response({"success": False, "error": str(e)}, status=500)
+    await app_state.send_jsonrpc("updateConfiguration", params=params, timeout=10.0)
 
     for db_key, value in values_to_save.items():
         set_config_value(CONFIG_DB, db_key, value)
