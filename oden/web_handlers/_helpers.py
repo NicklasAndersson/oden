@@ -11,8 +11,9 @@ import logging
 
 from aiohttp import web
 
+from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.config import CONFIG_DB, reload_config
+from oden.config import reload_config
 from oden.config_db import set_config_value
 
 logger = logging.getLogger(__name__)
@@ -79,5 +80,5 @@ def handle_errors(context: str):
 
 def update_config_and_reload(key: str, value) -> None:
     """Persist a single config value and trigger live reload."""
-    set_config_value(CONFIG_DB, key, value)
+    set_config_value(cfg.CONFIG_DB, key, value)
     reload_config()
