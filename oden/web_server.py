@@ -65,6 +65,8 @@ from oden.web_handlers import (
     templates_list_handler,
     toggle_ignore_group_handler,
     toggle_whitelist_group_handler,
+    update_contact_handler,
+    update_group_handler,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,6 +91,7 @@ PROTECTED_ENDPOINTS = {
     "/api/accounts/link-cancel",  # POST - cancel link
     "/api/accounts/activate",  # POST - switch active account
     "/api/contacts/refresh",  # POST - re-fetch contacts from signal-cli
+    "/api/groups/update",  # POST - update group settings
     "/api/signal-config",  # POST - update Signal protocol settings
 }
 
@@ -97,6 +100,7 @@ PROTECTED_PREFIXES = {
     "/api/responses/",  # All response modification endpoints
     "/api/templates/",  # All template modification endpoints
     "/api/accounts/",  # All account modification endpoints
+    "/api/contacts/",  # Contact modification endpoints (PUT /api/contacts/{number})
 }
 
 
@@ -233,6 +237,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/invitations/decline", decline_invitation_handler)
         app.router.add_get("/api/groups", groups_handler)
         app.router.add_post("/api/groups/refresh", refresh_groups_handler)
+        app.router.add_post("/api/groups/update", update_group_handler)
         app.router.add_post("/api/toggle-ignore-group", toggle_ignore_group_handler)
         app.router.add_post("/api/toggle-whitelist-group", toggle_whitelist_group_handler)
         app.router.add_post("/api/config-save", config_save_handler)
@@ -253,6 +258,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         # Contact routes
         app.router.add_get("/api/contacts", contacts_handler)
         app.router.add_post("/api/contacts/refresh", contacts_refresh_handler)
+        app.router.add_put("/api/contacts/{number}", update_contact_handler)
 
         # Signal protocol config routes
         app.router.add_get("/api/signal-config", signal_config_handler)

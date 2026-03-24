@@ -260,7 +260,34 @@ Annars:
 | **Gå med via inbjudningslänk** | Klistra in en `https://signal.group/…`-länk för att gå med i en grupp |
 | **Acceptera inbjudan** | Acceptera en väntande gruppinbjudan |
 | **Avböj inbjudan** | Avböj en väntande gruppinbjudan (lämnar gruppen) |
+### Gruppadministration från webbgränssnitt
 
+Användare som är administratörer i en Signal-grupp kan redigera gruppen direkt från webb-GUI:t.
+
+| Åtgärd | Beskrivning |
+|--------|-----------|
+| **Byt namn** | Ändra gruppens namn och beskrivning |
+| **Hantera medlemmar** | Lägg till eller ta bort medlemmar via telefonnummer |
+| **Ändra roller** | Gör medlemmar till administratörer eller ta bort admin-behörighet |
+| **Behörigheter** | Ändra vem som får lägga till medlemmar, redigera detaljer eller skicka meddelanden |
+| **Grupplänk** | Aktivera, avaktivera eller kräv godkännande för grupplänken |
+| **Försvinnande meddelanden** | Sätt timer (av, 1 timme, 1 dag, 1 vecka, 4 veckor) |
+
+> **Krav:** Oden måste vara administratör i gruppen. Redigera-knappen visas bara för admin-grupper.
+> **Obs:** Gruppnamnsändring påverkar inte vault-mappnamnet — befintliga filer ligger kvar i den gamla mappen.
+
+### Kontakthantering från webbgränssnitt
+
+I webbgränssnittet kan kontakter redigeras via en redigeringsmodal.
+
+| Fält | Beskrivning |
+|------|-----------|
+| **Förnamn / Efternamn** | Sätt kontaktens namn |
+| **Smeknamn** | Oden-lokalt smeknamn (synkroniseras inte till motparten) |
+| **Anteckning** | Fritext-anteckning om kontakten |
+| **Försvinnande meddelanden** | Timer för hela konversationen (av, 1 tim, 1 dag, 1 vecka, 4 veckor) |
+
+> Kontaktnamn används för namupplösning i rapporter och gruppmedlemslistor.
 ---
 
 ## Multi-account-stöd

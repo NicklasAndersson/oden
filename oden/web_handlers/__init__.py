@@ -28,6 +28,7 @@ from oden.web_handlers.config_handlers import (
 from oden.web_handlers.contact_handlers import (
     contacts_handler,
     contacts_refresh_handler,
+    update_contact_handler,
 )
 from oden.web_handlers.group_handlers import (
     accept_invitation_handler,
@@ -38,6 +39,7 @@ from oden.web_handlers.group_handlers import (
     refresh_groups_handler,
     toggle_ignore_group_handler,
     toggle_whitelist_group_handler,
+    update_group_handler,
 )
 from oden.web_handlers.response_handlers import (
     response_create_handler,
@@ -91,6 +93,7 @@ __all__ = [
     # Contact handlers
     "contacts_handler",
     "contacts_refresh_handler",
+    "update_contact_handler",
     # Group handlers
     "groups_handler",
     "refresh_groups_handler",
@@ -100,6 +103,7 @@ __all__ = [
     "invitations_handler",
     "accept_invitation_handler",
     "decline_invitation_handler",
+    "update_group_handler",
     # Setup handlers
     "setup_handler",
     "setup_status_handler",

@@ -46,10 +46,34 @@ async def groups_handler(request: web.Request) -> web.Response:
         if group.get("isMember", True) and not group.get("invitedToGroup", False):
             gid = group.get("id")
             if gid:
+                members_raw = group.get("members", [])
+                members = []
+                is_admin = False
+                for m in members_raw:
+                    if isinstance(m, dict):
+                        num = m.get("number", "")
+                        role = m.get("role", "DEFAULT")
+                    elif isinstance(m, str):
+                        num = m
+                        role = "DEFAULT"
+                    else:
+                        continue
+                    display = app_state.resolve_contact_name(num, None)
+                    members.append({"number": num, "name": display, "role": role})
+                    if num == cfg.SIGNAL_NUMBER and role == "ADMINISTRATOR":
+                        is_admin = True
                 merged[gid] = {
                     "id": gid,
                     "name": group.get("name", "Okänd grupp"),
-                    "memberCount": len(group.get("members", [])),
+                    "memberCount": len(members_raw),
+                    "members": members,
+                    "description": group.get("description", ""),
+                    "permissionAddMember": group.get("permissionAddMember", "every-member"),
+                    "permissionEditDetails": group.get("permissionEditDetails", "every-member"),
+                    "permissionSendMessages": group.get("permissionSendMessages", "every-member"),
+                    "groupInviteLink": group.get("groupInviteLink", ""),
+                    "messageExpirationTime": group.get("messageExpirationTime", 0),
+                    "isAdmin": is_admin,
                 }
 
     groups = sorted(merged.values(), key=lambda g: g.get("name", ""))
@@ -254,6 +278,62 @@ async def decline_invitation_handler(request: web.Request) -> web.Response:
             "message": "Inbjudan avböjd.",
         }
     )
+
+
+@handle_errors("update group")
+@parse_json_body
+@require_writer
+async def update_group_handler(request: web.Request) -> web.Response:
+    """Update group settings via signal-cli updateGroup RPC."""
+    data = request["json_body"]
+    group_id = data.get("groupId", "").strip()
+
+    if not group_id:
+        return web.json_response({"success": False, "error": "Inget grupp-ID angivet"}, status=400)
+
+    params: dict = {"account": cfg.SIGNAL_NUMBER, "groupId": group_id}
+
+    # Pass through scalar fields
+    for field in (
+        "name",
+        "description",
+        "link",
+        "setPermissionAddMember",
+        "setPermissionEditDetails",
+        "setPermissionSendMessages",
+    ):
+        if field in data:
+            params[field] = data[field]
+
+    if "expiration" in data:
+        params["expiration"] = int(data["expiration"])
+
+    # Pass through list fields
+    for list_field in ("member", "removeMember", "admin", "removeAdmin", "ban", "unban"):
+        if list_field in data and data[list_field]:
+            params[list_field] = data[list_field]
+
+    app_state = get_app_state()
+    result = await app_state.send_jsonrpc("updateGroup", params=params)
+
+    if result is None:
+        return web.json_response(
+            {"success": False, "error": "Inget svar från signal-cli"},
+            status=502,
+        )
+
+    # Refresh groups cache after update
+    refresh = await app_state.send_jsonrpc(
+        "listGroups",
+        params={"account": cfg.SIGNAL_NUMBER},
+        timeout=10.0,
+    )
+    if refresh and "result" in refresh:
+        app_state.update_groups(refresh["result"])
+        upsert_groups_bulk(CONFIG_DB, refresh["result"])
+
+    logger.info("Group %s updated", group_id)
+    return web.json_response({"success": True})
 
 
 @handle_errors("refresh groups")

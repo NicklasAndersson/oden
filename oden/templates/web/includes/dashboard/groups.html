@@ -30,3 +30,83 @@
     </div>
     <div class="refresh-info">Uppdateras automatiskt var 10:e sekund</div>
 </div>
+
+{#- Group edit modal -#}
+<div id="group-edit-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 600px; text-align: left;">
+        <div class="flex-header-mb">
+            <h3 id="group-edit-title">Redigera grupp</h3>
+            <button class="btn btn-secondary btn-sm" onclick="closeGroupEditModal()">✕</button>
+        </div>
+        <input type="hidden" id="group-edit-id">
+
+        <div class="form-group">
+            <label for="group-edit-name">Namn</label>
+            <input type="text" id="group-edit-name" placeholder="Gruppnamn">
+        </div>
+        <div class="form-group">
+            <label for="group-edit-description">Beskrivning</label>
+            <textarea id="group-edit-description" rows="2" placeholder="Gruppbeskrivning"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="group-edit-expiration">Försvinnande meddelanden</label>
+            <select id="group-edit-expiration">
+                <option value="0">Av</option>
+                <option value="3600">1 timme</option>
+                <option value="86400">1 dag</option>
+                <option value="604800">1 vecka</option>
+                <option value="2419200">4 veckor</option>
+            </select>
+        </div>
+
+        <fieldset style="border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <legend style="color: var(--color-text-muted); font-size: 0.9em;">Behörigheter</legend>
+            <div class="form-group">
+                <label for="group-edit-perm-add">Lägg till medlemmar</label>
+                <select id="group-edit-perm-add">
+                    <option value="every-member">Alla medlemmar</option>
+                    <option value="only-admins">Bara administratörer</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="group-edit-perm-edit">Redigera detaljer</label>
+                <select id="group-edit-perm-edit">
+                    <option value="every-member">Alla medlemmar</option>
+                    <option value="only-admins">Bara administratörer</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="group-edit-perm-send">Skicka meddelanden</label>
+                <select id="group-edit-perm-send">
+                    <option value="every-member">Alla medlemmar</option>
+                    <option value="only-admins">Bara administratörer</option>
+                </select>
+            </div>
+        </fieldset>
+
+        <div class="form-group">
+            <label for="group-edit-link">Grupplänk</label>
+            <select id="group-edit-link">
+                <option value="disabled">Avaktiverad</option>
+                <option value="enabled">Aktiverad</option>
+                <option value="enabled-with-approval">Med godkännande</option>
+            </select>
+        </div>
+
+        <fieldset style="border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <legend style="color: var(--color-text-muted); font-size: 0.9em;">Medlemmar</legend>
+            <div id="group-edit-members"></div>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <input type="text" id="group-edit-add-member" placeholder="+46..." style="flex: 1;">
+                <button class="btn btn-primary btn-sm" onclick="addGroupMember()">Lägg till</button>
+            </div>
+        </fieldset>
+
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+            <button class="btn btn-secondary" onclick="closeGroupEditModal()">Avbryt</button>
+            <button class="btn btn-primary" id="group-edit-save-btn" onclick="saveGroupChanges()">Spara ändringar</button>
+        </div>
+        <div id="group-edit-message" class="message" style="margin-top: 8px;"></div>
+    </div>
+</div>

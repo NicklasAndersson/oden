@@ -33,7 +33,7 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 - **formatting.py**: Filename sanitization, path generation, display formatting
 - **signal_manager.py**: Starts/stops the signal-cli subprocess
 - **web_server.py**: aiohttp web server with setup mode and dashboard mode, token-based auth for sensitive endpoints
-- **web_handlers/**: Route handlers — `setup_handlers.py` (wizard, Signal linking/QR), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete)
+- **web_handlers/**: Route handlers — `setup_handlers.py` (wizard, Signal linking/QR), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact)
 - **template_loader.py**: Jinja2 template engine for report formatting. Templates loaded from config_db or files, with LRU cache and validation
 - **attachment_handler.py**: Downloads and saves Signal attachments to vault subdirectories. Uses `app_state.send_jsonrpc()` for attachment fetching (routed through central dispatcher)
 - **link_formatter.py**: Regex-based linking and location extraction (Google Maps, Apple Maps, OSM → geo coordinates)

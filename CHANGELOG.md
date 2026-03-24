@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Gruppadministration**: Redigera grupper direkt från webb-GUI — byt namn, hantera medlemmar (lägg till/ta bort), ändra behörigheter och grupplänk via signal-cli:s `updateGroup` RPC. Ny endpoint: `POST /api/groups/update`
+- **Kontakthantering**: Redigera kontakter från webb-GUI — förnamn, efternamn, smeknamn, anteckning och försvinnande-timer via signal-cli:s `updateContact` RPC. Ny endpoint: `PUT /api/contacts/{number}`
 - **Multi-account-stöd**: signal-cli körs i multi-account daemon-läge (utan `-u`-flagga). Alla JSON-RPC-anrop inkluderar `account`-parameter
 - **Signal-konton-flik**: Ny flik i Web GUI för kontohantering — lista, länka via QR, aktivera, radera och tvångsradera signal-cli-konton
 - **Konto-API**: Nya endpoints: `GET /api/accounts`, `POST /api/accounts/link`, `POST /api/accounts/link-cancel`, `GET /api/accounts/link-status`, `POST /api/accounts/activate`, `DELETE /api/accounts/{number}`, `DELETE /api/accounts/{number}/force`

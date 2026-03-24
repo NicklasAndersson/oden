@@ -494,3 +494,53 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         )
         self.assertNotEqual(resp.status, 401)
         self.assertNotEqual(resp.status, 404)
+
+    # ------------------------------------------------------------------
+    # /api/groups/update (protected)
+    # ------------------------------------------------------------------
+    async def test_update_group_rejects_without_token(self):
+        resp = await self.client.post(
+            "/api/groups/update",
+            json={"groupId": "test-id", "name": "New Name"},
+        )
+        self.assertEqual(resp.status, 401)
+
+    async def test_update_group_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/groups/update",
+            json={"groupId": "test-id", "name": "New Name"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+        self.assertNotEqual(resp.status, 404)
+
+    async def test_update_group_rejects_missing_group_id(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/groups/update",
+            json={"name": "New Name"},
+            headers=self._auth_header(token),
+        )
+        # 503 because require_writer runs before body validation (no signal-cli in test)
+        self.assertIn(resp.status, (400, 503))
+
+    # ------------------------------------------------------------------
+    # /api/contacts/{number} PUT (prefix-protected via /api/contacts/)
+    # ------------------------------------------------------------------
+    async def test_update_contact_rejects_without_token(self):
+        resp = await self.client.put(
+            "/api/contacts/+46700000000",
+            json={"givenName": "Test"},
+        )
+        self.assertEqual(resp.status, 401)
+
+    async def test_update_contact_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.put(
+            "/api/contacts/+46700000000",
+            json={"givenName": "Test"},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+        self.assertNotEqual(resp.status, 404)

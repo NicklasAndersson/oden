@@ -63,8 +63,16 @@ Listar alla Signal-grupper som kontot är medlem i.
 | **Ignorera-knapp** | Lägger till/tar bort gruppen i `ignored_groups` |
 | **Whitelist-knapp** | Lägger till/tar bort gruppen i `whitelisted_groups` |
 | **Gå med via länk** | Textfält för att klistra in en `https://signal.group/…`-inbjudningslänk |
-| **Väntande inbjudningar** | Listar grupper som Oden har blivit inbjuden till, med Acceptera/Avböj-knappar |
+| **Väntande inbjudningar** | Listar grupper som Oden har blivit inbjuden till, med Acceptera/Avböj-knappar || **Redigera grupp** | Modal för gruppadministration (namn, beskrivning, medlemmar, behörigheter, grupplänk, försvinnande meddelanden). Visas bara för grupper där Oden är administratör |
 
+#### Kontakter
+
+Listar alla kontakter från signal-cli med namn, nummer och profilnamn.
+
+| Funktion | Beskrivning |
+|----------|-----------|
+| **Uppdatera från Signal** | Hämtar kontakter på nytt från signal-cli |
+| **Redigera kontakt** | Modal för att ändra förnamn, efternamn, smeknamn, anteckning och försvinnande-timer |
 #### Mallar (Template-editor)
 
 | Funktion | Beskrivning |
@@ -206,6 +214,16 @@ Dessa är enbart tillgängliga i setup-mode.
 | GET | `/api/invitations` | Nej | Lista väntande gruppinbjudningar |
 | POST | `/api/invitations/accept` | ✅ | Acceptera gruppinbjudan |
 | POST | `/api/invitations/decline` | ✅ | Avböj gruppinbjudan |
+| POST | `/api/groups/refresh` | ✅ | Uppdatera grupplistan från signal-cli |
+| POST | `/api/groups/update` | ✅ | Uppdatera gruppinställningar (namn, medlemmar, behörigheter m.m.) |
+
+#### Kontakter
+
+| Metod | Sökväg | Auth | Beskrivning |
+|-------|--------|------|-------------|
+| GET | `/api/contacts` | Nej | Lista cachade kontakter |
+| POST | `/api/contacts/refresh` | ✅ | Hämta kontakter från signal-cli |
+| PUT | `/api/contacts/{number}` | ✅ | Uppdatera kontaktuppgifter (namn, smeknamn, anteckning, timer) |
 
 #### Mallar
 

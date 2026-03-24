@@ -638,7 +638,16 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
 
         app_state = get_app_state()
         # Cache has a different group from listGroups RPC
-        app_state.update_groups([{"id": "rpc1", "name": "RPC Group", "isMember": True, "members": [1, 2]}])
+        app_state.update_groups(
+            [
+                {
+                    "id": "rpc1",
+                    "name": "RPC Group",
+                    "isMember": True,
+                    "members": [{"number": "+461", "role": "DEFAULT"}, {"number": "+462", "role": "DEFAULT"}],
+                }
+            ]
+        )
 
         resp = await self.client.get("/api/groups")
         data = await resp.json()
