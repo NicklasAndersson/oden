@@ -190,10 +190,6 @@ Samma två punkter som auto-reaktion i `processing.py`:
 
 4. **Batch-möjlighet (framtida):** `targetTimestamp` accepterar en lista, så man kunde samla kvitton och skicka i bulk. Inte nödvändigt i v1.
 
-### Relation till updateConfiguration
-
-`updateConfiguration` (funktion #5) har en `readReceipts`-inställning som styr om signal-cli skickar läskvitton automatiskt. Om den är `true` hanterar signal-cli det själv — men den täcker inte Odens specifika behov (kvitto vid bearbetning, inte vid mottagning). De två funktionerna kompletterar varandra.
-
 ### Begränsningar
 
 - Kvitton skickas alltid till en **individ** (recipient), inte till en grupp
@@ -427,7 +423,6 @@ Exponera signal-cli:s Signal-protokollinställningar i webbgränssnittets Avance
   "id": "config-1",
   "params": {
     "account": "+46701234567",
-    "readReceipts": false,
     "typingIndicators": false,
     "linkPreviews": false,
     "unidentifiedDeliveryIndicators": false
@@ -439,7 +434,6 @@ Exponera signal-cli:s Signal-protokollinställningar i webbgränssnittets Avance
 
 | Parameter | Typ | Default | Beskrivning |
 |-----------|-----|---------|-------------|
-| `readReceipts` | boolean | — | Skicka automatiska läskvitton |
 | `typingIndicators` | boolean | — | Visa "skriver..."-indikator |
 | `linkPreviews` | boolean | — | Generera länkförhandsgranskningar |
 | `unidentifiedDeliveryIndicators` | boolean | — | Visa sealed sender-indikatorer |
@@ -465,7 +459,7 @@ Lägg till en ny sektion **"Signal-protokoll"** efter loggning-sektionen.
 2. **Läsning av nuvarande värden:** signal-cli har ingen `getConfiguration`-metod. Alternativ:
    - Spara senast satta värden i config_db som referens
    - Eller visa toggle-knappar utan att indikera nuvarande tillstånd (enklare men sämre UX)
-   - **Rekommendation:** Spara en kopia i config_db (`signal_read_receipts`, `signal_typing_indicators`, `signal_link_previews`) så att GUI:t kan visa aktuellt tillstånd
+   - **Rekommendation:** Spara en kopia i config_db (`signal_typing_indicators`, `signal_link_previews`) så att GUI:t kan visa aktuellt tillstånd
 
 3. **Ny API-endpoint** i `config_handlers.py`:
    ```python
@@ -473,7 +467,7 @@ Lägg till en ny sektion **"Signal-protokoll"** efter loggning-sektionen.
        data = await request.json()
        params = {"account": cfg.SIGNAL_NUMBER}
        
-       for key in ["readReceipts", "typingIndicators", "linkPreviews"]:
+       for key in ["typingIndicators", "linkPreviews"]:
            if key in data:
                params[key] = bool(data[key])
        

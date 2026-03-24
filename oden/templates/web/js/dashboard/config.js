@@ -156,7 +156,6 @@ async function loadSignalConfig() {
         });
         const config = await response.json();
 
-        document.getElementById('cfg-signal-read-receipts').checked = config.readReceipts || false;
         document.getElementById('cfg-signal-typing-indicators').checked = config.typingIndicators || false;
         document.getElementById('cfg-signal-link-previews').checked = config.linkPreviews || false;
         document.getElementById('cfg-signal-unidentified-delivery').checked = config.unidentifiedDeliveryIndicators || false;
@@ -167,7 +166,6 @@ async function loadSignalConfig() {
 
 async function saveSignalConfig() {
     const data = {
-        readReceipts: document.getElementById('cfg-signal-read-receipts').checked,
         typingIndicators: document.getElementById('cfg-signal-typing-indicators').checked,
         linkPreviews: document.getElementById('cfg-signal-link-previews').checked,
         unidentifiedDeliveryIndicators: document.getElementById('cfg-signal-unidentified-delivery').checked,

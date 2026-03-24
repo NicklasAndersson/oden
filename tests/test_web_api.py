@@ -476,21 +476,20 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         )
         self.assertEqual(resp.status, 200)
         data = await resp.json()
-        self.assertIn("readReceipts", data)
         self.assertIn("typingIndicators", data)
 
     # ------------------------------------------------------------------
     # /api/signal-config POST (protected)
     # ------------------------------------------------------------------
     async def test_signal_config_save_rejects_without_token(self):
-        resp = await self.client.post("/api/signal-config", json={"readReceipts": True})
+        resp = await self.client.post("/api/signal-config", json={"typingIndicators": True})
         self.assertEqual(resp.status, 401)
 
     async def test_signal_config_save_accepts_valid_token(self):
         token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/signal-config",
-            json={"readReceipts": False},
+            json={"typingIndicators": False},
             headers=self._auth_header(token),
         )
         self.assertNotEqual(resp.status, 401)

@@ -262,7 +262,6 @@ async def config_reset_handler(request: web.Request) -> web.Response:
 
 # Keys that map from camelCase (signal-cli) to snake_case (config_db)
 _SIGNAL_CONFIG_KEYS = {
-    "readReceipts": "signal_read_receipts",
     "typingIndicators": "signal_typing_indicators",
     "linkPreviews": "signal_link_previews",
     "unidentifiedDeliveryIndicators": "signal_unidentified_delivery_indicators",
