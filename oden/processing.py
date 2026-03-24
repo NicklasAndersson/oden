@@ -251,6 +251,12 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     source_name = envelope.get("sourceName")
     source_number = envelope.get("sourceNumber") or envelope.get("source")
+
+    # Resolve name via contact cache if envelope sourceName is missing or matches number
+    from oden.app_state import get_app_state
+
+    source_name = get_app_state().resolve_contact_name(source_number, source_name)
+
     dm = envelope.get("dataMessage", {})
     quote = dm.get("quote")
     now = datetime.datetime.now(cfg.TIMEZONE)

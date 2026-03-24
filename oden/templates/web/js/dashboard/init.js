@@ -8,6 +8,7 @@ fetchLogs();
 fetchInvitations();
 fetchGroups();
 loadConfigForm();
+loadSignalConfig();
 
 // ========== Polling Intervals ==========
 setInterval(fetchLogs, 3000);          // Logs: every 3 seconds

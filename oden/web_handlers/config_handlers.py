@@ -256,3 +256,55 @@ async def config_reset_handler(request: web.Request) -> web.Response:
     except Exception as e:
         logger.error(f"Error resetting config: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+# --- Signal protocol configuration ---
+
+# Keys that map from camelCase (signal-cli) to snake_case (config_db)
+_SIGNAL_CONFIG_KEYS = {
+    "readReceipts": "signal_read_receipts",
+    "typingIndicators": "signal_typing_indicators",
+    "linkPreviews": "signal_link_previews",
+    "unidentifiedDeliveryIndicators": "signal_unidentified_delivery_indicators",
+}
+
+
+async def signal_config_handler(request: web.Request) -> web.Response:
+    """Return locally cached Signal protocol settings."""
+    from oden.config_db import get_config_value
+
+    result = {}
+    for camel_key, db_key in _SIGNAL_CONFIG_KEYS.items():
+        value = get_config_value(CONFIG_DB, db_key)
+        result[camel_key] = value if value is not None else False
+    return web.json_response(result)
+
+
+async def signal_config_save_handler(request: web.Request) -> web.Response:
+    """Save Signal protocol settings via updateConfiguration RPC."""
+    from oden.app_state import get_app_state
+    from oden.config_db import set_config_value
+
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, Exception):
+        return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
+
+    params: dict = {"account": get_all_config(CONFIG_DB).get("signal_number", "")}
+    for camel_key, db_key in _SIGNAL_CONFIG_KEYS.items():
+        if camel_key in data:
+            value = bool(data[camel_key])
+            params[camel_key] = value
+            set_config_value(CONFIG_DB, db_key, value)
+
+    if len(params) <= 1:
+        return web.json_response({"success": False, "error": "Inga inställningar att spara"}, status=400)
+
+    app_state = get_app_state()
+    try:
+        await app_state.send_jsonrpc("updateConfiguration", params=params, timeout=10.0)
+    except Exception as e:
+        logger.error("Failed to update Signal configuration: %s", e)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    return web.json_response({"success": True, "message": "Signal-inställningar sparade"})

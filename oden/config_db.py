@@ -38,6 +38,10 @@ DEFAULT_CONFIG = {
     "auto_reaction_enabled": False,
     "auto_reaction_emoji": "✅",
     "auto_read_receipt_enabled": False,
+    "signal_read_receipts": False,
+    "signal_typing_indicators": False,
+    "signal_link_previews": False,
+    "signal_unidentified_delivery_indicators": False,
     "regex_patterns": {
         "registration_number": r"[A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}",
         "phone_number": r"(\+46|0)[1-9][0-9]{7,8}",
@@ -73,6 +77,10 @@ TYPE_MAP = {
     "auto_reaction_enabled": "bool",
     "auto_reaction_emoji": "str",
     "auto_read_receipt_enabled": "bool",
+    "signal_read_receipts": "bool",
+    "signal_typing_indicators": "bool",
+    "signal_link_previews": "bool",
+    "signal_unidentified_delivery_indicators": "bool",
 }
 
 

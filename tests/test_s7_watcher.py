@@ -325,5 +325,64 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
         self.assertIn("signal-cli", linker.error)
 
 
+class TestAppStateContacts(unittest.TestCase):
+    """Tests for AppState contact cache and name resolution."""
+
+    def test_update_contacts_builds_dict_by_number(self):
+        from oden.app_state import AppState
+
+        state = AppState()
+        contacts = [
+            {"number": "+46701234567", "name": "Alice"},
+            {"number": "+46709876543", "name": "Bob"},
+            {"number": None, "name": "NoNumber"},  # should be skipped
+        ]
+        state.update_contacts(contacts)
+        self.assertEqual(len(state.contacts), 2)
+        self.assertEqual(state.contacts["+46701234567"]["name"], "Alice")
+        self.assertEqual(state.contacts["+46709876543"]["name"], "Bob")
+
+    def test_resolve_contact_name_uses_envelope_name_first(self):
+        from oden.app_state import AppState
+
+        state = AppState()
+        state.update_contacts([{"number": "+46701234567", "name": "Alice"}])
+        # Envelope name takes priority
+        result = state.resolve_contact_name("+46701234567", "EnvelopeName")
+        self.assertEqual(result, "EnvelopeName")
+
+    def test_resolve_contact_name_falls_back_to_contact(self):
+        from oden.app_state import AppState
+
+        state = AppState()
+        state.update_contacts([{"number": "+46701234567", "name": "Alice"}])
+        # When envelope name equals the number, fall back to contact name
+        result = state.resolve_contact_name("+46701234567", "+46701234567")
+        self.assertEqual(result, "Alice")
+
+    def test_resolve_contact_name_falls_back_to_contact_when_none(self):
+        from oden.app_state import AppState
+
+        state = AppState()
+        state.update_contacts([{"number": "+46701234567", "name": "Alice"}])
+        result = state.resolve_contact_name("+46701234567", None)
+        self.assertEqual(result, "Alice")
+
+    def test_resolve_contact_name_returns_okand_when_no_match(self):
+        from oden.app_state import AppState
+
+        state = AppState()
+        result = state.resolve_contact_name("+46700000000", None)
+        self.assertEqual(result, "Okänd")
+
+    def test_resolve_contact_name_uses_nickname(self):
+        from oden.app_state import AppState
+
+        state = AppState()
+        state.update_contacts([{"number": "+46701234567", "nickName": "Nicke"}])
+        result = state.resolve_contact_name("+46701234567", None)
+        self.assertEqual(result, "Nicke")
+
+
 if __name__ == "__main__":
     unittest.main()

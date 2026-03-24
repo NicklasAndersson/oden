@@ -23,4 +23,8 @@ function showTab(tabName) {
     if (tabName === 'accounts') {
         loadAccounts();
     }
+    // Load contacts when switching to contacts tab
+    if (tabName === 'contacts') {
+        loadContacts();
+    }
 }

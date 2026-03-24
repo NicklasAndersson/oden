@@ -419,3 +419,79 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         )
         self.assertNotEqual(resp.status, 401)
         self.assertNotEqual(resp.status, 404)
+
+    # ------------------------------------------------------------------
+    # /api/contacts (unprotected — GET list)
+    # ------------------------------------------------------------------
+    async def test_unprotected_contacts_works_without_token(self):
+        resp = await self.client.get("/api/contacts")
+        self.assertEqual(resp.status, 200)
+        data = await resp.json()
+        self.assertIn("contacts", data)
+
+    # ------------------------------------------------------------------
+    # /api/contacts/refresh (protected)
+    # ------------------------------------------------------------------
+    async def test_contacts_refresh_rejects_without_token(self):
+        resp = await self.client.post("/api/contacts/refresh")
+        self.assertEqual(resp.status, 401)
+
+    async def test_contacts_refresh_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/contacts/refresh",
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+        self.assertNotEqual(resp.status, 404)
+
+    # ------------------------------------------------------------------
+    # /api/accounts/devices (prefix-protected via /api/accounts/)
+    # ------------------------------------------------------------------
+    async def test_accounts_devices_rejects_without_token(self):
+        resp = await self.client.get("/api/accounts/devices")
+        self.assertEqual(resp.status, 401)
+
+    async def test_accounts_devices_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.get(
+            "/api/accounts/devices",
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+        self.assertNotEqual(resp.status, 404)
+
+    # ------------------------------------------------------------------
+    # /api/signal-config GET (protected)
+    # ------------------------------------------------------------------
+    async def test_signal_config_get_rejects_without_token(self):
+        resp = await self.client.get("/api/signal-config")
+        self.assertEqual(resp.status, 401)
+
+    async def test_signal_config_get_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.get(
+            "/api/signal-config",
+            headers=self._auth_header(token),
+        )
+        self.assertEqual(resp.status, 200)
+        data = await resp.json()
+        self.assertIn("readReceipts", data)
+        self.assertIn("typingIndicators", data)
+
+    # ------------------------------------------------------------------
+    # /api/signal-config POST (protected)
+    # ------------------------------------------------------------------
+    async def test_signal_config_save_rejects_without_token(self):
+        resp = await self.client.post("/api/signal-config", json={"readReceipts": True})
+        self.assertEqual(resp.status, 401)
+
+    async def test_signal_config_save_accepts_valid_token(self):
+        token = await self._get_valid_token()
+        resp = await self.client.post(
+            "/api/signal-config",
+            json={"readReceipts": False},
+            headers=self._auth_header(token),
+        )
+        self.assertNotEqual(resp.status, 401)
+        self.assertNotEqual(resp.status, 404)

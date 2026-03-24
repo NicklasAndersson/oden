@@ -281,3 +281,45 @@ function finishAccountLink() {
     document.getElementById('account-link-modal').style.display = 'none';
     loadAccounts();
 }
+
+async function loadDevices() {
+    const container = document.getElementById('devices-list');
+    container.innerHTML = '<div class="empty-state">Hämtar enheter...</div>';
+
+    try {
+        const response = await fetch('/api/accounts/devices');
+        const data = await response.json();
+        const devices = data.devices || [];
+
+        if (devices.length === 0) {
+            container.innerHTML = '<div class="empty-state">Inga enheter hittades.</div>';
+            return;
+        }
+
+        let html = '<table style="width: 100%; border-collapse: collapse;">';
+        html += '<thead><tr style="border-bottom: 1px solid #333; text-align: left;">';
+        html += '<th style="padding: 8px;">ID</th>';
+        html += '<th style="padding: 8px;">Namn</th>';
+        html += '<th style="padding: 8px;">Skapad</th>';
+        html += '<th style="padding: 8px;">Senast sedd</th>';
+        html += '</tr></thead><tbody>';
+
+        for (const d of devices) {
+            const created = d.createdTimestamp ? new Date(d.createdTimestamp).toLocaleDateString('sv-SE') : '—';
+            const lastSeen = d.lastSeenTimestamp ? new Date(d.lastSeenTimestamp).toLocaleString('sv-SE') : '—';
+
+            html += '<tr style="border-bottom: 1px solid #222;">';
+            html += '<td style="padding: 8px;">' + escapeHtml(String(d.id || '')) + '</td>';
+            html += '<td style="padding: 8px;">' + escapeHtml(d.name || '—') + '</td>';
+            html += '<td style="padding: 8px;">' + created + '</td>';
+            html += '<td style="padding: 8px;">' + lastSeen + '</td>';
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+    } catch (error) {
+        container.innerHTML = '<div class="empty-state" style="color: #ff5252;">Kunde inte hämta enheter: ' + escapeHtml(error.message) + '</div>';
+    }
+}

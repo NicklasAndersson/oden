@@ -170,6 +170,30 @@ async def log_groups(writer: asyncio.StreamWriter) -> list[dict]:
     return db_groups
 
 
+async def log_contacts() -> None:
+    """Fetches contacts from signal-cli and caches them in app_state.
+
+    Used for name resolution (fallback when envelope sourceName is empty).
+    """
+    from oden import config as cfg
+
+    app_state = get_app_state()
+
+    try:
+        response = await app_state.send_jsonrpc(
+            "listContacts",
+            params={"account": cfg.SIGNAL_NUMBER, "allRecipients": True},
+            timeout=10.0,
+        )
+        if response and "result" in response:
+            contacts = response["result"]
+            app_state.update_contacts(contacts)
+        else:
+            logger.debug("listContacts returned no result")
+    except Exception as e:
+        logger.warning("Could not fetch contacts via RPC: %s", e)
+
+
 async def update_profile(writer: asyncio.StreamWriter, display_name: str | None) -> None:
     """Sends a JSON-RPC request to update the profile name."""
     from oden import config as cfg
@@ -252,6 +276,7 @@ async def subscribe_and_listen(host: str, port: int) -> None:
 
         await update_profile(writer, DISPLAY_NAME)
         groups = await log_groups(writer)
+        await log_contacts()
         await send_startup_message(writer, groups)
 
         # Process notifications until the reader loop ends (connection closed)

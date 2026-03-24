@@ -20,6 +20,7 @@ from oden.web_handlers import (
     accept_invitation_handler,
     accounts_activate_handler,
     accounts_delete_handler,
+    accounts_devices_handler,
     accounts_force_delete_handler,
     accounts_link_cancel_handler,
     accounts_link_handler,
@@ -30,6 +31,8 @@ from oden.web_handlers import (
     config_handler,
     config_reset_handler,
     config_save_handler,
+    contacts_handler,
+    contacts_refresh_handler,
     decline_invitation_handler,
     groups_handler,
     invitations_handler,
@@ -51,6 +54,8 @@ from oden.web_handlers import (
     setup_status_handler,
     setup_validate_path_handler,
     setup_verify_code_handler,
+    signal_config_handler,
+    signal_config_save_handler,
     template_export_handler,
     template_get_handler,
     template_preview_handler,
@@ -83,6 +88,8 @@ PROTECTED_ENDPOINTS = {
     "/api/accounts/link",  # POST - link new account
     "/api/accounts/link-cancel",  # POST - cancel link
     "/api/accounts/activate",  # POST - switch active account
+    "/api/contacts/refresh",  # POST - re-fetch contacts from signal-cli
+    "/api/signal-config",  # POST - update Signal protocol settings
 }
 
 # Endpoints that require auth and use path parameters (checked with startswith)
@@ -241,6 +248,15 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/accounts/activate", accounts_activate_handler)
         app.router.add_delete("/api/accounts/{number}", accounts_delete_handler)
         app.router.add_delete("/api/accounts/{number}/force", accounts_force_delete_handler)
+        app.router.add_get("/api/accounts/devices", accounts_devices_handler)
+
+        # Contact routes
+        app.router.add_get("/api/contacts", contacts_handler)
+        app.router.add_post("/api/contacts/refresh", contacts_refresh_handler)
+
+        # Signal protocol config routes
+        app.router.add_get("/api/signal-config", signal_config_handler)
+        app.router.add_post("/api/signal-config", signal_config_save_handler)
 
         # Response (auto-reply) routes
         app.router.add_get("/api/responses", responses_list_handler)

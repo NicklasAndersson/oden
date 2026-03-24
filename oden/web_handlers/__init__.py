@@ -8,6 +8,7 @@ organized by functionality.
 from oden.web_handlers.account_handlers import (
     accounts_activate_handler,
     accounts_delete_handler,
+    accounts_devices_handler,
     accounts_force_delete_handler,
     accounts_link_cancel_handler,
     accounts_link_handler,
@@ -21,6 +22,12 @@ from oden.web_handlers.config_handlers import (
     config_handler,
     config_reset_handler,
     config_save_handler,
+    signal_config_handler,
+    signal_config_save_handler,
+)
+from oden.web_handlers.contact_handlers import (
+    contacts_handler,
+    contacts_refresh_handler,
 )
 from oden.web_handlers.group_handlers import (
     accept_invitation_handler,
@@ -70,6 +77,8 @@ __all__ = [
     "config_save_handler",
     "config_export_handler",
     "config_reset_handler",
+    "signal_config_handler",
+    "signal_config_save_handler",
     # Account handlers
     "accounts_list_handler",
     "accounts_link_handler",
@@ -78,6 +87,10 @@ __all__ = [
     "accounts_activate_handler",
     "accounts_delete_handler",
     "accounts_force_delete_handler",
+    "accounts_devices_handler",
+    # Contact handlers
+    "contacts_handler",
+    "contacts_refresh_handler",
     # Group handlers
     "groups_handler",
     "refresh_groups_handler",

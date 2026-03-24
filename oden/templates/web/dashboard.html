@@ -75,6 +75,7 @@
                     <button class="tab-btn" onclick="showTab('templates')">Mallar</button>
                     <button class="tab-btn" onclick="showTab('responses')">Svar</button>
                     <button class="tab-btn" onclick="showTab('accounts')">Signal-konton</button>
+                    <button class="tab-btn" onclick="showTab('contacts')">Kontakter</button>
                 </div>
 
                 <div id="tab-basic" class="tab-content active">
@@ -289,6 +290,47 @@
                             <button type="button" class="btn btn-danger" onclick="rerunSetup()">Kör om setup</button>
                         </div>
                     </form>
+
+                    <!-- Signal Protocol Settings (separate from config form) -->
+                    <div class="config-section" style="margin-top: 20px;">
+                        <h3>📡 Signal-protokoll</h3>
+                        <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                            Signal-protokollinställningar som styr vad kontot delar med andra. Sparas direkt i signal-cli.
+                        </p>
+                        <div class="config-grid">
+                            <div class="config-field">
+                                <label>
+                                    <input type="checkbox" id="cfg-signal-read-receipts">
+                                    Läskvitton
+                                </label>
+                                <span class="help-text">Skicka automatiska läskvitton till avsändare</span>
+                            </div>
+                            <div class="config-field">
+                                <label>
+                                    <input type="checkbox" id="cfg-signal-typing-indicators">
+                                    Skrivindikator
+                                </label>
+                                <span class="help-text">Visa "skriver..."-indikator för andra</span>
+                            </div>
+                            <div class="config-field">
+                                <label>
+                                    <input type="checkbox" id="cfg-signal-link-previews">
+                                    Länkförhandsgranskning
+                                </label>
+                                <span class="help-text">Generera förhandsgranskning av delade länkar</span>
+                            </div>
+                            <div class="config-field">
+                                <label>
+                                    <input type="checkbox" id="cfg-signal-unidentified-delivery">
+                                    Sealed sender-indikatorer
+                                </label>
+                                <span class="help-text">Visa sealed sender-leveransindikatorer</span>
+                            </div>
+                        </div>
+                        <div class="config-actions">
+                            <button type="button" class="btn btn-primary" onclick="saveSignalConfig()">Spara Signal-inställningar</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="tab-templates" class="tab-content">
@@ -422,6 +464,32 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Linked Devices Section -->
+                    <div class="config-section" style="margin-top: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3>🔗 Länkade enheter</h3>
+                            <button type="button" class="btn btn-secondary" style="padding: 5px 12px; font-size: 0.85em;" onclick="loadDevices()">Uppdatera</button>
+                        </div>
+                        <div id="devices-list">
+                            <div class="empty-state">Klicka "Uppdatera" för att hämta enhetslista</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-contacts" class="tab-content">
+                    <div class="config-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3>👥 Kontakter</h3>
+                            <button type="button" class="btn btn-secondary" style="padding: 5px 12px; font-size: 0.85em;" onclick="refreshContacts()">Uppdatera från Signal</button>
+                        </div>
+                        <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                            Kontakter från signal-cli. Används för namnupplösning i rapporter.
+                        </p>
+                        <div id="contacts-list">
+                            <div class="empty-state">Laddar kontakter...</div>
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -449,6 +517,7 @@
     {% include "js/dashboard/config.js" %}
     {% include "js/dashboard/responses.js" %}
     {% include "js/dashboard/accounts.js" %}
+    {% include "js/dashboard/contacts.js" %}
     {% include "js/dashboard/templates.js" %}
     {% include "js/dashboard/tabs.js" %}
     {% include "js/dashboard/init.js" %}

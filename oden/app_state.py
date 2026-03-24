@@ -25,6 +25,8 @@ class AppState:
     _request_id: int = field(default=0, repr=False)
     # Cached groups list, updated by the main watcher loop
     groups: list[dict] = field(default_factory=list)
+    # Cached contacts dict (keyed by phone number), updated at startup + manual refresh
+    contacts: dict[str, dict] = field(default_factory=dict)
     # System tray icon controller (set by main if available)
     tray: Any = None  # OdenTray | None
 
@@ -121,6 +123,32 @@ class AppState:
         """Update the cached groups list."""
         self.groups = groups
         logger.info("Updated cached groups list (%d groups)", len(groups))
+
+    def update_contacts(self, contacts_list: list[dict]) -> None:
+        """Update the cached contacts dict (keyed by phone number)."""
+        self.contacts = {}
+        for contact in contacts_list:
+            number = contact.get("number")
+            if number:
+                self.contacts[number] = contact
+        logger.info("Updated cached contacts (%d contacts)", len(self.contacts))
+
+    def resolve_contact_name(self, source_number: str | None, envelope_name: str | None) -> str:
+        """Resolve a display name for a sender, falling back to contact cache.
+
+        Priority:
+        1. envelope sourceName (Signal profile name set by sender)
+        2. Contact name from listContacts cache (set by Oden user)
+        3. "Okänd" as last resort
+        """
+        if envelope_name and envelope_name != source_number:
+            return envelope_name
+        if source_number and source_number in self.contacts:
+            contact = self.contacts[source_number]
+            name = contact.get("name") or contact.get("nickName")
+            if name:
+                return name
+        return envelope_name or "Okänd"
 
     def get_pending_invitations(self) -> list[dict]:
         """Get groups where the user has a pending invitation."""

@@ -10,9 +10,9 @@ Oden använder idag 10 av signal-cli:s 49 JSON-RPC-metoder. Det här dokumentet 
 |---|----------|-------------------|-----------|
 | 1 | [Auto-reaktion vid sparad rapport](#1-auto-reaktion-vid-sparad-rapport) | `sendReaction` | ✅ Implementerad |
 | 2 | [Läskvitton för bearbetade meddelanden](#2-läskvitton-för-bearbetade-meddelanden) | `sendReceipt` | ✅ Implementerad |
-| 3 | [Kontaktlista och namnupplösning](#3-kontaktlista-och-namnupplösning) | `listContacts` | Hög |
-| 4 | [Enhetslista i webbgränssnitt](#4-enhetslista-i-webbgränssnitt) | `listDevices` | Medel |
-| 5 | [Signal-inställningar i Avancerat-fliken](#5-signal-inställningar-i-avancerat-fliken) | `updateConfiguration` | Medel |
+| 3 | [Kontaktlista och namnupplösning](#3-kontaktlista-och-namnupplösning) | `listContacts` | ✅ Implementerad |
+| 4 | [Enhetslista i webbgränssnitt](#4-enhetslista-i-webbgränssnitt) | `listDevices` | ✅ Implementerad |
+| 5 | [Signal-inställningar i Avancerat-fliken](#5-signal-inställningar-i-avancerat-fliken) | `updateConfiguration` | ✅ Implementerad |
 | 6 | [Gruppadministration från webbgränssnitt](#6-gruppadministration-från-webbgränssnitt) | `updateGroup` | Medel |
 | 7 | [Kontakthantering från webbgränssnitt](#7-kontakthantering-från-webbgränssnitt) | `updateContact` | Medel |
 

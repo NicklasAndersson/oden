@@ -398,3 +398,24 @@ async def accounts_force_delete_handler(request: web.Request) -> web.Response:
             {"success": False, "error": f"Fel vid radering: {e}"},
             status=500,
         )
+
+
+async def accounts_devices_handler(request: web.Request) -> web.Response:
+    """List linked devices for the active Signal account."""
+    app_state = get_app_state()
+
+    try:
+        response = await app_state.send_jsonrpc(
+            "listDevices",
+            params={"account": cfg.SIGNAL_NUMBER},
+            timeout=10.0,
+        )
+        if response and "result" in response:
+            return web.json_response({"devices": response["result"]})
+        return web.json_response({"devices": []})
+    except Exception as e:
+        logger.error("Failed to list devices: %s", e)
+        return web.json_response(
+            {"success": False, "error": str(e)},
+            status=500,
+        )

@@ -148,6 +148,50 @@ async function exportConfig() {
     }
 }
 
+async function loadSignalConfig() {
+    try {
+        const token = await getApiToken();
+        const response = await fetch('/api/signal-config', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const config = await response.json();
+
+        document.getElementById('cfg-signal-read-receipts').checked = config.readReceipts || false;
+        document.getElementById('cfg-signal-typing-indicators').checked = config.typingIndicators || false;
+        document.getElementById('cfg-signal-link-previews').checked = config.linkPreviews || false;
+        document.getElementById('cfg-signal-unidentified-delivery').checked = config.unidentifiedDeliveryIndicators || false;
+    } catch (error) {
+        console.error('Error loading signal config:', error);
+    }
+}
+
+async function saveSignalConfig() {
+    const data = {
+        readReceipts: document.getElementById('cfg-signal-read-receipts').checked,
+        typingIndicators: document.getElementById('cfg-signal-typing-indicators').checked,
+        linkPreviews: document.getElementById('cfg-signal-link-previews').checked,
+        unidentifiedDeliveryIndicators: document.getElementById('cfg-signal-unidentified-delivery').checked,
+    };
+
+    try {
+        const token = await getApiToken();
+        const response = await fetch('/api/signal-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            showConfigMessage('Signal-inställningar sparade', 'success');
+        } else {
+            showConfigMessage(result.error || 'Kunde inte spara Signal-inställningar', 'error');
+        }
+    } catch (error) {
+        showConfigMessage('Nätverksfel: ' + error.message, 'error');
+    }
+}
+
 async function shutdownApp() {
     if (!confirm('Är du säker på att du vill stänga av Oden?')) {
         return;
