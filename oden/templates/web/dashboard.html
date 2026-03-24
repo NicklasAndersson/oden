@@ -234,6 +234,34 @@
                         </div>
 
                         <div class="config-section">
+                            <h3>✅ Signal-bekräftelser</h3>
+                            <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
+                                Automatiska bekräftelser som skickas tillbaka till Signal när ett meddelande har sparats.
+                            </p>
+                            <div class="config-grid">
+                                <div class="config-field">
+                                    <label>
+                                        <input type="checkbox" id="cfg-auto-reaction" name="auto_reaction_enabled">
+                                        Auto-reaktion
+                                    </label>
+                                    <span class="help-text">Reagera med emoji på sparade meddelanden</span>
+                                </div>
+                                <div class="config-field">
+                                    <label for="cfg-auto-reaction-emoji">Reaktions-emoji</label>
+                                    <input type="text" id="cfg-auto-reaction-emoji" name="auto_reaction_emoji" maxlength="4" style="width: 60px;">
+                                    <span class="help-text">Emoji som används för auto-reaktion</span>
+                                </div>
+                                <div class="config-field">
+                                    <label>
+                                        <input type="checkbox" id="cfg-auto-read-receipt" name="auto_read_receipt_enabled">
+                                        Läskvitto
+                                    </label>
+                                    <span class="help-text">Skicka läskvitto när meddelande bearbetats</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
                             <h3>🔗 Regex-mönster</h3>
                             <p style="color: #888; margin-bottom: 15px; font-size: 0.9em;">
                                 Text som matchar dessa mönster länkas automatiskt som <code>[[...]]</code> i Obsidian.

@@ -35,6 +35,9 @@ DEFAULT_CONFIG = {
     "web_enabled": True,
     "web_port": 8080,
     "web_access_log": None,
+    "auto_reaction_enabled": False,
+    "auto_reaction_emoji": "✅",
+    "auto_read_receipt_enabled": False,
     "regex_patterns": {
         "registration_number": r"[A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}",
         "phone_number": r"(\+46|0)[1-9][0-9]{7,8}",
@@ -67,6 +70,9 @@ TYPE_MAP = {
     "regex_patterns": "json",
     "report_template": "str",
     "append_template": "str",
+    "auto_reaction_enabled": "bool",
+    "auto_reaction_emoji": "str",
+    "auto_read_receipt_enabled": "bool",
 }
 
 

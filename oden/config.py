@@ -199,6 +199,7 @@ def reload_config() -> dict:
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
     global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
+    global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED
 
     logger.info("Reloading configuration from database")
 
@@ -232,6 +233,9 @@ def reload_config() -> dict:
     WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
+    AUTO_REACTION_ENABLED = app_config.get("auto_reaction_enabled", False)
+    AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
+    AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
 
     # Persist and apply the log level so it takes effect immediately
     from oden.log_utils import apply_log_level, write_log_level
@@ -395,6 +399,9 @@ try:
     WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
+    AUTO_REACTION_ENABLED = app_config.get("auto_reaction_enabled", False)
+    AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
+    AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
 
 except Exception as e:
     logger.error("Error loading configuration: %s", e)

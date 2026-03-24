@@ -24,6 +24,56 @@ from oden.template_loader import render_append, render_report
 
 logger = logging.getLogger(__name__)
 
+
+# ==============================================================================
+# SIGNAL CONFIRMATION HELPERS
+# ==============================================================================
+
+
+async def _send_reaction(source_number: str | None, timestamp: int, group_id: str | None) -> None:
+    """Send an emoji reaction to confirm a saved message."""
+    if not cfg.AUTO_REACTION_ENABLED or not source_number:
+        return
+    try:
+        from oden.app_state import get_app_state
+
+        params: dict[str, Any] = {
+            "account": cfg.SIGNAL_NUMBER,
+            "emoji": cfg.AUTO_REACTION_EMOJI,
+            "targetAuthor": source_number,
+            "targetTimestamp": timestamp,
+        }
+        if group_id:
+            params["groupId"] = [group_id]
+        else:
+            params["recipient"] = [source_number]
+        await get_app_state().send_jsonrpc("sendReaction", params=params)
+        logger.debug("Sent reaction to %s", source_number)
+    except Exception as e:
+        logger.warning("Failed to send reaction: %s", e)
+
+
+async def _send_read_receipt(source_number: str | None, timestamp: int) -> None:
+    """Send a read receipt to confirm a processed message."""
+    if not cfg.AUTO_READ_RECEIPT_ENABLED or not source_number:
+        return
+    try:
+        from oden.app_state import get_app_state
+
+        await get_app_state().send_jsonrpc(
+            "sendReceipt",
+            params={
+                "account": cfg.SIGNAL_NUMBER,
+                "recipient": source_number,
+                "targetTimestamp": [timestamp],
+                "type": "read",
+            },
+        )
+        logger.debug("Sent read receipt to %s", source_number)
+    except Exception as e:
+        logger.warning("Failed to send read receipt: %s", e)
+
+
 # ==============================================================================
 # MESSAGE PROCESSING
 # ==============================================================================
@@ -274,6 +324,11 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                         f.write(append_content)
                     logger.info(f"APPENDED (reply or ++) TO: {latest_file}")
                     append_succeeded = True
+                    # Fire-and-forget confirmations
+                    msg_ts = envelope.get("timestamp")
+                    if msg_ts:
+                        asyncio.create_task(_send_reaction(source_number, msg_ts, group_id))
+                        asyncio.create_task(_send_read_receipt(source_number, msg_ts))
                 except OSError as e:
                     logger.error(f"Failed to append to file {latest_file}: {e}")
             else:
@@ -376,5 +431,10 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
         logger.info(f"WROTE: {path}")
+        # Fire-and-forget confirmations
+        msg_ts = envelope.get("timestamp")
+        if msg_ts:
+            asyncio.create_task(_send_reaction(source_number, msg_ts, group_id))
+            asyncio.create_task(_send_read_receipt(source_number, msg_ts))
     except OSError as e:
         logger.error(f"Failed to write file {path}: {e}")

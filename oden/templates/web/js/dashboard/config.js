@@ -31,6 +31,11 @@ async function loadConfigForm() {
         document.getElementById('cfg-web-port').value = config.web_port || 8080;
         document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
 
+        // Signal confirmations
+        document.getElementById('cfg-auto-reaction').checked = config.auto_reaction_enabled || false;
+        document.getElementById('cfg-auto-reaction-emoji').value = config.auto_reaction_emoji || '✅';
+        document.getElementById('cfg-auto-read-receipt').checked = config.auto_read_receipt_enabled || false;
+
         // Regex patterns
         loadRegexPatterns(config.regex_patterns || {});
 
@@ -70,6 +75,9 @@ async function saveConfigForm(event) {
         web_enabled: document.getElementById('cfg-web-enabled').checked,
         web_port: parseInt(document.getElementById('cfg-web-port').value) || 8080,
         log_level: document.getElementById('cfg-log-level').value,
+        auto_reaction_enabled: document.getElementById('cfg-auto-reaction').checked,
+        auto_reaction_emoji: document.getElementById('cfg-auto-reaction-emoji').value || '✅',
+        auto_read_receipt_enabled: document.getElementById('cfg-auto-read-receipt').checked,
         regex_patterns: collectRegexPatterns()
     };
 
