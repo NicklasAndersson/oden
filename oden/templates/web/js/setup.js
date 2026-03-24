@@ -19,9 +19,12 @@ fetch('/api/setup/status')
             iniPath = data.existing_ini_path;
         }
 
-        // If a recovery candidate was found, show the recovery step
+        // If a recovery candidate was found, pre-populate form fields from saved config
         if (data.recovery_candidate) {
             document.getElementById('recovery-path').value = data.recovery_candidate;
+            if (data.recovery_config) {
+                applyRecoveredConfig(data.recovery_config);
+            }
             showRecoveryStep();
         }
     });
@@ -509,6 +512,20 @@ function showRecoveryStep() {
     document.getElementById('step-indicator').style.display = 'none';
 }
 
+function applyRecoveredConfig(cfg) {
+    // Pre-populate form fields with saved config values
+    if (cfg.vault_path) {
+        document.getElementById('vault-path').value = cfg.vault_path;
+    }
+    if (cfg.signal_number && cfg.signal_number !== '+46XXXXXXXXX') {
+        linkedNumber = cfg.signal_number;
+    }
+    if (cfg.display_name) {
+        const el = document.getElementById('device-name');
+        if (el) el.value = cfg.display_name;
+    }
+}
+
 function skipRecovery() {
     // User wants fresh install — go to normal step 1
     document.getElementById('step-recovery').classList.remove('active');
@@ -565,6 +582,11 @@ async function confirmRecovery() {
         const data = await response.json();
 
         if (data.success) {
+            // Apply saved config values to form fields
+            if (data.saved_config) {
+                applyRecoveredConfig(data.saved_config);
+            }
+
             if (data.fully_configured) {
                 // Config is complete — just wait for the server to restart
                 msgDiv.innerHTML = '<div class="success" style="padding: 20px; text-align: center;">' +

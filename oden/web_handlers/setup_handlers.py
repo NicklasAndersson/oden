@@ -34,6 +34,7 @@ from oden.config import (
     setup_oden_home,
     soft_reset_config,
 )
+from oden.config_db import get_all_config
 from oden.path_utils import (
     is_filesystem_root,
     is_within_directory,
@@ -82,6 +83,7 @@ async def setup_status_handler(request: web.Request) -> web.Response:
 
     # Check for recovery candidate: pointer file missing but config.db exists
     recovery_candidate = None
+    recovery_config = None
     if config_error == "no_pointer":
         candidate_db = DEFAULT_ODEN_HOME / "config.db"
         if candidate_db.exists():
@@ -92,6 +94,16 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                     "Pointer file missing — found existing config at %s",
                     DEFAULT_ODEN_HOME,
                 )
+                # Read saved config so the UI can pre-populate fields
+                try:
+                    saved = get_all_config(candidate_db)
+                    recovery_config = {
+                        "vault_path": saved.get("vault_path", str(DEFAULT_VAULT_PATH)),
+                        "signal_number": saved.get("signal_number", ""),
+                        "display_name": saved.get("display_name", ""),
+                    }
+                except Exception as e:
+                    logger.warning("Could not read saved config for recovery: %s", e)
 
     # Check for existing INI file - first in default location, then in bundle location
     default_ini_path = DEFAULT_ODEN_HOME / "config.ini"
@@ -129,6 +141,7 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                 "existing_ini_content": existing_ini_content,
                 "existing_accounts": existing_accounts,
                 "recovery_candidate": recovery_candidate,
+                "recovery_config": recovery_config,
             }
         )
 
@@ -274,6 +287,20 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
             # Check if configuration is now fully complete (e.g. during recovery)
             fully_configured, _config_error = is_configured()
 
+            # Read saved config so the UI can pre-populate form fields
+            saved_config = None
+            db_path = Path(oden_home_path) / "config.db"
+            if db_path.exists():
+                try:
+                    saved = get_all_config(db_path)
+                    saved_config = {
+                        "vault_path": saved.get("vault_path", str(DEFAULT_VAULT_PATH)),
+                        "signal_number": saved.get("signal_number", ""),
+                        "display_name": saved.get("display_name", ""),
+                    }
+                except Exception as e:
+                    logger.warning("Could not read saved config for recovery: %s", e)
+
             return web.json_response(
                 {
                     "success": True,
@@ -281,6 +308,7 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
                     "oden_home": oden_home_path,
                     "migrated_from_ini": ini_path_obj is not None,
                     "fully_configured": fully_configured,
+                    "saved_config": saved_config,
                 }
             )
         else:
