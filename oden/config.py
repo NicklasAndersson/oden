@@ -429,3 +429,6 @@ except Exception as e:
     WEB_HOST = os.environ.get("WEB_HOST", "127.0.0.1")
     WEB_PORT = 8080
     WEB_ACCESS_LOG = None
+    AUTO_REACTION_ENABLED = False
+    AUTO_REACTION_EMOJI = "✅"
+    AUTO_READ_RECEIPT_ENABLED = False

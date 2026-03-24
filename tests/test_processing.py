@@ -3,7 +3,13 @@ import os
 import unittest
 from unittest.mock import AsyncMock, mock_open, patch
 
-from oden.processing import _extract_message_details, extract_coordinates, process_message
+from oden.processing import (
+    _extract_message_details,
+    _send_reaction,
+    _send_read_receipt,
+    extract_coordinates,
+    process_message,
+)
 
 
 class TestProcessing(unittest.IsolatedAsyncioTestCase):
@@ -670,6 +676,157 @@ class TestExtractCoordinates(unittest.TestCase):
         msg = "Check this out https://www.google.com/search?q=hello"
         result = extract_coordinates(msg)
         self.assertIsNone(result)
+
+
+class TestReactionAndReceipt(unittest.IsolatedAsyncioTestCase):
+    """Tests for _send_reaction and _send_read_receipt helpers."""
+
+    @patch("oden.config.AUTO_REACTION_ENABLED", True)
+    @patch("oden.config.AUTO_REACTION_EMOJI", "✅")
+    @patch("oden.config.SIGNAL_NUMBER", "+46700000000")
+    async def test_send_reaction_group(self):
+        """Reaction is sent with groupId for group messages."""
+        mock_app = AsyncMock()
+        mock_app.send_jsonrpc.return_value = {"timestamp": 123}
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_reaction("+46701234567", 1700000000000, "group123")
+        mock_app.send_jsonrpc.assert_called_once_with(
+            "sendReaction",
+            params={
+                "account": "+46700000000",
+                "emoji": "✅",
+                "targetAuthor": "+46701234567",
+                "targetTimestamp": 1700000000000,
+                "groupId": ["group123"],
+            },
+        )
+
+    @patch("oden.config.AUTO_REACTION_ENABLED", True)
+    @patch("oden.config.AUTO_REACTION_EMOJI", "✅")
+    @patch("oden.config.SIGNAL_NUMBER", "+46700000000")
+    async def test_send_reaction_dm(self):
+        """Reaction uses recipient for DMs (no group_id)."""
+        mock_app = AsyncMock()
+        mock_app.send_jsonrpc.return_value = {"timestamp": 123}
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_reaction("+46701234567", 1700000000000, None)
+        params = mock_app.send_jsonrpc.call_args.kwargs["params"]
+        self.assertEqual(params["recipient"], ["+46701234567"])
+        self.assertNotIn("groupId", params)
+
+    @patch("oden.config.AUTO_REACTION_ENABLED", False)
+    async def test_send_reaction_disabled(self):
+        """No RPC call when auto_reaction_enabled is False."""
+        mock_app = AsyncMock()
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_reaction("+46701234567", 1700000000000, "group123")
+        mock_app.send_jsonrpc.assert_not_called()
+
+    @patch("oden.config.AUTO_REACTION_ENABLED", True)
+    async def test_send_reaction_no_source_number(self):
+        """No RPC call when source_number is None."""
+        mock_app = AsyncMock()
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_reaction(None, 1700000000000, "group123")
+        mock_app.send_jsonrpc.assert_not_called()
+
+    @patch("oden.config.AUTO_REACTION_ENABLED", True)
+    @patch("oden.config.AUTO_REACTION_EMOJI", "✅")
+    @patch("oden.config.SIGNAL_NUMBER", "+46700000000")
+    async def test_send_reaction_error_logged(self):
+        """Errors are caught and logged as warnings, not raised."""
+        mock_app = AsyncMock()
+        mock_app.send_jsonrpc.side_effect = Exception("connection lost")
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_reaction("+46701234567", 1700000000000, "group123")
+        # Should not raise
+
+    @patch("oden.config.AUTO_READ_RECEIPT_ENABLED", True)
+    @patch("oden.config.SIGNAL_NUMBER", "+46700000000")
+    async def test_send_read_receipt(self):
+        """Read receipt is sent with correct parameters."""
+        mock_app = AsyncMock()
+        mock_app.send_jsonrpc.return_value = {"timestamp": 123}
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_read_receipt("+46701234567", 1700000000000)
+        mock_app.send_jsonrpc.assert_called_once_with(
+            "sendReceipt",
+            params={
+                "account": "+46700000000",
+                "recipient": "+46701234567",
+                "targetTimestamp": [1700000000000],
+                "type": "read",
+            },
+        )
+
+    @patch("oden.config.AUTO_READ_RECEIPT_ENABLED", False)
+    async def test_send_read_receipt_disabled(self):
+        """No RPC call when auto_read_receipt_enabled is False."""
+        mock_app = AsyncMock()
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_read_receipt("+46701234567", 1700000000000)
+        mock_app.send_jsonrpc.assert_not_called()
+
+    @patch("oden.config.AUTO_READ_RECEIPT_ENABLED", True)
+    @patch("oden.config.SIGNAL_NUMBER", "+46700000000")
+    async def test_send_read_receipt_error_logged(self):
+        """Errors are caught and logged as warnings, not raised."""
+        mock_app = AsyncMock()
+        mock_app.send_jsonrpc.side_effect = Exception("timeout")
+        with patch("oden.app_state.get_app_state", return_value=mock_app):
+            await _send_read_receipt("+46701234567", 1700000000000)
+        # Should not raise
+
+    @patch("oden.processing._send_read_receipt", new_callable=AsyncMock)
+    @patch("oden.processing._send_reaction", new_callable=AsyncMock)
+    @patch("oden.processing.render_report")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("os.makedirs")
+    @patch("os.path.exists")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
+    async def test_hooks_triggered_on_write(
+        self, mock_exists, mock_makedirs, mock_open_fn, mock_render, mock_reaction, mock_receipt
+    ):
+        """Reaction and receipt hooks are triggered after successful file write."""
+        mock_exists.return_value = False
+        mock_render.return_value = "# Report"
+        message_obj = {
+            "envelope": {
+                "sourceName": "John",
+                "sourceNumber": "+123",
+                "timestamp": 1700000000000,
+                "dataMessage": {"message": "Test", "groupV2": {"name": "Grp", "id": "g1"}},
+            }
+        }
+        await process_message(message_obj, AsyncMock(), AsyncMock())
+        mock_reaction.assert_called_once_with("+123", 1700000000000, "g1")
+        mock_receipt.assert_called_once_with("+123", 1700000000000)
+
+    @patch("oden.processing._send_read_receipt", new_callable=AsyncMock)
+    @patch("oden.processing._send_reaction", new_callable=AsyncMock)
+    @patch("oden.processing.render_append")
+    @patch("oden.config.PLUS_PLUS_ENABLED", True)
+    @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/Grp/recent.md")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("oden.config.WHITELIST_GROUPS", [])
+    @patch("oden.config.IGNORED_GROUPS", set())
+    async def test_hooks_triggered_on_append(self, mock_open_fn, mock_find, mock_render, mock_reaction, mock_receipt):
+        """Reaction and receipt hooks are triggered after successful append."""
+        mock_render.return_value = "appended content"
+        message_obj = {
+            "envelope": {
+                "sourceName": "John",
+                "sourceNumber": "+123",
+                "timestamp": 1700000000000,
+                "dataMessage": {"message": "++ more info", "groupV2": {"name": "Grp", "id": "g1"}},
+            }
+        }
+        await process_message(message_obj, AsyncMock(), AsyncMock())
+        mock_reaction.assert_called_once_with("+123", 1700000000000, "g1")
+        mock_receipt.assert_called_once_with("+123", 1700000000000)
 
 
 if __name__ == "__main__":

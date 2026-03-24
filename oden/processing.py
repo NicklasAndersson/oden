@@ -47,8 +47,11 @@ async def _send_reaction(source_number: str | None, timestamp: int, group_id: st
             params["groupId"] = [group_id]
         else:
             params["recipient"] = [source_number]
-        await get_app_state().send_jsonrpc("sendReaction", params=params)
-        logger.debug("Sent reaction to %s", source_number)
+        result = await get_app_state().send_jsonrpc("sendReaction", params=params)
+        if result is not None:
+            logger.debug("Sent reaction to %s", source_number)
+        else:
+            logger.debug("Reaction to %s got no response", source_number)
     except Exception as e:
         logger.warning("Failed to send reaction: %s", e)
 
@@ -60,7 +63,7 @@ async def _send_read_receipt(source_number: str | None, timestamp: int) -> None:
     try:
         from oden.app_state import get_app_state
 
-        await get_app_state().send_jsonrpc(
+        result = await get_app_state().send_jsonrpc(
             "sendReceipt",
             params={
                 "account": cfg.SIGNAL_NUMBER,
@@ -69,7 +72,10 @@ async def _send_read_receipt(source_number: str | None, timestamp: int) -> None:
                 "type": "read",
             },
         )
-        logger.debug("Sent read receipt to %s", source_number)
+        if result is not None:
+            logger.debug("Sent read receipt to %s", source_number)
+        else:
+            logger.debug("Read receipt to %s got no response", source_number)
     except Exception as e:
         logger.warning("Failed to send read receipt: %s", e)
 

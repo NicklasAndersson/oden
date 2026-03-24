@@ -6,7 +6,7 @@ Oden använder idag 10 av signal-cli:s 49 JSON-RPC-metoder. Det här dokumentet 
 
 ## Innehåll
 
-| # | Funktion | signal-cli-metod | Prioritet |
+| # | Funktion | signal-cli-metod | Status |
 |---|----------|-------------------|-----------|
 | 1 | [Auto-reaktion vid sparad rapport](#1-auto-reaktion-vid-sparad-rapport) | `sendReaction` | ✅ Implementerad |
 | 2 | [Läskvitton för bearbetade meddelanden](#2-läskvitton-för-bearbetade-meddelanden) | `sendReceipt` | ✅ Implementerad |

@@ -48,6 +48,9 @@ async def config_handler(request: web.Request) -> web.Response:
         "web_enabled": config.get("web_enabled", True),
         "web_port": config.get("web_port", 8080),
         "web_access_log": config.get("web_access_log"),
+        "auto_reaction_enabled": config.get("auto_reaction_enabled", False),
+        "auto_reaction_emoji": config.get("auto_reaction_emoji", "✅"),
+        "auto_read_receipt_enabled": config.get("auto_read_receipt_enabled", False),
         "oden_home": str(ODEN_HOME),
         "config_db_path": str(CONFIG_DB),
     }
