@@ -288,7 +288,10 @@ async function loadDevices() {
     container.innerHTML = '<div class="empty-state">Hämtar enheter...</div>';
 
     try {
-        const response = await fetch('/api/accounts/devices');
+        const token = await getApiToken();
+        const response = await fetch('/api/accounts/devices', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
         const data = await response.json();
         const devices = data.devices || [];
 
