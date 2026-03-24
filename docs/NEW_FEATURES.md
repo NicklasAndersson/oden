@@ -15,6 +15,7 @@ Oden använder idag 10 av signal-cli:s 49 JSON-RPC-metoder. Det här dokumentet 
 | 5 | [Signal-inställningar i Avancerat-fliken](#5-signal-inställningar-i-avancerat-fliken) | `updateConfiguration` | ✅ Implementerad |
 | 6 | [Gruppadministration från webbgränssnitt](#6-gruppadministration-från-webbgränssnitt) | `updateGroup` | Medel |
 | 7 | [Kontakthantering från webbgränssnitt](#7-kontakthantering-från-webbgränssnitt) | `updateContact` | Medel |
+| 8 | [Uppdatera grupper och kontakter vid anslutning](#8-uppdatera-grupper-och-kontakter-vid-anslutning) | `listGroups`, `listContacts` | ✅ Implementerad |
 
 ---
 
@@ -777,6 +778,47 @@ Funktion #3 och #7 bör implementeras tillsammans. `listContacts` ger läsningen
 - Samma kontaktcache i `app_state`
 - Samma API-prefix (`/api/contacts/`)
 - Samma frontend-komponent (kontaktlista)
+
+---
+
+## 8. Uppdatera grupper och kontakter vid anslutning
+
+### Beskrivning
+
+När Oden etablerar en TCP-anslutning till signal-cli uppdateras grupper och kontakter automatiskt. Detta säkerställer att webbgränssnittets grupplista och kontaktcache alltid är aktuella efter omstart eller återanslutning.
+
+### Implementering
+
+Vid anslutning i `subscribe_and_listen()` (`signal_listener.py`) körs följande startsekvens:
+
+1. `log_groups(writer)` — hämtar alla grupper via `listGroups` RPC, uppdaterar både in-memory cache (`app_state.update_groups()`) och SQLite-databasen (`upsert_groups_bulk()`)
+2. `log_contacts()` — hämtar alla kontakter via `listContacts` RPC med `allRecipients: true`, uppdaterar in-memory cache (`app_state.update_contacts()`)
+
+### signal-cli JSON-RPC
+
+**Metod 1:** `listGroups`
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "listGroups",
+  "id": "groups-startup",
+  "params": { "account": "+46701234567" }
+}
+```
+
+**Metod 2:** `listContacts`
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "listContacts",
+  "id": "contacts-startup",
+  "params": { "account": "+46701234567", "allRecipients": true }
+}
+```
+
+### Status
+
+✅ Implementerad — grupper och kontakter uppdateras automatiskt varje gång `subscribe_and_listen()` ansluter till signal-cli.
 
 ### Begränsningar
 
