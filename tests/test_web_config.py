@@ -520,3 +520,198 @@ class TestSetupOdenHomeFullyConfigured(AioHTTPTestCase):
             data = await resp.json()
             self.assertTrue(data["success"])
             self.assertFalse(data["fully_configured"])
+
+
+class TestMergeIniIntoDB(unittest.TestCase):
+    """Test _merge_ini_into_db helper for recovery INI auto-merge."""
+
+    def test_merge_replaces_default_signal_number(self):
+        """INI signal_number should replace DB default placeholder."""
+        import tempfile
+
+        from oden.config_db import DEFAULT_CONFIG, get_all_config, init_db, save_all_config
+        from oden.web_handlers.setup_handlers import _merge_ini_into_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            ini_path = Path(tmpdir) / "config.ini"
+
+            # Create DB with defaults
+            init_db(db_path)
+            save_all_config(db_path, DEFAULT_CONFIG)
+
+            # Create INI with real values
+            ini_path.write_text(
+                "[Signal]\nnumber = +46766865402\ndisplay_name = Oden\n"
+                "[Vault]\npath = /tmp/my-vault\n"
+                "[Settings]\nwhitelist_groups = Test - oden\n",
+                encoding="utf-8",
+            )
+
+            result = _merge_ini_into_db(db_path, ini_path)
+            self.assertTrue(result)
+
+            config = get_all_config(db_path)
+            self.assertEqual(config["signal_number"], "+46766865402")
+            self.assertEqual(config["display_name"], "Oden")
+            self.assertEqual(config["vault_path"], "/tmp/my-vault")
+            self.assertEqual(config["whitelist_groups"], ["Test - oden"])
+
+    def test_merge_does_not_overwrite_custom_values(self):
+        """INI values should NOT overwrite non-default DB values."""
+        import tempfile
+
+        from oden.config_db import DEFAULT_CONFIG, get_all_config, init_db, save_all_config
+        from oden.web_handlers.setup_handlers import _merge_ini_into_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            ini_path = Path(tmpdir) / "config.ini"
+
+            # Create DB with custom (non-default) values
+            init_db(db_path)
+            custom = dict(DEFAULT_CONFIG)
+            custom["signal_number"] = "+46701234567"
+            custom["display_name"] = "MyDevice"
+            custom["vault_path"] = "/custom/vault"
+            save_all_config(db_path, custom)
+
+            # INI has different values
+            ini_path.write_text(
+                "[Signal]\nnumber = +46766865402\ndisplay_name = Oden\n[Vault]\npath = /other/vault\n",
+                encoding="utf-8",
+            )
+
+            result = _merge_ini_into_db(db_path, ini_path)
+            # No merge should happen because DB has non-default values
+            self.assertFalse(result)
+
+            config = get_all_config(db_path)
+            self.assertEqual(config["signal_number"], "+46701234567")
+            self.assertEqual(config["display_name"], "MyDevice")
+            self.assertEqual(config["vault_path"], "/custom/vault")
+
+    def test_merge_partial_defaults(self):
+        """Only keys with default values should be merged from INI."""
+        import tempfile
+
+        from oden.config_db import DEFAULT_CONFIG, get_all_config, init_db, save_all_config
+        from oden.web_handlers.setup_handlers import _merge_ini_into_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            ini_path = Path(tmpdir) / "config.ini"
+
+            # DB has custom signal_number but default display_name
+            init_db(db_path)
+            custom = dict(DEFAULT_CONFIG)
+            custom["signal_number"] = "+46701234567"
+            # display_name stays at default "oden"
+            save_all_config(db_path, custom)
+
+            ini_path.write_text(
+                "[Signal]\nnumber = +46766865402\ndisplay_name = Oden\n",
+                encoding="utf-8",
+            )
+
+            result = _merge_ini_into_db(db_path, ini_path)
+            self.assertTrue(result)
+
+            config = get_all_config(db_path)
+            # signal_number should NOT be overwritten (was non-default)
+            self.assertEqual(config["signal_number"], "+46701234567")
+            # display_name SHOULD be updated (was default "oden", INI has "Oden")
+            self.assertEqual(config["display_name"], "Oden")
+
+    def test_merge_missing_files(self):
+        """Should return False when files don't exist."""
+        import tempfile
+
+        from oden.web_handlers.setup_handlers import _merge_ini_into_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            ini_path = Path(tmpdir) / "config.ini"
+
+            # Neither file exists
+            self.assertFalse(_merge_ini_into_db(db_path, ini_path))
+
+            # Only DB exists
+            db_path.touch()
+            self.assertFalse(_merge_ini_into_db(db_path, ini_path))
+
+    def test_merge_empty_ini(self):
+        """Should return False when INI has no relevant sections."""
+        import tempfile
+
+        from oden.config_db import DEFAULT_CONFIG, init_db, save_all_config
+        from oden.web_handlers.setup_handlers import _merge_ini_into_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            ini_path = Path(tmpdir) / "config.ini"
+
+            init_db(db_path)
+            save_all_config(db_path, DEFAULT_CONFIG)
+            ini_path.write_text("[Other]\nfoo = bar\n", encoding="utf-8")
+
+            self.assertFalse(_merge_ini_into_db(db_path, ini_path))
+
+
+class TestRecoveryWithIniMerge(AioHTTPTestCase):
+    """Test that recovery auto-merges config.ini values during oden-home setup."""
+
+    async def get_application(self):
+        return create_app(setup_mode=True)
+
+    @unittest.mock.patch("oden.config.set_oden_home_path", return_value=True)
+    @unittest.mock.patch("oden.config.validate_oden_home", return_value=(True, None))
+    @unittest.mock.patch("oden.config.validate_path_within_home")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.is_configured")
+    async def test_oden_home_auto_merges_ini_on_recovery(
+        self, mock_is_configured, mock_validate_path, mock_validate_home, mock_set_pointer
+    ):
+        """When config.ini exists alongside config.db, INI values fill in defaults."""
+        import tempfile
+
+        from oden import config as cfg
+        from oden.config_db import DEFAULT_CONFIG, get_all_config, init_db, save_all_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            oden_home = Path(tmpdir)
+            db_path = oden_home / "config.db"
+            ini_path = oden_home / "config.ini"
+
+            # Create DB with defaults (simulates incomplete initial setup)
+            init_db(db_path)
+            save_all_config(db_path, DEFAULT_CONFIG)
+
+            # Create INI with real values
+            ini_path.write_text(
+                "[Signal]\nnumber = +46766865402\ndisplay_name = Oden\n"
+                "[Vault]\npath = /tmp/my-vault\n"
+                "[Settings]\nwhitelist_groups = Test - oden\n",
+                encoding="utf-8",
+            )
+
+            cfg._update_paths(oden_home)
+            mock_validate_path.return_value = (oden_home, None)
+            mock_is_configured.return_value = (True, None)
+
+            resp = await self.client.post(
+                "/api/setup/oden-home",
+                json={"oden_home": str(oden_home)},
+            )
+            data = await resp.json()
+            self.assertTrue(data["success"])
+
+            # saved_config should reflect the merged values
+            self.assertEqual(data["saved_config"]["signal_number"], "+46766865402")
+            self.assertEqual(data["saved_config"]["display_name"], "Oden")
+            self.assertEqual(data["saved_config"]["vault_path"], "/tmp/my-vault")
+            self.assertEqual(data["saved_config"]["whitelist_groups"], ["Test - oden"])
+
+            # Verify DB was actually updated
+            config = get_all_config(db_path)
+            self.assertEqual(config["signal_number"], "+46766865402")
+            self.assertEqual(config["whitelist_groups"], ["Test - oden"])

@@ -34,7 +34,7 @@ from oden.config import (
     setup_oden_home,
     soft_reset_config,
 )
-from oden.config_db import get_all_config
+from oden.config_db import DEFAULT_CONFIG, get_all_config, save_all_config
 from oden.path_utils import (
     is_filesystem_root,
     is_within_directory,
@@ -43,6 +43,76 @@ from oden.path_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _merge_ini_into_db(db_path: Path, ini_path: Path) -> bool:
+    """Merge config.ini values into config.db for keys that still have defaults.
+
+    During recovery, config.db may have been created with default/placeholder
+    values while config.ini (from an earlier Oden version) contains the user's
+    real settings. This function reads both sources and updates config.db
+    where it still holds DEFAULT_CONFIG values.
+
+    Returns True if any values were merged, False otherwise.
+    """
+    if not db_path.exists() or not ini_path.exists():
+        return False
+
+    try:
+        import configparser
+        import os
+
+        ini = configparser.RawConfigParser()
+        ini.read(ini_path)
+
+        # Parse INI into a flat dict matching config_db keys
+        ini_values: dict = {}
+        if ini.has_section("Vault"):
+            v = ini.get("Vault", "path", fallback=None)
+            if v:
+                ini_values["vault_path"] = os.path.expanduser(v)
+        if ini.has_section("Signal"):
+            v = ini.get("Signal", "number", fallback=None)
+            if v:
+                ini_values["signal_number"] = v
+            v = ini.get("Signal", "display_name", fallback=None)
+            if v:
+                ini_values["display_name"] = v
+        if ini.has_section("Settings"):
+            wl = ini.get("Settings", "whitelist_groups", fallback=None)
+            if wl:
+                ini_values["whitelist_groups"] = [g.strip() for g in wl.split(",") if g.strip()]
+            ig = ini.get("Settings", "ignored_groups", fallback=None)
+            if ig:
+                ini_values["ignored_groups"] = [g.strip() for g in ig.split(",") if g.strip()]
+
+        if not ini_values:
+            return False
+
+        current = get_all_config(db_path)
+        updates: dict = {}
+        for key, ini_value in ini_values.items():
+            db_value = current.get(key)
+            default_value = DEFAULT_CONFIG.get(key)
+            # Only merge if DB still has the default and INI has something different
+            if db_value == default_value and ini_value != default_value:
+                updates[key] = ini_value
+
+        if updates:
+            merged = {**current, **updates}
+            save_all_config(db_path, merged)
+            logger.info(
+                "Auto-merged %d value(s) from config.ini into config.db: %s",
+                len(updates),
+                list(updates.keys()),
+            )
+            return True
+
+        return False
+    except Exception as e:
+        logger.warning("Could not auto-merge config.ini: %s", e)
+        return False
+
 
 # Global state for the linking process
 _linker = None
@@ -94,6 +164,11 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                     "Pointer file missing — found existing config at %s",
                     DEFAULT_ODEN_HOME,
                 )
+                # Auto-merge config.ini values for keys still at defaults
+                candidate_ini = DEFAULT_ODEN_HOME / "config.ini"
+                if candidate_ini.exists():
+                    _merge_ini_into_db(candidate_db, candidate_ini)
+
                 # Read saved config so the UI can pre-populate fields
                 try:
                     saved = get_all_config(candidate_db)
@@ -101,6 +176,7 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                         "vault_path": saved.get("vault_path", str(DEFAULT_VAULT_PATH)),
                         "signal_number": saved.get("signal_number", ""),
                         "display_name": saved.get("display_name", ""),
+                        "whitelist_groups": saved.get("whitelist_groups", []),
                     }
                 except Exception as e:
                     logger.warning("Could not read saved config for recovery: %s", e)
@@ -284,12 +360,20 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
         if success:
             logger.info("Oden home directory set to: %s", oden_home_path)
 
+            # Auto-merge config.ini values for keys that still have defaults.
+            # This handles the case where config.db was created with placeholder
+            # values and config.ini has the user's real settings from an earlier
+            # version of Oden.
+            db_path = Path(oden_home_path) / "config.db"
+            ini_path_auto = Path(oden_home_path) / "config.ini"
+            if ini_path_obj is None and db_path.exists() and ini_path_auto.exists():
+                _merge_ini_into_db(db_path, ini_path_auto)
+
             # Check if configuration is now fully complete (e.g. during recovery)
             fully_configured, _config_error = is_configured()
 
             # Read saved config so the UI can pre-populate form fields
             saved_config = None
-            db_path = Path(oden_home_path) / "config.db"
             if db_path.exists():
                 try:
                     saved = get_all_config(db_path)
@@ -297,6 +381,7 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
                         "vault_path": saved.get("vault_path", str(DEFAULT_VAULT_PATH)),
                         "signal_number": saved.get("signal_number", ""),
                         "display_name": saved.get("display_name", ""),
+                        "whitelist_groups": saved.get("whitelist_groups", []),
                     }
                 except Exception as e:
                     logger.warning("Could not read saved config for recovery: %s", e)
