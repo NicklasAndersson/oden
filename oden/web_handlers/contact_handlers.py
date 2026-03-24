@@ -24,6 +24,11 @@ async def contacts_handler(request: web.Request) -> web.Response:
 async def contacts_refresh_handler(request: web.Request) -> web.Response:
     """Refresh contacts from signal-cli and return updated list."""
     app_state = get_app_state()
+    if not app_state.writer:
+        return web.json_response(
+            {"success": False, "error": "Inte ansluten till signal-cli"},
+            status=503,
+        )
 
     try:
         response = await app_state.send_jsonrpc(

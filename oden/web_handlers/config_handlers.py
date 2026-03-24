@@ -291,20 +291,30 @@ async def signal_config_save_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Ogiltig JSON"}, status=400)
 
     params: dict = {"account": get_all_config(CONFIG_DB).get("signal_number", "")}
+    values_to_save: dict = {}
     for camel_key, db_key in _SIGNAL_CONFIG_KEYS.items():
         if camel_key in data:
             value = bool(data[camel_key])
             params[camel_key] = value
-            set_config_value(CONFIG_DB, db_key, value)
+            values_to_save[db_key] = value
 
     if len(params) <= 1:
         return web.json_response({"success": False, "error": "Inga inställningar att spara"}, status=400)
 
     app_state = get_app_state()
+    if not app_state.writer:
+        return web.json_response(
+            {"success": False, "error": "Inte ansluten till signal-cli"},
+            status=503,
+        )
+
     try:
         await app_state.send_jsonrpc("updateConfiguration", params=params, timeout=10.0)
     except Exception as e:
         logger.error("Failed to update Signal configuration: %s", e)
         return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    for db_key, value in values_to_save.items():
+        set_config_value(CONFIG_DB, db_key, value)
 
     return web.json_response({"success": True, "message": "Signal-inställningar sparade"})
