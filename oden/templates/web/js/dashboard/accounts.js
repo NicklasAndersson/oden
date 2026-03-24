@@ -125,6 +125,7 @@ async function activateAccount(number) {
         if (response.ok && result.success) {
             showConfigMessage('Aktivt konto ändrat till ' + number, 'success');
             await loadAccounts();
+            await loadConfigForm();
         } else {
             alert(result.error || 'Något gick fel');
         }
