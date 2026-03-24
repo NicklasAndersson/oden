@@ -20,6 +20,7 @@ import qrcode.image.svg
 from aiohttp import web
 
 from oden import __version__
+from oden import config as config_module
 from oden.bundle_utils import (
     DEFAULT_ODEN_HOME,
     get_bundle_path,
@@ -27,7 +28,6 @@ from oden.bundle_utils import (
     validate_oden_home,
 )
 from oden.config import (
-    CONFIG_DB,
     DEFAULT_VAULT_PATH,
     is_configured,
     save_config,
@@ -270,12 +270,17 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
 
         if success:
             logger.info("Oden home directory set to: %s", oden_home_path)
+
+            # Check if configuration is now fully complete (e.g. during recovery)
+            fully_configured, _config_error = is_configured()
+
             return web.json_response(
                 {
                     "success": True,
                     "message": "Konfigurationskatalog skapad",
                     "oden_home": oden_home_path,
                     "migrated_from_ini": ini_path_obj is not None,
+                    "fully_configured": fully_configured,
                 }
             )
         else:
@@ -416,8 +421,11 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         # Create vault directory
         Path(vault_path).mkdir(parents=True, exist_ok=True)
 
-        # First ensure oden_home is set up (creates pointer file and initializes db)
-        success, error = setup_oden_home(DEFAULT_ODEN_HOME)
+        # Ensure oden_home is set up (creates pointer file and initializes db).
+        # Use the current oden_home from the config module if already configured
+        # (e.g. set during step 1 or recovery), otherwise fall back to default.
+        current_home = get_oden_home_path() or DEFAULT_ODEN_HOME
+        success, error = setup_oden_home(current_home)
         if not success:
             return web.json_response(
                 {"success": False, "error": f"Kunde inte skapa konfiguration: {error}"},
@@ -426,12 +434,14 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
 
         # Read existing config from the (possibly surviving) database
         # so we preserve customized values like regex_patterns, templates, etc.
+        # Use the live config path (not the import-time binding which may be stale).
         from oden.config_db import get_all_config
 
+        config_db_path = config_module.get_config_path()
         existing = {}
-        if CONFIG_DB.exists():
+        if config_db_path.exists():
             try:
-                existing = get_all_config(CONFIG_DB)
+                existing = get_all_config(config_db_path)
                 logger.info("Merging setup values with existing config (%d keys)", len(existing))
             except Exception as e:
                 logger.warning(f"Could not read existing config for merge: {e}")
@@ -460,13 +470,13 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         config_dict = {**existing, **setup_updates}
 
         save_config(config_dict)
-        logger.info(f"Setup complete. Config saved to {CONFIG_DB}")
+        logger.info("Setup complete. Config saved to %s", config_db_path)
 
         return web.json_response(
             {
                 "success": True,
                 "message": "Konfiguration sparad! Oden startar om...",
-                "config_path": str(CONFIG_DB),
+                "config_path": str(config_db_path),
             }
         )
 

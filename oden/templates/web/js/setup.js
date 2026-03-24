@@ -565,15 +565,34 @@ async function confirmRecovery() {
         const data = await response.json();
 
         if (data.success) {
-            msgDiv.innerHTML = '<div class="success" style="padding: 20px; text-align: center;">' +
-                '<h2 style="margin: 0 0 10px 0;">✅ Konfiguration återställd!</h2>' +
-                '<p style="margin: 0;">Oden startar om med befintlig konfiguration...</p>' +
-                '<p style="margin: 10px 0 0 0; color: #888;" id="reload-status">Väntar på att Oden ska starta...</p>' +
-                '</div>';
-            btn.style.display = 'none';
-            // Hide the "Ny installation" button too
-            btn.nextElementSibling.style.display = 'none';
-            pollForMainServer();
+            if (data.fully_configured) {
+                // Config is complete — just wait for the server to restart
+                msgDiv.innerHTML = '<div class="success" style="padding: 20px; text-align: center;">' +
+                    '<h2 style="margin: 0 0 10px 0;">✅ Konfiguration återställd!</h2>' +
+                    '<p style="margin: 0;">Oden startar om med befintlig konfiguration...</p>' +
+                    '<p style="margin: 10px 0 0 0; color: #888;" id="reload-status">Väntar på att Oden ska starta...</p>' +
+                    '</div>';
+                btn.style.display = 'none';
+                // Hide the "Ny installation" button too
+                btn.nextElementSibling.style.display = 'none';
+                pollForMainServer();
+            } else {
+                // Config restored but setup isn't complete (e.g. signal not linked yet).
+                // Continue with the normal wizard so the user can finish configuration.
+                msgDiv.innerHTML = '<div class="success" style="padding: 15px;">' +
+                    '<h3 style="margin: 0 0 8px 0;">✅ Konfigurationskatalog återställd</h3>' +
+                    '<p style="margin: 0; color: #ccc;">Ytterligare konfiguration behövs. Fortsätter med setup...</p>' +
+                    '</div>';
+                btn.style.display = 'none';
+                btn.nextElementSibling.style.display = 'none';
+                setTimeout(() => {
+                    document.getElementById('step-recovery').classList.remove('active');
+                    document.getElementById('step-indicator').style.display = 'flex';
+                    // Skip step 1 (oden home already set) and go to step 2 (signal linking)
+                    currentStep = 2;
+                    goToStep(2);
+                }, 2000);
+            }
         } else {
             msgDiv.innerHTML = '<div class="error">' + (data.error || 'Kunde inte återställa') + '</div>';
             btn.disabled = false;
