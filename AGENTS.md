@@ -205,3 +205,8 @@ Markdown files: `DDHHMM-{phone}-{name}.md` (e.g., `161430-46701234567-Nicklas.md
 - UI messages and config comments are in Swedish
 - Default timezone: `Europe/Stockholm`
 - The app is designed for Swedish Home Guard (Hemvärnet) intelligence reports
+
+## GIT
+All features should be developed in feature branches and merged via pull requests to `main`. Direct pushes to `main` are blocked by branch protection rules. 
+
+Make shure to pull the latest `main` before starting a new feature branch to minimize merge conflicts. 
