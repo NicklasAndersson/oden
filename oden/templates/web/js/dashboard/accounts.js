@@ -3,10 +3,17 @@
 // Signal account management: list, link (add), activate, delete, force-delete.
 
 let linkPollInterval = null;
+let accountsRetryTimeout = null;
 
 async function loadAccounts() {
     const container = document.getElementById('accounts-list');
     const warning = document.getElementById('accounts-warning');
+
+    // Clear any pending retry
+    if (accountsRetryTimeout) {
+        clearTimeout(accountsRetryTimeout);
+        accountsRetryTimeout = null;
+    }
 
     try {
         const response = await fetch('/api/accounts');
@@ -14,9 +21,18 @@ async function loadAccounts() {
 
         const accounts = data.accounts || [];
         const activeValid = data.active_valid;
+        const connected = data.connected;
 
-        // Show warning if active account is invalid
-        if (!activeValid && data.active_number) {
+        // If not connected to signal-cli, show connecting state and auto-retry
+        if (!connected && accounts.length === 0) {
+            warning.style.display = 'none';
+            container.innerHTML = '<div class="empty-state">⏳ Ansluter till signal-cli... Kontolistan laddas automatiskt.</div>';
+            accountsRetryTimeout = setTimeout(loadAccounts, 3000);
+            return;
+        }
+
+        // Show warning if active account is invalid (only when connected)
+        if (!activeValid && data.active_number && connected) {
             warning.style.display = 'block';
             document.getElementById('accounts-warning-text').textContent =
                 'Det konfigurerade kontot (' + escapeHtml(data.active_number) + ') finns inte bland de tillgängliga kontona. Välj ett giltigt konto eller lägg till ett nytt.';

@@ -32,9 +32,11 @@ async def accounts_list_handler(request: web.Request) -> web.Response:
 
     accounts = []
     active_number = cfg.SIGNAL_NUMBER
+    connected = False
 
     # Try JSON-RPC listAccounts first (works when connected to daemon)
     if app_state.writer:
+        connected = True
         response = await app_state.send_jsonrpc("listAccounts")
         if response and "result" in response:
             for acc in response["result"]:
@@ -59,6 +61,7 @@ async def accounts_list_handler(request: web.Request) -> web.Response:
             "accounts": accounts,
             "active_number": active_number,
             "active_valid": active_valid,
+            "connected": connected,
         }
     )
 
