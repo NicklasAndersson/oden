@@ -8,7 +8,7 @@ import logging
 
 from aiohttp import web
 
-from oden.config import CONFIG_DB
+from oden import config as cfg
 from oden.responses_db import (
     create_response,
     delete_response,
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @handle_errors("list responses")
 async def responses_list_handler(request: web.Request) -> web.Response:
     """Return all responses as JSON."""
-    responses = get_all_responses(CONFIG_DB)
+    responses = get_all_responses(cfg.CONFIG_DB)
     return web.json_response(responses)
 
 
@@ -35,7 +35,7 @@ async def response_get_handler(request: web.Request) -> web.Response:
     except (KeyError, ValueError):
         return web.json_response({"success": False, "error": "Ogiltigt id"}, status=400)
 
-    response = get_response_by_id(CONFIG_DB, response_id)
+    response = get_response_by_id(cfg.CONFIG_DB, response_id)
     if response is None:
         return web.json_response({"success": False, "error": "Svar hittades inte"}, status=404)
 
@@ -61,7 +61,7 @@ async def response_save_handler(request: web.Request) -> web.Response:
     if body is None:
         return web.json_response({"success": False, "error": "Svarstext krävs"}, status=400)
 
-    if save_response(CONFIG_DB, response_id, keywords, body):
+    if save_response(cfg.CONFIG_DB, response_id, keywords, body):
         return web.json_response({"success": True, "message": "Svar uppdaterat"})
     else:
         return web.json_response({"success": False, "error": "Kunde inte spara svar"}, status=500)
@@ -81,7 +81,7 @@ async def response_create_handler(request: web.Request) -> web.Response:
     if body is None:
         return web.json_response({"success": False, "error": "Svarstext krävs"}, status=400)
 
-    new_id = create_response(CONFIG_DB, keywords, body)
+    new_id = create_response(cfg.CONFIG_DB, keywords, body)
     if new_id is not None:
         return web.json_response({"success": True, "id": new_id, "message": "Svar skapat"})
     else:
@@ -95,7 +95,7 @@ async def response_delete_handler(request: web.Request) -> web.Response:
     except (KeyError, ValueError):
         return web.json_response({"success": False, "error": "Ogiltigt id"}, status=400)
 
-    if delete_response(CONFIG_DB, response_id):
+    if delete_response(cfg.CONFIG_DB, response_id):
         return web.json_response({"success": True, "message": "Svar borttaget"})
     else:
         return web.json_response({"success": False, "error": "Kunde inte ta bort svar"}, status=404)

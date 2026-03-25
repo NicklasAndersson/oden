@@ -7,11 +7,10 @@ import re
 
 from aiohttp import web
 
+from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.config import (
-    CONFIG_DB,
     DEFAULT_VAULT_PATH,
-    ODEN_HOME,
     export_config_to_ini,
     get_config,
     reload_config,
@@ -52,8 +51,8 @@ async def config_handler(request: web.Request) -> web.Response:
         "auto_reaction_enabled": config.get("auto_reaction_enabled", False),
         "auto_reaction_emoji": config.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": config.get("auto_read_receipt_enabled", False),
-        "oden_home": str(ODEN_HOME),
-        "config_db_path": str(CONFIG_DB),
+        "oden_home": str(cfg.ODEN_HOME),
+        "config_db_path": str(cfg.CONFIG_DB),
     }
     return web.json_response(config_data)
 
@@ -121,7 +120,7 @@ async def config_file_save_handler(request: web.Request) -> web.Response:
     try:
         from pathlib import Path
 
-        success, error = migrate_from_ini(Path(temp_path), CONFIG_DB)
+        success, error = migrate_from_ini(Path(temp_path), cfg.CONFIG_DB)
         if not success:
             return web.json_response({"success": False, "error": error}, status=400)
     finally:
@@ -148,7 +147,7 @@ async def config_save_handler(request: web.Request) -> web.Response:
     data = request["json_body"]
 
     # Read existing config first so we only overwrite form-managed keys
-    existing = get_all_config(CONFIG_DB)
+    existing = get_all_config(cfg.CONFIG_DB)
 
     # Keys managed by the web form — update only these
     form_updates = {
@@ -215,7 +214,7 @@ async def config_save_handler(request: web.Request) -> web.Response:
 
     # Save config
     save_config(config_dict)
-    logger.info(f"Config saved via web GUI form to {CONFIG_DB}")
+    logger.info(f"Config saved via web GUI form to {cfg.CONFIG_DB}")
 
     # Trigger live reload
     reload_config()
@@ -262,7 +261,7 @@ async def signal_config_handler(request: web.Request) -> web.Response:
 
     result = {}
     for camel_key, db_key in _SIGNAL_CONFIG_KEYS.items():
-        value = get_config_value(CONFIG_DB, db_key)
+        value = get_config_value(cfg.CONFIG_DB, db_key)
         result[camel_key] = value if value is not None else False
     return web.json_response(result)
 
@@ -276,7 +275,7 @@ async def signal_config_save_handler(request: web.Request) -> web.Response:
 
     data = request["json_body"]
 
-    params: dict = {"account": get_all_config(CONFIG_DB).get("signal_number", "")}
+    params: dict = {"account": get_all_config(cfg.CONFIG_DB).get("signal_number", "")}
     values_to_save: dict = {}
     for camel_key, db_key in _SIGNAL_CONFIG_KEYS.items():
         if camel_key in data:
@@ -291,6 +290,6 @@ async def signal_config_save_handler(request: web.Request) -> web.Response:
     await app_state.send_jsonrpc("updateConfiguration", params=params, timeout=10.0)
 
     for db_key, value in values_to_save.items():
-        set_config_value(CONFIG_DB, db_key, value)
+        set_config_value(cfg.CONFIG_DB, db_key, value)
 
     return web.json_response({"success": True, "message": "Signal-inställningar sparade"})
