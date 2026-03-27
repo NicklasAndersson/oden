@@ -20,13 +20,16 @@ async function loadTemplate() {
 
             // Display variables
             if (data.variables && data.variables.length > 0) {
-                variablesContainer.innerHTML = data.variables.map(v => `
-                    <div class="template-var-item">
-                        <span class="template-var-name">${'{{'} ${v.name} ${'}}'}</span>
-                        ${v.required ? '<span class="template-var-required">*</span>' : ''}
-                        <div class="template-var-desc">${escapeHtml(v.description)}</div>
-                    </div>
-                `).join('');
+                variablesContainer.innerHTML = data.variables.map(function(v) {
+                    var brOpen = '{' + '{';
+                    var brClose = '}' + '}';
+                    var req = v.required ? '<span class="template-var-required">*</span>' : '';
+                    return '<div class="template-var-item">'
+                        + '<span class="template-var-name">' + brOpen + ' ' + escapeHtml(v.name) + ' ' + brClose + '</span>'
+                        + req
+                        + '<div class="template-var-desc">' + escapeHtml(v.description) + '</div>'
+                        + '</div>';
+                }).join('');
             }
 
             // Auto-preview

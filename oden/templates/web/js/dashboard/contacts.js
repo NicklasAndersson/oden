@@ -38,7 +38,7 @@ async function loadContacts() {
             html += '<td style="padding: 8px;">' + (name || '<span style="color:#666;">—</span>') + '</td>';
             html += '<td style="padding: 8px; font-family: monospace;">' + number + '</td>';
             html += '<td style="padding: 8px; color: #888;">' + (profileName || '—') + '</td>';
-            html += '<td style="padding: 8px; text-align: right;"><button class="btn btn-secondary btn-sm" onclick="openContactEditModal(\'' + number + '\')">Redigera</button></td>';
+            html += '<td style="padding: 8px; text-align: right; white-space: nowrap;"><button class="btn btn-secondary btn-sm" onclick="openContactEditModal(\'' + number + '\')">Redigera</button></td>';
             html += '</tr>';
         }
 

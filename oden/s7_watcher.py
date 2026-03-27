@@ -290,8 +290,6 @@ def main() -> None:
     # --- Tray callbacks use AppState lifecycle helpers ---
     if tray is not None:
         tray.set_callbacks(
-            on_start=app_state.request_start,
-            on_stop=app_state.request_stop,
             on_quit=app_state.request_quit,
         )
 

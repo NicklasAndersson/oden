@@ -1,7 +1,7 @@
 """
 Native system tray icon for Oden.
 
-Provides Start/Stop control, Open Web GUI, and version display
+Provides Open Web GUI, version display, and Quit
 via a cross-platform system tray icon using pystray.
 
 On macOS the NSApplication event loop must run on the main thread,
@@ -93,13 +93,12 @@ def _load_icon() -> Any:
 class OdenTray:
     """System tray icon controller for Oden.
 
-    Provides Start/Stop toggle for the watcher loop,
-    Open Web GUI button, and Quit.
+    Provides Open Web GUI button, version display, and Quit.
 
     Usage::
 
         tray = OdenTray(version="1.0", web_port=8080)
-        tray.set_callbacks(on_start=..., on_stop=..., on_quit=...)
+        tray.set_callbacks(on_quit=...)
 
         # Blocks the main thread (required for macOS NSApp loop).
         # *on_ready* is called in a background thread once the icon is visible.
@@ -111,8 +110,6 @@ class OdenTray:
         self._web_port = web_port
         self._running = False
         self._icon: Any = None
-        self._on_start: Callable[[], None] | None = None
-        self._on_stop: Callable[[], None] | None = None
         self._on_quit: Callable[[], None] | None = None
         self._ready = threading.Event()
         self.quit_event = threading.Event()
@@ -129,11 +126,6 @@ class OdenTray:
     @running.setter
     def running(self, value: bool) -> None:
         self._running = value
-        # Note: we intentionally do NOT call self._icon.update_menu() here.
-        # The menu text is dynamic (via the _get_start_stop_text callable),
-        # so pystray re-evaluates it each time the user opens the menu.
-        # Calling update_menu() from a background thread causes native
-        # crashes on macOS because AppKit objects are not thread-safe.
 
     # ------------------------------------------------------------------
     # Callbacks
@@ -141,39 +133,18 @@ class OdenTray:
 
     def set_callbacks(
         self,
-        on_start: Callable[[], None] | None = None,
-        on_stop: Callable[[], None] | None = None,
         on_quit: Callable[[], None] | None = None,
     ) -> None:
         """Set callback functions for tray menu actions.
 
         Args:
-            on_start: Called when user clicks Start.
-            on_stop: Called when user clicks Stop.
             on_quit: Called when user clicks Quit.
         """
-        self._on_start = on_start
-        self._on_stop = on_stop
         self._on_quit = on_quit
 
     # ------------------------------------------------------------------
     # Menu helpers (private)
     # ------------------------------------------------------------------
-
-    def _get_start_stop_text(self, item: Any) -> str:
-        """Dynamic text for the Start/Stop menu item."""
-        return "⏹ Stoppa" if self._running else "▶ Starta"
-
-    def _on_start_stop(self, icon: Any, item: Any) -> None:
-        """Handle Start/Stop menu click."""
-        if self._running:
-            logger.info("Tray: Stop requested")
-            if self._on_stop:
-                self._on_stop()
-        else:
-            logger.info("Tray: Start requested")
-            if self._on_start:
-                self._on_start()
 
     def _on_open_gui(self, icon: Any, item: Any) -> None:
         """Open the web GUI in the default browser."""
@@ -212,7 +183,6 @@ class OdenTray:
         menu = pystray.Menu(
             pystray.MenuItem(f"Oden v{self._version}", None, enabled=False),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(self._get_start_stop_text, self._on_start_stop),
             pystray.MenuItem("🌐 Öppna Web GUI", self._on_open_gui),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Avsluta", self._on_quit_clicked),
