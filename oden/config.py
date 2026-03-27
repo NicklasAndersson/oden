@@ -92,26 +92,31 @@ def is_configured() -> tuple[bool, str | None]:
     # Check if pointer file exists and points to valid directory
     oden_home = get_oden_home_path()
     if oden_home is None:
-        logger.debug("Configuration check: no pointer file found")
+        logger.info("Configuration check: no pointer file found")
         return False, "no_pointer"
 
     # Update paths based on actual oden_home
     _update_paths(oden_home)
+    logger.debug("Configuration check: oden_home=%s, CONFIG_DB=%s", oden_home, CONFIG_DB)
 
     # Check database exists and is valid
     if not CONFIG_DB.exists():
+        logger.info("Configuration check: database not found at %s", CONFIG_DB)
         return False, "no_db"
 
     is_valid, error = check_db_integrity(CONFIG_DB)
     if not is_valid:
+        logger.info("Configuration check: database integrity error '%s' at %s", error, CONFIG_DB)
         return False, error
 
     # Check if Signal number is configured
     config = get_all_config(CONFIG_DB)
     number = config.get("signal_number", "")
     if not number or number == "+46XXXXXXXXX" or number.startswith("+46XXXX"):
+        logger.info("Configuration check: signal_number not configured (value=%r) in %s", number, CONFIG_DB)
         return False, "no_signal_number"
 
+    logger.debug("Configuration check: OK (signal_number=%s)", number)
     return True, None
 
 
@@ -122,7 +127,11 @@ def get_config_path() -> Path:
 
 def save_config(config_dict: dict) -> None:
     """Save configuration to the database."""
-    logger.info("Saving configuration to database")
+    logger.info(
+        "Saving configuration to %s (signal_number=%s)",
+        CONFIG_DB,
+        config_dict.get("signal_number", "<missing>"),
+    )
     ensure_oden_directories()
     save_all_config(CONFIG_DB, config_dict)
 
@@ -136,11 +145,16 @@ def get_config() -> dict:
 
     # Initialize DB and run migrations (safe to call on existing DB)
     if not CONFIG_DB.exists():
+        logger.warning(
+            "Config database not found at %s — creating new database with defaults",
+            CONFIG_DB,
+        )
         init_db(CONFIG_DB)
         # Save default config
         save_all_config(CONFIG_DB, DEFAULT_CONFIG)
     else:
         # Run migrations on existing DB
+        logger.debug("Loading existing config database: %s", CONFIG_DB)
         init_db(CONFIG_DB)
 
     config = get_all_config(CONFIG_DB)
@@ -207,12 +221,15 @@ def reload_config() -> dict:
     oden_home = get_oden_home_path()
     if oden_home:
         _update_paths(oden_home)
+    logger.info("Reload: CONFIG_DB=%s", CONFIG_DB)
 
     app_config = get_config()
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
     if not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
-        logger.warning("SIGNAL_NUMBER is not configured after reload")
+        logger.warning("SIGNAL_NUMBER is not configured after reload (value=%r, db=%s)", SIGNAL_NUMBER, CONFIG_DB)
+    else:
+        logger.info("Reload: SIGNAL_NUMBER=%s", SIGNAL_NUMBER)
     DISPLAY_NAME = app_config.get("display_name")
     SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
     UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
@@ -342,8 +359,20 @@ def setup_oden_home(path: Path, ini_path: Path | None = None) -> tuple[bool, str
         success, migrate_error = migrate_from_ini(safe_ini_path, db_path)
         if not success:
             return False, migrate_error
+    elif db_path.exists():
+        # Existing database found — preserve it, only run schema migrations
+        existing_config = get_all_config(db_path)
+        existing_number = existing_config.get("signal_number", "")
+        logger.info(
+            "Preserving existing config database at %s (signal_number=%s, %d keys)",
+            db_path,
+            existing_number,
+            len(existing_config),
+        )
+        init_db(db_path)
     else:
-        # Initialize empty database
+        # No existing database — create a fresh one
+        logger.info("Creating new config database at %s", db_path)
         init_db(db_path)
 
     return True, None

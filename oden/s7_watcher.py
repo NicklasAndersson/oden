@@ -249,6 +249,11 @@ def main() -> None:
                 new_host = new_config["signal_cli_host"]
                 new_port = new_config["signal_cli_port"]
                 new_unmanaged = new_config["unmanaged_signal_cli"]
+                logger.info(
+                    "Post-setup config: signal_number=%s, CONFIG_DB=%s",
+                    new_number,
+                    new_config.get("oden_home", "?") + "/config.db",
+                )
                 # Persist and apply the configured log level
                 log_level_str = new_config.get("log_level_str", "INFO")
                 write_log_level(log_level_str)

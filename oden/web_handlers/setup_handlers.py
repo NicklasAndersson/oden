@@ -161,7 +161,7 @@ async def setup_status_handler(request: web.Request) -> web.Response:
             if is_valid:
                 recovery_candidate = str(DEFAULT_ODEN_HOME)
                 logger.warning(
-                    "Pointer file missing — found existing config at %s",
+                    "Recovery candidate: pointer file missing but config.db exists at %s",
                     DEFAULT_ODEN_HOME,
                 )
                 # Auto-merge config.ini values for keys still at defaults
@@ -178,6 +178,11 @@ async def setup_status_handler(request: web.Request) -> web.Response:
                         "display_name": saved.get("display_name", ""),
                         "whitelist_groups": saved.get("whitelist_groups", []),
                     }
+                    logger.info(
+                        "Recovery config loaded: signal_number=%s, vault_path=%s",
+                        recovery_config["signal_number"],
+                        recovery_config["vault_path"],
+                    )
                 except Exception as e:
                     logger.warning("Could not read saved config for recovery: %s", e)
 
@@ -371,6 +376,11 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
 
             # Check if configuration is now fully complete (e.g. during recovery)
             fully_configured, _config_error = is_configured()
+            logger.info(
+                "Oden home setup result: fully_configured=%s, config_error=%s",
+                fully_configured,
+                _config_error,
+            )
 
             # Read saved config so the UI can pre-populate form fields
             saved_config = None
@@ -383,6 +393,11 @@ async def setup_oden_home_handler(request: web.Request) -> web.Response:
                         "display_name": saved.get("display_name", ""),
                         "whitelist_groups": saved.get("whitelist_groups", []),
                     }
+                    logger.info(
+                        "Saved config returned to UI: signal_number=%s, vault_path=%s",
+                        saved_config["signal_number"],
+                        saved_config["vault_path"],
+                    )
                 except Exception as e:
                     logger.warning("Could not read saved config for recovery: %s", e)
 
@@ -551,11 +566,16 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         from oden.config_db import get_all_config
 
         config_db_path = config_module.get_config_path()
+        logger.info("Setup save: CONFIG_DB path = %s", config_db_path)
         existing = {}
         if config_db_path.exists():
             try:
                 existing = get_all_config(config_db_path)
-                logger.info("Merging setup values with existing config (%d keys)", len(existing))
+                logger.info(
+                    "Existing config loaded for merge: %d keys, signal_number=%s",
+                    len(existing),
+                    existing.get("signal_number", "<missing>"),
+                )
             except Exception as e:
                 logger.warning(f"Could not read existing config for merge: {e}")
 
@@ -565,6 +585,7 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
             "signal_number": signal_number,
             "display_name": display_name,
         }
+        logger.info("Setup updates to apply: %s", setup_updates)
 
         # For fresh installs (no existing config), add sensible defaults
         if not existing:
@@ -583,7 +604,19 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         config_dict = {**existing, **setup_updates}
 
         save_config(config_dict)
-        logger.info("Setup complete. Config saved to %s", config_db_path)
+
+        # Verify the save by reading back the signal_number
+        verify = get_all_config(config_db_path)
+        saved_number = verify.get("signal_number", "")
+        if saved_number != signal_number:
+            logger.error(
+                "POST-SAVE VERIFICATION FAILED: expected signal_number=%s, got=%s (db=%s)",
+                signal_number,
+                saved_number,
+                config_db_path,
+            )
+        else:
+            logger.info("Setup complete. Config verified at %s (signal_number=%s)", config_db_path, saved_number)
 
         return web.json_response(
             {
