@@ -9,7 +9,6 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.config import CONFIG_DB
 from oden.config_db import get_config_value
 from oden.groups_db import get_all_groups, upsert_groups_bulk
 from oden.web_handlers._helpers import (
@@ -31,7 +30,7 @@ async def groups_handler(request: web.Request) -> web.Response:
     app_state = get_app_state()
 
     # Start with DB groups (keyed by id)
-    db_groups = get_all_groups(CONFIG_DB)
+    db_groups = get_all_groups(cfg.CONFIG_DB)
     merged: dict[str, dict] = {}
     for g in db_groups:
         if g.get("isMember", True):
@@ -93,7 +92,7 @@ async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
 
     # Read current ignored groups from config_db
-    ignored_groups = get_config_value(CONFIG_DB, "ignored_groups") or []
+    ignored_groups = get_config_value(cfg.CONFIG_DB, "ignored_groups") or []
 
     # Toggle the group
     if group_name in ignored_groups:
@@ -127,7 +126,7 @@ async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
 
     # Read current whitelist groups from config_db
-    whitelist_groups = get_config_value(CONFIG_DB, "whitelist_groups") or []
+    whitelist_groups = get_config_value(cfg.CONFIG_DB, "whitelist_groups") or []
 
     # Toggle the group
     if group_name in whitelist_groups:
@@ -369,7 +368,7 @@ async def refresh_groups_handler(request: web.Request) -> web.Response:
     if response and "result" in response:
         groups = response["result"]
         app_state.update_groups(groups)
-        count = upsert_groups_bulk(CONFIG_DB, groups)
+        count = upsert_groups_bulk(cfg.CONFIG_DB, groups)
         logger.info("Refreshed %d groups from signal-cli", count)
         return web.json_response({"success": True, "count": count})
 
