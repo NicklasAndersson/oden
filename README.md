@@ -26,7 +26,7 @@ Installera senaste **snapshot** (testversion, byggs vid varje push till main):
 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_snapshot_mac.sh | bash
 ```
 
-Skriptet laddar ner senaste DMG, installerar Oden.app i Applications och tar bort karantänattributet (Gatekeeper).
+Skripten ovan laddar ner och installerar en DMG: standardkommandot hämtar senaste stabila releasen, varianten med `ODEN_VERSION=...` hämtar just den angivna versionen och snapshot-skriptet hämtar senaste snapshot-DMG. Alla installerar Oden.app i Applications och tar bort karantänattributet (Gatekeeper).
 
 **Manuell installation:**
 
