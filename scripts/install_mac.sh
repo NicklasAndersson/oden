@@ -31,10 +31,17 @@ REPO="NicklasAndersson/oden"
 APP_NAME="Oden.app"
 INSTALL_DIR="/Applications"
 
-# Support installing a specific version via ODEN_VERSION env var
-# Example: ODEN_VERSION=2.0.0 curl -fsSL .../install_mac.sh | bash
+# Stöd för att installera en specifik version via ODEN_VERSION
+# Exempel: ODEN_VERSION=2.0.0 curl -fsSL .../install_mac.sh | bash
 if [[ -n "${ODEN_VERSION:-}" ]]; then
-    API_URL="https://api.github.com/repos/${REPO}/releases/tags/v${ODEN_VERSION#v}"
+    # Validera versionsformatet (tillåt valfritt v-prefix följt av siffror och punkter)
+    CLEAN_VERSION="${ODEN_VERSION#v}"
+    if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([._-][a-zA-Z0-9]+)*$ ]]; then
+        print_error "Ogiltigt versionsformat: '${ODEN_VERSION}'"
+        print_info "Ange en version som t.ex. 2.0.0 eller v2.0.0"
+        exit 1
+    fi
+    API_URL="https://api.github.com/repos/${REPO}/releases/tags/v${CLEAN_VERSION}"
 else
     API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 fi
@@ -88,8 +95,13 @@ if ! command -v curl &>/dev/null; then
 fi
 
 RELEASE_JSON=$(curl -fsSL "$API_URL") || {
-    print_error "Kunde inte hämta release-information från GitHub."
-    print_info "Kontrollera din internetanslutning och försök igen."
+    if [[ -n "${ODEN_VERSION:-}" ]]; then
+        print_error "Kunde inte hitta version v${CLEAN_VERSION} på GitHub."
+        print_info "Kontrollera att versionen finns: https://github.com/${REPO}/releases"
+    else
+        print_error "Kunde inte hämta release-information från GitHub."
+        print_info "Kontrollera din internetanslutning och försök igen."
+    fi
     exit 1
 }
 
