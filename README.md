@@ -14,6 +14,18 @@ Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidi
 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
 ```
 
+Installera en specifik version:
+
+```bash
+ODEN_VERSION=2.0.0 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
+```
+
+Installera senaste **snapshot** (testversion, byggs vid varje push till main):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_snapshot_mac.sh | bash
+```
+
 Skriptet laddar ner senaste DMG, installerar Oden.app i Applications och tar bort karantänattributet (Gatekeeper).
 
 **Manuell installation:**

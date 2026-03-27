@@ -9,8 +9,12 @@
 # Användning:
 #   curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
 #
+# Installera en specifik version:
+#   ODEN_VERSION=2.0.0 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
+#
 # Eller:
 #   ./install_mac.sh
+#   ODEN_VERSION=2.0.0 ./install_mac.sh
 
 set -euo pipefail
 
@@ -24,9 +28,16 @@ C_YELLOW='\033[0;33m'
 
 # --- Configuration ---
 REPO="NicklasAndersson/oden"
-API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 APP_NAME="Oden.app"
 INSTALL_DIR="/Applications"
+
+# Support installing a specific version via ODEN_VERSION env var
+# Example: ODEN_VERSION=2.0.0 curl -fsSL .../install_mac.sh | bash
+if [[ -n "${ODEN_VERSION:-}" ]]; then
+    API_URL="https://api.github.com/repos/${REPO}/releases/tags/v${ODEN_VERSION#v}"
+else
+    API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+fi
 
 # --- Helper Functions ---
 print_header() {
@@ -56,6 +67,9 @@ echo "          Oden – Installationsskript        "
 echo "               (macOS)                      "
 echo "==========================================="
 echo -e "${C_RESET}"
+if [[ -n "${ODEN_VERSION:-}" ]]; then
+    print_info "Installerar version: v${ODEN_VERSION#v}"
+fi
 
 # --- OS Check ---
 if [[ "$(uname)" != "Darwin" ]]; then
