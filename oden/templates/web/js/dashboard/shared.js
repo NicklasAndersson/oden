@@ -28,6 +28,22 @@ async function getApiToken() {
     return apiToken;
 }
 
+async function authenticatedFetch(url, options) {
+    const token = await getApiToken();
+    const opts = Object.assign({}, options);
+    opts.headers = Object.assign({}, opts.headers);
+    if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+    const response = await fetch(url, opts);
+    if (response.status === 401) {
+        // Token may be stale after a server restart — refresh and retry once
+        apiToken = null;
+        const newToken = await getApiToken();
+        if (newToken) opts.headers['Authorization'] = 'Bearer ' + newToken;
+        return fetch(url, opts);
+    }
+    return response;
+}
+
 function showConfigMessage(message, type) {
     const msgDiv = document.getElementById('config-message');
     const msgText = document.getElementById('config-message-text');

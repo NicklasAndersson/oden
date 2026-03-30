@@ -524,3 +524,46 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         )
         self.assertNotEqual(resp.status, 401)
         self.assertNotEqual(resp.status, 404)
+
+    # ------------------------------------------------------------------
+    # Token renewal after server restart
+    # ------------------------------------------------------------------
+    async def test_stale_token_rejected_fresh_token_works(self):
+        """Simulate a server restart: old token fails, fresh /api/token works.
+
+        This mirrors the client-side authenticatedFetch retry logic — on 401
+        the JS clears the cached token, re-fetches from /api/token, and
+        retries.
+        """
+        import oden.web_server as ws
+
+        # Get a valid token
+        valid_token = await self._get_valid_token()
+        resp = await self.client.get("/api/groups", headers=self._auth_header(valid_token))
+        self.assertEqual(resp.status, 200)
+
+        # Simulate server restart by forcing a new token
+        old_token = ws._api_token
+        ws._api_token = None  # reset so next get_api_token() generates fresh
+
+        # Old token should now be rejected
+        resp = await self.client.get("/api/groups", headers=self._auth_header(old_token))
+        self.assertEqual(resp.status, 401)
+
+        # Fetching /api/token gives the new token, which works
+        resp = await self.client.get("/api/token")
+        new_token = (await resp.json())["token"]
+        self.assertNotEqual(new_token, old_token)
+        resp = await self.client.get("/api/groups", headers=self._auth_header(new_token))
+        self.assertEqual(resp.status, 200)
+
+    # ------------------------------------------------------------------
+    # Dashboard JS includes authenticatedFetch with retry logic
+    # ------------------------------------------------------------------
+    async def test_dashboard_js_has_authenticated_fetch(self):
+        """Verify that the dashboard JS includes the authenticatedFetch
+        function that handles 401 retry with token refresh."""
+        resp = await self.client.get("/")
+        text = await resp.text()
+        self.assertIn("async function authenticatedFetch(", text)
+        self.assertIn("apiToken = null", text)

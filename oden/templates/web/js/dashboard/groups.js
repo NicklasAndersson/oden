@@ -9,10 +9,7 @@ let _groupsCache = [];
 
 async function fetchGroups() {
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/groups', {
-            headers: token ? {'Authorization': 'Bearer ' + token} : {}
-        });
+        const response = await authenticatedFetch('/api/groups');
         const data = await response.json();
         const container = document.getElementById('groups-container');
         currentIgnoredGroups = data.ignoredGroups || [];

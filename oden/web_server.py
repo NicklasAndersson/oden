@@ -14,7 +14,7 @@ import jinja2
 from aiohttp import web
 
 from oden import __version__
-from oden.config import WEB_ACCESS_LOG, WEB_HOST
+from oden import config as cfg
 from oden.log_buffer import get_log_buffer
 from oden.web_handlers import (
     accept_invitation_handler,
@@ -291,23 +291,23 @@ async def start_web_server(port: int = 8080, setup_mode: bool = False) -> web.Ap
 
     # Configure access logger to write to file instead of terminal
     access_log: logging.Logger | None = None
-    if WEB_ACCESS_LOG and not setup_mode:
+    if cfg.WEB_ACCESS_LOG and not setup_mode:
         access_log = logging.getLogger("aiohttp.access")
         access_log.setLevel(logging.INFO)
         # Remove any existing handlers to avoid duplicate output
         access_log.handlers.clear()
         access_log.propagate = False
         # Add file handler
-        file_handler = logging.FileHandler(WEB_ACCESS_LOG)
+        file_handler = logging.FileHandler(cfg.WEB_ACCESS_LOG)
         file_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
         access_log.addHandler(file_handler)
 
     runner = web.AppRunner(app, access_log=access_log)
     await runner.setup()
-    site = web.TCPSite(runner, WEB_HOST, port)
+    site = web.TCPSite(runner, cfg.WEB_HOST, port)
     await site.start()
     mode_str = " (setup mode)" if setup_mode else ""
-    logger.info(f"Web GUI started at http://{WEB_HOST}:{port}{mode_str}")
+    logger.info(f"Web GUI started at http://{cfg.WEB_HOST}:{port}{mode_str}")
     if not setup_mode:
         # Generate the API token for protected endpoints without logging its value
         get_api_token()

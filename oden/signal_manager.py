@@ -14,8 +14,8 @@ import sys
 import time
 from pathlib import Path
 
+from oden import config as cfg
 from oden.bundle_utils import get_bundle_path, get_bundled_java_path, is_bundled
-from oden.config import SIGNAL_CLI_LOG_FILE, SIGNAL_CLI_PATH, SIGNAL_DATA_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def get_signal_cli_env() -> dict:
         logger.info(f"Using bundled JAVA_HOME: {java_home}")
 
     # Set signal-cli data directory to ~/.oden/signal-data
-    env["SIGNAL_CLI_CONFIG_DIR"] = str(SIGNAL_DATA_PATH)
+    env["SIGNAL_CLI_CONFIG_DIR"] = str(cfg.SIGNAL_DATA_PATH)
 
     return env
 
@@ -79,12 +79,12 @@ def find_signal_cli_executable() -> str:
     if bundled:
         return bundled
 
-    if SIGNAL_CLI_PATH:
-        if os.path.exists(SIGNAL_CLI_PATH):
-            logger.info(f"Found signal-cli from config: {SIGNAL_CLI_PATH}")
-            return SIGNAL_CLI_PATH
+    if cfg.SIGNAL_CLI_PATH:
+        if os.path.exists(cfg.SIGNAL_CLI_PATH):
+            logger.info(f"Found signal-cli from config: {cfg.SIGNAL_CLI_PATH}")
+            return cfg.SIGNAL_CLI_PATH
         else:
-            logger.warning(f"Configured signal_cli_path '{SIGNAL_CLI_PATH}' does not exist.")
+            logger.warning(f"Configured signal_cli_path '{cfg.SIGNAL_CLI_PATH}' does not exist.")
 
     if path := shutil.which("signal-cli"):
         logger.info(f"Found signal-cli in PATH: {path}")
@@ -130,14 +130,14 @@ class SignalManager:
 
         logger.info(f"Starting signal-cli: {' '.join(command)}")
 
-        if SIGNAL_CLI_LOG_FILE:
+        if cfg.SIGNAL_CLI_LOG_FILE:
             try:
-                self.log_file_handle = open(SIGNAL_CLI_LOG_FILE, "a")  # noqa: SIM115
+                self.log_file_handle = open(cfg.SIGNAL_CLI_LOG_FILE, "a")  # noqa: SIM115
                 stdout_target = self.log_file_handle
                 stderr_target = self.log_file_handle
-                logger.info(f"Redirecting signal-cli output to {SIGNAL_CLI_LOG_FILE}")
+                logger.info(f"Redirecting signal-cli output to {cfg.SIGNAL_CLI_LOG_FILE}")
             except OSError as e:
-                logger.warning(f"Could not open log file {SIGNAL_CLI_LOG_FILE}: {e}. Logging to stderr.")
+                logger.warning(f"Could not open log file {cfg.SIGNAL_CLI_LOG_FILE}: {e}. Logging to stderr.")
                 stdout_target = subprocess.PIPE
                 stderr_target = subprocess.PIPE
         else:
@@ -209,7 +209,7 @@ def get_existing_accounts() -> list[dict]:
         data_paths.append(Path.home() / ".local" / "share" / "signal-cli")
 
     # Also check our custom location
-    data_paths.append(SIGNAL_DATA_PATH)
+    data_paths.append(cfg.SIGNAL_DATA_PATH)
 
     logger.debug(f"Searching for Signal accounts in: {data_paths}")
 
