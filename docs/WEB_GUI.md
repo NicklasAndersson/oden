@@ -18,7 +18,7 @@ Oden har ett inbyggt webbgränssnitt baserat på aiohttp som startar automatiskt
 
 ## Setup-mode
 
-Aktiveras automatiskt när ingen giltig konfiguration finns. Enbart setup-routes är tillgängliga — alla andra anrop omdirigeras till `/setup`.
+Aktiveras automatiskt när ingen giltig konfiguration finns. Enbart setup-routes och rot-sökvägen (`/`) är tillgängliga — rot-sökvägen omdirigeras till `/setup`. Övriga dashboard-routes returnerar 404 eftersom de inte registreras i setup-mode.
 
 Ingen autentisering krävs i setup-mode.
 
@@ -61,7 +61,7 @@ Listar alla Signal-grupper som kontot är medlem i.
 | Funktion | Beskrivning |
 |----------|-------------|
 | **Ignorera-knapp** | Lägger till/tar bort gruppen i `ignored_groups` |
-| **Whitelist-knapp** | Lägger till/tar bort gruppen i `whitelisted_groups` |
+| **Whitelist-knapp** | Lägger till/tar bort gruppen i `whitelist_groups` |
 | **Gå med via länk** | Textfält för att klistra in en `https://signal.group/…`-inbjudningslänk |
 | **Väntande inbjudningar** | Listar grupper som Oden har blivit inbjuden till, med Acceptera/Avböj-knappar |
 | **Redigera grupp** | Modal för gruppadministration (namn, beskrivning, medlemmar, behörigheter, grupplänk, försvinnande meddelanden). Visas bara för grupper där Oden är administratör |
@@ -124,8 +124,6 @@ Hantera signal-cli-konton (multi-account daemon-läge).
 
 | Funktion | Beskrivning |
 |----------|-------------|
-| **INI-export** | Ladda ner konfigurationen som `.ini`-fil |
-| **INI-import** | Ladda upp en `.ini`-fil för att importera inställningar |
 | **Shutdown-knapp** | Stäng ner Oden helt (stoppar signal-cli, web-server och tray) |
 
 ---
@@ -139,25 +137,27 @@ Hantera signal-cli-konton (multi-account daemon-läge).
 | **macOS / Linux** | `127.0.0.1` | Enbart localhost |
 | **Docker** | `0.0.0.0` (via `WEB_HOST`) | Alla interface — kräver extern brandvägg/reverse proxy |
 
+Webbgränssnittet har ingen autentisering. Skyddet bygger helt på att det enbart lyssnar på localhost. I Docker-miljö (eller om `WEB_HOST=0.0.0.0` sätts) exponeras ett oskyddat admin-API på alla interface — skydda med brandvägg eller reverse proxy.
+
 ---
 
 ## API-endpoints
 
 ### Setup-endpoints
 
-Dessa är enbart tillgängliga i setup-mode.
+Setup-routes registreras alltid, men i setup-mode är de de enda tillgängliga rutterna (tillsammans med en redirect från `/` till `/setup`). I dashboard-mode är de fortfarande registrerade men har ingen praktisk funktion.
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
 | GET | `/setup` | Setup-wizardens HTML-sida |
 | GET | `/api/setup/status` | Aktuell setup-status (JSON) |
-| POST | `/api/setup/set-home` | Sätt Oden-hemkatalog |
+| POST | `/api/setup/oden-home` | Sätt Oden-hemkatalog |
 | POST | `/api/setup/validate-path` | Validera en sökväg |
 | POST | `/api/setup/start-link` | Starta QR-kodlänkning |
 | POST | `/api/setup/cancel-link` | Avbryt pågående länkning |
 | POST | `/api/setup/start-register` | Starta nummerregistrering |
 | POST | `/api/setup/verify-code` | Verifiera registreringskod |
-| POST | `/api/setup/save` | Spara setup-konfiguration |
+| POST | `/api/setup/save-config` | Spara setup-konfiguration |
 | POST | `/api/setup/install-obsidian-template` | Installera Obsidian-mallar i valvet |
 | DELETE | `/api/setup/reset` | Mjuk reset (återgå till setup) |
 
@@ -170,8 +170,6 @@ Dessa är enbart tillgängliga i setup-mode.
 | GET | `/` | Dashboard HTML-sida |
 | GET | `/api/config` | Hämta all konfiguration (JSON) |
 | POST | `/api/config-save` | Spara konfiguration (formulärdata) |
-| GET | `/api/config/export` | Exportera som INI-fil (nedladdning) |
-| POST | `/api/config-file` | Importera INI-konfiguration |
 | DELETE | `/api/config/reset` | Återställ konfiguration |
 | POST | `/api/shutdown` | Stäng ner Oden |
 
@@ -186,6 +184,7 @@ Dessa är enbart tillgängliga i setup-mode.
 | POST | `/api/accounts/activate` | Växla aktivt konto |
 | DELETE | `/api/accounts/{number}` | Radera kontots lokala data |
 | DELETE | `/api/accounts/{number}/force` | Tvångsradera kontodata (filsystem) |
+| GET | `/api/accounts/devices` | Lista länkade enheter för aktivt konto |
 
 #### Loggar
 
@@ -236,3 +235,10 @@ Dessa är enbart tillgängliga i setup-mode.
 | POST | `/api/responses/new` | Skapa nytt autosvar |
 | POST | `/api/responses/{id}` | Uppdatera autosvar |
 | DELETE | `/api/responses/{id}` | Ta bort autosvar |
+
+#### Signal-protokollinställningar
+
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/signal-config` | Hämta Signal-protokollinställningar |
+| POST | `/api/signal-config` | Spara Signal-protokollinställningar |

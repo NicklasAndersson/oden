@@ -147,7 +147,7 @@ ruff format .
 
 Konfigurationen hanteras via **setup-wizarden** som öppnas automatiskt vid första start. All config sparas i en SQLite-databas (`config.db`) i din Oden-hemkatalog.
 
-Ändringar kan också göras via Web GUI:ns konfigurationssida. Export/import till INI-format stöds för bakåtkompatibilitet.
+Ändringar kan också göras via Web GUI:ns konfigurationssida.
 
 ## System Tray
 
@@ -191,7 +191,7 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - **Template-editor** - Redigera rapportmallar med live-förhandsvisning
 - **Stäng av Oden** - Shutdown-knapp i GUI
 
-**Säkerhet:** Lyssnar endast på localhost. Känsliga API-anrop skyddas med token-baserad autentisering.
+**Säkerhet:** Lyssnar endast på localhost. Ingen autentisering — skyddet bygger på att gränssnittet enbart nås lokalt.
 
 ## Dokumentation
 

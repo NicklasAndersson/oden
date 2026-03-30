@@ -75,7 +75,7 @@ from oden.config_db import get_config_value, set_config_value
 ### Message Flow
 1. Messages arrive via `receive` method notifications
 2. `process_message()` extracts envelope, checks ignore rules
-3. Commands (`#help`) → load response from `responses/` directory
+3. Commands (`#help`) → look up keyword in `responses` table in config_db
 4. Append mode: `++` prefix or reply within 30 min → append to existing file
 5. New messages → create timestamped markdown file in `vault/{group_name}/`
 
@@ -165,7 +165,7 @@ For stable releases, use git tags:
 
 ## Testing Guidelines
 - Tests are in `tests/` using pytest
-- The full test suite (~250 tests) runs in about **10 seconds** — always wait for it to finish
+- The full test suite (~220 tests) runs in about **10 seconds** — always wait for it to finish
 - Mock config values when testing: patch `oden.config.VAULT_PATH` etc.
 - Don't get stuck fixing difficult tests - note the issue and move on
 - **Hanging tests**: If tests appear to hang, use `terminal_last_command` to check what's running

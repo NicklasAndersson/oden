@@ -112,7 +112,7 @@ sequenceDiagram
 När ett meddelande tas emot via JSON-RPC bearbetas det i följande ordning:
 
 1. **Sync-filtrering** — Utgående meddelanden som ekas tillbaka av signal-cli ignoreras.
-2. **Whitelist-kontroll** — Om `whitelisted_groups` är satt, tillåts *enbart* de grupperna (har prioritet över `ignored_groups`).
+2. **Whitelist-kontroll** — Om `whitelist_groups` är satt, tillåts *enbart* de grupperna (har prioritet över `ignored_groups`).
 3. **Ignore-kontroll** — Om gruppen finns i `ignored_groups`, avbryts bearbetningen.
 4. **Separator `--`** — Om meddelandet börjar med `--` ignoreras det tyst. Inget sparas.
 5. **Append-logik** — Se avsnitt nedan.
@@ -236,7 +236,7 @@ Text som redan befinner sig inuti en `[[…]]`-länk matchas inte igen. Detta f�
 
 | Egenskap | Beskrivning |
 |----------|-------------|
-| **Konfigurationsnyckel** | `whitelisted_groups` |
+| **Konfigurationsnyckel** | `whitelist_groups` |
 | **Typ** | JSON-lista med gruppnamn |
 | **Standard** | `[]` (alla grupper tillåts) |
 | **Effekt** | Om satt, sparas *enbart* meddelanden från dessa grupper |
@@ -246,7 +246,7 @@ Text som redan befinner sig inuti en `[[…]]`-länk matchas inte igen. Detta f�
 ### Prioritetsordning
 
 ```
-Om whitelisted_groups är satt och inte tom:
+Om whitelist_groups är satt och inte tom:
   → Enbart whitelisted grupper behandlas (ignored_groups ignoreras helt)
 Annars:
   → Alla grupper behandlas, utom de i ignored_groups
@@ -461,7 +461,7 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 | `plus_plus_enabled` | boolean | `False` | Aktivera `++` append-prefix |
 | `append_window_minutes` | integer | `30` | Tidsfönster för append-läge (minuter) |
 | `ignored_groups` | JSON-lista | `[]` | Gruppnamn att ignorera |
-| `whitelisted_groups` | JSON-lista | `[]` | Om satt, enbart dessa grupper behandlas |
+| `whitelist_groups` | JSON-lista | `[]` | Om satt, enbart dessa grupper behandlas |
 | `regex_patterns` | JSON-objekt | *(3 standardmönster)* | Namngivna regex-mönster för autolänkning |
 | `startup_message` | string | `first` | Startmeddelande: `first`, `all`, `off` |
 
@@ -491,9 +491,9 @@ Dessa miljövariabler överstyr konfigurationsdatabasen:
 | `WEB_HOST` | Bind-adress för webbgränssnitt | Docker: `WEB_HOST=0.0.0.0` |
 | `SIGNAL_CLI_PATH` | Sökväg till signal-cli | Överstyr `signal_cli_path` i config |
 
-### INI-export/import
+### INI-import vid setup
 
-Konfigurationen kan exporteras till och importeras från INI-format (`.ini`-filer) för bakåtkompatibilitet och enkel delning. Tillgängligt via Web GUI:ns konfigurationssida.
+Konfigurationen kan importeras från INI-format (`.ini`-filer) vid setup för bakåtkompatibilitet med äldre Oden-versioner. Se [SETUP_FLOW.md](SETUP_FLOW.md) för detaljer om INI-migrering.
 
 ---
 

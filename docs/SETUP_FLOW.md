@@ -86,7 +86,7 @@ Kopplar Oden som en länkad enhet till ett befintligt Signal-konto.
 
 | Steg | Beskrivning |
 |------|-------------|
-| 1. **QR-kod genereras** | Server-side via `segno`-biblioteket (SVG-format). Anropet `addDevice` till signal-cli genererar en länknings-URI. |
+| 1. **QR-kod genereras** | Server-side via `qrcode`-biblioteket (SVG-format). Anropet `addDevice` till signal-cli genererar en länknings-URI. |
 | 2. **Användaren skannar** | QR-koden visas i webbläsaren. Användaren skannar med Signal-appen: *Inställningar → Länkade enheter → Lägg till enhet*. |
 | 3. **Pollning** | Oden pollar signal-cli i upp till 60 sekunder för att vänta på att länkningen slutförs. |
 | 4. **Bekräftelse** | När länkningen lyckas visas det registrerade numret och setup fortsätter. |
