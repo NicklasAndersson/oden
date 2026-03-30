@@ -356,6 +356,14 @@ td {
     font-size: 0.8em;
     color: #666;
 }
+.config-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.config-actions .btn {
+    flex: 1;
+}
 .tabs {
     display: flex;
     gap: 5px;

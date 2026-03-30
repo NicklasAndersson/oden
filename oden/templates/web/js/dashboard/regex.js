@@ -51,10 +51,6 @@ function addRegexRow(name, pattern) {
     row.appendChild(patternInput);
     row.appendChild(removeBtn);
     container.appendChild(row);
-
-    // Auto-save on change
-    nameInput.addEventListener('input', autoSaveConfig);
-    patternInput.addEventListener('input', autoSaveConfig);
 }
 
 function removeRegexRow(btn) {

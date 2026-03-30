@@ -1,6 +1,5 @@
-// config.js — Depends on: shared.js (showConfigMessage),
-//              regex.js (loadRegexPatterns),
-//              groups.js (fetchGroups)
+// config.js — Depends on: shared.js (showConfigMessage, showMessage, authenticatedFetch),
+//              regex.js (loadRegexPatterns)
 //
 // Loads the main configuration form, plus reset/export/shutdown.
 // Saving is handled by auto-save.js (debounced on every change).

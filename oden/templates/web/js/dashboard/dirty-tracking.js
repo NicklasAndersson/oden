@@ -7,6 +7,7 @@
 
 let _autoSaveTimer = null;
 let _autoSaveInFlight = false;
+let _autoSavePending = false;
 
 function autoSaveConfig() {
     clearTimeout(_autoSaveTimer);
@@ -14,7 +15,10 @@ function autoSaveConfig() {
 }
 
 async function _doAutoSave() {
-    if (_autoSaveInFlight) return;
+    if (_autoSaveInFlight) {
+        _autoSavePending = true;
+        return;
+    }
     _autoSaveInFlight = true;
 
     const configData = {
@@ -61,5 +65,9 @@ async function _doAutoSave() {
         showConfigMessage('Nätverksfel: ' + error.message, 'error');
     } finally {
         _autoSaveInFlight = false;
+        if (_autoSavePending) {
+            _autoSavePending = false;
+            autoSaveConfig();
+        }
     }
 }
