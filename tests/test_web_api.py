@@ -537,25 +537,29 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         """
         import oden.web_server as ws
 
-        # Get a valid token
-        valid_token = await self._get_valid_token()
-        resp = await self.client.get("/api/groups", headers=self._auth_header(valid_token))
-        self.assertEqual(resp.status, 200)
+        original_api_token = ws._api_token
+        try:
+            # Get a valid token
+            valid_token = await self._get_valid_token()
+            resp = await self.client.get("/api/groups", headers=self._auth_header(valid_token))
+            self.assertEqual(resp.status, 200)
 
-        # Simulate server restart by forcing a new token
-        old_token = ws._api_token
-        ws._api_token = None  # reset so next get_api_token() generates fresh
+            # Simulate server restart by forcing a new token
+            old_token = ws._api_token
+            ws._api_token = None  # reset so next get_api_token() generates fresh
 
-        # Old token should now be rejected
-        resp = await self.client.get("/api/groups", headers=self._auth_header(old_token))
-        self.assertEqual(resp.status, 401)
+            # Old token should now be rejected
+            resp = await self.client.get("/api/groups", headers=self._auth_header(old_token))
+            self.assertEqual(resp.status, 401)
 
-        # Fetching /api/token gives the new token, which works
-        resp = await self.client.get("/api/token")
-        new_token = (await resp.json())["token"]
-        self.assertNotEqual(new_token, old_token)
-        resp = await self.client.get("/api/groups", headers=self._auth_header(new_token))
-        self.assertEqual(resp.status, 200)
+            # Fetching /api/token gives the new token, which works
+            resp = await self.client.get("/api/token")
+            new_token = (await resp.json())["token"]
+            self.assertNotEqual(new_token, old_token)
+            resp = await self.client.get("/api/groups", headers=self._auth_header(new_token))
+            self.assertEqual(resp.status, 200)
+        finally:
+            ws._api_token = original_api_token
 
     # ------------------------------------------------------------------
     # Dashboard JS includes authenticatedFetch with retry logic
@@ -566,4 +570,5 @@ class TestProtectedEndpointsRequireAuth(AioHTTPTestCase):
         resp = await self.client.get("/")
         text = await resp.text()
         self.assertIn("async function authenticatedFetch(", text)
-        self.assertIn("apiToken = null", text)
+        self.assertIn("if (response.status === 401)", text)
+        self.assertIn("/api/token", text)

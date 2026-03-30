@@ -38,8 +38,10 @@ async function authenticatedFetch(url, options) {
         // Token may be stale after a server restart — refresh and retry once
         apiToken = null;
         const newToken = await getApiToken();
-        if (newToken) opts.headers['Authorization'] = 'Bearer ' + newToken;
-        return fetch(url, opts);
+        if (newToken && newToken !== token) {
+            opts.headers['Authorization'] = 'Bearer ' + newToken;
+            return fetch(url, opts);
+        }
     }
     return response;
 }
