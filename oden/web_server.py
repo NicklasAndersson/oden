@@ -348,6 +348,8 @@ async def run_setup_server(port: int = 8080) -> bool:
     try:
         # Poll for configuration completion
         configured, _error = is_configured()
+        if not configured:
+            logger.info("Waiting for setup to complete (reason: %s)...", _error)
         while not configured:
             await asyncio.sleep(1.0)
             configured, _error = is_configured()
