@@ -1,4 +1,4 @@
-// accounts.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMessage)
+// accounts.js — Depends on: shared.js (escapeHtml, showConfigMessage)
 //
 // Signal account management: list, link (add), activate, delete, force-delete.
 
@@ -114,7 +114,7 @@ async function activateAccount(number) {
     }
 
     try {
-        const response = await authenticatedFetch('/api/accounts/activate', {
+        const response = await fetch('/api/accounts/activate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ number })
@@ -139,7 +139,7 @@ async function deleteAccount(number) {
     }
 
     try {
-        const response = await authenticatedFetch('/api/accounts/' + encodeURIComponent(number), {
+        const response = await fetch('/api/accounts/' + encodeURIComponent(number), {
             method: 'DELETE',
         });
         const result = await response.json();
@@ -161,7 +161,7 @@ async function forceDeleteAccount(number) {
     }
 
     try {
-        const response = await authenticatedFetch('/api/accounts/' + encodeURIComponent(number) + '/force', {
+        const response = await fetch('/api/accounts/' + encodeURIComponent(number) + '/force', {
             method: 'DELETE',
         });
         const result = await response.json();
@@ -194,7 +194,7 @@ async function startAccountLink() {
     doneBtn.style.display = 'none';
 
     try {
-        const response = await authenticatedFetch('/api/accounts/link', {
+        const response = await fetch('/api/accounts/link', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ device_name: 'Oden' })
@@ -219,7 +219,7 @@ async function startAccountLink() {
 
 async function pollLinkStatus() {
     try {
-        const response = await authenticatedFetch('/api/accounts/link-status');
+        const response = await fetch('/api/accounts/link-status');
         const data = await response.json();
 
         if (data.status === 'linked') {
@@ -257,7 +257,7 @@ async function cancelAccountLink() {
 
     // Inform the server to cancel the link operation
     try {
-        await authenticatedFetch('/api/accounts/link-cancel', {
+        await fetch('/api/accounts/link-cancel', {
             method: 'POST',
         });
     } catch (error) {
@@ -277,7 +277,7 @@ async function loadDevices() {
     container.innerHTML = '<div class="empty-state">Hämtar enheter...</div>';
 
     try {
-        const response = await authenticatedFetch('/api/accounts/devices');
+        const response = await fetch('/api/accounts/devices');
         const data = await response.json();
         const devices = data.devices || [];
 

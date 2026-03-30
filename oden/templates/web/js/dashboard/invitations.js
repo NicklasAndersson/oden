@@ -1,4 +1,4 @@
-// invitations.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMsg)
+// invitations.js — Depends on: shared.js (escapeHtml, showConfigMessage)
 //
 // Fetches and renders pending group invitations, handles accept/decline.
 
@@ -36,7 +36,7 @@ async function handleInvitation(groupId, action) {
     buttons.forEach(btn => btn.disabled = true);
 
     try {
-        const response = await authenticatedFetch(`/api/invitations/${action}`, {
+        const response = await fetch(`/api/invitations/${action}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupId })

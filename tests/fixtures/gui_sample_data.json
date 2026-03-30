@@ -44,12 +44,6 @@
       "message": "Web GUI started at http://127.0.0.1:8080"
     },
     {
-      "timestamp": "2026-02-07 09:00:05",
-      "level": "INFO",
-      "name": "oden.web_server",
-      "message": "API token for protected endpoints has been generated."
-    },
-    {
       "timestamp": "2026-02-07 09:01:15",
       "level": "INFO",
       "name": "oden.processing",

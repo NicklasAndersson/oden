@@ -1,4 +1,4 @@
-// config.js — Depends on: shared.js (showConfigMessage, showMessage, authenticatedFetch),
+// config.js — Depends on: shared.js (showConfigMessage, showMessage),
 //              regex.js (loadRegexPatterns)
 //
 // Loads the main configuration form, plus reset/export/shutdown.
@@ -47,7 +47,7 @@ async function rerunSetup() {
         return;
     }
     try {
-        const response = await authenticatedFetch('/api/setup/reset', {
+        const response = await fetch('/api/setup/reset', {
             method: 'DELETE',
         });
         const data = await response.json();
@@ -64,7 +64,7 @@ async function rerunSetup() {
 
 async function loadSignalConfig() {
     try {
-        const response = await authenticatedFetch('/api/signal-config');
+        const response = await fetch('/api/signal-config');
         const config = await response.json();
 
         document.getElementById('cfg-signal-typing-indicators').checked = config.typingIndicators || false;
@@ -83,7 +83,7 @@ async function saveSignalConfig() {
     };
 
     try {
-        const response = await authenticatedFetch('/api/signal-config', {
+        const response = await fetch('/api/signal-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -105,7 +105,7 @@ async function shutdownApp() {
         return;
     }
     try {
-        const response = await authenticatedFetch('/api/shutdown', {
+        const response = await fetch('/api/shutdown', {
             method: 'POST',
         });
         const data = await response.json();

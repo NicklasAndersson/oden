@@ -132,16 +132,6 @@ Hantera signal-cli-konton (multi-account daemon-läge).
 
 ## Säkerhet
 
-### Token-baserad autentisering
-
-| Egenskap | Beskrivning |
-|----------|-------------|
-| **Generering** | Slumpmässig token genereras per session |
-| **Hämtning** | `GET /api/token` — returnerar token som JSON |
-| **Användning** | HTTP-header `Authorization: Bearer <token>` eller query-parameter `?token=<token>` |
-| **Skydd** | Känsliga endpoints (skriv-/raderingsanrop) kräver giltig token |
-| **Undantag** | Läs-endpoints och setup-routes kräver ingen token |
-
 ### Nätverksbinding
 
 | Miljö | Binding | Åtkomst |
@@ -157,93 +147,92 @@ Hantera signal-cli-konton (multi-account daemon-läge).
 
 Dessa är enbart tillgängliga i setup-mode.
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/setup` | Nej | Setup-wizardens HTML-sida |
-| GET | `/api/setup/status` | Nej | Aktuell setup-status (JSON) |
-| POST | `/api/setup/set-home` | Nej | Sätt Oden-hemkatalog |
-| POST | `/api/setup/validate-path` | Nej | Validera en sökväg |
-| POST | `/api/setup/start-link` | Nej | Starta QR-kodlänkning |
-| POST | `/api/setup/cancel-link` | Nej | Avbryt pågående länkning |
-| POST | `/api/setup/start-register` | Nej | Starta nummerregistrering |
-| POST | `/api/setup/verify-code` | Nej | Verifiera registreringskod |
-| POST | `/api/setup/save` | Nej | Spara setup-konfiguration |
-| POST | `/api/setup/install-obsidian-template` | Nej | Installera Obsidian-mallar i valvet |
-| DELETE | `/api/setup/reset` | ✅ | Mjuk reset (återgå till setup) |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/setup` | Setup-wizardens HTML-sida |
+| GET | `/api/setup/status` | Aktuell setup-status (JSON) |
+| POST | `/api/setup/set-home` | Sätt Oden-hemkatalog |
+| POST | `/api/setup/validate-path` | Validera en sökväg |
+| POST | `/api/setup/start-link` | Starta QR-kodlänkning |
+| POST | `/api/setup/cancel-link` | Avbryt pågående länkning |
+| POST | `/api/setup/start-register` | Starta nummerregistrering |
+| POST | `/api/setup/verify-code` | Verifiera registreringskod |
+| POST | `/api/setup/save` | Spara setup-konfiguration |
+| POST | `/api/setup/install-obsidian-template` | Installera Obsidian-mallar i valvet |
+| DELETE | `/api/setup/reset` | Mjuk reset (återgå till setup) |
 
 ### Dashboard-endpoints
 
 #### Konfiguration
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/` | Nej | Dashboard HTML-sida |
-| GET | `/api/token` | Nej | Hämta autentiseringstoken |
-| GET | `/api/config` | Nej | Hämta all konfiguration (JSON) |
-| POST | `/api/config-save` | ✅ | Spara konfiguration (formulärdata) |
-| GET | `/api/config/export` | ✅ | Exportera som INI-fil (nedladdning) |
-| POST | `/api/config-file` | Nej | Importera INI-konfiguration |
-| DELETE | `/api/config/reset` | ✅ | Återställ konfiguration |
-| POST | `/api/shutdown` | ✅ | Stäng ner Oden |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/` | Dashboard HTML-sida |
+| GET | `/api/config` | Hämta all konfiguration (JSON) |
+| POST | `/api/config-save` | Spara konfiguration (formulärdata) |
+| GET | `/api/config/export` | Exportera som INI-fil (nedladdning) |
+| POST | `/api/config-file` | Importera INI-konfiguration |
+| DELETE | `/api/config/reset` | Återställ konfiguration |
+| POST | `/api/shutdown` | Stäng ner Oden |
 
 #### Signal-konton
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/api/accounts` | Nej | Lista alla länkade konton |
-| POST | `/api/accounts/link` | ✅ | Starta QR-kodlänkning för nytt konto |
-| POST | `/api/accounts/link-cancel` | ✅ | Avbryt pågående länkning |
-| GET | `/api/accounts/link-status` | ✅ | Kontrollera länkningsstatus |
-| POST | `/api/accounts/activate` | ✅ | Växla aktivt konto |
-| DELETE | `/api/accounts/{number}` | ✅ | Radera kontots lokala data |
-| DELETE | `/api/accounts/{number}/force` | ✅ | Tvångsradera kontodata (filsystem) |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/accounts` | Lista alla länkade konton |
+| POST | `/api/accounts/link` | Starta QR-kodlänkning för nytt konto |
+| POST | `/api/accounts/link-cancel` | Avbryt pågående länkning |
+| GET | `/api/accounts/link-status` | Kontrollera länkningsstatus |
+| POST | `/api/accounts/activate` | Växla aktivt konto |
+| DELETE | `/api/accounts/{number}` | Radera kontots lokala data |
+| DELETE | `/api/accounts/{number}/force` | Tvångsradera kontodata (filsystem) |
 
 #### Loggar
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/api/logs` | Nej | Hämta loggposter (JSON-array) |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/logs` | Hämta loggposter (JSON-array) |
 
 #### Grupper
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/api/groups` | Nej | Lista alla grupper |
-| POST | `/api/join-group` | ✅ | Gå med i grupp via inbjudningslänk |
-| POST | `/api/toggle-ignore-group` | ✅ | Toggla ignorera-status för en grupp |
-| POST | `/api/toggle-whitelist-group` | ✅ | Toggla whitelist-status för en grupp |
-| GET | `/api/invitations` | Nej | Lista väntande gruppinbjudningar |
-| POST | `/api/invitations/accept` | ✅ | Acceptera gruppinbjudan |
-| POST | `/api/invitations/decline` | ✅ | Avböj gruppinbjudan |
-| POST | `/api/groups/refresh` | ✅ | Uppdatera grupplistan från signal-cli |
-| POST | `/api/groups/update` | ✅ | Uppdatera gruppinställningar (namn, medlemmar, behörigheter m.m.) |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/groups` | Lista alla grupper |
+| POST | `/api/join-group` | Gå med i grupp via inbjudningslänk |
+| POST | `/api/toggle-ignore-group` | Toggla ignorera-status för en grupp |
+| POST | `/api/toggle-whitelist-group` | Toggla whitelist-status för en grupp |
+| GET | `/api/invitations` | Lista väntande gruppinbjudningar |
+| POST | `/api/invitations/accept` | Acceptera gruppinbjudan |
+| POST | `/api/invitations/decline` | Avböj gruppinbjudan |
+| POST | `/api/groups/refresh` | Uppdatera grupplistan från signal-cli |
+| POST | `/api/groups/update` | Uppdatera gruppinställningar (namn, medlemmar, behörigheter m.m.) |
 
 #### Kontakter
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/api/contacts` | Nej | Lista cachade kontakter |
-| POST | `/api/contacts/refresh` | ✅ | Hämta kontakter från signal-cli |
-| PUT | `/api/contacts/{number}` | ✅ | Uppdatera kontaktuppgifter (namn, smeknamn, anteckning, timer) |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/contacts` | Lista cachade kontakter |
+| POST | `/api/contacts/refresh` | Hämta kontakter från signal-cli |
+| PUT | `/api/contacts/{number}` | Uppdatera kontaktuppgifter (namn, smeknamn, anteckning, timer) |
 
 #### Mallar
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/api/templates` | Nej | Lista tillgängliga mallar |
-| GET | `/api/templates/{name}` | ✅ | Hämta mallinnehåll |
-| POST | `/api/templates/{name}` | ✅ | Spara mall |
-| POST | `/api/templates/{name}/preview` | ✅ | Förhandsgranska mall med exempeldata |
-| POST | `/api/templates/{name}/reset` | ✅ | Återställ mall till standard |
-| GET | `/api/templates/{name}/export` | Nej | Exportera enskild mall |
-| GET | `/api/templates/export` | Nej | Exportera alla mallar som ZIP |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/templates` | Lista tillgängliga mallar |
+| GET | `/api/templates/{name}` | Hämta mallinnehåll |
+| POST | `/api/templates/{name}` | Spara mall |
+| POST | `/api/templates/{name}/preview` | Förhandsgranska mall med exempeldata |
+| POST | `/api/templates/{name}/reset` | Återställ mall till standard |
+| GET | `/api/templates/{name}/export` | Exportera enskild mall |
+| GET | `/api/templates/export` | Exportera alla mallar som ZIP |
 
 #### Autosvar
 
-| Metod | Sökväg | Auth | Beskrivning |
-|-------|--------|------|-------------|
-| GET | `/api/responses` | Nej | Lista alla autosvar |
-| GET | `/api/responses/{id}` | ✅ | Hämta enskilt autosvar |
-| POST | `/api/responses/new` | ✅ | Skapa nytt autosvar |
-| POST | `/api/responses/{id}` | ✅ | Uppdatera autosvar |
-| DELETE | `/api/responses/{id}` | ✅ | Ta bort autosvar |
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/responses` | Lista alla autosvar |
+| GET | `/api/responses/{id}` | Hämta enskilt autosvar |
+| POST | `/api/responses/new` | Skapa nytt autosvar |
+| POST | `/api/responses/{id}` | Uppdatera autosvar |
+| DELETE | `/api/responses/{id}` | Ta bort autosvar |

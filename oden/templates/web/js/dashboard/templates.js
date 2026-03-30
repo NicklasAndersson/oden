@@ -1,4 +1,4 @@
-// templates.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMsg)
+// templates.js — Depends on: shared.js (escapeHtml, showConfigMessage)
 //
 // Jinja2 template editor with live preview, save/reset, and export.
 
@@ -11,7 +11,7 @@ async function loadTemplate() {
     errorDiv.style.display = 'none';
 
     try {
-        const response = await authenticatedFetch(`/api/templates/${templateName}`);
+        const response = await fetch(`/api/templates/${templateName}`);
         const data = await response.json();
 
         if (response.ok) {
@@ -58,7 +58,7 @@ async function previewTemplate() {
     }
 
     try {
-        const response = await authenticatedFetch(`/api/templates/${templateName}/preview`, {
+        const response = await fetch(`/api/templates/${templateName}/preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content, full: useFullData })
@@ -92,7 +92,7 @@ async function saveTemplate() {
     }
 
     try {
-        const response = await authenticatedFetch(`/api/templates/${templateName}`, {
+        const response = await fetch(`/api/templates/${templateName}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content })
@@ -128,7 +128,7 @@ async function resetTemplate() {
     errorDiv.style.display = 'none';
 
     try {
-        const response = await authenticatedFetch(`/api/templates/${templateName}/reset`, {
+        const response = await fetch(`/api/templates/${templateName}/reset`, {
             method: 'POST'
         });
         const data = await response.json();
@@ -147,13 +147,11 @@ async function resetTemplate() {
     }
 }
 
-async function exportCurrentTemplate() {
+function exportCurrentTemplate() {
     const templateName = document.getElementById('template-select').value;
-    const token = await getApiToken();
-    window.location.href = `/api/templates/${templateName}/export?token=${token}`;
+    window.location.href = `/api/templates/${templateName}/export`;
 }
 
-async function exportAllTemplates() {
-    const token = await getApiToken();
-    window.location.href = `/api/templates/export?token=${token}`;
+function exportAllTemplates() {
+    window.location.href = '/api/templates/export';
 }

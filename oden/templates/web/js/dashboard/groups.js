@@ -1,4 +1,4 @@
-// groups.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMessage,
+// groups.js — Depends on: shared.js (escapeHtml, showConfigMessage,
 //              currentIgnoredGroups, currentWhitelistGroups)
 //
 // Fetches and renders the groups list, handles ignore/whitelist toggles,
@@ -9,7 +9,7 @@ let _groupsCache = [];
 
 async function fetchGroups() {
     try {
-        const response = await authenticatedFetch('/api/groups');
+        const response = await fetch('/api/groups');
         const data = await response.json();
         const container = document.getElementById('groups-container');
         currentIgnoredGroups = data.ignoredGroups || [];
@@ -142,7 +142,7 @@ async function saveGroupChanges() {
     }
 
     try {
-        const response = await authenticatedFetch('/api/groups/update', {
+        const response = await fetch('/api/groups/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -172,7 +172,7 @@ async function addGroupMember() {
 
     const groupId = document.getElementById('group-edit-id').value;
     try {
-        const response = await authenticatedFetch('/api/groups/update', {
+        const response = await fetch('/api/groups/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupId, member: [number] }),
@@ -195,7 +195,7 @@ async function addGroupMember() {
 async function removeGroupMember(memberNumber) {
     const groupId = document.getElementById('group-edit-id').value;
     try {
-        const response = await authenticatedFetch('/api/groups/update', {
+        const response = await fetch('/api/groups/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupId, removeMember: [memberNumber] }),
@@ -222,7 +222,7 @@ async function toggleGroupAdmin(memberNumber, makeAdmin) {
         payload.removeAdmin = [memberNumber];
     }
     try {
-        const response = await authenticatedFetch('/api/groups/update', {
+        const response = await fetch('/api/groups/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -247,7 +247,7 @@ async function refreshGroups() {
         btn.textContent = 'Uppdaterar...';
     }
     try {
-        const response = await authenticatedFetch('/api/groups/refresh', {
+        const response = await fetch('/api/groups/refresh', {
             method: 'POST',
         });
         const result = await response.json();
@@ -269,7 +269,7 @@ async function refreshGroups() {
 
 async function toggleIgnoreGroup(groupName) {
     try {
-        const response = await authenticatedFetch('/api/toggle-ignore-group', {
+        const response = await fetch('/api/toggle-ignore-group', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupName })
@@ -290,7 +290,7 @@ async function toggleIgnoreGroup(groupName) {
 
 async function toggleWhitelistGroup(groupName) {
     try {
-        const response = await authenticatedFetch('/api/toggle-whitelist-group', {
+        const response = await fetch('/api/toggle-whitelist-group', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupName })
@@ -324,7 +324,7 @@ async function handleJoinGroupSubmit(e) {
     messageDiv.textContent = '';
 
     try {
-        const response = await authenticatedFetch('/api/join-group', {
+        const response = await fetch('/api/join-group', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ link })

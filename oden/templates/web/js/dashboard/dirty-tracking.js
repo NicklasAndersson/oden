@@ -1,4 +1,4 @@
-// auto-save.js — Depends on: shared.js (authenticatedFetch, showConfigMessage),
+// auto-save.js — Depends on: shared.js (showConfigMessage),
 //                 regex.js (collectRegexPatterns),
 //                 config.js (loadConfigForm),
 //                 groups.js (fetchGroups)
@@ -48,7 +48,7 @@ async function _doAutoSave() {
     };
 
     try {
-        const response = await authenticatedFetch('/api/config-save', {
+        const response = await fetch('/api/config-save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(configData)

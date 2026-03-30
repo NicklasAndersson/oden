@@ -115,16 +115,7 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
     async def get_application(self):
         return create_app(setup_mode=False)
 
-    async def _get_valid_token(self) -> str:
-        resp = await self.client.get("/api/token")
-        data = await resp.json()
-        return data["token"]
-
-    def _auth_header(self, token: str) -> dict:
-        return {"Authorization": f"Bearer {token}"}
-
     async def test_save_valid_regex_patterns(self):
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/config-save",
             json={
@@ -134,20 +125,17 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
                     "pnr": r"[0-9]{6}-?[0-9]{4}",
                 },
             },
-            headers=self._auth_header(token),
         )
         data = await resp.json()
         self.assertTrue(data["success"])
 
     async def test_save_invalid_regex_pattern_rejected(self):
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/config-save",
             json={
                 "signal_number": "+46700000000",
                 "regex_patterns": {"bad": "[invalid("},
             },
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
         data = await resp.json()
@@ -155,14 +143,12 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         self.assertIn("Ogiltigt regex-mönster", data["error"])
 
     async def test_save_empty_pattern_name_rejected(self):
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/config-save",
             json={
                 "signal_number": "+46700000000",
                 "regex_patterns": {"": r"[A-Z]+"},
             },
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
         data = await resp.json()
@@ -170,14 +156,12 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         self.assertIn("namn", data["error"].lower())
 
     async def test_save_empty_pattern_value_rejected(self):
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/config-save",
             json={
                 "signal_number": "+46700000000",
                 "regex_patterns": {"test": ""},
             },
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
         data = await resp.json()
@@ -185,11 +169,9 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
 
     async def test_save_without_regex_preserves_existing(self):
         """When regex_patterns is not in the request, existing patterns are preserved."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/config-save",
             json={"signal_number": "+46700000000"},
-            headers=self._auth_header(token),
         )
         data = await resp.json()
         self.assertTrue(data["success"])
@@ -202,14 +184,12 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         self.assertIsInstance(data["regex_patterns"], dict)
 
     async def test_save_regex_not_dict_rejected(self):
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/config-save",
             json={
                 "signal_number": "+46700000000",
                 "regex_patterns": "not-a-dict",
             },
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
         data = await resp.json()
@@ -217,14 +197,12 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
 
     async def test_save_empty_regex_patterns_accepted(self):
         """Saving an empty dict should be valid (removes all patterns)."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/config-save",
             json={
                 "signal_number": "+46700000000",
                 "regex_patterns": {},
             },
-            headers=self._auth_header(token),
         )
         data = await resp.json()
         self.assertTrue(data["success"])

@@ -7,7 +7,6 @@ and initial setup wizard for first-run configuration.
 
 import asyncio
 import logging
-import secrets
 
 import aiohttp_jinja2
 import jinja2
@@ -69,89 +68,6 @@ from oden.web_handlers import (
 
 logger = logging.getLogger(__name__)
 
-# API token for authentication (generated on startup)
-_api_token: str | None = None
-
-# Endpoints that require authentication (sensitive operations)
-PROTECTED_ENDPOINTS = {
-    "/api/config-save",  # POST - save config
-    "/api/shutdown",  # POST - shutdown application
-    "/api/join-group",  # POST - join Signal group
-    "/api/toggle-ignore-group",  # POST - modify group settings
-    "/api/toggle-whitelist-group",  # POST - modify group settings
-    "/api/invitations/accept",  # POST - accept group invitation
-    "/api/invitations/decline",  # POST - decline group invitation
-    "/api/groups/refresh",  # POST - re-fetch groups from signal-cli
-    "/api/config/reset",  # DELETE - reset config to defaults
-    "/api/setup/reset",  # DELETE - re-run setup
-    "/api/accounts/link",  # POST - link new account
-    "/api/accounts/link-cancel",  # POST - cancel link
-    "/api/accounts/activate",  # POST - switch active account
-    "/api/contacts/refresh",  # POST - re-fetch contacts from signal-cli
-    "/api/groups/update",  # POST - update group settings
-    "/api/groups",  # GET - list groups (contains member details)
-    "/api/signal-config",  # POST - update Signal protocol settings
-}
-
-# Endpoints that require auth and use path parameters (checked with startswith)
-PROTECTED_PREFIXES = {
-    "/api/responses/",  # All response modification endpoints
-    "/api/templates/",  # All template modification endpoints
-    "/api/accounts/",  # All account modification endpoints
-    "/api/contacts/",  # Contact modification endpoints (PUT /api/contacts/{number})
-}
-
-
-def get_api_token() -> str:
-    """Get or generate the API token for this session."""
-    global _api_token
-    if _api_token is None:
-        _api_token = secrets.token_urlsafe(32)
-    return _api_token
-
-
-@web.middleware
-async def auth_middleware(request: web.Request, handler):
-    """Middleware to check API token for protected endpoints."""
-    path = request.path
-
-    # Check if this endpoint requires authentication
-    needs_auth = path in PROTECTED_ENDPOINTS
-    if not needs_auth:
-        # Check for prefix-based protection (for paths with parameters)
-        needs_auth = any(path.startswith(prefix) for prefix in PROTECTED_PREFIXES)
-
-    if needs_auth:
-        # Check for token in Authorization header or query parameter
-        auth_header = request.headers.get("Authorization", "")
-        query_token = request.query.get("token", "")
-
-        expected_token = get_api_token()
-
-        # Accept token from Bearer header or query parameter
-        provided_token = None
-        if auth_header.startswith("Bearer "):
-            provided_token = auth_header[7:]
-        elif query_token:
-            provided_token = query_token
-
-        if provided_token != expected_token:
-            logger.warning(f"Unauthorized access attempt to {path}")
-            return web.json_response(
-                {
-                    "success": False,
-                    "error": "Unauthorized. Provide API token via 'Authorization: Bearer <token>' header or '?token=<token>' query parameter.",
-                },
-                status=401,
-            )
-
-    return await handler(request)
-
-
-async def token_handler(request: web.Request) -> web.Response:
-    """Return the API token for use with protected endpoints."""
-    return web.json_response({"token": get_api_token()})
-
 
 async def index_handler(request: web.Request) -> web.Response:
     """Serve the main HTML page."""
@@ -191,9 +107,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
     Args:
         setup_mode: If True, only enable setup-related routes.
     """
-    # In setup mode, don't use auth middleware
-    middlewares = [] if setup_mode else [auth_middleware]
-    app = web.Application(middlewares=middlewares)
+    app = web.Application()
 
     # Set up Jinja2 template engine for HTML rendering
     aiohttp_jinja2.setup(
@@ -225,7 +139,6 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/", index_handler)
         app.router.add_get("/api/config", config_handler)
         app.router.add_get("/api/logs", logs_handler)
-        app.router.add_get("/api/token", token_handler)  # Get API token
         app.router.add_post("/api/join-group", join_group_handler)
         app.router.add_get("/api/invitations", invitations_handler)
         app.router.add_post("/api/invitations/accept", accept_invitation_handler)
@@ -308,10 +221,6 @@ async def start_web_server(port: int = 8080, setup_mode: bool = False) -> web.Ap
     await site.start()
     mode_str = " (setup mode)" if setup_mode else ""
     logger.info(f"Web GUI started at http://{cfg.WEB_HOST}:{port}{mode_str}")
-    if not setup_mode:
-        # Generate the API token for protected endpoints without logging its value
-        get_api_token()
-        logger.info("API token for protected endpoints has been generated.")
     return runner
 
 

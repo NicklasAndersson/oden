@@ -17,14 +17,6 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
     async def get_application(self):
         return create_app(setup_mode=False)
 
-    async def _get_valid_token(self) -> str:
-        resp = await self.client.get("/api/token")
-        data = await resp.json()
-        return data["token"]
-
-    def _auth_header(self, token: str) -> dict:
-        return {"Authorization": f"Bearer {token}"}
-
     @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
     @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
@@ -32,11 +24,9 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
         """Toggling whitelist for a new group adds it to config_db."""
         mock_get.return_value = []
 
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/toggle-whitelist-group",
             json={"groupName": "TestGroup"},
-            headers=self._auth_header(token),
         )
         data = await resp.json()
         self.assertTrue(data["success"])
@@ -56,11 +46,9 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
         """Toggling whitelist for an existing group removes it from config_db."""
         mock_get.return_value = ["TestGroup", "OtherGroup"]
 
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/toggle-whitelist-group",
             json={"groupName": "TestGroup"},
-            headers=self._auth_header(token),
         )
         data = await resp.json()
         self.assertTrue(data["success"])
@@ -79,11 +67,9 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
         """Toggling ignore for a new group adds it to config_db."""
         mock_get.return_value = []
 
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/toggle-ignore-group",
             json={"groupName": "IgnoredGroup"},
-            headers=self._auth_header(token),
         )
         data = await resp.json()
         self.assertTrue(data["success"])
@@ -101,11 +87,9 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
         """Toggling ignore for an existing group removes it from config_db."""
         mock_get.return_value = ["IgnoredGroup"]
 
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/toggle-ignore-group",
             json={"groupName": "IgnoredGroup"},
-            headers=self._auth_header(token),
         )
         data = await resp.json()
         self.assertTrue(data["success"])
@@ -117,21 +101,17 @@ class TestToggleGroupPersistence(AioHTTPTestCase):
 
     async def test_toggle_whitelist_empty_name_rejected(self):
         """Toggling whitelist with empty group name returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/toggle-whitelist-group",
             json={"groupName": ""},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
 
     async def test_toggle_ignore_empty_name_rejected(self):
         """Toggling ignore with empty group name returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/toggle-ignore-group",
             json={"groupName": ""},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
 
@@ -142,16 +122,8 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     async def get_application(self):
         return create_app(setup_mode=False)
 
-    async def _get_valid_token(self) -> str:
-        resp = await self.client.get("/api/token")
-        data = await resp.json()
-        return data["token"]
-
-    def _auth_header(self, token: str) -> dict:
-        return {"Authorization": f"Bearer {token}"}
-
     # ------------------------------------------------------------------
-    # GET /api/responses — list (unprotected)
+    # GET /api/responses — list
     # ------------------------------------------------------------------
     async def test_responses_list_returns_json(self):
         """GET /api/responses returns a JSON list."""
@@ -162,16 +134,14 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
         self.assertIsInstance(data, list)
 
     # ------------------------------------------------------------------
-    # POST /api/responses/new — create (protected)
+    # POST /api/responses/new — create
     # ------------------------------------------------------------------
     @unittest.mock.patch("oden.web_handlers.response_handlers.create_response", return_value=42)
     async def test_create_response_success(self, mock_create):
         """POST /api/responses/new with valid data creates a response."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/new",
             json={"keywords": ["info", "help"], "body": "Här är info."},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 200)
         data = await resp.json()
@@ -184,11 +154,9 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
 
     async def test_create_response_missing_keywords(self):
         """POST /api/responses/new without keywords returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/new",
             json={"body": "Svarstext"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
         data = await resp.json()
@@ -196,11 +164,9 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
 
     async def test_create_response_missing_body(self):
         """POST /api/responses/new without body returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/new",
             json={"keywords": ["test"]},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
         data = await resp.json()
@@ -208,11 +174,10 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
 
     async def test_create_response_invalid_json(self):
         """POST /api/responses/new with non-JSON body returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/new",
             data=b"not json",
-            headers={**self._auth_header(token), "Content-Type": "application/json"},
+            headers={"Content-Type": "application/json"},
         )
         self.assertEqual(resp.status, 400)
         data = await resp.json()
@@ -221,18 +186,16 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.response_handlers.create_response", return_value=None)
     async def test_create_response_db_failure(self, mock_create):
         """POST /api/responses/new returns 500 when DB create fails."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/new",
             json={"keywords": ["test"], "body": "Test"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 500)
         data = await resp.json()
         self.assertFalse(data["success"])
 
     # ------------------------------------------------------------------
-    # GET /api/responses/{id} — get single (protected via prefix)
+    # GET /api/responses/{id} — get single
     # ------------------------------------------------------------------
     @unittest.mock.patch(
         "oden.web_handlers.response_handlers.get_response_by_id",
@@ -240,8 +203,7 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     )
     async def test_get_response_by_id_success(self, mock_get):
         """GET /api/responses/1 returns the response."""
-        token = await self._get_valid_token()
-        resp = await self.client.get(f"/api/responses/1?token={token}")
+        resp = await self.client.get("/api/responses/1")
         self.assertEqual(resp.status, 200)
         data = await resp.json()
         self.assertEqual(data["id"], 1)
@@ -251,28 +213,20 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.response_handlers.get_response_by_id", return_value=None)
     async def test_get_response_by_id_not_found(self, mock_get):
         """GET /api/responses/999 returns 404 when not found."""
-        token = await self._get_valid_token()
-        resp = await self.client.get(f"/api/responses/999?token={token}")
+        resp = await self.client.get("/api/responses/999")
         self.assertEqual(resp.status, 404)
         data = await resp.json()
         self.assertFalse(data["success"])
 
-    async def test_get_response_by_id_requires_auth(self):
-        """GET /api/responses/1 without token returns 401."""
-        resp = await self.client.get("/api/responses/1")
-        self.assertEqual(resp.status, 401)
-
     # ------------------------------------------------------------------
-    # POST /api/responses/{id} — update (protected via prefix)
+    # POST /api/responses/{id} — update
     # ------------------------------------------------------------------
     @unittest.mock.patch("oden.web_handlers.response_handlers.save_response", return_value=True)
     async def test_update_response_success(self, mock_save):
         """POST /api/responses/1 with valid data updates the response."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/1",
             json={"keywords": ["uppdaterad"], "body": "Ny text"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 200)
         data = await resp.json()
@@ -286,11 +240,9 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.response_handlers.save_response", return_value=False)
     async def test_update_response_db_failure(self, mock_save):
         """POST /api/responses/1 returns 500 when DB save fails."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/1",
             json={"keywords": ["test"], "body": "Test"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 500)
         data = await resp.json()
@@ -298,35 +250,27 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
 
     async def test_update_response_missing_keywords(self):
         """POST /api/responses/1 without keywords returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/1",
             json={"body": "Text utan nyckelord"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
 
     async def test_update_response_missing_body(self):
         """POST /api/responses/1 without body returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/responses/1",
             json={"keywords": ["test"]},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
 
     # ------------------------------------------------------------------
-    # DELETE /api/responses/{id} — delete (protected via prefix)
+    # DELETE /api/responses/{id} — delete
     # ------------------------------------------------------------------
     @unittest.mock.patch("oden.web_handlers.response_handlers.delete_response", return_value=True)
     async def test_delete_response_success(self, mock_delete):
         """DELETE /api/responses/1 deletes the response."""
-        token = await self._get_valid_token()
-        resp = await self.client.delete(
-            "/api/responses/1",
-            headers=self._auth_header(token),
-        )
+        resp = await self.client.delete("/api/responses/1")
         self.assertEqual(resp.status, 200)
         data = await resp.json()
         self.assertTrue(data["success"])
@@ -335,19 +279,10 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.response_handlers.delete_response", return_value=False)
     async def test_delete_response_not_found(self, mock_delete):
         """DELETE /api/responses/999 returns 404 when not found."""
-        token = await self._get_valid_token()
-        resp = await self.client.delete(
-            "/api/responses/999",
-            headers=self._auth_header(token),
-        )
+        resp = await self.client.delete("/api/responses/999")
         self.assertEqual(resp.status, 404)
         data = await resp.json()
         self.assertFalse(data["success"])
-
-    async def test_delete_response_requires_auth(self):
-        """DELETE /api/responses/1 without token returns 401."""
-        resp = await self.client.delete("/api/responses/1")
-        self.assertEqual(resp.status, 401)
 
 
 class TestTemplateEndpoints(AioHTTPTestCase):
@@ -355,14 +290,6 @@ class TestTemplateEndpoints(AioHTTPTestCase):
 
     async def get_application(self):
         return create_app(setup_mode=False)
-
-    async def _get_valid_token(self):
-        resp = await self.client.get("/api/token")
-        data = await resp.json()
-        return data["token"]
-
-    def _auth_header(self, token):
-        return {"Authorization": f"Bearer {token}"}
 
     # --- list ---
 
@@ -382,8 +309,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.template_handlers.get_template_content", return_value="# Hello")
     async def test_get_template_success(self, mock_get):
         """GET /api/templates/report.md.j2 returns template content."""
-        token = await self._get_valid_token()
-        resp = await self.client.get("/api/templates/report.md.j2", headers=self._auth_header(token))
+        resp = await self.client.get("/api/templates/report.md.j2")
         self.assertEqual(resp.status, 200)
         data = await resp.json()
         self.assertEqual(data["content"], "# Hello")
@@ -392,8 +318,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
 
     async def test_get_template_unknown_returns_404(self):
         """GET /api/templates/nope.j2 returns 404."""
-        token = await self._get_valid_token()
-        resp = await self.client.get("/api/templates/nope.j2", headers=self._auth_header(token))
+        resp = await self.client.get("/api/templates/nope.j2")
         self.assertEqual(resp.status, 404)
 
     # --- save ---
@@ -402,11 +327,9 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.template_handlers.save_template_content", return_value=True)
     async def test_save_template_success(self, mock_save, mock_val):
         """POST /api/templates/report.md.j2 saves content."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/report.md.j2",
             json={"content": "# New"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 200)
         data = await resp.json()
@@ -420,11 +343,9 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.template_handlers.save_template_content", return_value=True)
     async def test_save_template_with_syntax_warning(self, mock_save, mock_val):
         """POST with bad syntax still saves but returns warning."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/report.md.j2",
             json={"content": "{{ bad }"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 200)
         data = await resp.json()
@@ -433,21 +354,17 @@ class TestTemplateEndpoints(AioHTTPTestCase):
 
     async def test_save_template_empty_returns_400(self):
         """POST with empty content returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/report.md.j2",
             json={"content": "   "},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
 
     async def test_save_template_unknown_returns_404(self):
         """POST /api/templates/nope.j2 returns 404."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/nope.j2",
             json={"content": "# X"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 404)
 
@@ -460,11 +377,9 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.template_handlers.validate_template", return_value=(True, None))
     async def test_preview_template_success(self, mock_val, mock_render):
         """POST /api/templates/report.md.j2/preview returns rendered preview."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/report.md.j2/preview",
             json={"content": "# {{ tnr }}"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 200)
         data = await resp.json()
@@ -477,11 +392,9 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     )
     async def test_preview_template_syntax_error(self, mock_val):
         """POST preview with invalid syntax returns error (but 200)."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/report.md.j2/preview",
             json={"content": "{{ bad }"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 200)
         data = await resp.json()
@@ -490,21 +403,17 @@ class TestTemplateEndpoints(AioHTTPTestCase):
 
     async def test_preview_template_empty_returns_400(self):
         """POST preview with empty content returns 400."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/report.md.j2/preview",
             json={"content": ""},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 400)
 
     async def test_preview_template_unknown_returns_404(self):
         """POST /api/templates/nope.j2/preview returns 404."""
-        token = await self._get_valid_token()
         resp = await self.client.post(
             "/api/templates/nope.j2/preview",
             json={"content": "# X"},
-            headers=self._auth_header(token),
         )
         self.assertEqual(resp.status, 404)
 
@@ -517,11 +426,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     )
     async def test_reset_template_success(self, mock_load, mock_save):
         """POST /api/templates/report.md.j2/reset restores default."""
-        token = await self._get_valid_token()
-        resp = await self.client.post(
-            "/api/templates/report.md.j2/reset",
-            headers=self._auth_header(token),
-        )
+        resp = await self.client.post("/api/templates/report.md.j2/reset")
         self.assertEqual(resp.status, 200)
         data = await resp.json()
         self.assertTrue(data["success"])
@@ -533,22 +438,14 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     )
     async def test_reset_template_file_not_found(self, mock_load):
         """POST reset when default file missing returns 500."""
-        token = await self._get_valid_token()
-        resp = await self.client.post(
-            "/api/templates/report.md.j2/reset",
-            headers=self._auth_header(token),
-        )
+        resp = await self.client.post("/api/templates/report.md.j2/reset")
         self.assertEqual(resp.status, 500)
         data = await resp.json()
         self.assertFalse(data["success"])
 
     async def test_reset_template_unknown_returns_404(self):
         """POST /api/templates/nope.j2/reset returns 404."""
-        token = await self._get_valid_token()
-        resp = await self.client.post(
-            "/api/templates/nope.j2/reset",
-            headers=self._auth_header(token),
-        )
+        resp = await self.client.post("/api/templates/nope.j2/reset")
         self.assertEqual(resp.status, 404)
 
     # --- export ---
@@ -556,8 +453,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.template_handlers.get_template_content", return_value="# TPL")
     async def test_export_template_success(self, mock_get):
         """GET /api/templates/report.md.j2/export returns file download."""
-        token = await self._get_valid_token()
-        resp = await self.client.get("/api/templates/report.md.j2/export", headers=self._auth_header(token))
+        resp = await self.client.get("/api/templates/report.md.j2/export")
         self.assertEqual(resp.status, 200)
         self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
         body = await resp.text()
@@ -565,8 +461,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
 
     async def test_export_template_unknown_returns_404(self):
         """GET /api/templates/nope.j2/export returns 404."""
-        token = await self._get_valid_token()
-        resp = await self.client.get("/api/templates/nope.j2/export", headers=self._auth_header(token))
+        resp = await self.client.get("/api/templates/nope.j2/export")
         self.assertEqual(resp.status, 404)
 
     # --- export all (ZIP) ---
@@ -577,8 +472,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
         import io
         import zipfile as zf
 
-        token = await self._get_valid_token()
-        resp = await self.client.get("/api/templates/export", headers=self._auth_header(token))
+        resp = await self.client.get("/api/templates/export")
         self.assertEqual(resp.status, 200)
         self.assertEqual(resp.content_type, "application/zip")
         body = await resp.read()
@@ -593,14 +487,6 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
 
     async def get_application(self):
         return create_app(setup_mode=False)
-
-    async def _get_valid_token(self) -> str:
-        resp = await self.client.get("/api/token")
-        data = await resp.json()
-        return data["token"]
-
-    def _auth_header(self, token: str) -> dict:
-        return {"Authorization": f"Bearer {token}"}
 
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_all_groups", return_value=[])
     @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
@@ -619,8 +505,7 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
             ]
         )
 
-        token = await self._get_valid_token()
-        resp = await self.client.get("/api/groups", headers=self._auth_header(token))
+        resp = await self.client.get("/api/groups")
         data = await resp.json()
         self.assertEqual(data["whitelistGroups"], ["Alpha", "Bravo"])
         self.assertEqual(data["ignoredGroups"], [])
@@ -658,8 +543,7 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
             ]
         )
 
-        token = await self._get_valid_token()
-        resp = await self.client.get("/api/groups", headers=self._auth_header(token))
+        resp = await self.client.get("/api/groups")
         data = await resp.json()
         names = {g["name"] for g in data["groups"]}
         self.assertIn("DB Only", names)

@@ -1,4 +1,4 @@
-// contacts.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMessage)
+// contacts.js — Depends on: shared.js (escapeHtml, showConfigMessage)
 //
 // Contact list display, refresh from signal-cli, and contact editing modal.
 
@@ -88,7 +88,7 @@ async function saveContactChanges() {
     };
 
     try {
-        const response = await authenticatedFetch('/api/contacts/' + encodeURIComponent(number), {
+        const response = await fetch('/api/contacts/' + encodeURIComponent(number), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -116,7 +116,7 @@ async function refreshContacts() {
     container.innerHTML = '<div class="empty-state">Hämtar kontakter från signal-cli...</div>';
 
     try {
-        const response = await authenticatedFetch('/api/contacts/refresh', {
+        const response = await fetch('/api/contacts/refresh', {
             method: 'POST',
         });
         const data = await response.json();

@@ -32,7 +32,7 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 - **tray.py**: System tray icon via pystray. Start/stop toggle, open web GUI, quit. Blocks main thread on macOS (NSApplication)
 - **formatting.py**: Filename sanitization, path generation, display formatting
 - **signal_manager.py**: Starts/stops the signal-cli subprocess
-- **web_server.py**: aiohttp web server with setup mode and dashboard mode, token-based auth for sensitive endpoints
+- **web_server.py**: aiohttp web server with setup mode and dashboard mode
 - **web_handlers/**: Route handlers — `setup_handlers.py` (wizard, Signal linking/QR), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact)
 - **template_loader.py**: Jinja2 template engine for report formatting. Templates loaded from config_db or files, with LRU cache and validation
 - **attachment_handler.py**: Downloads and saves Signal attachments to vault subdirectories. Uses `app_state.send_jsonrpc()` for attachment fetching (routed through central dispatcher)
@@ -120,7 +120,7 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 - Signal accounts tab (list, link via QR, activate, delete, force-delete)
 - Shutdown button
 
-**Security:** Token-based auth for sensitive endpoints (generated per session). Localhost only.
+**Security:** Localhost only (no auth — the web GUI binds to 127.0.0.1 by default).
 
 **Tray icon:** On macOS, a system tray icon (pystray) provides start/stop, open GUI, and quit buttons. `pystray` and `Pillow` are optional extras (`pip install .[tray]`). Falls back to terminal-only mode if unavailable (always the case in Docker).
 

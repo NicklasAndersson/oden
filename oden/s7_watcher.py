@@ -235,8 +235,20 @@ def main() -> None:
 
     logger.info(f"Starting Oden v{__version__}...")
 
-    # Check if this is first run (not configured)
+    # Auto-recover pointer file if missing but config.db exists at default location
     _is_configured, _config_error = is_configured()
+    if not _is_configured and _config_error == "no_pointer":
+        from oden.bundle_utils import DEFAULT_ODEN_HOME, set_oden_home_path, validate_oden_home
+
+        candidate_db = DEFAULT_ODEN_HOME / "config.db"
+        if candidate_db.exists():
+            is_valid, _db_err = validate_oden_home(DEFAULT_ODEN_HOME)
+            if is_valid:
+                logger.info("Pointer file missing but config.db found at %s — restoring pointer.", DEFAULT_ODEN_HOME)
+                if set_oden_home_path(DEFAULT_ODEN_HOME):
+                    _is_configured, _config_error = is_configured()
+
+    # Check if this is first run (not configured)
     if not _is_configured:
         logger.info(f"First run detected ({_config_error}) - starting setup wizard...")
         try:

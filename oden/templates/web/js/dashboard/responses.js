@@ -1,4 +1,4 @@
-// responses.js — Depends on: shared.js (getApiToken, escapeHtml, showConfigMsg)
+// responses.js — Depends on: shared.js (escapeHtml, showConfigMessage)
 //
 // CRUD management for auto-reply responses (keywords + body).
 
@@ -49,7 +49,7 @@ function newResponse() {
 
 async function editResponse(id) {
     try {
-        const response = await authenticatedFetch('/api/responses/' + id);
+        const response = await fetch('/api/responses/' + id);
         const data = await response.json();
 
         if (!response.ok) {
@@ -85,7 +85,7 @@ async function saveResponse() {
 
     try {
         const url = id ? '/api/responses/' + id : '/api/responses/new';
-        const response = await authenticatedFetch(url, {
+        const response = await fetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({keywords, body})
@@ -108,7 +108,7 @@ async function deleteResponse(id) {
     if (!confirm('Vill du verkligen ta bort detta svar?')) return;
 
     try {
-        const response = await authenticatedFetch('/api/responses/' + id, {
+        const response = await fetch('/api/responses/' + id, {
             method: 'DELETE'
         });
         const result = await response.json();
