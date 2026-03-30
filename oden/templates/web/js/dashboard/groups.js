@@ -142,10 +142,9 @@ async function saveGroupChanges() {
     }
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/groups/update', {
+        const response = await authenticatedFetch('/api/groups/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
         const result = await response.json();
@@ -173,10 +172,9 @@ async function addGroupMember() {
 
     const groupId = document.getElementById('group-edit-id').value;
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/groups/update', {
+        const response = await authenticatedFetch('/api/groups/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupId, member: [number] }),
         });
         const result = await response.json();
@@ -197,10 +195,9 @@ async function addGroupMember() {
 async function removeGroupMember(memberNumber) {
     const groupId = document.getElementById('group-edit-id').value;
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/groups/update', {
+        const response = await authenticatedFetch('/api/groups/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupId, removeMember: [memberNumber] }),
         });
         const result = await response.json();
@@ -225,10 +222,9 @@ async function toggleGroupAdmin(memberNumber, makeAdmin) {
         payload.removeAdmin = [memberNumber];
     }
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/groups/update', {
+        const response = await authenticatedFetch('/api/groups/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
         const result = await response.json();
@@ -251,10 +247,8 @@ async function refreshGroups() {
         btn.textContent = 'Uppdaterar...';
     }
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/groups/refresh', {
+        const response = await authenticatedFetch('/api/groups/refresh', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token },
         });
         const result = await response.json();
         if (response.ok && result.success) {
@@ -275,10 +269,9 @@ async function refreshGroups() {
 
 async function toggleIgnoreGroup(groupName) {
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/toggle-ignore-group', {
+        const response = await authenticatedFetch('/api/toggle-ignore-group', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupName })
         });
         const result = await response.json();
@@ -297,10 +290,9 @@ async function toggleIgnoreGroup(groupName) {
 
 async function toggleWhitelistGroup(groupName) {
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/toggle-whitelist-group', {
+        const response = await authenticatedFetch('/api/toggle-whitelist-group', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupName })
         });
         const result = await response.json();
@@ -332,10 +324,9 @@ async function handleJoinGroupSubmit(e) {
     messageDiv.textContent = '';
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/join-group', {
+        const response = await authenticatedFetch('/api/join-group', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ link })
         });
         const result = await response.json();

@@ -49,8 +49,7 @@ function newResponse() {
 
 async function editResponse(id) {
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/responses/' + id + '?token=' + token);
+        const response = await authenticatedFetch('/api/responses/' + id);
         const data = await response.json();
 
         if (!response.ok) {
@@ -85,9 +84,8 @@ async function saveResponse() {
     }
 
     try {
-        const token = await getApiToken();
-        const url = id ? '/api/responses/' + id + '?token=' + token : '/api/responses/new?token=' + token;
-        const response = await fetch(url, {
+        const url = id ? '/api/responses/' + id : '/api/responses/new';
+        const response = await authenticatedFetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({keywords, body})
@@ -110,8 +108,7 @@ async function deleteResponse(id) {
     if (!confirm('Vill du verkligen ta bort detta svar?')) return;
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/responses/' + id + '?token=' + token, {
+        const response = await authenticatedFetch('/api/responses/' + id, {
             method: 'DELETE'
         });
         const result = await response.json();

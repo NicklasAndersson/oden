@@ -88,10 +88,9 @@ async function saveContactChanges() {
     };
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/contacts/' + encodeURIComponent(number), {
+        const response = await authenticatedFetch('/api/contacts/' + encodeURIComponent(number), {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
         const result = await response.json();
@@ -117,10 +116,8 @@ async function refreshContacts() {
     container.innerHTML = '<div class="empty-state">Hämtar kontakter från signal-cli...</div>';
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/contacts/refresh', {
+        const response = await authenticatedFetch('/api/contacts/refresh', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await response.json();
 

@@ -36,10 +36,9 @@ async function handleInvitation(groupId, action) {
     buttons.forEach(btn => btn.disabled = true);
 
     try {
-        const token = await getApiToken();
-        const response = await fetch(`/api/invitations/${action}`, {
+        const response = await authenticatedFetch(`/api/invitations/${action}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupId })
         });
         const result = await response.json();

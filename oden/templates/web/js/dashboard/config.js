@@ -82,10 +82,9 @@ async function saveConfigForm(event) {
     };
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/config-save', {
+        const response = await authenticatedFetch('/api/config-save', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(configData)
         });
         const result = await response.json();
@@ -110,10 +109,8 @@ async function rerunSetup() {
         return;
     }
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/setup/reset', {
+        const response = await authenticatedFetch('/api/setup/reset', {
             method: 'DELETE',
-            headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await response.json();
         if (response.ok && data.success) {
@@ -129,10 +126,7 @@ async function rerunSetup() {
 
 async function loadSignalConfig() {
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/signal-config', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
+        const response = await authenticatedFetch('/api/signal-config');
         const config = await response.json();
 
         document.getElementById('cfg-signal-typing-indicators').checked = config.typingIndicators || false;
@@ -151,10 +145,9 @@ async function saveSignalConfig() {
     };
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/signal-config', {
+        const response = await authenticatedFetch('/api/signal-config', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
         const result = await response.json();
@@ -174,10 +167,8 @@ async function shutdownApp() {
         return;
     }
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/shutdown', {
+        const response = await authenticatedFetch('/api/shutdown', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await response.json();
         if (data.success) {

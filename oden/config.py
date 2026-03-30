@@ -85,7 +85,7 @@ def is_configured() -> tuple[bool, str | None]:
     # Check if pointer file exists and points to valid directory
     oden_home = get_oden_home_path()
     if oden_home is None:
-        logger.info("Configuration check: no pointer file found")
+        logger.debug("Configuration check: no pointer file found")
         return False, "no_pointer"
 
     # Update paths based on actual oden_home

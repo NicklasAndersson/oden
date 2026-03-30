@@ -114,10 +114,9 @@ async function activateAccount(number) {
     }
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/accounts/activate', {
+        const response = await authenticatedFetch('/api/accounts/activate', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ number })
         });
         const result = await response.json();
@@ -140,10 +139,8 @@ async function deleteAccount(number) {
     }
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/accounts/' + encodeURIComponent(number), {
+        const response = await authenticatedFetch('/api/accounts/' + encodeURIComponent(number), {
             method: 'DELETE',
-            headers: { 'Authorization': 'Bearer ' + token }
         });
         const result = await response.json();
 
@@ -164,10 +161,8 @@ async function forceDeleteAccount(number) {
     }
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/accounts/' + encodeURIComponent(number) + '/force', {
+        const response = await authenticatedFetch('/api/accounts/' + encodeURIComponent(number) + '/force', {
             method: 'DELETE',
-            headers: { 'Authorization': 'Bearer ' + token }
         });
         const result = await response.json();
 
@@ -199,10 +194,9 @@ async function startAccountLink() {
     doneBtn.style.display = 'none';
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/accounts/link', {
+        const response = await authenticatedFetch('/api/accounts/link', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ device_name: 'Oden' })
         });
         const result = await response.json();
@@ -225,10 +219,7 @@ async function startAccountLink() {
 
 async function pollLinkStatus() {
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/accounts/link-status', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
+        const response = await authenticatedFetch('/api/accounts/link-status');
         const data = await response.json();
 
         if (data.status === 'linked') {
@@ -266,10 +257,8 @@ async function cancelAccountLink() {
 
     // Inform the server to cancel the link operation
     try {
-        const token = await getApiToken();
-        await fetch('/api/accounts/link-cancel', {
+        await authenticatedFetch('/api/accounts/link-cancel', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token }
         });
     } catch (error) {
         console.error('Failed to cancel account link on server:', error);
@@ -288,10 +277,7 @@ async function loadDevices() {
     container.innerHTML = '<div class="empty-state">Hämtar enheter...</div>';
 
     try {
-        const token = await getApiToken();
-        const response = await fetch('/api/accounts/devices', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
+        const response = await authenticatedFetch('/api/accounts/devices');
         const data = await response.json();
         const devices = data.devices || [];
 

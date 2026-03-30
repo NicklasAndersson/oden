@@ -11,8 +11,7 @@ async function loadTemplate() {
     errorDiv.style.display = 'none';
 
     try {
-        const token = await getApiToken();
-        const response = await fetch(`/api/templates/${templateName}?token=${token}`);
+        const response = await authenticatedFetch(`/api/templates/${templateName}`);
         const data = await response.json();
 
         if (response.ok) {
@@ -59,8 +58,7 @@ async function previewTemplate() {
     }
 
     try {
-        const token = await getApiToken();
-        const response = await fetch(`/api/templates/${templateName}/preview?token=${token}`, {
+        const response = await authenticatedFetch(`/api/templates/${templateName}/preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content, full: useFullData })
@@ -94,8 +92,7 @@ async function saveTemplate() {
     }
 
     try {
-        const token = await getApiToken();
-        const response = await fetch(`/api/templates/${templateName}?token=${token}`, {
+        const response = await authenticatedFetch(`/api/templates/${templateName}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content })
@@ -131,8 +128,7 @@ async function resetTemplate() {
     errorDiv.style.display = 'none';
 
     try {
-        const token = await getApiToken();
-        const response = await fetch(`/api/templates/${templateName}/reset?token=${token}`, {
+        const response = await authenticatedFetch(`/api/templates/${templateName}/reset`, {
             method: 'POST'
         });
         const data = await response.json();
