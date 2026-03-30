@@ -1,62 +1,65 @@
-// dirty-tracking.js — Depends on: shared.js, regex.js (collectRegexPatterns)
+// auto-save.js — Depends on: shared.js (authenticatedFetch, showConfigMessage),
+//                 regex.js (collectRegexPatterns),
+//                 config.js (loadConfigForm),
+//                 groups.js (fetchGroups)
 //
-// Tracks unsaved changes in the config form and shows visual indicators
-// (banner, per-tab dots) when the user has modified settings.
+// Debounced auto-save: saves config automatically when the user changes a field.
 
-let originalConfig = {};
-let configDirty = false;
+let _autoSaveTimer = null;
+let _autoSaveInFlight = false;
 
-// Field IDs per tab for per-tab dirty dots
-const basicFieldIds = [
-    'cfg-signal-number', 'cfg-display-name', 'cfg-vault-path', 'cfg-timezone',
-    'cfg-append-window', 'cfg-startup-message', 'cfg-filename-format',
-    'cfg-plus-plus', 'cfg-ignored-groups', 'cfg-whitelist-groups'
-];
-const advancedFieldIds = [
-    'cfg-signal-host', 'cfg-signal-port', 'cfg-signal-path', 'cfg-unmanaged',
-    'cfg-web-enabled', 'cfg-web-port', 'cfg-log-level'
-];
-
-function getFieldValue(id) {
-    const el = document.getElementById(id);
-    if (!el) return '';
-    return el.type === 'checkbox' ? el.checked : el.value;
+function autoSaveConfig() {
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(_doAutoSave, 800);
 }
 
-function snapshotConfig() {
-    originalConfig = {};
-    [...basicFieldIds, ...advancedFieldIds].forEach(id => {
-        originalConfig[id] = getFieldValue(id);
-    });
-    originalConfig._regex = JSON.stringify(collectRegexPatterns());
-}
+async function _doAutoSave() {
+    if (_autoSaveInFlight) return;
+    _autoSaveInFlight = true;
 
-function isFieldDirty(id) {
-    if (!(id in originalConfig)) return false;
-    return getFieldValue(id) !== originalConfig[id];
-}
+    const configData = {
+        signal_number: document.getElementById('cfg-signal-number').value,
+        display_name: document.getElementById('cfg-display-name').value,
+        vault_path: document.getElementById('cfg-vault-path').value,
+        timezone: document.getElementById('cfg-timezone').value,
+        append_window_minutes: parseInt(document.getElementById('cfg-append-window').value) || 30,
+        startup_message: document.getElementById('cfg-startup-message').value,
+        filename_format: document.getElementById('cfg-filename-format').value,
+        plus_plus_enabled: document.getElementById('cfg-plus-plus').checked,
+        ignored_groups: document.getElementById('cfg-ignored-groups').value
+            .split(',').map(s => s.trim()).filter(s => s),
+        whitelist_groups: document.getElementById('cfg-whitelist-groups').value
+            .split(',').map(s => s.trim()).filter(s => s),
+        signal_cli_host: document.getElementById('cfg-signal-host').value,
+        signal_cli_port: parseInt(document.getElementById('cfg-signal-port').value) || 7583,
+        signal_cli_path: document.getElementById('cfg-signal-path').value || null,
+        unmanaged_signal_cli: document.getElementById('cfg-unmanaged').checked,
+        web_enabled: document.getElementById('cfg-web-enabled').checked,
+        web_port: parseInt(document.getElementById('cfg-web-port').value) || 8080,
+        log_level: document.getElementById('cfg-log-level').value,
+        auto_reaction_enabled: document.getElementById('cfg-auto-reaction').checked,
+        auto_reaction_emoji: document.getElementById('cfg-auto-reaction-emoji').value || '✅',
+        auto_read_receipt_enabled: document.getElementById('cfg-auto-read-receipt').checked,
+        regex_patterns: collectRegexPatterns()
+    };
 
-function updateDirtyState() {
-    const basicDirty = basicFieldIds.some(isFieldDirty);
-    const regexDirty = '_regex' in originalConfig &&
-        JSON.stringify(collectRegexPatterns()) !== originalConfig._regex;
-    const advDirty = advancedFieldIds.some(isFieldDirty) || regexDirty;
-    configDirty = basicDirty || advDirty;
+    try {
+        const response = await authenticatedFetch('/api/config-save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(configData)
+        });
+        const result = await response.json();
 
-    // Banner
-    const indicator = document.getElementById('unsaved-indicator');
-    if (indicator) {
-        indicator.classList.toggle('show', configDirty);
-    }
-
-    // Tab dots
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    tabBtns.forEach(btn => {
-        const label = btn.textContent.trim();
-        if (label === 'Grundläggande') {
-            btn.classList.toggle('has-changes', basicDirty);
-        } else if (label === 'Avancerat') {
-            btn.classList.toggle('has-changes', advDirty);
+        if (response.ok && result.success) {
+            showConfigMessage('✓ Sparad', 'success');
+            await fetchGroups();
+        } else {
+            showConfigMessage(result.error || 'Kunde inte spara', 'error');
         }
-    });
+    } catch (error) {
+        showConfigMessage('Nätverksfel: ' + error.message, 'error');
+    } finally {
+        _autoSaveInFlight = false;
+    }
 }

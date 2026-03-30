@@ -1,9 +1,9 @@
-// config.js — Depends on: shared.js (getApiToken, showConfigMsg),
-//              regex.js (loadRegexPatterns, collectRegexPatterns),
-//              dirty-tracking.js (snapshotConfig, updateDirtyState),
+// config.js — Depends on: shared.js (showConfigMessage),
+//              regex.js (loadRegexPatterns),
 //              groups.js (fetchGroups)
 //
-// Loads and saves the main configuration form, plus reset/export/shutdown.
+// Loads the main configuration form, plus reset/export/shutdown.
+// Saving is handled by auto-save.js (debounced on every change).
 
 async function loadConfigForm() {
     try {
@@ -38,69 +38,8 @@ async function loadConfigForm() {
 
         // Regex patterns
         loadRegexPatterns(config.regex_patterns || {});
-
-        // Snapshot values so we can detect changes
-        snapshotConfig();
-        updateDirtyState();
     } catch (error) {
         console.error('Error loading config:', error);
-    }
-}
-
-async function saveConfigForm(event) {
-    event.preventDefault();
-    const btn = event.submitter || document.getElementById('save-config-btn');
-    const originalText = btn.textContent;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>Sparar...';
-
-    // Gather form data from both tabs
-    const configData = {
-        signal_number: document.getElementById('cfg-signal-number').value,
-        display_name: document.getElementById('cfg-display-name').value,
-        vault_path: document.getElementById('cfg-vault-path').value,
-        timezone: document.getElementById('cfg-timezone').value,
-        append_window_minutes: parseInt(document.getElementById('cfg-append-window').value) || 30,
-        startup_message: document.getElementById('cfg-startup-message').value,
-        filename_format: document.getElementById('cfg-filename-format').value,
-        plus_plus_enabled: document.getElementById('cfg-plus-plus').checked,
-        ignored_groups: document.getElementById('cfg-ignored-groups').value
-            .split(',').map(s => s.trim()).filter(s => s),
-        whitelist_groups: document.getElementById('cfg-whitelist-groups').value
-            .split(',').map(s => s.trim()).filter(s => s),
-        signal_cli_host: document.getElementById('cfg-signal-host').value,
-        signal_cli_port: parseInt(document.getElementById('cfg-signal-port').value) || 7583,
-        signal_cli_path: document.getElementById('cfg-signal-path').value || null,
-        unmanaged_signal_cli: document.getElementById('cfg-unmanaged').checked,
-        web_enabled: document.getElementById('cfg-web-enabled').checked,
-        web_port: parseInt(document.getElementById('cfg-web-port').value) || 8080,
-        log_level: document.getElementById('cfg-log-level').value,
-        auto_reaction_enabled: document.getElementById('cfg-auto-reaction').checked,
-        auto_reaction_emoji: document.getElementById('cfg-auto-reaction-emoji').value || '✅',
-        auto_read_receipt_enabled: document.getElementById('cfg-auto-read-receipt').checked,
-        regex_patterns: collectRegexPatterns()
-    };
-
-    try {
-        const response = await authenticatedFetch('/api/config-save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(configData)
-        });
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            showConfigMessage('✓ Inställningar sparade och applicerade!', 'success');
-            await loadConfigForm();
-            await fetchGroups();
-        } else {
-            showConfigMessage(result.error || 'Kunde inte spara', 'error');
-        }
-    } catch (error) {
-        showConfigMessage('Nätverksfel: ' + error.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = originalText;
     }
 }
 

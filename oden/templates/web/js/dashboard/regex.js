@@ -52,10 +52,9 @@ function addRegexRow(name, pattern) {
     row.appendChild(removeBtn);
     container.appendChild(row);
 
-    // Track changes
-    nameInput.addEventListener('input', updateDirtyState);
-    patternInput.addEventListener('input', updateDirtyState);
-    updateDirtyState();
+    // Auto-save on change
+    nameInput.addEventListener('input', autoSaveConfig);
+    patternInput.addEventListener('input', autoSaveConfig);
 }
 
 function removeRegexRow(btn) {
@@ -66,7 +65,7 @@ function removeRegexRow(btn) {
     if (!container.querySelector('.regex-row')) {
         container.innerHTML = '';
     }
-    updateDirtyState();
+    autoSaveConfig();
 }
 
 function collectRegexPatterns() {

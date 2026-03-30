@@ -17,20 +17,15 @@ setInterval(fetchGroups, 30000);       // Groups: every 30 seconds
 
 // ========== Form Handlers ==========
 document.getElementById('join-group-form').addEventListener('submit', handleJoinGroupSubmit);
-document.getElementById('config-form').addEventListener('submit', saveConfigForm);
-document.getElementById('config-form-advanced').addEventListener('submit', saveConfigForm);
 
-// ========== Change Tracking ==========
+// Prevent form submission on Enter (auto-save handles saving)
 ['config-form', 'config-form-advanced'].forEach(formId => {
-    const form = document.getElementById(formId);
-    form.addEventListener('input', updateDirtyState);
-    form.addEventListener('change', updateDirtyState);
+    document.getElementById(formId).addEventListener('submit', e => e.preventDefault());
 });
 
-// ========== Unsaved Changes Warning ==========
-window.addEventListener('beforeunload', function(e) {
-    if (configDirty) {
-        e.preventDefault();
-        e.returnValue = '';
-    }
+// ========== Auto-Save on Change ==========
+['config-form', 'config-form-advanced'].forEach(formId => {
+    const form = document.getElementById(formId);
+    form.addEventListener('input', autoSaveConfig);
+    form.addEventListener('change', autoSaveConfig);
 });

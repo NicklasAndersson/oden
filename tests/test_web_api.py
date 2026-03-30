@@ -65,10 +65,9 @@ class TestWebAPIEndpoints(AioHTTPTestCase):
         """
         resp = await self.client.get("/")
         text = await resp.text()
-        # Core dirty-tracking functions must be present verbatim
-        self.assertIn("function updateDirtyState()", text)
-        self.assertIn("function snapshotConfig()", text)
-        self.assertIn("classList.toggle('show'", text)
+        # Core functions must be present verbatim
+        self.assertIn("function autoSaveConfig()", text)
+        self.assertIn("classList.add('show')", text)
         # JS operators must NOT be HTML-escaped
         # (note: &lt; may appear as a literal string in JS, e.g. replace(/</g, '&lt;'),
         # so we only check && which should never appear as &amp;&amp;)
