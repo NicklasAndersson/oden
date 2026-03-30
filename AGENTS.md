@@ -120,7 +120,7 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 - Signal accounts tab (list, link via QR, activate, delete, force-delete)
 - Shutdown button
 
-**Security:** Localhost only (no auth — the web GUI binds to 127.0.0.1 by default).
+**Security:** The web GUI has no authentication. By default it binds to `127.0.0.1` (loopback only). Setting `WEB_HOST=0.0.0.0` (e.g. in Docker) exposes an unauthenticated admin API on all interfaces — protect it with a firewall or reverse proxy, or keep it loopback-only.
 
 **Tray icon:** On macOS, a system tray icon (pystray) provides start/stop, open GUI, and quit buttons. `pystray` and `Pillow` are optional extras (`pip install .[tray]`). Falls back to terminal-only mode if unavailable (always the case in Docker).
 
