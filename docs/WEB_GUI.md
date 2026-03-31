@@ -145,7 +145,7 @@ Webbgränssnittet har ingen autentisering. Skyddet bygger helt på att det enbar
 
 ### Setup-endpoints
 
-Setup-routes registreras alltid, men i setup-mode är de de enda tillgängliga rutterna (tillsammans med en redirect från `/` till `/setup`). I dashboard-mode är de fortfarande registrerade men har ingen praktisk funktion.
+Setup-routes registreras alltid. I setup-mode är de de enda tillgängliga rutterna (tillsammans med en redirect från `/` till `/setup`). I dashboard-mode används de inte av UI:t, men endpoints är fortfarande aktiva och kan ändra tillstånd/konfiguration (t.ex. `/api/setup/reset`, `/api/setup/save-config`).
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
