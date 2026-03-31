@@ -391,15 +391,20 @@ class TestResolveSignalDataPath(unittest.TestCase):
         self,
     ):
         """When SIGNAL_DATA_PATH has accounts.json, use it."""
+        import tempfile
+        from pathlib import Path
+
         from oden.signal_manager import resolve_signal_data_path
 
-        with patch("oden.signal_manager.cfg") as mock_cfg:
-            mock_cfg.SIGNAL_DATA_PATH = MagicMock()
-            accounts_file = mock_cfg.SIGNAL_DATA_PATH / "data" / "accounts.json"
-            accounts_file.exists.return_value = True
-            result = resolve_signal_data_path()
-            self.assertEqual(result, mock_cfg.SIGNAL_DATA_PATH)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            oden_dir = Path(tmpdir) / "oden-signal-data"
+            accounts_dir = oden_dir / "data"
+            accounts_dir.mkdir(parents=True)
+            (accounts_dir / "accounts.json").write_text('{"accounts": []}')
 
+            with patch("oden.signal_manager.cfg.SIGNAL_DATA_PATH", oden_dir):
+                result = resolve_signal_data_path()
+                self.assertEqual(result, oden_dir)
     def test_falls_back_to_standard_when_oden_empty(self):
         """When SIGNAL_DATA_PATH has no accounts, fall back to standard location."""
         import tempfile
