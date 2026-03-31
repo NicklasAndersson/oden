@@ -14,10 +14,7 @@ flowchart TD
     B -->|Ja| Z[Dashboard-läge]
     B -->|Nej| C[Setup-wizard]
     C --> D[Steg 1: Hemkatalog]
-    D --> E{Finns config.ini?}
-    E -->|Ja| F[INI-migrering]
-    E -->|Nej| G{Recovery möjlig?}
-    F --> G
+    D --> G{Recovery möjlig?}
     G -->|Ja| H[Recovery-erbjudande]
     G -->|Nej| I[Steg 2: Signal-konto]
     H --> I
@@ -48,19 +45,6 @@ Oden validerar att sökvägen:
 - Kan skapas om den inte redan finns
 
 I Docker-miljö (när `ODEN_HOME` är satt) relaxeras hemkatalog-begränsningen — valfri sökväg tillåts.
-
----
-
-## INI-migrering
-
-Om en `config.ini`-fil detekteras (från äldre Oden-versioner) erbjuds automatisk migrering.
-
-| Egenskap | Beskrivning |
-|----------|-------------|
-| **Detektion** | Söker efter `config.ini` i aktuell katalog och Oden-hemkatalogen |
-| **Åtgärd** | Importerar alla inställningar till SQLite-databasen |
-| **Valfritt** | Användaren kan välja att hoppa över migreringen |
-| **INI-format** | Bakåtkompatibelt format som fortfarande stöds för export/import |
 
 ---
 

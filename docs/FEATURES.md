@@ -491,10 +491,6 @@ Dessa miljövariabler överstyr konfigurationsdatabasen:
 | `WEB_HOST` | Bind-adress för webbgränssnitt | Docker: `WEB_HOST=0.0.0.0` |
 | `SIGNAL_CLI_PATH` | Sökväg till signal-cli | Överstyr `signal_cli_path` i config |
 
-### INI-import vid setup
-
-Konfigurationen kan importeras från INI-format (`.ini`-filer) vid setup för bakåtkompatibilitet med äldre Oden-versioner. Se [SETUP_FLOW.md](SETUP_FLOW.md) för detaljer om INI-migrering.
-
 ---
 
 ## Loggning

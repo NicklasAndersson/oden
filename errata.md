@@ -23,7 +23,7 @@ Det här dokumentet listar verifierade avvikelser mellan dokumentationen (krav),
 | ---: | --- | --- | --- | --- |
 | 1 | Setup-mode routing | Docs sa att "alla andra anrop omdirigeras till `/setup`", men enbart `/` omdirigeras. | **ÅTGÄRDAD** | Docs uppdaterade: förtydligat att enbart `/` omdirigeras och övriga paths returnerar 404. |
 | 2 | Setup endpoint-namn | Docs använde `/api/setup/set-home` och `/api/setup/save` istället för `/api/setup/oden-home` och `/api/setup/save-config`. | **ÅTGÄRDAD** | Docs uppdaterade med korrekta endpoint-namn. |
-| 3 | Setup endpoints tillgänglighet | Docs sa "enbart tillgängliga i setup-mode", men setup-routes registreras alltid. | **ÅTGÄRDAD** | Docs uppdaterade: förtydligat att setup-routes alltid registreras men i dashboard-mode har de ingen praktisk funktion. |
+| 3 | Setup endpoints tillgänglighet | Docs sa "enbart tillgängliga i setup-mode", men setup-routes registreras alltid. | **ÅTGÄRDAD** | Docs uppdaterade: förtydligat att setup-routes alltid registreras och är åtkomliga även i dashboard-mode, men är avsedda för setup-flödet och kan utföra åtgärder som t.ex. soft reset och spara config. |
 | 4 | Auth: config reset | Tidigare markerad som åtgärdad. | **ÅTGÄRDAD** | — |
 | 5 | Dashboard: INI-export | Docs listade `GET /api/config/export` som endpoint, men den existerar inte i koden. | **ÅTGÄRDAD** | Endpoint borttagen från docs. |
 | 6 | Auth-referenser | Docs och README refererade till token-baserad autentisering, men ingen auth finns implementerad. | **ÅTGÄRDAD** | Alla auth-referenser borttagna. Docs och README uppdaterade att korrekt beskriva att ingen autentisering finns. |
