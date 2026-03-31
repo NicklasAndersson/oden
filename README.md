@@ -191,7 +191,7 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - **Template-editor** - Redigera rapportmallar med live-förhandsvisning
 - **Stäng av Oden** - Shutdown-knapp i GUI
 
-**Säkerhet:** Lyssnar endast på localhost. Ingen autentisering — skyddet bygger på att gränssnittet enbart nås lokalt.
+**Säkerhet:** Som standard lyssnar webbgränssnittet endast på localhost. Ingen autentisering — skyddet bygger på att gränssnittet enbart nås lokalt, så om du ändrar `WEB_HOST`/`web_host` till t.ex. `0.0.0.0` kan det exponeras för andra maskiner i nätverket.
 
 ## Dokumentation
 
