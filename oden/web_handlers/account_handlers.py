@@ -17,7 +17,7 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.config import SIGNAL_DATA_PATH
+from oden.signal_manager import resolve_signal_data_path
 from oden.web_handlers._helpers import (
     handle_errors,
     parse_json_body,
@@ -74,7 +74,7 @@ async def accounts_list_handler(request: web.Request) -> web.Response:
 def _read_accounts_from_disk(active_number: str) -> list[dict]:
     """Read accounts from signal-cli's accounts.json file."""
     accounts = []
-    accounts_file = SIGNAL_DATA_PATH / "data" / "accounts.json"
+    accounts_file = resolve_signal_data_path() / "data" / "accounts.json"
     if accounts_file.exists():
         try:
             data = json.loads(accounts_file.read_text())
@@ -326,7 +326,7 @@ async def accounts_force_delete_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    accounts_file = SIGNAL_DATA_PATH / "data" / "accounts.json"
+    accounts_file = resolve_signal_data_path() / "data" / "accounts.json"
     if not accounts_file.exists():
         return web.json_response(
             {"success": False, "error": "accounts.json hittades inte"},
@@ -355,8 +355,9 @@ async def accounts_force_delete_handler(request: web.Request) -> web.Response:
         # Delete the account data directory
         account_path = account_entry.get("path")
         if account_path:
-            base_data_dir = (SIGNAL_DATA_PATH / "data").resolve()
-            account_dir = (SIGNAL_DATA_PATH / "data" / account_path).resolve()
+            resolved_data = resolve_signal_data_path()
+            base_data_dir = (resolved_data / "data").resolve()
+            account_dir = (resolved_data / "data" / account_path).resolve()
 
             if not account_dir.is_relative_to(base_data_dir):
                 logger.error(

@@ -36,6 +36,43 @@ def get_bundled_signal_cli_path() -> str | None:
     return None
 
 
+def _get_standard_signal_cli_paths() -> list[Path]:
+    """Return standard signal-cli data directory paths for the current platform."""
+    paths: list[Path] = []
+    if sys.platform == "win32":
+        local_app_data = os.environ.get("LOCALAPPDATA", "")
+        if local_app_data:
+            paths.append(Path(local_app_data) / "signal-cli")
+    else:
+        # macOS and Linux both use ~/.local/share/signal-cli
+        paths.append(Path.home() / ".local" / "share" / "signal-cli")
+    return paths
+
+
+def resolve_signal_data_path() -> Path:
+    """Determine the best signal-cli data directory to use.
+
+    Prefers the Oden-specific path (SIGNAL_DATA_PATH) if it contains account
+    data.  Otherwise checks the standard signal-cli data locations.  Falls
+    back to SIGNAL_DATA_PATH so new accounts get created there.
+    """
+    oden_accounts = cfg.SIGNAL_DATA_PATH / "data" / "accounts.json"
+    if oden_accounts.exists():
+        return cfg.SIGNAL_DATA_PATH
+
+    for std_path in _get_standard_signal_cli_paths():
+        if (std_path / "data" / "accounts.json").exists():
+            logger.info(
+                "Oden signal-data dir (%s) has no accounts; using standard signal-cli location: %s",
+                cfg.SIGNAL_DATA_PATH,
+                std_path,
+            )
+            return std_path
+
+    # No accounts anywhere – use the Oden path so new accounts land there
+    return cfg.SIGNAL_DATA_PATH
+
+
 def get_signal_cli_env() -> dict:
     """Get environment variables for running signal-cli with bundled JRE."""
     env = os.environ.copy()
@@ -49,8 +86,8 @@ def get_signal_cli_env() -> dict:
         env["PATH"] = str(Path(java_path).parent) + os.pathsep + env.get("PATH", "")
         logger.info(f"Using bundled JAVA_HOME: {java_home}")
 
-    # Set signal-cli data directory to ~/.oden/signal-data
-    env["SIGNAL_CLI_CONFIG_DIR"] = str(cfg.SIGNAL_DATA_PATH)
+    # Resolve signal-cli data directory (may fall back to standard location)
+    env["SIGNAL_CLI_CONFIG_DIR"] = str(resolve_signal_data_path())
 
     return env
 
@@ -197,19 +234,10 @@ def get_existing_accounts() -> list[dict]:
 
     accounts = []
 
-    # Check standard signal-cli data locations
-    data_paths = []
-    if sys.platform == "darwin":
-        data_paths.append(Path.home() / ".local" / "share" / "signal-cli")
-    elif sys.platform == "win32":
-        local_app_data = os.environ.get("LOCALAPPDATA", "")
-        if local_app_data:
-            data_paths.append(Path(local_app_data) / "signal-cli")
-    else:
-        data_paths.append(Path.home() / ".local" / "share" / "signal-cli")
-
-    # Also check our custom location
-    data_paths.append(cfg.SIGNAL_DATA_PATH)
+    # Build search list: standard locations + Oden custom location
+    data_paths = _get_standard_signal_cli_paths()
+    if cfg.SIGNAL_DATA_PATH not in data_paths:
+        data_paths.append(cfg.SIGNAL_DATA_PATH)
 
     logger.debug(f"Searching for Signal accounts in: {data_paths}")
 

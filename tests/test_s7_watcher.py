@@ -384,5 +384,67 @@ class TestAppStateContacts(unittest.TestCase):
         self.assertEqual(result, "Nicke")
 
 
+class TestResolveSignalDataPath(unittest.TestCase):
+    """Tests for resolve_signal_data_path() — standard location fallback."""
+
+    def test_uses_oden_path_when_accounts_exist(
+        self,
+    ):
+        """When SIGNAL_DATA_PATH has accounts.json, use it."""
+        from oden.signal_manager import resolve_signal_data_path
+
+        with patch("oden.signal_manager.cfg") as mock_cfg:
+            mock_cfg.SIGNAL_DATA_PATH = MagicMock()
+            accounts_file = mock_cfg.SIGNAL_DATA_PATH / "data" / "accounts.json"
+            accounts_file.exists.return_value = True
+            result = resolve_signal_data_path()
+            self.assertEqual(result, mock_cfg.SIGNAL_DATA_PATH)
+
+    def test_falls_back_to_standard_when_oden_empty(self):
+        """When SIGNAL_DATA_PATH has no accounts, fall back to standard location."""
+        import tempfile
+        from pathlib import Path
+
+        from oden.signal_manager import resolve_signal_data_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            oden_dir = Path(tmpdir) / "oden-signal-data"
+            oden_dir.mkdir()
+            std_dir = Path(tmpdir) / "standard-signal-cli"
+            (std_dir / "data").mkdir(parents=True)
+            (std_dir / "data" / "accounts.json").write_text('{"accounts": []}')
+
+            with (
+                patch("oden.signal_manager.cfg.SIGNAL_DATA_PATH", oden_dir),
+                patch(
+                    "oden.signal_manager._get_standard_signal_cli_paths",
+                    return_value=[std_dir],
+                ),
+            ):
+                result = resolve_signal_data_path()
+                self.assertEqual(result, std_dir)
+
+    def test_returns_oden_path_when_no_accounts_anywhere(self):
+        """When no accounts exist anywhere, return SIGNAL_DATA_PATH."""
+        import tempfile
+        from pathlib import Path
+
+        from oden.signal_manager import resolve_signal_data_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            oden_dir = Path(tmpdir) / "oden-signal-data"
+            oden_dir.mkdir()
+
+            with (
+                patch("oden.signal_manager.cfg.SIGNAL_DATA_PATH", oden_dir),
+                patch(
+                    "oden.signal_manager._get_standard_signal_cli_paths",
+                    return_value=[],
+                ),
+            ):
+                result = resolve_signal_data_path()
+                self.assertEqual(result, oden_dir)
+
+
 if __name__ == "__main__":
     unittest.main()
