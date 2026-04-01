@@ -113,6 +113,51 @@ def is_configured() -> tuple[bool, str | None]:
     return True, None
 
 
+def validate_signal_number(
+    accounts: list[dict] | None = None,
+) -> tuple[bool, str | None, list[dict]]:
+    """Validate that the configured signal_number exists in signal-cli accounts.
+
+    This is separate from is_configured() to avoid circular imports at
+    module load time (signal_manager imports config).
+
+    Args:
+        accounts: Pre-fetched account list to avoid redundant disk reads.
+            If None, accounts will be loaded from disk.
+
+    Returns:
+        A 3-tuple of (valid, error_reason, accounts):
+            (True, None, accounts) if valid or validation could not be performed.
+            (False, "no_signal_number", []) if signal_number is missing/placeholder.
+            (False, "invalid_account", accounts) if the number is not among
+                the existing signal-cli accounts.
+    """
+    config = get_all_config(CONFIG_DB)
+    number = config.get("signal_number", "")
+    if not number or number == "+46XXXXXXXXX" or number.startswith("+46XXXX"):
+        return False, "no_signal_number", []
+
+    from oden.signal_manager import get_existing_accounts
+
+    if accounts is None:
+        try:
+            accounts = get_existing_accounts()
+        except Exception as e:
+            logger.debug("Could not validate signal_number against accounts: %s", e)
+            return True, None, []
+
+    account_numbers = [a["number"] for a in accounts]
+    if accounts and number not in account_numbers:
+        logger.warning(
+            "Signal number validation: %s not found among signal-cli accounts %s",
+            number,
+            account_numbers,
+        )
+        return False, "invalid_account", accounts
+
+    return True, None, accounts
+
+
 def get_config_path() -> Path:
     """Get the path to the config database."""
     return CONFIG_DB

@@ -248,6 +248,15 @@ def main() -> None:
                 if set_oden_home_path(DEFAULT_ODEN_HOME):
                     _is_configured, _config_error = is_configured()
 
+    # Validate signal number against actual signal-cli accounts
+    if _is_configured:
+        from oden.config import validate_signal_number
+
+        _is_valid, _validate_error, _accts = validate_signal_number()
+        if not _is_valid:
+            _is_configured = False
+            _config_error = _validate_error
+
     # Check if this is first run (not configured)
     if not _is_configured:
         logger.info(f"First run detected ({_config_error}) - starting setup wizard...")

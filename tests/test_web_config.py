@@ -219,12 +219,13 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
     async def get_application(self):
         return create_app(setup_mode=True)
 
+    @unittest.mock.patch("oden.signal_manager.get_existing_accounts", return_value=[])
     @unittest.mock.patch("oden.config.set_oden_home_path", return_value=True)
     @unittest.mock.patch("oden.config.validate_oden_home", return_value=(True, None))
     @unittest.mock.patch("oden.config.validate_path_within_home")
     @unittest.mock.patch("oden.web_handlers.setup_handlers.get_oden_home_path")
     async def test_save_config_preserves_custom_values(
-        self, mock_get_home, mock_validate_path, mock_validate_home, mock_set_pointer
+        self, mock_get_home, mock_validate_path, mock_validate_home, mock_set_pointer, mock_accounts
     ):
         """Custom config values must survive the setup save-config handler."""
         import tempfile
@@ -275,12 +276,13 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
             self.assertEqual(result["startup_message"], "none")
             self.assertEqual(result["timezone"], "UTC")
 
+    @unittest.mock.patch("oden.signal_manager.get_existing_accounts", return_value=[])
     @unittest.mock.patch("oden.config.set_oden_home_path", return_value=True)
     @unittest.mock.patch("oden.config.validate_oden_home", return_value=(True, None))
     @unittest.mock.patch("oden.config.validate_path_within_home")
     @unittest.mock.patch("oden.web_handlers.setup_handlers.get_oden_home_path")
     async def test_save_config_updates_setup_managed_keys(
-        self, mock_get_home, mock_validate_path, mock_validate_home, mock_set_pointer
+        self, mock_get_home, mock_validate_path, mock_validate_home, mock_set_pointer, mock_accounts
     ):
         """Setup-managed keys (vault_path, signal_number, display_name) should be updated."""
         import tempfile
@@ -327,6 +329,53 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
             # Non-setup keys should be preserved from existing config
             self.assertEqual(result["append_window_minutes"], 90)
             self.assertTrue(result["plus_plus_enabled"])
+
+
+class TestSetupSaveConfigRejectsUnknownNumber(AioHTTPTestCase):
+    """Test that save-config rejects a signal_number not in signal-cli accounts."""
+
+    async def get_application(self):
+        return create_app(setup_mode=True)
+
+    @unittest.mock.patch(
+        "oden.signal_manager.get_existing_accounts",
+        return_value=[{"number": "+46700000001", "uuid": "aaa"}],
+    )
+    @unittest.mock.patch("oden.config.set_oden_home_path", return_value=True)
+    @unittest.mock.patch("oden.config.validate_oden_home", return_value=(True, None))
+    @unittest.mock.patch("oden.config.validate_path_within_home")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.get_oden_home_path")
+    async def test_save_config_unknown_number_rejected(
+        self, mock_get_home, mock_validate_path, mock_validate_home, mock_set_pointer, mock_accounts
+    ):
+        """Submitting a number not among signal-cli accounts returns 400."""
+        import tempfile
+
+        from oden import config as cfg
+        from oden.config_db import init_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            oden_home = Path(tmpdir)
+            init_db(oden_home / "config.db")
+            cfg._update_paths(oden_home)
+            mock_get_home.return_value = oden_home
+            mock_validate_path.return_value = (oden_home, None)
+
+            vault_dir = Path(tmpdir) / "vault"
+            vault_dir.mkdir()
+
+            resp = await self.client.post(
+                "/api/setup/save-config",
+                json={
+                    "vault_path": str(vault_dir),
+                    "signal_number": "+46799999999",
+                    "display_name": "Test",
+                },
+            )
+            self.assertEqual(resp.status, 400)
+            data = await resp.json()
+            self.assertFalse(data["success"])
+            self.assertIn("+46700000001", data["error"])
 
 
 class TestSetupOdenHomeFullyConfigured(AioHTTPTestCase):
