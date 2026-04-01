@@ -108,7 +108,7 @@ fi
 ODEN_HOME="$HOME/.oden"
 POINTER_FILE="$HOME/Library/Application Support/Oden/oden_home.txt"
 if [[ -f "$POINTER_FILE" ]]; then
-    CUSTOM_HOME=$(cat "$POINTER_FILE" 2>/dev/null | tr -d '[:space:]')
+    CUSTOM_HOME=$(cat "$POINTER_FILE" 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
     if [[ -n "$CUSTOM_HOME" ]] && [[ -d "$CUSTOM_HOME" ]]; then
         ODEN_HOME="$CUSTOM_HOME"
     fi
