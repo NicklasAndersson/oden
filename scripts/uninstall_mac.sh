@@ -429,8 +429,11 @@ for IDX in "${SELECTED[@]}"; do
             fi
             ;;
         *)
-            # Generic path removal — verify it looks safe
-            if [[ "$CPATH" == "$HOME"* ]] || [[ "$CPATH" == "/Applications/Oden"* ]]; then
+            # Generic path removal — verify it is a strict subpath of $HOME (not $HOME itself)
+            # Normalize both paths to resolve symlinks and eliminate trailing slashes
+            CPATH_REAL=$(cd "$(dirname "$CPATH")" 2>/dev/null && echo "$(pwd)/$(basename "$CPATH")" || echo "$CPATH")
+            HOME_REAL=$(cd "$HOME" 2>/dev/null && pwd || echo "$HOME")
+            if [[ "$CPATH_REAL" == "${HOME_REAL}/"* ]]; then
                 if rm -rf "$CPATH" 2>/dev/null; then
                     print_success "Borttagen"
                 else
