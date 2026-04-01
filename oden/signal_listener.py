@@ -97,7 +97,6 @@ async def log_groups(writer: asyncio.StreamWriter) -> list[dict]:
         List of group dictionaries (from signal-cli or DB).
     """
     from oden import config as cfg
-    from oden.config import CONFIG_DB
     from oden.groups_db import get_all_groups, upsert_groups_bulk
 
     app_state = get_app_state()
@@ -114,14 +113,14 @@ async def log_groups(writer: asyncio.StreamWriter) -> list[dict]:
             app_state.update_groups(groups)
 
             # Persist to database
-            count = upsert_groups_bulk(CONFIG_DB, groups, account=cfg.SIGNAL_NUMBER)
+            count = upsert_groups_bulk(cfg.CONFIG_DB, groups, account=cfg.SIGNAL_NUMBER)
             if count:
                 logger.debug("Persisted %d groups to database", count)
 
             if not groups:
                 logger.info("No groups found for this account.")
                 # Empty RPC result — check if DB has cached groups
-                db_groups = get_all_groups(CONFIG_DB, account=cfg.SIGNAL_NUMBER)
+                db_groups = get_all_groups(cfg.CONFIG_DB, account=cfg.SIGNAL_NUMBER)
                 if db_groups:
                     logger.info("RPC returned empty, loaded %d group(s) from database cache", len(db_groups))
                     app_state.update_groups(
@@ -158,7 +157,7 @@ async def log_groups(writer: asyncio.StreamWriter) -> list[dict]:
         logger.warning(f"Could not fetch groups via RPC: {e} — loading from database")
 
     # Fallback: load from database
-    db_groups = get_all_groups(CONFIG_DB, account=cfg.SIGNAL_NUMBER)
+    db_groups = get_all_groups(cfg.CONFIG_DB, account=cfg.SIGNAL_NUMBER)
     if db_groups:
         logger.info("Loaded %d group(s) from database (offline cache)", len(db_groups))
         app_state.update_groups(
