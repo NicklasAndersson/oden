@@ -182,10 +182,15 @@ def init_db(db_path: Path) -> None:
                         PRIMARY KEY (group_id, account)
                     )
                 """)
+                # Populate account for existing groups from configured signal_number (v3's single account),
+                # falling back to '' if the config entry is missing.
+                cursor.execute("SELECT value FROM config WHERE key = 'signal_number'")
+                row = cursor.fetchone()
+                account_value = row[0] if row and row[0] is not None else ''
                 cursor.execute("""
                     INSERT INTO groups (group_id, account, name, member_count, is_member, last_seen)
-                    SELECT group_id, '', name, member_count, is_member, last_seen FROM groups_old
-                """)
+                    SELECT group_id, ?, name, member_count, is_member, last_seen FROM groups_old
+                """, (account_value,))
                 cursor.execute("DROP TABLE groups_old")
 
         # Store current schema version (never downgrade)
