@@ -43,7 +43,7 @@ function showMethodSelection() {
     hideAllStep2Sections();
     document.getElementById('method-selection').classList.remove('hidden');
     if (existingAccounts.length > 0) {
-        document.getElementById('existing-accounts').classList.remove('hidden');
+        showExistingAccounts(existingAccounts);
     }
 }
 
