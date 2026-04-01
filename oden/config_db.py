@@ -165,8 +165,31 @@ def init_db(db_path: Path) -> None:
                 )
             """)
 
+        # Migration to schema version 4: add account column to groups table
+        if current_version < 4:
+            cursor.execute("PRAGMA table_info(groups)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "account" not in columns:
+                cursor.execute("ALTER TABLE groups RENAME TO groups_old")
+                cursor.execute("""
+                    CREATE TABLE groups (
+                        group_id TEXT NOT NULL,
+                        account TEXT NOT NULL DEFAULT '',
+                        name TEXT NOT NULL,
+                        member_count INTEGER NOT NULL DEFAULT 0,
+                        is_member INTEGER NOT NULL DEFAULT 1,
+                        last_seen TEXT NOT NULL DEFAULT '',
+                        PRIMARY KEY (group_id, account)
+                    )
+                """)
+                cursor.execute("""
+                    INSERT INTO groups (group_id, account, name, member_count, is_member, last_seen)
+                    SELECT group_id, '', name, member_count, is_member, last_seen FROM groups_old
+                """)
+                cursor.execute("DROP TABLE groups_old")
+
         # Store current schema version (never downgrade)
-        latest_version = max(current_version, 3)
+        latest_version = max(current_version, 4)
         cursor.execute(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
             ("schema_version", str(latest_version)),

@@ -20,6 +20,7 @@ def upsert_group(
     name: str,
     member_count: int = 0,
     is_member: bool = True,
+    account: str = "",
 ) -> bool:
     """Insert or update a group in the database."""
     if not db_path.exists():
@@ -31,8 +32,8 @@ def upsert_group(
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO groups (group_id, name, member_count, is_member, last_seen) VALUES (?, ?, ?, ?, ?)",
-            (group_id, name, member_count, 1 if is_member else 0, now),
+            "INSERT OR REPLACE INTO groups (group_id, account, name, member_count, is_member, last_seen) VALUES (?, ?, ?, ?, ?, ?)",
+            (group_id, account, name, member_count, 1 if is_member else 0, now),
         )
         conn.commit()
         return True
@@ -43,7 +44,7 @@ def upsert_group(
         conn.close()
 
 
-def upsert_groups_bulk(db_path: Path, groups: list[dict]) -> int:
+def upsert_groups_bulk(db_path: Path, groups: list[dict], account: str = "") -> int:
     """Bulk upsert a list of group dicts (as returned by listGroups).
 
     Returns the number of groups written.
@@ -61,6 +62,7 @@ def upsert_groups_bulk(db_path: Path, groups: list[dict]) -> int:
         rows = [
             (
                 g.get("id", ""),
+                account,
                 g.get("name", "Okänd grupp"),
                 len(g.get("members", [])),
                 1 if g.get("isMember", True) else 0,
@@ -70,7 +72,7 @@ def upsert_groups_bulk(db_path: Path, groups: list[dict]) -> int:
             if g.get("id")
         ]
         cursor.executemany(
-            "INSERT OR REPLACE INTO groups (group_id, name, member_count, is_member, last_seen) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO groups (group_id, account, name, member_count, is_member, last_seen) VALUES (?, ?, ?, ?, ?, ?)",
             rows,
         )
         conn.commit()
@@ -82,15 +84,24 @@ def upsert_groups_bulk(db_path: Path, groups: list[dict]) -> int:
         conn.close()
 
 
-def get_all_groups(db_path: Path) -> list[dict]:
-    """Return all groups stored in the database."""
+def get_all_groups(db_path: Path, account: str | None = None) -> list[dict]:
+    """Return groups stored in the database.
+
+    If *account* is given, only groups belonging to that account are returned.
+    """
     if not db_path.exists():
         return []
 
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT group_id, name, member_count, is_member, last_seen FROM groups ORDER BY name")
+        if account is not None:
+            cursor.execute(
+                "SELECT group_id, name, member_count, is_member, last_seen FROM groups WHERE account = ? ORDER BY name",
+                (account,),
+            )
+        else:
+            cursor.execute("SELECT group_id, name, member_count, is_member, last_seen FROM groups ORDER BY name")
         return [
             {
                 "id": row[0],

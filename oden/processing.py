@@ -242,7 +242,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     # Track group in database so it persists across restarts
     if group_title and group_id:
         with contextlib.suppress(Exception):
-            upsert_group(cfg.CONFIG_DB, group_id, group_title)
+            upsert_group(cfg.CONFIG_DB, group_id, group_title, account=cfg.SIGNAL_NUMBER)
 
     # If message starts with '--', ignore it.
     if msg and msg.strip().startswith("--"):

@@ -29,8 +29,8 @@ async def groups_handler(request: web.Request) -> web.Response:
     """
     app_state = get_app_state()
 
-    # Start with DB groups (keyed by id)
-    db_groups = get_all_groups(cfg.CONFIG_DB)
+    # Start with DB groups for the active account (keyed by id)
+    db_groups = get_all_groups(cfg.CONFIG_DB, account=cfg.SIGNAL_NUMBER)
     merged: dict[str, dict] = {}
     for g in db_groups:
         if g.get("isMember", True):
@@ -348,7 +348,7 @@ async def update_group_handler(request: web.Request) -> web.Response:
     )
     if refresh and "result" in refresh:
         app_state.update_groups(refresh["result"])
-        upsert_groups_bulk(cfg.CONFIG_DB, refresh["result"])
+        upsert_groups_bulk(cfg.CONFIG_DB, refresh["result"], account=cfg.SIGNAL_NUMBER)
 
     logger.info("Group %s updated", group_id)
     return web.json_response({"success": True})
@@ -368,7 +368,7 @@ async def refresh_groups_handler(request: web.Request) -> web.Response:
     if response and "result" in response:
         groups = response["result"]
         app_state.update_groups(groups)
-        count = upsert_groups_bulk(cfg.CONFIG_DB, groups)
+        count = upsert_groups_bulk(cfg.CONFIG_DB, groups, account=cfg.SIGNAL_NUMBER)
         logger.info("Refreshed %d groups from signal-cli", count)
         return web.json_response({"success": True, "count": count})
 

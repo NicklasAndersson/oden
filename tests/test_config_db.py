@@ -151,9 +151,9 @@ class TestResponsesCRUD(unittest.TestCase):
 
 
 class TestSchemaVersion(unittest.TestCase):
-    """Test that schema migration bumps version to 3."""
+    """Test that schema migration bumps version to 4."""
 
-    def test_schema_version_is_3(self):
+    def test_schema_version_is_4(self):
         import sqlite3
 
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -168,7 +168,7 @@ class TestSchemaVersion(unittest.TestCase):
         conn.close()
         db_path.unlink(missing_ok=True)
 
-        self.assertEqual(row[0], "3")
+        self.assertEqual(row[0], "4")
 
     def test_responses_table_exists(self):
         import sqlite3
@@ -266,6 +266,48 @@ class TestGroupsCRUD(unittest.TestCase):
     def test_get_all_groups_no_db(self):
         self.db_path.unlink(missing_ok=True)
         self.assertEqual(get_all_groups(self.db_path), [])
+
+    def test_upsert_with_account(self):
+        upsert_group(self.db_path, "g1", "Group A", account="+111")
+        upsert_group(self.db_path, "g2", "Group B", account="+222")
+        upsert_group(self.db_path, "g3", "Group C", account="+111")
+
+        # Filter by account
+        groups_111 = get_all_groups(self.db_path, account="+111")
+        self.assertEqual(len(groups_111), 2)
+        names = [g["name"] for g in groups_111]
+        self.assertIn("Group A", names)
+        self.assertIn("Group C", names)
+
+        groups_222 = get_all_groups(self.db_path, account="+222")
+        self.assertEqual(len(groups_222), 1)
+        self.assertEqual(groups_222[0]["name"], "Group B")
+
+        # Without filter returns all
+        all_groups = get_all_groups(self.db_path)
+        self.assertEqual(len(all_groups), 3)
+
+    def test_same_group_different_accounts(self):
+        """Same group_id can exist for multiple accounts."""
+        upsert_group(self.db_path, "shared", "Shared Group", member_count=5, account="+111")
+        upsert_group(self.db_path, "shared", "Shared Group", member_count=5, account="+222")
+        all_groups = get_all_groups(self.db_path)
+        self.assertEqual(len(all_groups), 2)
+
+        groups_111 = get_all_groups(self.db_path, account="+111")
+        self.assertEqual(len(groups_111), 1)
+
+    def test_bulk_upsert_with_account(self):
+        signal_groups = [
+            {"id": "g1", "name": "Alpha", "members": [1, 2], "isMember": True},
+            {"id": "g2", "name": "Beta", "members": [1], "isMember": True},
+        ]
+        count = upsert_groups_bulk(self.db_path, signal_groups, account="+111")
+        self.assertEqual(count, 2)
+
+        groups = get_all_groups(self.db_path, account="+111")
+        self.assertEqual(len(groups), 2)
+        self.assertEqual(get_all_groups(self.db_path, account="+222"), [])
 
 
 if __name__ == "__main__":

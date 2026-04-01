@@ -494,6 +494,7 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
         """groups_handler returns whitelistGroups from config."""
         mock_cfg.IGNORED_GROUPS = []
         mock_cfg.WHITELIST_GROUPS = ["Alpha", "Bravo"]
+        mock_cfg.SIGNAL_NUMBER = "+460000"
         from oden.app_state import get_app_state
 
         app_state = get_app_state()
@@ -524,6 +525,7 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
         """groups_handler merges DB groups with in-memory cache."""
         mock_cfg.IGNORED_GROUPS = []
         mock_cfg.WHITELIST_GROUPS = []
+        mock_cfg.SIGNAL_NUMBER = "+460000"
         # DB has a group discovered from a message (no member info)
         mock_db_groups.return_value = [
             {"id": "db1", "name": "DB Only", "memberCount": 0, "isMember": True},

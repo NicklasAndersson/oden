@@ -405,6 +405,7 @@ class TestResolveSignalDataPath(unittest.TestCase):
             with patch("oden.signal_manager.cfg.SIGNAL_DATA_PATH", oden_dir):
                 result = resolve_signal_data_path()
                 self.assertEqual(result, oden_dir)
+
     def test_falls_back_to_standard_when_oden_empty(self):
         """When SIGNAL_DATA_PATH has no accounts, fall back to standard location."""
         import tempfile
