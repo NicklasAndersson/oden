@@ -68,6 +68,8 @@ if [[ "$(uname)" != "Darwin" ]]; then
 fi
 
 # --- Check if running via pipe (non-interactive) ---
+# NOTE: Unlike install_mac.sh, the uninstall script requires interactive
+# confirmation before deleting data, so piped execution is intentionally blocked.
 if [[ ! -t 0 ]]; then
     print_error "Detta skript kräver interaktiv input."
     print_info "Ladda ner och kör det lokalt istället:"
@@ -206,17 +208,19 @@ for SIGNAL_PATH in "$HOME/.local/bin/signal-cli" "/usr/local/bin/signal-cli"; do
     fi
 done
 
-# --- 8. signal-cli in project directories ---
-for DIR in ./signal-cli-*/bin/signal-cli; do
-    if [[ -x "$DIR" ]] 2>/dev/null; then
-        LOCAL_VER=$("$DIR" --version 2>&1 | head -1 || echo "okänd")
-        PARENT_DIR=$(dirname "$(dirname "$DIR")")
-        COMP_NAMES+=("signal-cli (lokal mapp)")
-        COMP_PATHS+=("$PARENT_DIR")
-        COMP_VERSIONS+=("$LOCAL_VER")
-        COMP_SIZES+=("$(get_size "$PARENT_DIR")")
-        COMP_WARNINGS+=("")
-    fi
+# --- 8. signal-cli extracted archives in well-known locations ---
+for SEARCH_DIR in "$HOME" "$HOME/Downloads" "/opt"; do
+    for DIR in "$SEARCH_DIR"/signal-cli-*/bin/signal-cli; do
+        if [[ -x "$DIR" ]] 2>/dev/null; then
+            LOCAL_VER=$("$DIR" --version 2>&1 | head -1 || echo "okänd")
+            PARENT_DIR=$(dirname "$(dirname "$DIR")")
+            COMP_NAMES+=("signal-cli (lokal mapp)")
+            COMP_PATHS+=("$PARENT_DIR")
+            COMP_VERSIONS+=("$LOCAL_VER")
+            COMP_SIZES+=("$(get_size "$PARENT_DIR")")
+            COMP_WARNINGS+=("")
+        fi
+    done
 done
 
 # --- 9. Java/OpenJDK (Homebrew) ---
