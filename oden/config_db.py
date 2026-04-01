@@ -186,11 +186,14 @@ def init_db(db_path: Path) -> None:
                 # falling back to '' if the config entry is missing.
                 cursor.execute("SELECT value FROM config WHERE key = 'signal_number'")
                 row = cursor.fetchone()
-                account_value = row[0] if row and row[0] is not None else ''
-                cursor.execute("""
+                account_value = row[0] if row and row[0] is not None else ""
+                cursor.execute(
+                    """
                     INSERT INTO groups (group_id, account, name, member_count, is_member, last_seen)
                     SELECT group_id, ?, name, member_count, is_member, last_seen FROM groups_old
-                """, (account_value,))
+                """,
+                    (account_value,),
+                )
                 cursor.execute("DROP TABLE groups_old")
 
         # Store current schema version (never downgrade)
