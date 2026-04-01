@@ -118,9 +118,9 @@ if [[ -d "$ODEN_HOME" ]]; then
     # Try to get version from config.db
     CONFIG_VERSION="—"
     if [[ -f "$ODEN_HOME/config.db" ]] && command -v sqlite3 &>/dev/null; then
-        CONFIG_VERSION=$(sqlite3 "$ODEN_HOME/config.db" "SELECT value FROM config WHERE key='schema_version'" 2>/dev/null || echo "—")
-        if [[ -n "$CONFIG_VERSION" ]] && [[ "$CONFIG_VERSION" != "—" ]]; then
-            CONFIG_VERSION="schema v${CONFIG_VERSION}"
+        SCHEMA_VERSION=$(sqlite3 "$ODEN_HOME/config.db" "SELECT value FROM metadata WHERE key='schema_version' LIMIT 1" 2>/dev/null || echo "")
+        if [[ -n "$SCHEMA_VERSION" ]]; then
+            CONFIG_VERSION="schema v${SCHEMA_VERSION}"
         fi
     fi
     COMP_NAMES+=("Oden-konfiguration (config.db, loggar)")
