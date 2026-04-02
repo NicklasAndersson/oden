@@ -179,7 +179,14 @@ async def setup_start_link_handler(request: web.Request) -> web.Response:
         device_name = "Oden"
 
     # Import here to avoid circular imports
+    # Ensure signal-data directory exists before running signal-cli.
+    # During setup mode, ensure_oden_directories() hasn't been called yet,
+    # so the directory that SIGNAL_CLI_CONFIG_DIR points to may not exist.
+    from oden import config as cfg
+    from oden.path_utils import ensure_directory
     from oden.signal_linker import SignalLinker
+
+    ensure_directory(cfg.SIGNAL_DATA_PATH)
 
     # Cancel any existing linking process
     if _linker and _linker.process:
@@ -580,7 +587,12 @@ async def setup_start_register_handler(request: web.Request) -> web.Response:
             )
 
         # Import here to avoid circular imports
+        # Ensure signal-data directory exists (same reason as in start_link)
+        from oden import config as cfg
+        from oden.path_utils import ensure_directory
         from oden.signal_registrar import SignalRegistrar
+
+        ensure_directory(cfg.SIGNAL_DATA_PATH)
 
         _registrar = SignalRegistrar()
         result = await _registrar.start_register(phone_number, use_voice, captcha_token)
