@@ -186,7 +186,17 @@ async def setup_start_link_handler(request: web.Request) -> web.Response:
     from oden.path_utils import ensure_directory
     from oden.signal_linker import SignalLinker
 
-    ensure_directory(cfg.SIGNAL_DATA_PATH)
+    success, err = ensure_directory(cfg.SIGNAL_DATA_PATH)
+    if not success:
+        logger.error("Failed to create SIGNAL_DATA_PATH directory '%s': %s", cfg.SIGNAL_DATA_PATH, err)
+        return web.json_response(
+            {
+                "success": False,
+                "error": f"Kunde inte skapa signal-data-katalogen: {err}",
+                "status": "error",
+            },
+            status=500,
+        )
 
     # Cancel any existing linking process
     if _linker and _linker.process:
@@ -592,7 +602,16 @@ async def setup_start_register_handler(request: web.Request) -> web.Response:
         from oden.path_utils import ensure_directory
         from oden.signal_registrar import SignalRegistrar
 
-        ensure_directory(cfg.SIGNAL_DATA_PATH)
+        success, error = ensure_directory(cfg.SIGNAL_DATA_PATH)
+        if not success:
+            logger.error("Failed to create signal-data directory %s: %s", cfg.SIGNAL_DATA_PATH, error)
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": f"Kunde inte skapa signal-data-katalogen: {error}",
+                },
+                status=500,
+            )
 
         _registrar = SignalRegistrar()
         result = await _registrar.start_register(phone_number, use_voice, captcha_token)
