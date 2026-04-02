@@ -296,7 +296,18 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
         mock_stdout.readline = mock_readline
         mock_process.stdout = mock_stdout
         mock_stderr = AsyncMock()
-        mock_stderr.read = AsyncMock(return_value=b"Error: something went wrong")
+        stderr_lines = [b"Error: something went wrong\n", b""]
+        stderr_call = 0
+
+        async def mock_stderr_readline():
+            nonlocal stderr_call
+            if stderr_call < len(stderr_lines):
+                line = stderr_lines[stderr_call]
+                stderr_call += 1
+                return line
+            return b""
+
+        mock_stderr.readline = mock_stderr_readline
         mock_process.stderr = mock_stderr
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
@@ -321,7 +332,7 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
         mock_stdout.readline = AsyncMock(return_value=b"")
         mock_process.stdout = mock_stdout
         mock_stderr = AsyncMock()
-        mock_stderr.read = AsyncMock(return_value=b"")
+        mock_stderr.readline = AsyncMock(return_value=b"")
         mock_process.stderr = mock_stderr
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
@@ -330,6 +341,72 @@ class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result)
         self.assertEqual(linker.status, "error")
         self.assertIn("signal-cli", linker.error)
+
+    @patch("oden.signal_manager.get_bundled_signal_cli_path", return_value=None)
+    @patch("shutil.which", return_value="/usr/bin/signal-cli")
+    async def test_start_link_uri_embedded_in_log_line(self, mock_which, mock_bundled):
+        """URI embedded in a log line (e.g. 'INFO LinkCommand - sgnl://...')."""
+        from oden.signal_linker import SignalLinker
+
+        linker = SignalLinker(device_name="Test")
+        uri = "sgnl://linkdevice?uuid=abc123&pub_key=xyz"
+
+        mock_process = AsyncMock()
+        mock_stdout = AsyncMock()
+        mock_stdout.readline = AsyncMock(return_value=f"INFO LinkCommand - {uri}\n".encode())
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = AsyncMock()
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            result = await linker.start_link()
+
+        self.assertEqual(result, uri)
+        self.assertEqual(linker.link_uri, uri)
+
+    @patch("oden.signal_manager.get_bundled_signal_cli_path", return_value=None)
+    @patch("shutil.which", return_value="/usr/bin/signal-cli")
+    async def test_start_link_uri_found_on_stderr(self, mock_which, mock_bundled):
+        """URI found on stderr when stdout has no URI."""
+        from oden.signal_linker import SignalLinker
+
+        linker = SignalLinker(device_name="Test")
+        uri = "sgnl://linkdevice?uuid=abc123&pub_key=xyz"
+
+        stdout_lines = [b"Some warning\n", b""]
+        stdout_call = 0
+
+        async def mock_stdout_readline():
+            nonlocal stdout_call
+            if stdout_call < len(stdout_lines):
+                line = stdout_lines[stdout_call]
+                stdout_call += 1
+                return line
+            return b""
+
+        stderr_lines = [b"DEBUG log line\n", f"{uri}\n".encode(), b""]
+        stderr_call = 0
+
+        async def mock_stderr_readline():
+            nonlocal stderr_call
+            if stderr_call < len(stderr_lines):
+                line = stderr_lines[stderr_call]
+                stderr_call += 1
+                return line
+            return b""
+
+        mock_process = AsyncMock()
+        mock_stdout = AsyncMock()
+        mock_stdout.readline = mock_stdout_readline
+        mock_process.stdout = mock_stdout
+        mock_stderr = AsyncMock()
+        mock_stderr.readline = mock_stderr_readline
+        mock_process.stderr = mock_stderr
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            result = await linker.start_link()
+
+        self.assertEqual(result, uri)
+        self.assertEqual(linker.link_uri, uri)
 
 
 class TestAppStateContacts(unittest.TestCase):

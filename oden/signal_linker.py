@@ -76,10 +76,11 @@ class SignalLinker:
                             # producing a link URI
                             break
                         text = line.decode("utf-8").strip()
-                        if text.startswith("sgnl://"):
-                            self.link_uri = text
-                            logger.info(f"Got link URI: {text[:50]}...")
-                            return text
+                        if "sgnl://" in text:
+                            uri = text[text.index("sgnl://") :]
+                            self.link_uri = uri
+                            logger.info(f"Got link URI: {uri[:50]}...")
+                            return uri
                         if text:
                             non_uri_lines.append(text)
                             logger.debug("signal-cli output (not URI): %s", text)
@@ -94,14 +95,36 @@ class SignalLinker:
                     await self.cancel()
                     return None
 
-            # Collect stderr for diagnostics
-            stderr_text = ""
+            # Check stderr line-by-line — some signal-cli versions
+            # write the URI there.  Use readline() so we can return as
+            # soon as a matching line appears without waiting for EOF
+            # (the process keeps running while the user scans the QR).
+            stderr_lines: list[str] = []
             if self.process.stderr:
                 try:
-                    stderr_data = await asyncio.wait_for(self.process.stderr.read(), timeout=2.0)
-                    stderr_text = stderr_data.decode("utf-8").strip()
+                    stderr_deadline = asyncio.get_running_loop().time() + 5.0
+                    while True:
+                        remaining = stderr_deadline - asyncio.get_running_loop().time()
+                        if remaining <= 0:
+                            break
+                        raw = await asyncio.wait_for(
+                            self.process.stderr.readline(),
+                            timeout=remaining,
+                        )
+                        if not raw:
+                            break
+                        line = raw.decode("utf-8").strip()
+                        if line:
+                            stderr_lines.append(line)
+                        if "sgnl://" in line:
+                            uri = line[line.index("sgnl://") :]
+                            self.link_uri = uri
+                            logger.info(f"Got link URI from stderr: {uri[:50]}...")
+                            return uri
                 except asyncio.TimeoutError:
                     pass
+
+            stderr_text = "\n".join(stderr_lines)
 
             self.status = "error"
             if non_uri_lines:

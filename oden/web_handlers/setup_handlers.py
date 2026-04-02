@@ -188,7 +188,11 @@ async def setup_start_link_handler(request: web.Request) -> web.Response:
 
     success, err = ensure_directory(cfg.SIGNAL_DATA_PATH)
     if not success:
-        logger.error("Failed to create SIGNAL_DATA_PATH directory '%s': %s", cfg.SIGNAL_DATA_PATH, err)
+        logger.error(
+            "Failed to create SIGNAL_DATA_PATH directory '%s': %s",
+            cfg.SIGNAL_DATA_PATH,
+            err,
+        )
         return web.json_response(
             {
                 "success": False,
@@ -604,7 +608,11 @@ async def setup_start_register_handler(request: web.Request) -> web.Response:
 
         success, error = ensure_directory(cfg.SIGNAL_DATA_PATH)
         if not success:
-            logger.error("Failed to create signal-data directory %s: %s", cfg.SIGNAL_DATA_PATH, error)
+            logger.error(
+                "Failed to create signal-data directory %s: %s",
+                cfg.SIGNAL_DATA_PATH,
+                error,
+            )
             return web.json_response(
                 {
                     "success": False,
