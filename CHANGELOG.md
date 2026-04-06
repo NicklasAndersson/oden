@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-04-06
+
+### Added
+
+- **Grupper per konto**: Grupper sparas nu per Signal-konto i databasen (ny `account`-kolumn, schema v4) — GUI visar bara aktiva kontots grupper
+- **Logotyp i projektet**: Oden-logotyp tillagd som bildfil
+- **macOS avinstallationsskript**: Nytt `uninstall_mac.sh` med säkra sökvägsvalideringar
+
+### Fixed
+
+- **Signal-data sökväg**: Oden hittar nu signal-cli-konton i standardsökvägen (`~/.local/share/signal-cli/`) när Odens egen `signal-data`-katalog är tom — löser förlorade konton efter versionsuppgradering
+- **Kontoval i setup-wizard**: Valideringssteg vid uppstart kontrollerar att `signal_number` matchar ett faktiskt signal-cli-konto, med automatisk omdirigering till setup vid ogiltigt konto
+- **Konto-knappar i setup**: Befintliga Signal-konton renderas nu korrekt som klickbara knappar vid auto-skip till steg 2
+- **Docker setup**: Korrekt parsning av inbäddade signal-cli URIs och stderr-fallback vid länkning
+- **Docker ARM64**: Injicerar `libsignal_jni.so` för ARM64-byggen
+- **Docker signal-data**: Skapar `signal-data`-katalog innan länkning i Docker-setup
+- **CONFIG_DB-import**: Använder `cfg.CONFIG_DB` istället för import-by-value som kunde peka på fel sökväg
+
+### Changed
+
+- **codecov/codecov-action**: Uppgraderad från v5 till v6
+
 ## [2.1.0] - 2026-03-31
 
 ### 🔧 Oden 2.1 — Gruppadministration, kontakthantering och modulär kodbas
