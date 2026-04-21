@@ -88,14 +88,17 @@ User data lives **outside** the install dir, in standard Windows locations:
 
 | Data                  | Location                                              |
 |-----------------------|-------------------------------------------------------|
-| Pointer file          | `%AppData%\Oden\oden_home.txt` (already implemented)  |
+| Pointer file          | `%APPDATA%\Oden\oden_home.txt` (already implemented)  |
 | Default Oden home     | `%UserProfile%\.oden\` (already implemented)          |
 | Vault                 | User chooses in setup wizard, e.g. `Documents\Vault`  |
 | Logs                  | Inside the Oden home dir (already implemented)        |
 
-`oden/bundle_utils.py` already returns `%APPDATA%\Roaming\Oden` on Windows for
-the pointer file, and `Path.home() / ".oden"` for the default home — so the
-core code is already Windows-aware. **No code changes needed here.**
+`oden/bundle_utils.py` already uses `%APPDATA%\Oden` on Windows for the
+pointer file directory (that expands under `...\AppData\Roaming\Oden`) and
+`Path.home() / ".oden"` for the default home, so those parts are already
+Windows-aware. One related code tweak is still likely needed when bundling a
+JRE on Windows: `get_bundled_java_path()` should resolve `bin/java.exe`
+instead of `bin/java`.
 
 ---
 
