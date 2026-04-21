@@ -73,7 +73,8 @@ def get_bundled_java_path() -> str | None:
     if system == "Darwin":
         java_path = bundle_path / jre_dir / "Contents" / "Home" / "bin" / "java"
     else:
-        java_path = bundle_path / jre_dir / "bin" / "java"
+        java_executable = "java.exe" if system == "Windows" else "java"
+        java_path = bundle_path / jre_dir / "bin" / java_executable
 
     if java_path.exists():
         return str(java_path)

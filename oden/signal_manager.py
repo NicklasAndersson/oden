@@ -19,6 +19,8 @@ from oden.bundle_utils import get_bundle_path, get_bundled_java_path, is_bundled
 
 logger = logging.getLogger(__name__)
 
+_SIGNAL_CLI_MAIN_CLASS = "org.asamk.signal.Main"
+
 
 def get_bundled_signal_cli_path() -> str | None:
     """Get path to bundled signal-cli."""
@@ -26,13 +28,27 @@ def get_bundled_signal_cli_path() -> str | None:
         return None
 
     bundle_path = get_bundle_path()
-    signal_cli_path = bundle_path / "signal-cli" / "bin" / "signal-cli"
+    signal_cli_bin_dir = bundle_path / "signal-cli" / "bin"
 
-    if signal_cli_path.exists():
-        logger.info(f"Found bundled signal-cli at: {signal_cli_path}")
-        return str(signal_cli_path)
+    # Windows requires the .bat launcher (executing the Unix shell script
+    # raises WinError 193: not a valid Win32 application).
+    if sys.platform == "win32":
+        candidates = [
+            signal_cli_bin_dir / "signal-cli.bat",
+            signal_cli_bin_dir / "signal-cli.exe",
+            signal_cli_bin_dir / "signal-cli",
+        ]
+    else:
+        candidates = [
+            signal_cli_bin_dir / "signal-cli",
+        ]
 
-    logger.warning(f"Bundled signal-cli not found at: {signal_cli_path}")
+    for signal_cli_path in candidates:
+        if signal_cli_path.exists():
+            logger.info(f"Found bundled signal-cli at: {signal_cli_path}")
+            return str(signal_cli_path)
+
+    logger.warning(f"Bundled signal-cli not found in: {signal_cli_bin_dir}")
     return None
 
 
@@ -47,6 +63,14 @@ def _get_standard_signal_cli_paths() -> list[Path]:
         # macOS and Linux both use ~/.local/share/signal-cli
         paths.append(Path.home() / ".local" / "share" / "signal-cli")
     return paths
+
+
+def get_signal_data_search_paths() -> list[Path]:
+    """Return all signal-cli data directories Oden should inspect."""
+    data_paths = _get_standard_signal_cli_paths()
+    if cfg.SIGNAL_DATA_PATH not in data_paths:
+        data_paths.append(cfg.SIGNAL_DATA_PATH)
+    return data_paths
 
 
 def resolve_signal_data_path() -> Path:
@@ -92,6 +116,51 @@ def get_signal_cli_env() -> dict:
     return env
 
 
+def get_process_creationflags() -> int:
+    """Return platform-appropriate subprocess creation flags."""
+    if sys.platform != "win32":
+        return 0
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+
+
+def _get_signal_cli_install_dir(executable: str) -> Path | None:
+    """Return the signal-cli installation root when executable lives in bin/."""
+    executable_path = Path(executable)
+    if executable_path.parent.name.lower() != "bin":
+        return None
+
+    install_dir = executable_path.parent.parent
+    if (install_dir / "lib").exists():
+        return install_dir
+    return None
+
+
+def build_signal_cli_command(executable: str, args: list[str]) -> list[str]:
+    """Build a command line for invoking signal-cli on the current platform."""
+    install_dir = _get_signal_cli_install_dir(executable)
+
+    if sys.platform == "win32" and install_dir is not None:
+        java_path = get_bundled_java_path()
+        if java_path:
+            classpath = str(install_dir / "lib" / "*")
+            return [
+                java_path,
+                "-cp",
+                classpath,
+                _SIGNAL_CLI_MAIN_CLASS,
+                *args,
+            ]
+
+        windows_launcher = install_dir / "bin" / "signal-cli.bat"
+        if windows_launcher.exists():
+            return ["cmd.exe", "/c", str(windows_launcher), *args]
+
+    command = [executable, *args]
+    if sys.platform == "win32" and executable.lower().endswith((".bat", ".cmd")):
+        return ["cmd.exe", "/c", *command]
+    return command
+
+
 def is_signal_cli_running(host: str, port: int) -> bool:
     """Checks if the signal-cli RPC server is reachable."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -129,10 +198,19 @@ def find_signal_cli_executable() -> str:
 
     # Check for signal-cli in project directory (development)
     for version in ["0.14.1", "0.13.23"]:
-        bundled_path = f"./signal-cli-{version}/bin/signal-cli"
-        if os.path.exists(bundled_path):
-            logger.info(f"Found bundled signal-cli: {bundled_path}")
-            return os.path.abspath(bundled_path)
+        if sys.platform == "win32":
+            dev_candidates = [
+                f"./signal-cli-{version}/bin/signal-cli.bat",
+                f"./signal-cli-{version}/bin/signal-cli.exe",
+                f"./signal-cli-{version}/bin/signal-cli",
+            ]
+        else:
+            dev_candidates = [f"./signal-cli-{version}/bin/signal-cli"]
+
+        for bundled_path in dev_candidates:
+            if os.path.exists(bundled_path):
+                logger.info(f"Found bundled signal-cli: {bundled_path}")
+                return os.path.abspath(bundled_path)
 
     raise FileNotFoundError(
         "signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in the web GUI."
@@ -156,14 +234,16 @@ class SignalManager:
             logger.info("signal-cli is already running.")
             return
 
-        command = [
+        command = build_signal_cli_command(
             self.executable,
-            "daemon",
-            "--tcp",
-            f"{self.host}:{self.port}",
-            "--receive-mode",
-            "on-connection",
-        ]
+            [
+                "daemon",
+                "--tcp",
+                f"{self.host}:{self.port}",
+                "--receive-mode",
+                "on-connection",
+            ],
+        )
 
         logger.info(f"Starting signal-cli: {' '.join(command)}")
 
@@ -181,7 +261,13 @@ class SignalManager:
             stdout_target = subprocess.PIPE
             stderr_target = subprocess.PIPE
 
-        self.process = subprocess.Popen(command, stdout=stdout_target, stderr=stderr_target, env=self.env)
+        self.process = subprocess.Popen(
+            command,
+            stdout=stdout_target,
+            stderr=stderr_target,
+            env=self.env,
+            creationflags=get_process_creationflags(),
+        )
 
         # Poll for up to 15 seconds for the daemon to start
         for _ in range(15):
@@ -235,9 +321,7 @@ def get_existing_accounts() -> list[dict]:
     accounts = []
 
     # Build search list: standard locations + Oden custom location
-    data_paths = _get_standard_signal_cli_paths()
-    if cfg.SIGNAL_DATA_PATH not in data_paths:
-        data_paths.append(cfg.SIGNAL_DATA_PATH)
+    data_paths = get_signal_data_search_paths()
 
     logger.debug(f"Searching for Signal accounts in: {data_paths}")
 

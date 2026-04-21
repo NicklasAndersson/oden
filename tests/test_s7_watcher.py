@@ -8,7 +8,7 @@ from oden.s7_watcher import (
 from oden.signal_listener import (
     subscribe_and_listen,
 )
-from oden.signal_manager import SignalManager, is_signal_cli_running
+from oden.signal_manager import SignalManager, build_signal_cli_command, is_signal_cli_running
 
 
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
@@ -140,6 +140,40 @@ class TestSignalManager(unittest.TestCase):
             manager.start()
             mock_popen.assert_not_called()
 
+    @patch("oden.signal_manager.get_bundled_java_path", return_value=r"C:\\bundle\\jre-x64\\bin\\java.exe")
+    def test_build_signal_cli_command_windows_prefers_java_for_install_dir(self, mock_java, mock_find_executable):
+        """Windows should launch the bundled install directory through java.exe."""
+        executable = "C:/bundle/signal-cli/bin/signal-cli"
+
+        with (
+            patch("oden.signal_manager.sys.platform", "win32"),
+            patch("pathlib.Path.exists", return_value=True),
+        ):
+            command = build_signal_cli_command(executable, ["link", "-n", "Oden"])
+
+        self.assertEqual(
+            command,
+            [
+                r"C:\\bundle\\jre-x64\\bin\\java.exe",
+                "-cp",
+                "C:/bundle/signal-cli/lib/*",
+                "org.asamk.signal.Main",
+                "link",
+                "-n",
+                "Oden",
+            ],
+        )
+
+    @patch("oden.signal_manager.get_bundled_java_path", return_value=None)
+    def test_build_signal_cli_command_windows_uses_bat_wrapper_without_java(self, mock_java, mock_find_executable):
+        """Windows should fall back to cmd.exe for .bat launchers when Java is not bundled."""
+        executable = r"C:\\bundle\\signal-cli\\bin\\signal-cli.bat"
+
+        with patch("oden.signal_manager.sys.platform", "win32"):
+            command = build_signal_cli_command(executable, ["daemon"])
+
+        self.assertEqual(command, ["cmd.exe", "/c", executable, "daemon"])
+
 
 class TestIsSignalCliRunning(unittest.TestCase):
     @patch("socket.socket")
@@ -209,6 +243,40 @@ class TestSignalLinkerInvalidACI(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result)
         self.assertEqual(linker.status, "error")
         self.assertEqual(linker.error, "Some other error occurred")
+
+    @patch("oden.signal_linker.get_existing_accounts")
+    @patch("oden.signal_manager.get_bundled_signal_cli_path", return_value=None)
+    @patch("shutil.which", return_value="/usr/bin/signal-cli")
+    async def test_wait_for_link_recovers_number_from_accounts(
+        self,
+        mock_which,
+        mock_bundled,
+        mock_get_existing_accounts,
+    ):
+        """Successful links should recover the number from accounts.json when stdout omits it."""
+        from oden.signal_linker import SignalLinker
+
+        mock_get_existing_accounts.return_value = [
+            {"number": "+46701111111"},
+            {"number": "+46702222222"},
+        ]
+
+        linker = SignalLinker(device_name="Test")
+        linker._accounts_before = {"+46701111111"}
+
+        mock_process = AsyncMock()
+        mock_process.returncode = 0
+        mock_process.communicate.return_value = (
+            b"Device linked successfully\n",
+            b"",
+        )
+        linker.process = mock_process
+
+        result = await linker.wait_for_link(timeout=5.0)
+
+        self.assertTrue(result)
+        self.assertEqual(linker.status, "linked")
+        self.assertEqual(linker.linked_number, "+46702222222")
 
 
 class TestSignalLinkerStartLink(unittest.IsolatedAsyncioTestCase):

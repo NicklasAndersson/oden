@@ -3,7 +3,12 @@
 import asyncio
 import logging
 
-from oden.signal_manager import find_signal_cli_executable, get_signal_cli_env
+from oden.signal_manager import (
+    build_signal_cli_command,
+    find_signal_cli_executable,
+    get_process_creationflags,
+    get_signal_cli_env,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +43,15 @@ class SignalRegistrar:
         self.use_voice = use_voice
         self.error = None
 
-        command = [self.executable, "-u", phone_number, "register"]
+        command_args = ["-u", phone_number, "register"]
 
         if use_voice:
-            command.append("--voice")
+            command_args.append("--voice")
 
         if captcha_token:
-            command.extend(["--captcha", captcha_token])
+            command_args.extend(["--captcha", captcha_token])
+
+        command = build_signal_cli_command(self.executable, command_args)
 
         logger.info("Starting registration (use_voice=%s, has_captcha=%s)", use_voice, bool(captcha_token))
 
@@ -54,6 +61,7 @@ class SignalRegistrar:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self.env,
+                creationflags=get_process_creationflags(),
             )
 
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60.0)
@@ -123,7 +131,7 @@ class SignalRegistrar:
         # Remove any spaces or dashes from code
         code = code.replace(" ", "").replace("-", "")
 
-        command = [self.executable, "-u", self.phone_number, "verify", code]
+        command = build_signal_cli_command(self.executable, ["-u", self.phone_number, "verify", code])
 
         logger.info("Verifying registration code")
 
@@ -133,6 +141,7 @@ class SignalRegistrar:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self.env,
+                creationflags=get_process_creationflags(),
             )
 
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)

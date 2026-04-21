@@ -10,6 +10,7 @@ import io
 import json
 import logging
 import shutil
+from pathlib import Path
 
 import qrcode
 import qrcode.image.svg
@@ -17,7 +18,7 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.signal_manager import resolve_signal_data_path
+from oden.signal_manager import get_existing_accounts, get_signal_data_search_paths
 from oden.web_handlers._helpers import (
     handle_errors,
     parse_json_body,
@@ -32,31 +33,21 @@ _finish_link_task: asyncio.Task | None = None
 
 
 async def accounts_list_handler(request: web.Request) -> web.Response:
-    """List all signal-cli accounts and mark the active one."""
+    """List all signal-cli accounts and mark the active one.
+
+    Use on-disk account data as the source of truth so the UI reflects
+    deletions immediately even if a running daemon still has stale state.
+    """
     app_state = get_app_state()
 
     accounts = []
     active_number = cfg.SIGNAL_NUMBER
-    connected = False
+    connected = bool(app_state.writer)
 
-    # Try JSON-RPC listAccounts first (works when connected to daemon)
-    if app_state.writer:
-        connected = True
-        response = await app_state.send_jsonrpc("listAccounts")
-        if response and "result" in response:
-            for acc in response["result"]:
-                number = acc.get("number") or acc
-                if isinstance(number, str):
-                    accounts.append(
-                        {
-                            "number": number,
-                            "active": number == active_number,
-                        }
-                    )
-
-    # Fallback: read accounts.json from disk
-    if not accounts:
-        accounts = _read_accounts_from_disk(active_number)
+    for account in get_existing_accounts():
+        number = account.get("number")
+        if number:
+            accounts.append({"number": number, "active": number == active_number})
 
     # Check if active account is valid
     active_valid = any(a["active"] for a in accounts)
@@ -71,25 +62,62 @@ async def accounts_list_handler(request: web.Request) -> web.Response:
     )
 
 
-def _read_accounts_from_disk(active_number: str) -> list[dict]:
-    """Read accounts from signal-cli's accounts.json file."""
-    accounts = []
-    accounts_file = resolve_signal_data_path() / "data" / "accounts.json"
-    if accounts_file.exists():
+def _iter_accounts_files() -> list[Path]:
+    """Return all known accounts.json locations, de-duplicated by path."""
+    files: list[Path] = []
+    seen: set[Path] = set()
+    for data_path in get_signal_data_search_paths():
+        accounts_file = data_path / "data" / "accounts.json"
+        if accounts_file not in seen:
+            seen.add(accounts_file)
+            files.append(accounts_file)
+    return files
+
+
+def _remove_account_from_disk(number: str) -> bool:
+    """Remove an account from all known accounts.json files and directories."""
+    removed_any = False
+
+    for accounts_file in _iter_accounts_files():
+        if not accounts_file.exists():
+            continue
+
         try:
             data = json.loads(accounts_file.read_text())
-            for acc in data.get("accounts", []):
-                number = acc.get("number")
-                if number:
-                    accounts.append(
-                        {
-                            "number": number,
-                            "active": number == active_number,
-                        }
-                    )
         except (json.JSONDecodeError, OSError) as e:
-            logger.error(f"Error reading accounts.json: {e}")
-    return accounts
+            logger.error("Error reading %s while deleting %s: %s", accounts_file, number, e)
+            continue
+
+        accounts = data.get("accounts", [])
+        matching_entries = [acc for acc in accounts if acc.get("number") == number]
+        if not matching_entries:
+            continue
+
+        base_data_dir = accounts_file.parent.resolve()
+        for account_entry in matching_entries:
+            account_path = account_entry.get("path")
+            if not account_path:
+                continue
+
+            account_dir = (base_data_dir / account_path).resolve()
+            if not account_dir.is_relative_to(base_data_dir):
+                logger.error(
+                    "Refusing to delete account directory outside base path: %s (base: %s)",
+                    account_dir,
+                    base_data_dir,
+                )
+                continue
+
+            if account_dir.exists() and account_dir.is_dir():
+                shutil.rmtree(account_dir)
+                logger.info("Deleted account directory: %s", account_dir)
+
+        data["accounts"] = [acc for acc in accounts if acc.get("number") != number]
+        accounts_file.write_text(json.dumps(data, indent=2))
+        logger.info("Removed %s from %s", number, accounts_file)
+        removed_any = True
+
+    return removed_any
 
 
 @require_writer
@@ -293,6 +321,7 @@ async def accounts_delete_handler(request: web.Request) -> web.Response:
                 {"success": False, "error": error_msg},
                 status=500,
             )
+        _remove_account_from_disk(number)
         logger.info(f"Deleted local account data for: {number}")
         return web.json_response(
             {
@@ -326,70 +355,18 @@ async def accounts_force_delete_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    accounts_file = resolve_signal_data_path() / "data" / "accounts.json"
-    if not accounts_file.exists():
+    if not _remove_account_from_disk(number):
         return web.json_response(
-            {"success": False, "error": "accounts.json hittades inte"},
+            {"success": False, "error": f"Kontot {number} hittades inte"},
             status=404,
         )
 
-    try:
-        data = json.loads(accounts_file.read_text())
-        accounts = data.get("accounts", [])
-
-        # Find the account entry
-        account_entry = None
-        remaining = []
-        for acc in accounts:
-            if acc.get("number") == number:
-                account_entry = acc
-            else:
-                remaining.append(acc)
-
-        if not account_entry:
-            return web.json_response(
-                {"success": False, "error": f"Kontot {number} hittades inte"},
-                status=404,
-            )
-
-        # Delete the account data directory
-        account_path = account_entry.get("path")
-        if account_path:
-            resolved_data = resolve_signal_data_path()
-            base_data_dir = (resolved_data / "data").resolve()
-            account_dir = (resolved_data / "data" / account_path).resolve()
-
-            if not account_dir.is_relative_to(base_data_dir):
-                logger.error(
-                    f"Refusing to delete account directory outside base path: {account_dir} (base: {base_data_dir})"
-                )
-                return web.json_response(
-                    {"success": False, "error": "Ogiltig kontosökväg"},
-                    status=400,
-                )
-
-            if account_dir.exists() and account_dir.is_dir():
-                shutil.rmtree(account_dir)
-                logger.info(f"Deleted account directory: {account_dir}")
-
-        # Update accounts.json
-        data["accounts"] = remaining
-        accounts_file.write_text(json.dumps(data, indent=2))
-        logger.info(f"Removed {number} from accounts.json")
-
-        return web.json_response(
-            {
-                "success": True,
-                "message": f"Kontodata för {number} har tvångsraderats",
-            }
-        )
-
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error(f"Error force-deleting account {number}: {e}")
-        return web.json_response(
-            {"success": False, "error": f"Fel vid radering: {e}"},
-            status=500,
-        )
+    return web.json_response(
+        {
+            "success": True,
+            "message": f"Kontodata för {number} har tvångsraderats",
+        }
+    )
 
 
 @handle_errors("list devices")

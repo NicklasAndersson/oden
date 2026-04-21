@@ -3,9 +3,13 @@
 import asyncio
 import contextlib
 import logging
+import re
 
 from oden.signal_manager import (
+    build_signal_cli_command,
     find_signal_cli_executable,
+    get_existing_accounts,
+    get_process_creationflags,
     get_signal_cli_env,
 )
 
@@ -26,6 +30,47 @@ class SignalLinker:
         self.linked_number: str | None = None
         self.error: str | None = None
         self.status: str = "idle"  # idle, waiting, linked, error, timeout
+        self._accounts_before: set[str] = set()
+
+    @staticmethod
+    def _extract_phone_number(*texts: str) -> str | None:
+        """Extract the first international phone number found in command output."""
+        for text in texts:
+            match = re.search(r"\+\d{6,15}", text)
+            if match:
+                return match.group(0)
+        return None
+
+    def _load_existing_account_numbers(self) -> set[str]:
+        """Return known Signal account numbers from signal-cli data."""
+        try:
+            return {account["number"] for account in get_existing_accounts() if account.get("number")}
+        except Exception as exc:
+            logger.warning("Could not load existing accounts while linking: %s", exc)
+            return set()
+
+    def _resolve_linked_number_from_accounts(self) -> str | None:
+        """Infer the linked number from accounts.json when signal-cli omits it."""
+        accounts_after = self._load_existing_account_numbers()
+        new_accounts = accounts_after - self._accounts_before
+
+        if len(new_accounts) == 1:
+            number = next(iter(new_accounts))
+            logger.info("Recovered linked number from new signal-cli account: %s", number)
+            return number
+
+        if len(accounts_after) == 1:
+            number = next(iter(accounts_after))
+            logger.info("Recovered linked number from sole signal-cli account: %s", number)
+            return number
+
+        if accounts_after:
+            logger.warning(
+                "Link completed but could not determine linked number from accounts: before=%s after=%s",
+                sorted(self._accounts_before),
+                sorted(accounts_after),
+            )
+        return None
 
     async def start_link(self) -> str | None:
         """Start the linking process and return the device link URI.
@@ -37,13 +82,16 @@ class SignalLinker:
         self.link_uri = None
         self.linked_number = None
         self.error = None
+        self._accounts_before = self._load_existing_account_numbers()
 
-        command = [
+        command = build_signal_cli_command(
             self.executable,
-            "link",
-            "-n",
-            self.device_name,
-        ]
+            [
+                "link",
+                "-n",
+                self.device_name,
+            ],
+        )
 
         logger.info(f"Starting signal-cli link: {' '.join(command)}")
 
@@ -53,6 +101,7 @@ class SignalLinker:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self.env,
+                creationflags=get_process_creationflags(),
             )
 
             # Read lines from stdout looking for the link URI.
@@ -173,14 +222,11 @@ class SignalLinker:
             )
 
             if self.process.returncode == 0:
-                # Try to extract the phone number from output
                 output = stdout.decode("utf-8") if stdout else ""
-                # signal-cli outputs the number on success
-                for line in output.split("\n"):
-                    line = line.strip()
-                    if line.startswith("+"):
-                        self.linked_number = line
-                        break
+                error_output = stderr.decode("utf-8") if stderr else ""
+                self.linked_number = self._extract_phone_number(output, error_output)
+                if not self.linked_number:
+                    self.linked_number = self._resolve_linked_number_from_accounts()
 
                 self.status = "linked"
                 logger.info(f"Successfully linked to number: {self.linked_number}")
