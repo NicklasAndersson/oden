@@ -40,6 +40,19 @@ xattr -cr /Applications/Oden.app
 
 Sista steget behövs eftersom vi saknar Apple-certifikat. Alternativt kan du högerklicka på appen och välja **"Öppna"** — då får du möjlighet att öppna den trots varningen.
 
+### Windows (native installer, preview)
+
+Native Windows installer build pipeline is implemented and publishes
+`Oden-Setup-<version>-x64.exe` when the Windows build job succeeds.
+
+1. Ladda ner Windows-installern från releasen (om bifogad)
+2. Kör setup-guiden
+3. Starta Oden från Start-menyn
+
+Om installeraren saknas i en release: använd Docker-installationen nedan.
+
+Se [docs/WINDOWS_NATIVE_PLAN.md](./docs/WINDOWS_NATIVE_PLAN.md) för status och plan.
+
 ### Docker (Linux, Windows, Raspberry Pi)
 
 ```bash
@@ -199,7 +212,8 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - [SETUP_FLOW.md](./docs/SETUP_FLOW.md) - Setup-wizardens alla steg
 - [WEB_GUI.md](./docs/WEB_GUI.md) - Web-gränssnitt och API-referens
 - [REPORT_TEMPLATE.md](./docs/REPORT_TEMPLATE.md) - Mallsystem (Jinja2)
-- [WINDOWS_SETUP.md](./docs/WINDOWS_SETUP.md) - Installationsguide för Windows
+- [WINDOWS_NATIVE_PLAN.md](./docs/WINDOWS_NATIVE_PLAN.md) - Native Windows installer: status och implementationsplan
+- [WINDOWS_SETUP.md](./docs/WINDOWS_SETUP.md) - Docker-baserad Windows-installation
 
 ## Rekommenderad programvara
 

@@ -1,11 +1,32 @@
 # Native Windows Build — Plan
 
-> **Status:** Proposal / planning document. Not yet implemented.
+> **Status:** Partially implemented (PR 1 complete).
 >
 > **Goal:** Ship Oden as a true native Windows application — no Docker, no WSL —
 > with a proper installer, Start Menu shortcuts, autostart on login, and a system
 > tray icon. The user should be able to download a single `Oden-Setup-x.y.z.exe`,
 > run it, and be done.
+
+## Implementation status (2026-04-21)
+
+Implemented:
+
+- `build-windows` job in `.github/workflows/release.yml` (with `continue-on-error: true`)
+- JRE + signal-cli Windows download/cache/extract in CI
+- PyInstaller Windows `--onedir` GUI build path in `s7_watcher.spec`
+- Windows tray hidden imports (`pystray._win32`, `PIL.ImageWin`)
+- Inno Setup script `scripts/oden.iss`
+- Windows installer artifact upload and conditional inclusion in release assets
+- Windows installer text in versioned release notes
+- `.ico` generation in `scripts/generate_icon.py`
+
+Not yet implemented:
+
+- Windows version resource (`VSVersionInfo`) in `s7_watcher.spec`
+- Runtime polish in `oden/signal_manager.py` (`CREATE_NO_WINDOW` and final Windows invocation path)
+- Confirmed `.exe` suffix handling for bundled Java path in `oden/bundle_utils.py`
+- Dedicated end-user native Windows setup doc and README final wording
+- Signing (`signtool`) and release hardening
 
 ---
 
@@ -70,7 +91,7 @@ fleshed out (icon, version info, no-console option, etc.).
 
 ## 4. Architecture of the Windows package
 
-```
+```text
 Oden-Setup-x.y.z-x64.exe        (Inno Setup installer, ~150 MB)
 └── installs to %LocalAppData%\Programs\Oden\
     ├── Oden.exe                (PyInstaller --onedir launcher, GUI mode)
@@ -104,22 +125,30 @@ instead of `bin/java`.
 
 ## 5. Build pipeline
 
+Current state: this section is now mostly implemented for CI and packaging. The
+remaining gaps are version-resource metadata in the Windows executable and
+optional signing.
+
 ### 5.1 PyInstaller configuration
 
-Update `s7_watcher.spec` for Windows:
+Status: mostly implemented.
 
-- Add a Windows branch that produces a `--onedir --windowed` build (no console
-  window flashing on launch). Keep `console=True` only for an opt-in
-  `oden-debug.exe` variant that shows stdout/stderr — useful for support.
+Completed in `s7_watcher.spec`:
+
+- Windows branch produces a `--onedir --windowed` style build (`console=False`)
+  for installer packaging.
 - Embed Windows version info (`VSVersionInfo`) so "Properties → Details" in
   Explorer shows version, copyright, and product name.
-- Set the application icon to `images/oden.ico` (we'll need to generate this;
-  `scripts/generate_icon.py` already produces `.icns` for macOS — extend it to
-  also output `.ico`).
-- Add `pystray._win32` and `PIL.ImageWin` to `hiddenimports`.
-- Use `--onedir`, not `--onefile`, so Windows Defender doesn't have to
+- Application icon path is wired for `images/oden.ico`.
+- `pystray._win32` and `PIL.ImageWin` are included in Windows hidden imports.
+- `--onedir` is used (not `--onefile`), so Windows Defender doesn't have to
   unpack a 150 MB executable on every launch (which is slow and trips AV
   heuristics). `--onedir` also makes incremental updates feasible.
+
+Still pending:
+
+- Embed Windows version info (`VSVersionInfo`) so "Properties → Details" in
+  Explorer shows version, copyright, and product name.
 
 ### 5.2 Bundling the JRE and signal-cli
 
@@ -143,7 +172,9 @@ choice for Windows installers, has a clean script syntax, supports per-user
 installs without admin (which is what we want), and is pre-installed on the
 GitHub `windows-latest` runner.
 
-Create `scripts/oden.iss`:
+Status: implemented (`scripts/oden.iss` exists and is used by CI).
+
+Current script:
 
 ```iss
 [Setup]
@@ -214,7 +245,9 @@ gated on a secret being present.
 
 ## 6. CI/CD integration
 
-Add a `build-windows` job to `.github/workflows/release.yml`, parallel to
+Status: implemented for initial rollout.
+
+`build-windows` now exists in `.github/workflows/release.yml`, parallel to
 `build-macos` and `build-docker`:
 
 - Runner: `windows-latest`.
@@ -230,9 +263,9 @@ Add a `build-windows` job to `.github/workflows/release.yml`, parallel to
      (`iscc` is on the runner's PATH on `windows-latest`.)
   8. Optional: `signtool sign` if signing secrets are present.
   9. `actions/upload-artifact@v7` of `Oden-Setup-*.exe`.
-- The `release` job is updated to download the Windows artifact and include
-  it in both snapshot and versioned releases. Update the release notes
-  (`Installation` section) to document the Windows installer.
+- The `release` job now conditionally downloads Windows artifacts and includes
+  them when the Windows build succeeds.
+- Versioned release notes include a Windows native installer section.
 
 The Windows job should **not block** macOS or Docker on failure — mark it
 with `continue-on-error: true` for the first few releases until we trust the
@@ -305,22 +338,22 @@ the web handlers — they are already pure-Python and platform-neutral.
 
 ## 10. Rollout plan
 
-1. **PR 1 — Build infrastructure** (no user-visible change):
+1. **PR 1 — Build infrastructure** (completed):
    - Update `s7_watcher.spec` Windows branch.
    - Generate `oden.ico`.
    - Add `scripts/oden.iss`.
    - Add the `build-windows` GitHub Actions job, **with `continue-on-error`**,
      producing snapshot installers as artifacts.
-2. **PR 2 — Code polish:**
+2. **PR 2 — Code polish** (in progress):
    - Subprocess `CREATE_NO_WINDOW` flags in `signal_manager.py`.
    - `.exe` suffix handling in `bundle_utils.py` if missing.
    - Add `pystray._win32` and friends to hidden imports.
-3. **PR 3 — Documentation:**
+3. **PR 3 — Documentation** (in progress):
    - `docs/WINDOWS_NATIVE_SETUP.md`, README updates.
-4. **PR 4 — Promote to release:**
+4. **PR 4 — Promote to release** (pending):
    - Drop `continue-on-error`, include the installer in both snapshot and
      versioned releases, mention it in CHANGELOG.
-5. **PR 5 (later, optional) — Code signing:**
+5. **PR 5 (later, optional) — Code signing** (pending):
    - Add `signtool` step gated on `secrets.WINDOWS_CERT_*`.
 
 ---
