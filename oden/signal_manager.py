@@ -229,11 +229,11 @@ class SignalManager:
         command = build_signal_cli_command(
             self.executable,
             [
-            "daemon",
-            "--tcp",
-            f"{self.host}:{self.port}",
-            "--receive-mode",
-            "on-connection",
+                "daemon",
+                "--tcp",
+                f"{self.host}:{self.port}",
+                "--receive-mode",
+                "on-connection",
             ],
         )
 
