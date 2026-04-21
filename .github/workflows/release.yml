@@ -292,13 +292,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path build-win/signal-cli | Out-Null
           $signalCliVersion = "0.14.1"
-          $signalCliUrl = "https://github.com/AsamK/signal-cli/releases/download/v$signalCliVersion/signal-cli-$signalCliVersion-Windows.zip"
-          Invoke-WebRequest -Uri $signalCliUrl -OutFile signal-cli.zip
-          Expand-Archive -Path signal-cli.zip -DestinationPath build-win/tmp-signal -Force
-          $expandedDir = Get-ChildItem build-win/tmp-signal | Select-Object -First 1
-          Move-Item "$($expandedDir.FullName)/*" build-win/signal-cli -Force
-          Remove-Item -Recurse -Force build-win/tmp-signal
-          Remove-Item -Force signal-cli.zip
+          $signalCliUrl = "https://github.com/AsamK/signal-cli/releases/download/v$signalCliVersion/signal-cli-$signalCliVersion.tar.gz"
+          Invoke-WebRequest -Uri $signalCliUrl -OutFile signal-cli.tar.gz
+          tar -xzf signal-cli.tar.gz -C build-win
+          Move-Item "build-win/signal-cli-$signalCliVersion/*" build-win/signal-cli -Force
+          Remove-Item -Recurse -Force "build-win/signal-cli-$signalCliVersion"
+          Remove-Item -Force signal-cli.tar.gz
 
       - name: Generate app icon
         shell: pwsh
@@ -329,7 +328,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: oden-windows-installer
-          path: Output/Oden-Setup-*.exe
+          path: scripts/Output/Oden-Setup-*.exe
 
   # Create release with all artifacts
   release:
