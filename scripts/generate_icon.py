@@ -102,19 +102,6 @@ def create_icns(iconset_dir: Path, output_path: Path) -> bool:
         print("Note: .icns creation requires macOS. Skipping.")
         return False
 
-
-def create_ico(source: Image.Image, output_path: Path) -> bool:
-    """Create .ico with multiple icon sizes for Windows."""
-    try:
-        sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-        base = create_icon_from_logo(source, 256)
-        base.save(output_path, format="ICO", sizes=sizes)
-        print(f"Successfully created {output_path}")
-        return True
-    except Exception as e:
-        print(f"Error creating .ico: {e}")
-        return False
-
     try:
         print(f"Creating {output_path}")
         subprocess.run(
@@ -128,6 +115,19 @@ def create_ico(source: Image.Image, output_path: Path) -> bool:
         return False
     except FileNotFoundError:
         print("iconutil not found. Make sure Xcode command line tools are installed.")
+        return False
+
+
+def create_ico(source: Image.Image, output_path: Path) -> bool:
+    """Create .ico with multiple icon sizes for Windows."""
+    try:
+        sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+        base = create_icon_from_logo(source, 256)
+        base.save(output_path, format="ICO", sizes=sizes)
+        print(f"Successfully created {output_path}")
+        return True
+    except Exception as e:
+        print(f"Error creating .ico: {e}")
         return False
 
 
