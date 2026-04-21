@@ -89,6 +89,24 @@ class TestGetBundledJavaPath:
 
         assert result == str(java_bin)
 
+    def test_windows_uses_java_exe(self):
+        """On Windows, the bundled JRE uses bin/java.exe."""
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_path = Path(tmp)
+            java_bin = bundle_path / "jre-x64" / "bin" / "java.exe"
+            java_bin.parent.mkdir(parents=True)
+            java_bin.touch()
+
+            with (
+                patch("oden.bundle_utils.is_bundled", return_value=True),
+                patch("oden.bundle_utils.get_bundle_path", return_value=bundle_path),
+                patch("oden.bundle_utils.platform.system", return_value="Windows"),
+                patch("oden.bundle_utils.platform.machine", return_value="AMD64"),
+            ):
+                result = get_bundled_java_path()
+
+        assert result == str(java_bin)
+
     def test_returns_none_when_java_missing_on_macos(self):
         """Returns None and logs warning when macOS JRE is not present in bundle."""
         with tempfile.TemporaryDirectory() as tmp:

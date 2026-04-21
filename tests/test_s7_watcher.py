@@ -8,7 +8,7 @@ from oden.s7_watcher import (
 from oden.signal_listener import (
     subscribe_and_listen,
 )
-from oden.signal_manager import SignalManager, is_signal_cli_running
+from oden.signal_manager import SignalManager, build_signal_cli_command, is_signal_cli_running
 
 
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
@@ -139,6 +139,40 @@ class TestSignalManager(unittest.TestCase):
         with patch("subprocess.Popen") as mock_popen:
             manager.start()
             mock_popen.assert_not_called()
+
+    @patch("oden.signal_manager.get_bundled_java_path", return_value=r"C:\\bundle\\jre-x64\\bin\\java.exe")
+    def test_build_signal_cli_command_windows_prefers_java_for_install_dir(self, mock_java, mock_find_executable):
+        """Windows should launch the bundled install directory through java.exe."""
+        executable = "C:/bundle/signal-cli/bin/signal-cli"
+
+        with (
+            patch("oden.signal_manager.sys.platform", "win32"),
+            patch("pathlib.Path.exists", return_value=True),
+        ):
+            command = build_signal_cli_command(executable, ["link", "-n", "Oden"])
+
+        self.assertEqual(
+            command,
+            [
+                r"C:\\bundle\\jre-x64\\bin\\java.exe",
+                "-cp",
+                "C:/bundle/signal-cli/lib/*",
+                "org.asamk.signal.Main",
+                "link",
+                "-n",
+                "Oden",
+            ],
+        )
+
+    @patch("oden.signal_manager.get_bundled_java_path", return_value=None)
+    def test_build_signal_cli_command_windows_uses_bat_wrapper_without_java(self, mock_java, mock_find_executable):
+        """Windows should fall back to cmd.exe for .bat launchers when Java is not bundled."""
+        executable = r"C:\\bundle\\signal-cli\\bin\\signal-cli.bat"
+
+        with patch("oden.signal_manager.sys.platform", "win32"):
+            command = build_signal_cli_command(executable, ["daemon"])
+
+        self.assertEqual(command, ["cmd.exe", "/c", executable, "daemon"])
 
 
 class TestIsSignalCliRunning(unittest.TestCase):

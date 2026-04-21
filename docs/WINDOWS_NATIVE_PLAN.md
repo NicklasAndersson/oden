@@ -156,10 +156,12 @@ In a new `build-windows` job in `.github/workflows/release.yml`, mirror the
 macOS job:
 
 1. Download Temurin JRE 25 Windows x64 zip from the Adoptium API.
-2. Download `signal-cli-<ver>.zip` from `AsamK/signal-cli` releases (the
-   Windows zip ships a `bin\signal-cli.bat` that already wraps Java —
-   we'll prefer to call our bundled `java.exe` directly to avoid a separate
-   `JAVA_HOME` lookup, see §7).
+2. Download the generic JVM distribution `signal-cli-<ver>.tar.gz` from
+  `AsamK/signal-cli` releases. That package contains the full install layout
+  (`bin/`, `lib/`, native libs) used across platforms. On Windows we should
+  prefer our bundled `java.exe` with the extracted install directory instead
+  of depending on whichever wrapper script or batch file is discovered first,
+  see §7.
 3. Extract both into the build directory next to the PyInstaller spec, exactly
    as macOS already does it.
 4. Cache both downloads with `actions/cache@v5`, keyed on version, to keep the
@@ -278,11 +280,11 @@ pipeline.
 Most of the codebase is already platform-aware. The list of actual changes is
 small:
 
-- **`oden/signal_manager.py`**: confirm it locates `signal-cli.bat` on
-  Windows (extension difference from the Linux/macOS `signal-cli` script). The
-  cleanest approach is to invoke our bundled `java.exe -jar signal-cli.jar`
-  directly, the same way the wrapper script does, so we are independent of
-  shell quoting differences. Verify subprocess flags include
+- **`oden/signal_manager.py`**: on Windows, build the command from the
+  extracted signal-cli install directory instead of assuming one wrapper file
+  is always executable. The cleanest approach is to invoke our bundled
+  `java.exe` with the install directory classpath so we are independent of
+  shell quoting differences and wrapper selection. Verify subprocess flags include
   `subprocess.CREATE_NO_WINDOW` (or `creationflags=0x08000000`) so the
   `java.exe` child does not pop a console window.
 - **`oden/bundle_utils.py`**: already returns `jre-x64/bin/java.exe`-style

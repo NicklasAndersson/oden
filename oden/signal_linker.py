@@ -3,10 +3,13 @@
 import asyncio
 import contextlib
 import logging
+import sys
 
 from oden.signal_manager import (
+    build_signal_cli_command,
     find_signal_cli_executable,
     get_signal_cli_env,
+    get_process_creationflags,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,12 +41,14 @@ class SignalLinker:
         self.linked_number = None
         self.error = None
 
-        command = [
+        command = build_signal_cli_command(
             self.executable,
-            "link",
-            "-n",
-            self.device_name,
-        ]
+            [
+                "link",
+                "-n",
+                self.device_name,
+            ],
+        )
 
         logger.info(f"Starting signal-cli link: {' '.join(command)}")
 
@@ -53,6 +58,7 @@ class SignalLinker:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self.env,
+                creationflags=get_process_creationflags(),
             )
 
             # Read lines from stdout looking for the link URI.
