@@ -214,9 +214,126 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Build Windows installer (Inno Setup) with bundled JRE and signal-cli
+  build-windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+            echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set version in source
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $path = "oden/__init__.py"
+          $content = Get-Content -Raw $path
+          $content = $content -replace '__version__ = ".*"', "__version__ = `"$version`""
+          Set-Content -Path $path -Value $content
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          python -m pip install -e ".[tray]"
+
+      - name: Cache JRE x64
+        id: cache-jre-x64-win
+        uses: actions/cache@v5
+        with:
+          path: build-win/jre-x64
+          key: temurin-jre-25-windows-x64-v1
+
+      - name: Cache signal-cli
+        id: cache-signal-cli-win
+        uses: actions/cache@v5
+        with:
+          path: build-win/signal-cli
+          key: signal-cli-0.14.1-windows-v1
+
+      - name: Download JRE x64
+        if: steps.cache-jre-x64-win.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build-win/jre-x64 | Out-Null
+          $apiUrl = "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse"
+          $assets = Invoke-RestMethod -Uri $apiUrl
+          $jreUrl = $assets[0].binary.package.link
+          Invoke-WebRequest -Uri $jreUrl -OutFile jre-x64.zip
+          Expand-Archive -Path jre-x64.zip -DestinationPath build-win/tmp-jre -Force
+          $expandedDir = Get-ChildItem build-win/tmp-jre | Select-Object -First 1
+          Move-Item "$($expandedDir.FullName)/*" build-win/jre-x64 -Force
+          Remove-Item -Recurse -Force build-win/tmp-jre
+          Remove-Item -Force jre-x64.zip
+
+      - name: Download signal-cli
+        if: steps.cache-signal-cli-win.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build-win/signal-cli | Out-Null
+          $signalCliVersion = "0.14.1"
+          $signalCliUrl = "https://github.com/AsamK/signal-cli/releases/download/v$signalCliVersion/signal-cli-$signalCliVersion-Windows.zip"
+          Invoke-WebRequest -Uri $signalCliUrl -OutFile signal-cli.zip
+          Expand-Archive -Path signal-cli.zip -DestinationPath build-win/tmp-signal -Force
+          $expandedDir = Get-ChildItem build-win/tmp-signal | Select-Object -First 1
+          Move-Item "$($expandedDir.FullName)/*" build-win/signal-cli -Force
+          Remove-Item -Recurse -Force build-win/tmp-signal
+          Remove-Item -Force signal-cli.zip
+
+      - name: Generate app icon
+        shell: pwsh
+        run: |
+          python scripts/generate_icon.py
+
+      - name: Prepare build files
+        shell: pwsh
+        run: |
+          Copy-Item -Path build-win/jre-x64 -Destination jre-x64 -Recurse -Force
+          Copy-Item -Path build-win/signal-cli -Destination signal-cli -Recurse -Force
+          New-Item -ItemType Directory -Force -Path oden/static | Out-Null
+
+      - name: Build Windows app
+        env:
+          ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
+        shell: pwsh
+        run: |
+          python -m PyInstaller --clean --noconfirm s7_watcher.spec
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          iscc "/DMyAppVersion=$version" scripts/oden.iss
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: oden-windows-installer
+          path: Output/Oden-Setup-*.exe
+
   # Create release with all artifacts
   release:
-    needs: [build-macos, build-docker]
+    needs: [build-macos, build-docker, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -230,6 +347,13 @@ jobs:
         with:
           name: oden-macos-dmg
           path: artifacts/oden-macos-dmg
+
+      - name: Download Windows artifacts
+        if: needs.build-windows.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: oden-windows-installer
+          path: artifacts/oden-windows-installer
 
       - name: Get version
         id: version
@@ -255,6 +379,11 @@ jobs:
           
           # Copy macOS DMG
           find artifacts/oden-macos-dmg -name "*.dmg" -exec cp {} release_files/ \;
+
+          # Copy Windows installer if available
+          if [ -d artifacts/oden-windows-installer ]; then
+            find artifacts/oden-windows-installer -name "*.exe" -exec cp {} release_files/ \;
+          fi
           
           # Create source package for developers
           mkdir -p source_package
@@ -344,6 +473,11 @@ jobs:
             1. Download `Oden-${{ steps.version.outputs.VERSION }}-macOS.dmg`
             2. Open the DMG and drag Oden to Applications
             3. First launch: Right-click → Open (to bypass Gatekeeper)
+
+            ### Windows (Native Installer)
+            1. Download `Oden-Setup-${{ steps.version.outputs.VERSION }}-x64.exe`
+            2. Run the installer wizard (per-user install, no admin required)
+            3. Launch Oden from Start Menu or desktop shortcut
             
             ### Docker (Linux, Windows, Raspberry Pi)
             ```bash
