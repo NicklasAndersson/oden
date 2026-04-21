@@ -2,7 +2,10 @@
 """
 Generate Oden app icon from logo image.
 
-Converts the logo to all required sizes and creates .icns for macOS.
+Converts the logo to all required sizes and creates:
+- .icns for macOS
+- .ico for Windows
+
 Requires: Pillow (pip install Pillow)
 """
 
@@ -99,6 +102,19 @@ def create_icns(iconset_dir: Path, output_path: Path) -> bool:
         print("Note: .icns creation requires macOS. Skipping.")
         return False
 
+
+def create_ico(source: Image.Image, output_path: Path) -> bool:
+    """Create .ico with multiple icon sizes for Windows."""
+    try:
+        sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+        base = create_icon_from_logo(source, 256)
+        base.save(output_path, format="ICO", sizes=sizes)
+        print(f"Successfully created {output_path}")
+        return True
+    except Exception as e:
+        print(f"Error creating .ico: {e}")
+        return False
+
     try:
         print(f"Creating {output_path}")
         subprocess.run(
@@ -142,10 +158,15 @@ def main():
     icns_path = images_dir / "oden.icns"
     create_icns(iconset_dir, icns_path)
 
+    # Create .ico file
+    ico_path = images_dir / "oden.ico"
+    create_ico(source, ico_path)
+
     print()
     print("Done!")
     print(f"  Iconset: {iconset_dir}")
     print(f"  ICNS: {icns_path}")
+    print(f"  ICO: {ico_path}")
     print(f"  PNG: {images_dir / 'oden_1024.png'}")
 
 

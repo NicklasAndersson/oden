@@ -28,30 +28,36 @@ if os.path.exists('oden/static'):
 if os.path.exists('oden/templates/web'):
     datas.append(('oden/templates/web', 'oden/templates/web'))
 
+hiddenimports = [
+    'oden.config',
+    'oden.processing',
+    'oden.formatting',
+    'oden.link_formatter',
+    'oden.attachment_handler',
+    'oden.signal_manager',
+    'oden.signal_linker',
+    'oden.signal_registrar',
+    'oden.signal_listener',
+    'oden.responses_db',
+    'oden.groups_db',
+    'oden.web_server',
+    'oden.log_buffer',
+    'oden.app_state',
+    'oden.tray',
+    'PIL',
+]
+
+if sys.platform == 'darwin':
+    hiddenimports.append('pystray._darwin')
+elif sys.platform == 'win32':
+    hiddenimports.extend(['pystray._win32', 'PIL.ImageWin'])
+
 a = Analysis(
     ['oden/s7_watcher.py'],
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=[
-        'oden.config',
-        'oden.processing',
-        'oden.formatting',
-        'oden.link_formatter',
-        'oden.attachment_handler',
-        'oden.signal_manager',
-        'oden.signal_linker',
-        'oden.signal_registrar',
-        'oden.signal_listener',
-        'oden.responses_db',
-        'oden.groups_db',
-        'oden.web_server',
-        'oden.log_buffer',
-        'oden.app_state',
-        'oden.tray',
-        'pystray._darwin',
-        'PIL',
-    ],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -64,6 +70,7 @@ pyz = PYZ(a.pure)
 
 # Determine icon path
 icon_path = 'images/oden.icns' if os.path.exists('images/oden.icns') else None
+windows_icon_path = 'images/oden.ico' if os.path.exists('images/oden.ico') else None
 
 # macOS: Create .app bundle with --windowed --onedir
 if sys.platform == 'darwin':
@@ -114,24 +121,55 @@ if sys.platform == 'darwin':
         },
     )
 else:
-    # Linux/Windows: Single file executable
-    exe = EXE(
-        pyz,
-        a.scripts,
-        a.binaries,
-        a.datas,
-        [],
-        name='oden',
-        debug=False,
-        bootloader_ignore_signals=False,
-        strip=False,
-        upx=True,
-        upx_exclude=[],
-        runtime_tmpdir=None,
-        console=True,
-        disable_windowed_traceback=False,
-        argv_emulation=False,
-        target_arch=None,
-        codesign_identity=None,
-        entitlements_file=None,
-    )
+    if sys.platform == 'win32':
+        # Windows: GUI onedir executable for installer packaging
+        exe = EXE(
+            pyz,
+            a.scripts,
+            [],
+            exclude_binaries=True,
+            name='Oden',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=False,
+            console=False,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+            icon=windows_icon_path,
+        )
+
+        coll = COLLECT(
+            exe,
+            a.binaries,
+            a.datas,
+            strip=False,
+            upx=False,
+            upx_exclude=[],
+            name='Oden',
+        )
+    else:
+        # Linux: console single-file executable
+        exe = EXE(
+            pyz,
+            a.scripts,
+            a.binaries,
+            a.datas,
+            [],
+            name='oden',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            console=True,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+        )
