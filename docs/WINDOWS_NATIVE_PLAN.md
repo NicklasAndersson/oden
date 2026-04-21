@@ -19,12 +19,13 @@ Implemented:
 - Windows installer artifact upload and conditional inclusion in release assets
 - Windows installer text in versioned release notes
 - `.ico` generation in `scripts/generate_icon.py`
+- Windows-aware signal-cli launch command building in `oden/signal_manager.py`
+- `CREATE_NO_WINDOW` handling for Windows subprocess launches
+- `.exe` suffix handling for bundled Java in `oden/bundle_utils.py`
 
 Not yet implemented:
 
 - Windows version resource (`VSVersionInfo`) in `s7_watcher.spec`
-- Runtime polish in `oden/signal_manager.py` (`CREATE_NO_WINDOW` and final Windows invocation path)
-- Confirmed `.exe` suffix handling for bundled Java path in `oden/bundle_utils.py`
 - Dedicated end-user native Windows setup doc and README final wording
 - Signing (`signtool`) and release hardening
 
@@ -97,7 +98,8 @@ Oden-Setup-x.y.z-x64.exe        (Inno Setup installer, ~150 MB)
     ├── Oden.exe                (PyInstaller --onedir launcher, GUI mode)
     ├── _internal\              (PyInstaller runtime: python DLL, libs, datas)
     │   ├── jre-x64\bin\java.exe
-    │   ├── signal-cli\bin\signal-cli.bat
+  │   ├── signal-cli\bin\signal-cli
+  │   ├── signal-cli\lib\...
     │   ├── templates\          (Jinja2 web templates)
     │   ├── images\
     │   └── ...
@@ -117,9 +119,8 @@ User data lives **outside** the install dir, in standard Windows locations:
 `oden/bundle_utils.py` already uses `%APPDATA%\Oden` on Windows for the
 pointer file directory (that expands under `...\AppData\Roaming\Oden`) and
 `Path.home() / ".oden"` for the default home, so those parts are already
-Windows-aware. One related code tweak is still likely needed when bundling a
-JRE on Windows: `get_bundled_java_path()` should resolve `bin/java.exe`
-instead of `bin/java`.
+Windows-aware. Bundled Java path handling is now Windows-aware as well:
+`get_bundled_java_path()` resolves `bin/java.exe` on Windows.
 
 ---
 
@@ -137,8 +138,6 @@ Completed in `s7_watcher.spec`:
 
 - Windows branch produces a `--onedir --windowed` style build (`console=False`)
   for installer packaging.
-- Embed Windows version info (`VSVersionInfo`) so "Properties → Details" in
-  Explorer shows version, copyright, and product name.
 - Application icon path is wired for `images/oden.ico`.
 - `pystray._win32` and `PIL.ImageWin` are included in Windows hidden imports.
 - `--onedir` is used (not `--onefile`), so Windows Defender doesn't have to
@@ -282,21 +281,20 @@ small:
 
 - **`oden/signal_manager.py`**: on Windows, build the command from the
   extracted signal-cli install directory instead of assuming one wrapper file
-  is always executable. The cleanest approach is to invoke our bundled
-  `java.exe` with the install directory classpath so we are independent of
-  shell quoting differences and wrapper selection. Verify subprocess flags include
+  is always executable. Oden now invokes our bundled `java.exe` with the
+  install directory classpath so we are independent of shell quoting
+  differences and wrapper selection. Subprocess calls include
   `subprocess.CREATE_NO_WINDOW` (or `creationflags=0x08000000`) so the
   `java.exe` child does not pop a console window.
-- **`oden/bundle_utils.py`**: already returns `jre-x64/bin/java.exe`-style
-  paths via `bin/java`. Confirm it appends `.exe` on Windows; if not, add a
-  one-line tweak.
+- **`oden/bundle_utils.py`**: bundled Java resolution now appends `.exe` on
+  Windows, so the frozen app can locate `java.exe` reliably.
 - **`oden/tray.py`**: `pystray` already supports Windows via `pystray._win32`.
-  Add it to PyInstaller `hiddenimports`. Verify the icon file format
-  (`pystray` on Windows wants a PIL `Image`, which we already pass).
+  The Windows hidden imports are now included in the PyInstaller spec, and the
+  icon path is wired for `.ico` output.
 - **`s7_watcher.spec`**: flesh out the Linux/Windows branch (icon,
   `version` resource, `console=False` for the GUI build, hidden imports for
   the Windows tray).
-- **`scripts/generate_icon.py`**: also emit `images/oden.ico` (multi-size:
+- **`scripts/generate_icon.py`**: now emits `images/oden.ico` (multi-size:
   16, 32, 48, 64, 128, 256).
 
 No changes are expected in `web_server.py`, `processing.py`, `config.py`, or

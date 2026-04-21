@@ -3,13 +3,12 @@
 import asyncio
 import contextlib
 import logging
-import sys
 
 from oden.signal_manager import (
     build_signal_cli_command,
     find_signal_cli_executable,
-    get_signal_cli_env,
     get_process_creationflags,
+    get_signal_cli_env,
 )
 
 logger = logging.getLogger(__name__)
