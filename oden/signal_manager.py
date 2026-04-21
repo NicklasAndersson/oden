@@ -28,13 +28,27 @@ def get_bundled_signal_cli_path() -> str | None:
         return None
 
     bundle_path = get_bundle_path()
-    signal_cli_path = bundle_path / "signal-cli" / "bin" / "signal-cli"
+    signal_cli_bin_dir = bundle_path / "signal-cli" / "bin"
 
-    if signal_cli_path.exists():
-        logger.info(f"Found bundled signal-cli at: {signal_cli_path}")
-        return str(signal_cli_path)
+    # Windows requires the .bat launcher (executing the Unix shell script
+    # raises WinError 193: not a valid Win32 application).
+    if sys.platform == "win32":
+        candidates = [
+            signal_cli_bin_dir / "signal-cli.bat",
+            signal_cli_bin_dir / "signal-cli.exe",
+            signal_cli_bin_dir / "signal-cli",
+        ]
+    else:
+        candidates = [
+            signal_cli_bin_dir / "signal-cli",
+        ]
 
-    logger.warning(f"Bundled signal-cli not found at: {signal_cli_path}")
+    for signal_cli_path in candidates:
+        if signal_cli_path.exists():
+            logger.info(f"Found bundled signal-cli at: {signal_cli_path}")
+            return str(signal_cli_path)
+
+    logger.warning(f"Bundled signal-cli not found in: {signal_cli_bin_dir}")
     return None
 
 
@@ -176,10 +190,19 @@ def find_signal_cli_executable() -> str:
 
     # Check for signal-cli in project directory (development)
     for version in ["0.14.1", "0.13.23"]:
-        bundled_path = f"./signal-cli-{version}/bin/signal-cli"
-        if os.path.exists(bundled_path):
-            logger.info(f"Found bundled signal-cli: {bundled_path}")
-            return os.path.abspath(bundled_path)
+        if sys.platform == "win32":
+            dev_candidates = [
+                f"./signal-cli-{version}/bin/signal-cli.bat",
+                f"./signal-cli-{version}/bin/signal-cli.exe",
+                f"./signal-cli-{version}/bin/signal-cli",
+            ]
+        else:
+            dev_candidates = [f"./signal-cli-{version}/bin/signal-cli"]
+
+        for bundled_path in dev_candidates:
+            if os.path.exists(bundled_path):
+                logger.info(f"Found bundled signal-cli: {bundled_path}")
+                return os.path.abspath(bundled_path)
 
     raise FileNotFoundError(
         "signal-cli executable not found. Please install it, place it in the project directory, or configure 'signal_cli_path' in the web GUI."
