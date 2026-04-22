@@ -10,11 +10,11 @@
 #   curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
 #
 # Installera en specifik version:
-#   ODEN_VERSION=2.0.0 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
+#   ODEN_VERSION=2.2.0 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
 #
 # Eller:
 #   ./install_mac.sh
-#   ODEN_VERSION=2.0.0 ./install_mac.sh
+#   ODEN_VERSION=2.2.0 ./install_mac.sh
 
 set -euo pipefail
 
@@ -32,13 +32,13 @@ APP_NAME="Oden.app"
 INSTALL_DIR="/Applications"
 
 # Stöd för att installera en specifik version via ODEN_VERSION
-# Exempel: ODEN_VERSION=2.0.0 curl -fsSL .../install_mac.sh | bash
+# Exempel: ODEN_VERSION=2.2.0 curl -fsSL .../install_mac.sh | bash
 if [[ -n "${ODEN_VERSION:-}" ]]; then
     # Validera versionsformatet (tillåt valfritt v-prefix följt av siffror och punkter)
     CLEAN_VERSION="${ODEN_VERSION#v}"
     if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([._-][a-zA-Z0-9]+)*$ ]]; then
         print_error "Ogiltigt versionsformat: '${ODEN_VERSION}'"
-        print_info "Ange en version som t.ex. 2.0.0 eller v2.0.0"
+        print_info "Ange en version som t.ex. 2.2.0 eller v2.2.0"
         exit 1
     fi
     API_URL="https://api.github.com/repos/${REPO}/releases/tags/v${CLEAN_VERSION}"

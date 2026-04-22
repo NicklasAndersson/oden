@@ -1,13 +1,13 @@
 # Native Windows Build — Plan
 
-> **Status:** Partially implemented (PR 1 complete).
+> **Status:** Partially implemented (PR 1-3 complete, PR 4 in progress).
 >
 > **Goal:** Ship Oden as a true native Windows application — no Docker, no WSL —
 > with a proper installer, Start Menu shortcuts, autostart on login, and a system
 > tray icon. The user should be able to download a single `Oden-Setup-x.y.z.exe`,
 > run it, and be done.
 
-## Implementation status (2026-04-21)
+## Implementation status (2026-04-22)
 
 Implemented:
 
@@ -344,15 +344,16 @@ the web handlers — they are already pure-Python and platform-neutral.
    - Add `scripts/oden.iss`.
    - Add the `build-windows` GitHub Actions job, **with `continue-on-error`**,
      producing snapshot installers as artifacts.
-2. **PR 2 — Code polish** (in progress):
+2. **PR 2 — Code polish** (completed):
    - Subprocess `CREATE_NO_WINDOW` flags in `signal_manager.py`.
    - `.exe` suffix handling in `bundle_utils.py` if missing.
    - Add `pystray._win32` and friends to hidden imports.
-3. **PR 3 — Documentation** (in progress):
-   - `docs/WINDOWS_NATIVE_SETUP.md`, README updates.
-4. **PR 4 — Promote to release** (pending):
-   - Drop `continue-on-error`, include the installer in both snapshot and
-     versioned releases, mention it in CHANGELOG.
+3. **PR 3 — Documentation** (completed):
+   - `docs/WINDOWS_SETUP.md`, README updates.
+4. **PR 4 — Promote to release** (in progress):
+   - Include the installer in snapshot and versioned releases when the Windows job succeeds.
+   - Update `CHANGELOG.md` for the first versioned release with native Windows installer support.
+   - Drop `continue-on-error` when the Windows build is stable enough to block releases.
 5. **PR 5 (later, optional) — Code signing** (pending):
    - Add `signtool` step gated on `secrets.WINDOWS_CERT_*`.
 

@@ -55,14 +55,23 @@ def get_bundled_signal_cli_path() -> str | None:
 def _get_standard_signal_cli_paths() -> list[Path]:
     """Return standard signal-cli data directory paths for the current platform."""
     paths: list[Path] = []
+
     if sys.platform == "win32":
         local_app_data = os.environ.get("LOCALAPPDATA", "")
         if local_app_data:
             paths.append(Path(local_app_data) / "signal-cli")
-    else:
-        # macOS and Linux both use ~/.local/share/signal-cli
-        paths.append(Path.home() / ".local" / "share" / "signal-cli")
-    return paths
+
+    # signal-cli commonly uses ~/.local/share/signal-cli on macOS/Linux,
+    # and some Windows installs do the same through Java path defaults.
+    paths.append(Path.home() / ".local" / "share" / "signal-cli")
+
+    deduped_paths: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        if path not in seen:
+            seen.add(path)
+            deduped_paths.append(path)
+    return deduped_paths
 
 
 def get_signal_data_search_paths() -> list[Path]:

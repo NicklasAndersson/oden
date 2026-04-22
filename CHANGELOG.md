@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-04-22
+
+### Added
+
+- **Native Windows-installer (preview)**: Byggpipen kan nu paketera och bifoga `Oden-Setup-<version>-x64.exe` till snapshot- och versionsreleaser när Windows-jobbet lyckas
+- **Windows-dokumentation**: README och Windows-guiderna har uppdaterats för både Docker-baserad och native installation
+
+### Fixed
+
+- **Kontoradering**: Vanlig radering och tvångsradering tar nu bort kontot från alla kända `accounts.json`-filer och städar lokala kontomappar
+- **Kontolista i GUI**: Konton läses nu från disk i stället för signal-cli-daemonens cache, så borttagna konton försvinner direkt ur webb-GUI:t
+- **QR-länkning**: Oden återhämtar nu länkat nummer från signal-cli-kontona när `signal-cli link` inte skriver ut telefonnumret efter lyckad länkning
+- **Windows-byggen**: Rätt signal-cli-asset, körbar fil och deterministisk installer-sökväg används nu i native Windows-pipelinen
+
+### Changed
+
+- **Releaseflöde**: Versionerade releaser visar nu installationsinstruktioner för macOS, Windows och Docker direkt i release-noterna
+
 ## [2.1.1] - 2026-04-06
 
 ### Added

@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/
 Installera en specifik version:
 
 ```bash
-ODEN_VERSION=2.0.0 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
+ODEN_VERSION=2.2.0 curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_mac.sh | bash
 ```
 
 Installera senaste **snapshot** (testversion, byggs vid varje push till main):
