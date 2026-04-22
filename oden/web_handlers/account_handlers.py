@@ -32,6 +32,17 @@ logger = logging.getLogger(__name__)
 _finish_link_task: asyncio.Task | None = None
 
 
+def _is_stale_configured_account(number: str, accounts: list[dict] | None = None) -> bool:
+    """Return True when *number* is configured but not present on disk."""
+    if not number or number != cfg.SIGNAL_NUMBER:
+        return False
+
+    if accounts is None:
+        accounts = get_existing_accounts()
+
+    return not any(account.get("number") == number for account in accounts)
+
+
 async def accounts_list_handler(request: web.Request) -> web.Response:
     """List all signal-cli accounts and mark the active one.
 
@@ -40,17 +51,21 @@ async def accounts_list_handler(request: web.Request) -> web.Response:
     """
     app_state = get_app_state()
 
+    existing_accounts = get_existing_accounts()
     accounts = []
     active_number = cfg.SIGNAL_NUMBER
     connected = bool(app_state.writer)
 
-    for account in get_existing_accounts():
+    for account in existing_accounts:
         number = account.get("number")
         if number:
             accounts.append({"number": number, "active": number == active_number})
 
     # Check if active account is valid
     active_valid = any(a["active"] for a in accounts)
+
+    if active_number and not active_valid:
+        accounts.insert(0, {"number": active_number, "active": True, "stale": True})
 
     return web.json_response(
         {
@@ -299,11 +314,21 @@ async def accounts_delete_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    # Prevent deleting the active account without switching first
-    if number == cfg.SIGNAL_NUMBER:
+    accounts = get_existing_accounts()
+    is_stale_active = _is_stale_configured_account(number, accounts)
+
+    # Prevent deleting the active account without switching first,
+    # but allow recovery when the configured account is already stale.
+    if number == cfg.SIGNAL_NUMBER and not is_stale_active:
         return web.json_response(
             {"success": False, "error": "Kan inte radera det aktiva kontot. Byt konto först."},
             status=400,
+        )
+
+    if is_stale_active:
+        logger.warning(
+            "Allowing deletion of configured account %s because it is no longer present on disk",
+            number,
         )
 
     app_state = get_app_state()
@@ -349,10 +374,19 @@ async def accounts_force_delete_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    if number == cfg.SIGNAL_NUMBER:
+    accounts = get_existing_accounts()
+    is_stale_active = _is_stale_configured_account(number, accounts)
+
+    if number == cfg.SIGNAL_NUMBER and not is_stale_active:
         return web.json_response(
             {"success": False, "error": "Kan inte radera det aktiva kontot. Byt konto först."},
             status=400,
+        )
+
+    if is_stale_active:
+        logger.warning(
+            "Allowing force-delete of configured account %s because it is no longer present on disk",
+            number,
         )
 
     if not _remove_account_from_disk(number):

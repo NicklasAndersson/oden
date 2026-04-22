@@ -35,7 +35,7 @@ async function loadAccounts() {
         if (!activeValid && data.active_number && connected) {
             warning.classList.remove('hidden');
             document.getElementById('accounts-warning-text').textContent =
-                'Det konfigurerade kontot (' + escapeHtml(data.active_number) + ') finns inte bland de tillgängliga kontona. Välj ett giltigt konto eller lägg till ett nytt.';
+                'Det konfigurerade kontot (' + escapeHtml(data.active_number) + ') finns inte bland de tillgängliga kontona. Radera den trasiga kontoposten eller välj ett giltigt konto.';
         } else {
             warning.classList.add('hidden');
         }
@@ -49,9 +49,12 @@ async function loadAccounts() {
         for (const acc of accounts) {
             const num = acc.number;
             const isActive = acc.active;
+            const isStale = !!acc.stale;
 
             const row = document.createElement('div');
-            row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; border: 1px solid ' + (isActive ? '#2e7d32' : '#333') + '; border-radius: 8px; margin-bottom: 8px; background: ' + (isActive ? '#1a3a1a' : '#16213e') + ';';
+            const borderColor = isStale ? '#c62828' : (isActive ? '#2e7d32' : '#333');
+            const backgroundColor = isStale ? '#3a1616' : (isActive ? '#1a3a1a' : '#16213e');
+            row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; border: 1px solid ' + borderColor + '; border-radius: 8px; margin-bottom: 8px; background: ' + backgroundColor + ';';
 
             const info = document.createElement('div');
             const strong = document.createElement('strong');
@@ -61,26 +64,32 @@ async function loadAccounts() {
 
             if (isActive) {
                 const badge = document.createElement('span');
-                badge.style.cssText = 'color: #4caf50; font-size: 0.9em; margin-left: 8px;';
-                badge.textContent = '● Aktivt konto';
+                badge.style.cssText = 'color: ' + (isStale ? '#ff8a80' : '#4caf50') + '; font-size: 0.9em; margin-left: 8px;';
+                badge.textContent = isStale ? '● Aktivt konto saknas på disk' : '● Aktivt konto';
                 info.appendChild(badge);
             }
 
             const actions = document.createElement('div');
             actions.style.cssText = 'display: flex; gap: 8px;';
 
-            if (!isActive) {
+            if (!isActive || isStale) {
                 const useBtn = document.createElement('button');
-                useBtn.className = 'btn btn-primary';
-                useBtn.style.cssText = 'padding: 5px 12px; font-size: 0.85em;';
-                useBtn.textContent = 'Använd';
-                useBtn.addEventListener('click', () => activateAccount(num));
+                if (!isActive) {
+                    useBtn.className = 'btn btn-primary';
+                    useBtn.style.cssText = 'padding: 5px 12px; font-size: 0.85em;';
+                    useBtn.textContent = 'Använd';
+                    useBtn.addEventListener('click', () => activateAccount(num));
+                    actions.appendChild(useBtn);
+                }
 
-                const delBtn = document.createElement('button');
-                delBtn.className = 'btn btn-secondary';
-                delBtn.style.cssText = 'padding: 5px 12px; font-size: 0.85em;';
-                delBtn.textContent = 'Radera';
-                delBtn.addEventListener('click', () => deleteAccount(num));
+                if (connected) {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'btn btn-secondary';
+                    delBtn.style.cssText = 'padding: 5px 12px; font-size: 0.85em;';
+                    delBtn.textContent = 'Radera';
+                    delBtn.addEventListener('click', () => deleteAccount(num));
+                    actions.appendChild(delBtn);
+                }
 
                 const forceBtn = document.createElement('button');
                 forceBtn.className = 'btn btn-secondary';
@@ -88,8 +97,6 @@ async function loadAccounts() {
                 forceBtn.textContent = 'Tvinga radering';
                 forceBtn.addEventListener('click', () => forceDeleteAccount(num));
 
-                actions.appendChild(useBtn);
-                actions.appendChild(delBtn);
                 actions.appendChild(forceBtn);
             } else {
                 const note = document.createElement('span');

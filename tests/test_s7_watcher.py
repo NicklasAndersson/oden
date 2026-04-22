@@ -174,6 +174,27 @@ class TestSignalManager(unittest.TestCase):
 
         self.assertEqual(command, ["cmd.exe", "/c", executable, "daemon"])
 
+    def test_get_standard_signal_cli_paths_windows_includes_home_share_path(self, mock_find_executable):
+        """Windows installs may store accounts under ~/.local/share/signal-cli."""
+        from pathlib import Path
+
+        from oden.signal_manager import _get_standard_signal_cli_paths
+
+        with (
+            patch("oden.signal_manager.sys.platform", "win32"),
+            patch.dict("oden.signal_manager.os.environ", {"LOCALAPPDATA": r"C:\\Users\\Nicklas\\AppData\\Local"}),
+            patch("oden.signal_manager.Path.home", return_value=Path(r"C:\\Users\\Nicklas")),
+        ):
+            paths = _get_standard_signal_cli_paths()
+
+        self.assertEqual(
+            paths,
+            [
+                Path(r"C:\\Users\\Nicklas\\AppData\\Local") / "signal-cli",
+                Path(r"C:\\Users\\Nicklas") / ".local" / "share" / "signal-cli",
+            ],
+        )
+
 
 class TestIsSignalCliRunning(unittest.TestCase):
     @patch("socket.socket")
