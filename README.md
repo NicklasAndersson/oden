@@ -40,18 +40,13 @@ xattr -cr /Applications/Oden.app
 
 Sista steget behövs eftersom vi saknar Apple-certifikat. Alternativt kan du högerklicka på appen och välja **"Öppna"** — då får du möjlighet att öppna den trots varningen.
 
-### Windows (native installer, preview)
+### Windows (inbyggd installationsfil)
 
-Native Windows installer build pipeline is implemented and publishes
-`Oden-Setup-<version>-x64.exe` when the Windows build job succeeds.
+**Manuell installation:**
 
-1. Ladda ner Windows-installern från releasen (om bifogad)
-2. Kör setup-guiden
-3. Starta Oden från Start-menyn
-
-Om installeraren saknas i en release: använd Docker-installationen nedan.
-
-Se [docs/WINDOWS_NATIVE_PLAN.md](./docs/WINDOWS_NATIVE_PLAN.md) för status och plan.
+1. Ladda ner `.exe` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
+2. Kör installationsguiden (ingen administratörsbehörighet krävs)
+3. Starta Oden från Start-menyn eller genvägen på skrivbordet
 
 ### Docker (Linux, Windows, Raspberry Pi)
 
