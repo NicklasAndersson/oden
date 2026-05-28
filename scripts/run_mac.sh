@@ -15,7 +15,7 @@ C_BOLD='\033[1m'
 C_YELLOW='\033[0;33m'
 
 # --- Configuration ---
-SIGNAL_CLI_VERSION="0.14.1"
+SIGNAL_CLI_VERSION="0.14.4.1"
 ODEN_CONFIG_DIR="$HOME/.oden"
 
 # macOS binary (universal - works on both Intel and Apple Silicon)

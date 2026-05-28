@@ -22,7 +22,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Download and install signal-cli
-ARG SIGNAL_CLI_VERSION=0.14.1
+ARG SIGNAL_CLI_VERSION=0.14.4.1
 ARG LIBSIGNAL_CLIENT_VERSION=0.87.4
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \

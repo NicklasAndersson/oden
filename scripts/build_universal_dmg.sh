@@ -4,7 +4,7 @@
 # =============================================================================
 # This script builds a universal macOS app bundle with:
 # - Bundled JRE 25 for both arm64 and x64
-# - Bundled signal-cli 0.14.1
+# - Bundled signal-cli 0.14.4.1
 # - Creates a DMG installer with Applications link
 #
 # Requirements:
@@ -19,7 +19,7 @@
 set -e
 
 # Configuration
-SIGNAL_CLI_VERSION="0.14.1"
+SIGNAL_CLI_VERSION="0.14.4.1"
 JRE_VERSION="25"
 JRE_VENDOR="eclipse"
 
