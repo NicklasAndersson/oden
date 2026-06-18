@@ -206,7 +206,7 @@ def find_signal_cli_executable() -> str:
         return path
 
     # Check for signal-cli in project directory (development)
-    for version in ["0.14.4.1", "0.14.1", "0.13.23"]:
+    for version in ["0.14.5", "0.14.4.1", "0.14.1", "0.13.23"]:
         if sys.platform == "win32":
             dev_candidates = [
                 f"./signal-cli-{version}/bin/signal-cli.bat",

@@ -22,8 +22,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Download and install signal-cli
-ARG SIGNAL_CLI_VERSION=0.14.4.1
-ARG LIBSIGNAL_CLIENT_VERSION=0.87.4
+ARG SIGNAL_CLI_VERSION=0.14.5
+ARG LIBSIGNAL_CLIENT_VERSION=0.94.4
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     curl -sL "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz" \
@@ -37,14 +37,20 @@ RUN apt-get update && \
 
 # Fix: upstream signal-cli JAR lacks libsignal_jni.so for Linux ARM64.
 # Download pre-built native library and inject it into the JAR.
-# Source: https://github.com/bbernhard/signal-cli-rest-api
+# Source: https://github.com/bbernhard/libsignal-client-builds
 RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         python3 -c "\
-import urllib.request, zipfile, os; \
-url = 'https://github.com/bbernhard/signal-cli-rest-api/raw/master/ext/libraries/libsignal-client/v${LIBSIGNAL_CLIENT_VERSION}/arm64/libsignal_jni.so'; \
+import urllib.request, tarfile, zipfile, os; \
+url = 'https://github.com/bbernhard/libsignal-client-builds/releases/download/v${LIBSIGNAL_CLIENT_VERSION}/libsignal-client-build-v${LIBSIGNAL_CLIENT_VERSION}.tar.gz'; \
+tar_path = '/tmp/libsignal-builds.tar.gz'; \
 so = '/tmp/libsignal_jni.so'; \
 jar = '/opt/signal-cli/lib/libsignal-client-${LIBSIGNAL_CLIENT_VERSION}.jar'; \
-urllib.request.urlretrieve(url, so); \
+urllib.request.urlretrieve(url, tar_path); \
+tf = tarfile.open(tar_path); \
+src = tf.extractfile(tf.getmember('arm64/libsignal_jni.so')); \
+open(so, 'wb').write(src.read()); \
+tf.close(); \
+os.remove(tar_path); \
 zf = zipfile.ZipFile(jar, 'a'); \
 zf.write(so, 'libsignal_jni.so'); \
 zf.close(); \
