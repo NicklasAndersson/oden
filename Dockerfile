@@ -46,14 +46,11 @@ tar_path = '/tmp/libsignal-builds.tar.gz'; \
 so = '/tmp/libsignal_jni.so'; \
 jar = '/opt/signal-cli/lib/libsignal-client-${LIBSIGNAL_CLIENT_VERSION}.jar'; \
 urllib.request.urlretrieve(url, tar_path); \
-tf = tarfile.open(tar_path); \
-src = tf.extractfile(tf.getmember('arm64/libsignal_jni.so')); \
-open(so, 'wb').write(src.read()); \
-tf.close(); \
+with tarfile.open(tar_path) as tf: \
+  member = tf.getmember('arm64/libsignal_jni.so'); \
+  with tf.extractfile(member) as src, open(so, 'wb') as dst: dst.write(src.read()); \
 os.remove(tar_path); \
-zf = zipfile.ZipFile(jar, 'a'); \
-zf.write(so, 'libsignal_jni.so'); \
-zf.close(); \
+with zipfile.ZipFile(jar, 'a') as zf: zf.write(so, 'libsignal_jni.so'); \
 os.remove(so); \
 print('Injected libsignal_jni.so for arm64')"; \
     fi
