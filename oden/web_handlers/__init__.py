@@ -44,6 +44,11 @@ from oden.web_handlers.message_handlers import (
     message_stats_handler,
     messages_list_handler,
 )
+from oden.web_handlers.pipeline_handlers import (
+    list_pipelines,
+    reorder_pipelines,
+    toggle_pipeline,
+)
 from oden.web_handlers.response_handlers import (
     response_create_handler,
     response_delete_handler,
@@ -109,6 +114,10 @@ __all__ = [
     "message_detail_handler",
     "message_reprocess_handler",
     "message_stats_handler",
+    # Pipeline handlers
+    "list_pipelines",
+    "toggle_pipeline",
+    "reorder_pipelines",
     # Setup handlers
     "setup_handler",
     "setup_status_handler",

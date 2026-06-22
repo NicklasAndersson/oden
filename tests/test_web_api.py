@@ -312,3 +312,93 @@ class TestAccountManagementAPI(AioHTTPTestCase):
         # (note: &lt; may appear as a literal string in JS, e.g. replace(/</g, '&lt;'),
         # so we only check && which should never appear as &amp;&amp;)
         self.assertNotIn("&amp;&amp;", text)
+
+
+class TestPipelineManagementAPI(AioHTTPTestCase):
+    """Tests for pipeline management API endpoints."""
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    async def test_list_pipelines_returns_available_and_enabled(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.get("/api/pipelines")
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertIn("available", data)
+            self.assertIn("enabled", data)
+            self.assertIn("stats", data)
+            self.assertTrue(any(p["name"] == "seven_s" for p in data["available"]))
+            self.assertTrue(any(p["name"] == "generic_template" for p in data["available"]))
+
+    async def test_toggle_pipeline_disable_updates_enabled_list(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.patch(
+                    "/api/pipelines/seven_s/enabled",
+                    json={"enabled": False},
+                )
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertTrue(data["success"])
+            self.assertEqual(data["updated_list"], ["generic_template"])
+
+    async def test_reorder_pipelines_updates_order(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.post(
+                    "/api/pipelines/reorder",
+                    json={"order": ["generic_template", "seven_s"]},
+                )
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertTrue(data["success"])
+            self.assertEqual(data["updated_list"], ["generic_template", "seven_s"])
+
+    async def test_reorder_pipelines_rejects_unknown_pipeline(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.post(
+                    "/api/pipelines/reorder",
+                    json={"order": ["not_a_pipeline"]},
+                )
+
+            self.assertEqual(resp.status, 400)
+            data = await resp.json()
+            self.assertIn("Unknown pipeline", data["error"])

@@ -34,11 +34,13 @@ from oden.web_handlers import (
     groups_handler,
     invitations_handler,
     join_group_handler,
+    list_pipelines,
     message_detail_handler,
     message_reprocess_handler,
     message_stats_handler,
     messages_list_handler,
     refresh_groups_handler,
+    reorder_pipelines,
     response_create_handler,
     response_delete_handler,
     response_get_handler,
@@ -65,6 +67,7 @@ from oden.web_handlers import (
     templates_export_all_handler,
     templates_list_handler,
     toggle_ignore_group_handler,
+    toggle_pipeline,
     toggle_whitelist_group_handler,
     update_contact_handler,
     update_group_handler,
@@ -171,6 +174,12 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_delete("/api/accounts/{number}", accounts_delete_handler)
         app.router.add_delete("/api/accounts/{number}/force", accounts_force_delete_handler)
         app.router.add_get("/api/accounts/devices", accounts_devices_handler)
+
+        # Pipeline management routes
+        app.router.add_get("/api/pipelines", list_pipelines)
+        app.router.add_patch("/api/pipelines/{name}/enabled", toggle_pipeline)
+        app.router.add_post("/api/pipelines/reorder", reorder_pipelines)
+
 
         # Contact routes
         app.router.add_get("/api/contacts", contacts_handler)
