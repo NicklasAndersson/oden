@@ -51,6 +51,7 @@ async def config_handler(request: web.Request) -> web.Response:
         "auto_reaction_emoji": config.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": config.get("auto_read_receipt_enabled", False),
         "db_first_enabled": config.get("db_first_enabled", True),
+        "raw_message_retention_days": config.get("raw_message_retention_days", 30),
         "oden_home": str(cfg.ODEN_HOME),
         "config_db_path": str(cfg.CONFIG_DB),
     }
@@ -93,7 +94,15 @@ async def config_save_handler(request: web.Request) -> web.Response:
         "auto_reaction_emoji": data.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": data.get("auto_read_receipt_enabled", False),
         "db_first_enabled": data.get("db_first_enabled", True),
+        "raw_message_retention_days": data.get("raw_message_retention_days", 30),
     }
+
+    retention_days = form_updates["raw_message_retention_days"]
+    if not isinstance(retention_days, int) or retention_days < 1 or retention_days > 3650:
+        return web.json_response(
+            {"success": False, "error": "raw_message_retention_days måste vara ett heltal mellan 1 och 3650"},
+            status=400,
+        )
 
     # Handle regex_patterns if provided
     if "regex_patterns" in data:

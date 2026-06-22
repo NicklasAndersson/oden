@@ -183,6 +183,27 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         self.assertIn("regex_patterns", data)
         self.assertIsInstance(data["regex_patterns"], dict)
 
+    async def test_config_returns_retention_days(self):
+        """Verify /api/config includes retention setting for DB-first cleanup."""
+        resp = await self.client.get("/api/config")
+        data = await resp.json()
+        self.assertIn("raw_message_retention_days", data)
+        self.assertIsInstance(data["raw_message_retention_days"], int)
+
+    async def test_save_invalid_retention_days_rejected(self):
+        """Retention must be an int between 1 and 3650."""
+        resp = await self.client.post(
+            "/api/config-save",
+            json={
+                "signal_number": "+46700000000",
+                "raw_message_retention_days": 0,
+            },
+        )
+        self.assertEqual(resp.status, 400)
+        data = await resp.json()
+        self.assertFalse(data["success"])
+        self.assertIn("raw_message_retention_days", data["error"])
+
     async def test_save_regex_not_dict_rejected(self):
         resp = await self.client.post(
             "/api/config-save",

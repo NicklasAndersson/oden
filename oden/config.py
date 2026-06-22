@@ -252,7 +252,7 @@ def reload_config() -> dict:
     global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
     global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
-    global DB_FIRST_ENABLED
+    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS
 
     logger.info("Reloading configuration from database")
 
@@ -294,6 +294,7 @@ def reload_config() -> dict:
     AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
     ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["seven_s", "generic_template"])
+    RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
 
     # Persist and apply the log level so it takes effect immediately
     from oden.log_utils import apply_log_level, write_log_level
@@ -457,6 +458,7 @@ try:
     AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
     ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["seven_s", "generic_template"])
+    RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
 
 except Exception as e:
     logger.error("Error loading configuration: %s", e)
@@ -489,3 +491,4 @@ except Exception as e:
     AUTO_READ_RECEIPT_ENABLED = False
     DB_FIRST_ENABLED = True
     ENABLED_PIPELINES = ["seven_s", "generic_template"]
+    RAW_MESSAGE_RETENTION_DAYS = 30

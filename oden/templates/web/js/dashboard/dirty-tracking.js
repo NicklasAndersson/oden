@@ -41,6 +41,7 @@ async function _doAutoSave() {
         web_enabled: document.getElementById('cfg-web-enabled').checked,
         web_port: parseInt(document.getElementById('cfg-web-port').value) || 8080,
         log_level: document.getElementById('cfg-log-level').value,
+        raw_message_retention_days: parseInt(document.getElementById('cfg-raw-retention-days').value) || 30,
         auto_reaction_enabled: document.getElementById('cfg-auto-reaction').checked,
         auto_reaction_emoji: document.getElementById('cfg-auto-reaction-emoji').value || '✅',
         auto_read_receipt_enabled: document.getElementById('cfg-auto-read-receipt').checked,

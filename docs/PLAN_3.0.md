@@ -147,11 +147,11 @@ Web GUI — "Meddelandehantering"-tab
 
 ### Fas 5 — Bakåtkompatibilitet och drift *(kan köras parallellt med Fas 4)*
 
-- [ ] **5a. Feature-flag**
+- [x] **5a. Feature-flag**
   Config-nyckel `db_first_enabled` (bool, default `true`). Om `false` körs
   gammalt flöde direkt utan DB-persistering.
 
-- [ ] **5b. Retention-policy**
+- [x] **5b. Retention-policy**
   Schemalagd cleanup av `raw_messages` och `pipeline_events` äldre än
   konfigurerbart antal dagar (default 30). Exponeras i GUI under Avancerat.
 
@@ -216,3 +216,5 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 4b + 4c klar. Ny Meddelandehantering-tab i dashboard med listvy, detaljvy, statusbadges, stats och reprocess-knapp. Polling när tabben är aktiv samt filter på status. 246/246 tester gröna. |
 | 2026-06-22 | — | Fas 5 (delsteg) påbörjad: feature-flag `db_first_enabled` tillagd i config_db/config, exponerad i config-API och kopplad i signal_listener som säker fallback till legacy-flödet. 246/246 tester gröna. |
 | 2026-06-22 | — | CI-fix: PR snapshot-pipeline föll i docker arm64-bygget. Rotorsak var ogiltig Python one-liner i Dockerfile (compound `with` efter semikolon). Fixad till kompatibel rad-för-rad-variant i ARM64-injektionssteget för `libsignal_jni.so`. |
+| 2026-06-22 | — | Fas 5b klar. Retention-policy implementerad med ny config-nyckel `raw_message_retention_days` (default 30), cleanup-logik i `retention_db.py`, periodisk körning i listener och ny inställning i Avancerat-fliken i GUI. |
+| 2026-06-22 | — | Fas 5c delvis utökad. Nya tester för retention-cleanup och web-config validering av `raw_message_retention_days`. Full testsvit: 251/251 gröna. |

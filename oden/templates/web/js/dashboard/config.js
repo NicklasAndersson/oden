@@ -29,6 +29,7 @@ async function loadConfigForm() {
         document.getElementById('cfg-web-enabled').checked = config.web_enabled !== false;
         document.getElementById('cfg-web-port').value = config.web_port || 8080;
         document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
+        document.getElementById('cfg-raw-retention-days').value = config.raw_message_retention_days || 30;
 
         // Signal confirmations
         document.getElementById('cfg-auto-reaction').checked = config.auto_reaction_enabled || false;
