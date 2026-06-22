@@ -172,7 +172,7 @@ Web GUI — "Meddelandehantering"-tab
 
 ### Fas 6 — Pipeline-administrationsmeny *(kan köras parallellt med Fas 5)*
 
-- [ ] **6a. Backend-API för pipelines**
+- [x] **6a. Backend-API för pipelines**
   Nya endpoints för att lista, aktivera/inaktivera och ändra körordning för
   pipelines. Exponera pipeline-metadata (visningsnamn, beskrivning, hur den
   väljer meddelanden, statistik).
@@ -206,6 +206,7 @@ Web GUI — "Meddelandehantering"-tab
 | `oden/processing.py` | Behålls; anropas av GenericTemplatePipeline |
 | `oden/web_server.py` | Registrera nya message-endpoints |
 | `oden/web_handlers/message_handlers.py` | **Ny** — list/detail/stats/reprocess |
+| `oden/web_handlers/pipeline_handlers.py` | **Ny** — list/toggle/reorder för pipelines |
 | `oden/templates/web/dashboard.html` | Ny tab Meddelandehantering |
 | `oden/templates/web/js/dashboard/message_queue.js` | **Ny** — frontend |
 | `oden/templates/web/css/dashboard.css` | Tillägg för ny vy |
@@ -253,3 +254,4 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 5c delvis utökad. Nya tester för retention-cleanup och web-config validering av `raw_message_retention_days`. Full testsvit: 251/251 gröna. |
 | 2026-06-22 | — | Plan uppdaterad med Fas 5d: explicit dokumentationsspår för att synka README och docs med DB-first/multipipeline/7S/retention-implementationen. |
 | 2026-06-22 | — | Fas 5d klar. README och centrala docs (FEATURES, WEB_GUI) uppdaterade för DB-first ingest, multipipeline, 7S, meddelandehantering, retention och nya konfigurationsnycklar. |
+| 2026-06-22 | — | Fas 6a klar. Ny backendmodul `pipeline_handlers.py` med endpoints för list/toggle/reorder (`/api/pipelines*`), kopplad i `web_server.py` och exporterad via `web_handlers/__init__.py`. Nya API-tester i `tests/test_web_api.py` för listing, toggling, reorder och validering av okända pipelines. |
