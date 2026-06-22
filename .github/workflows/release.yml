@@ -5,11 +5,36 @@ on:
     branches: [ main ]
     tags:
       - 'v*'
+  pull_request:
+    branches: [ main ]
+    types: [labeled, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_snapshot:
+        description: 'Run optional PR snapshot pipeline'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name }}-${{ github.ref }}-${{ github.event.pull_request.number || 'no-pr' }}
+  cancel-in-progress: true
 
 jobs:
   # Build macOS DMG with bundled JRE and signal-cli
   # Build x86_64 using Rosetta on Apple Silicon runner - works on both Intel and Apple Silicon Macs
   build-macos:
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pr_snapshot == true) ||
+        (github.event_name == 'pull_request' &&
+         contains(github.event.pull_request.labels.*.name, 'snapshot-release') &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      }}
     runs-on: macos-latest
     permissions:
       contents: read
@@ -17,6 +42,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       # Install x86_64 Python via Rosetta for Intel-compatible build
       - name: Set up x86_64 Python via Rosetta
@@ -38,6 +65,10 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+            echo "VERSION=pr-${PR_NUMBER}-snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
           else
             SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
             echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
@@ -69,7 +100,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: build-dmg/signal-cli
-          key: signal-cli-0.14.5-v1
+          key: signal-cli-0.14.4.1-v1
 
       # Download JRE x64 (for Intel build - works via Rosetta on Apple Silicon)
       - name: Download JRE x64
@@ -88,7 +119,7 @@ jobs:
         if: steps.cache-signal-cli.outputs.cache-hit != 'true'
         run: |
           mkdir -p build-dmg/signal-cli
-          SIGNAL_CLI_VERSION="0.14.5"
+          SIGNAL_CLI_VERSION="0.14.4.1"
           curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
           tar -xzf signal-cli.tar.gz
           mv signal-cli-${SIGNAL_CLI_VERSION}/* build-dmg/signal-cli/
@@ -157,6 +188,14 @@ jobs:
 
   # Build multi-arch Docker image and push to GitHub Container Registry
   build-docker:
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pr_snapshot == true) ||
+        (github.event_name == 'pull_request' &&
+         contains(github.event.pull_request.labels.*.name, 'snapshot-release') &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -165,12 +204,18 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Get version
         id: version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+            echo "VERSION=pr-${PR_NUMBER}-snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
           else
             SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
             echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
@@ -199,8 +244,9 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=snapshot-,enable=${{ !startsWith(github.ref, 'refs/tags/v') }}
-            type=raw,value=snapshot,enable=${{ !startsWith(github.ref, 'refs/tags/v') }}
+            type=sha,prefix=snapshot-,enable=${{ github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/v') }}
+            type=sha,prefix=pr-${{ github.event.pull_request.number }}-snapshot-,enable=${{ github.event_name == 'pull_request' }}
+            type=raw,value=snapshot,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and push Docker image
@@ -216,6 +262,14 @@ jobs:
 
   # Build Windows installer (Inno Setup) with bundled JRE and signal-cli
   build-windows:
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pr_snapshot == true) ||
+        (github.event_name == 'pull_request' &&
+         contains(github.event.pull_request.labels.*.name, 'snapshot-release') &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      }}
     runs-on: windows-latest
     continue-on-error: true
     permissions:
@@ -224,6 +278,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -236,6 +292,10 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+            echo "VERSION=pr-${PR_NUMBER}-snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
           else
             SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
             echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
@@ -269,7 +329,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: build-win/signal-cli
-          key: signal-cli-0.14.5-windows-v1
+          key: signal-cli-0.14.4.1-windows-v1
 
       - name: Download JRE x64
         if: steps.cache-jre-x64-win.outputs.cache-hit != 'true'
@@ -291,7 +351,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path build-win/signal-cli | Out-Null
-          $signalCliVersion = "0.14.5"
+          $signalCliVersion = "0.14.4.1"
           $signalCliUrl = "https://github.com/AsamK/signal-cli/releases/download/v$signalCliVersion/signal-cli-$signalCliVersion.tar.gz"
           Invoke-WebRequest -Uri $signalCliUrl -OutFile signal-cli.tar.gz
           tar -xzf signal-cli.tar.gz -C build-win
@@ -332,6 +392,14 @@ jobs:
 
   # Create release with all artifacts
   release:
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pr_snapshot == true) ||
+        (github.event_name == 'pull_request' &&
+         contains(github.event.pull_request.labels.*.name, 'snapshot-release') &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      }}
     needs: [build-macos, build-docker, build-windows]
     runs-on: ubuntu-latest
     permissions:
@@ -360,10 +428,18 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
             echo "IS_TAG=true" >> $GITHUB_OUTPUT
+            echo "IS_PR=false" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+            echo "VERSION=pr-${PR_NUMBER}-snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+            echo "IS_TAG=false" >> $GITHUB_OUTPUT
+            echo "IS_PR=true" >> $GITHUB_OUTPUT
           else
             SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
             echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
             echo "IS_TAG=false" >> $GITHUB_OUTPUT
+            echo "IS_PR=false" >> $GITHUB_OUTPUT
           fi
 
       - name: List downloaded artifacts
@@ -408,7 +484,7 @@ jobs:
           ls -la release_files/
 
       - name: Delete previous snapshot release
-        if: steps.version.outputs.IS_TAG == 'false'
+        if: steps.version.outputs.IS_TAG == 'false' && steps.version.outputs.IS_PR == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -423,7 +499,7 @@ jobs:
           sleep 5
 
       - name: Create Snapshot Release
-        if: steps.version.outputs.IS_TAG == 'false'
+        if: steps.version.outputs.IS_TAG == 'false' && steps.version.outputs.IS_PR == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -456,6 +532,48 @@ jobs:
             --notes-file /tmp/snapshot_notes.md \
             --prerelease \
             --target ${{ github.sha }} \
+            release_files/*
+
+      - name: Delete previous PR snapshot release
+        if: steps.version.outputs.IS_PR == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          gh release list --limit 50 --json tagName,isPrerelease -q '.[] | select(.isPrerelease and (.tagName | startswith("pr-'"$PR_NUMBER"'-snapshot-"))) | .tagName' | while read -r tag; do
+            echo "Deleting old PR snapshot release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          done
+
+      - name: Create PR Snapshot Release
+        if: steps.version.outputs.IS_PR == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+          TAG="pr-${PR_NUMBER}-snapshot-${SHORT_SHA}"
+          REPO="${{ github.repository }}"
+
+          cat > /tmp/pr_snapshot_notes.md << EOF
+          ## PR Snapshot Build
+
+          Optional snapshot build from pull request #${PR_NUMBER}.
+
+          **PR:** #${PR_NUMBER} - ${PR_TITLE}
+          **Commit:** ${{ github.event.pull_request.head.sha }}
+          **Version:** ${VERSION}
+
+          This pre-release is for PR validation/testing and may be replaced by newer PR snapshots.
+          EOF
+
+          gh release create "$TAG" \
+            --title "PR Snapshot #${PR_NUMBER} (${SHORT_SHA})" \
+            --notes-file /tmp/pr_snapshot_notes.md \
+            --prerelease \
+            --target ${{ github.event.pull_request.head.sha }} \
             release_files/*
 
       - name: Create Versioned Release
