@@ -215,3 +215,4 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 4a klar. Ny backendmodul message_handlers.py med endpoints för list/detalj/stats/reprocess (`/api/messages*`), kopplad i web_server och web_handlers-export. 246/246 tester gröna. |
 | 2026-06-22 | — | Fas 4b + 4c klar. Ny Meddelandehantering-tab i dashboard med listvy, detaljvy, statusbadges, stats och reprocess-knapp. Polling när tabben är aktiv samt filter på status. 246/246 tester gröna. |
 | 2026-06-22 | — | Fas 5 (delsteg) påbörjad: feature-flag `db_first_enabled` tillagd i config_db/config, exponerad i config-API och kopplad i signal_listener som säker fallback till legacy-flödet. 246/246 tester gröna. |
+| 2026-06-22 | — | CI-fix: PR snapshot-pipeline föll i docker arm64-bygget. Rotorsak var ogiltig Python one-liner i Dockerfile (compound `with` efter semikolon). Fixad till kompatibel rad-för-rad-variant i ARM64-injektionssteget för `libsignal_jni.so`. |
