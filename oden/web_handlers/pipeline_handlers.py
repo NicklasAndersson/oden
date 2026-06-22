@@ -16,32 +16,35 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.config_db import set_config_value
-from oden.pipelines.generic_template import GenericTemplatePipeline
+from oden.pipeline_orchestrator import _GenericPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
 logger = logging.getLogger(__name__)
 
+# Static pipeline metadata registry — update when adding new pipelines.
+_AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
+    "seven_s": {
+        "name": SevenSPipeline.name,
+        "display_name": SevenSPipeline.display_name,
+        "description": SevenSPipeline.description,
+        "selection_criteria": SevenSPipeline.selection_criteria,
+        "supports_config": False,
+        "config_schema": None,
+    },
+    "generic_template": {
+        "name": _GenericPipeline.name,
+        "display_name": _GenericPipeline.display_name,
+        "description": _GenericPipeline.description,
+        "selection_criteria": _GenericPipeline.selection_criteria,
+        "supports_config": False,
+        "config_schema": None,
+    },
+}
+
 
 def _get_available_pipelines() -> dict[str, dict[str, Any]]:
-    """Return metadata for all available pipelines."""
-    # Hardcoded pipeline registry
-    # In future, this could be auto-discovered from a registry
-    pipelines = {
-        "seven_s": SevenSPipeline(),
-        "generic_template": GenericTemplatePipeline(),
-    }
-    return {
-        name: {
-            "name": getattr(p, "name", "unknown"),
-            "display_name": getattr(p, "display_name", p.name),
-            "description": getattr(p, "description", ""),
-            "selection_criteria": getattr(p, "selection_criteria", ""),
-            "supports_config": getattr(p, "supports_config", False),
-            "config_schema": getattr(p, "config_schema", None),
-        }
-        for name, p in pipelines.items()
-    }
+    return _AVAILABLE_PIPELINES
 
 
 @handle_errors("listing pipelines")

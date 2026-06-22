@@ -15,8 +15,7 @@ from aiohttp import web
 from oden import __version__
 from oden import config as cfg
 from oden.log_buffer import get_log_buffer
-from oden.web_handlers import (
-    accept_invitation_handler,
+from oden.web_handlers.account_handlers import (
     accounts_activate_handler,
     accounts_delete_handler,
     accounts_devices_handler,
@@ -25,27 +24,45 @@ from oden.web_handlers import (
     accounts_link_handler,
     accounts_link_status_handler,
     accounts_list_handler,
+)
+from oden.web_handlers.config_handlers import (
     config_handler,
     config_reset_handler,
     config_save_handler,
+    signal_config_handler,
+    signal_config_save_handler,
+)
+from oden.web_handlers.contact_handlers import (
     contacts_handler,
     contacts_refresh_handler,
+    update_contact_handler,
+)
+from oden.web_handlers.group_handlers import (
+    accept_invitation_handler,
     decline_invitation_handler,
     groups_handler,
     invitations_handler,
     join_group_handler,
-    list_pipelines,
+    refresh_groups_handler,
+    toggle_ignore_group_handler,
+    toggle_whitelist_group_handler,
+    update_group_handler,
+)
+from oden.web_handlers.message_handlers import (
     message_detail_handler,
     message_reprocess_handler,
     message_stats_handler,
     messages_list_handler,
-    refresh_groups_handler,
-    reorder_pipelines,
+)
+from oden.web_handlers.pipeline_handlers import list_pipelines, reorder_pipelines, toggle_pipeline
+from oden.web_handlers.response_handlers import (
     response_create_handler,
     response_delete_handler,
     response_get_handler,
     response_save_handler,
     responses_list_handler,
+)
+from oden.web_handlers.setup_handlers import (
     setup_cancel_link_handler,
     setup_handler,
     setup_install_obsidian_template_handler,
@@ -57,8 +74,8 @@ from oden.web_handlers import (
     setup_status_handler,
     setup_validate_path_handler,
     setup_verify_code_handler,
-    signal_config_handler,
-    signal_config_save_handler,
+)
+from oden.web_handlers.template_handlers import (
     template_export_handler,
     template_get_handler,
     template_preview_handler,
@@ -66,11 +83,6 @@ from oden.web_handlers import (
     template_save_handler,
     templates_export_all_handler,
     templates_list_handler,
-    toggle_ignore_group_handler,
-    toggle_pipeline,
-    toggle_whitelist_group_handler,
-    update_contact_handler,
-    update_group_handler,
 )
 
 logger = logging.getLogger(__name__)

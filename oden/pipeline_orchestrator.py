@@ -19,7 +19,6 @@ from oden.messages_db import (
     get_message_detail,
     update_message_status,
 )
-from oden.pipelines.generic_template import GenericTemplatePipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.pipelines_db import (
     append_pipeline_event,
@@ -28,8 +27,20 @@ from oden.pipelines_db import (
     skip_pipeline_run,
     start_pipeline_run,
 )
+from oden.processing import process_message
 
 logger = logging.getLogger(__name__)
+
+
+class _GenericPipeline:
+    name = "generic_template"
+    display_name = "Generisk mall-pipeline"
+    description = "Standardflödet som skriver meddelanden till markdown enligt rapport/append-mallar."
+    selection_criteria = "Fallback: körs för alla meddelanden som inte redan hanterats av tidigare pipeline."
+
+    async def run(self, *, msg_data: dict, reader: Any, writer: Any) -> bool:
+        await process_message(msg_data, reader, writer)
+        return True
 
 
 class PipelineOrchestrator:
@@ -37,37 +48,24 @@ class PipelineOrchestrator:
 
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
-        self._seven_s_pipeline = SevenSPipeline()
-        self._generic_pipeline = GenericTemplatePipeline()
+        self._pipeline_map: dict[str, Any] = {
+            "seven_s": SevenSPipeline(),
+            "generic_template": _GenericPipeline(),
+        }
+        self._cached_config: list | None = None
+        self._cached_pipelines: list[Any] = []
 
     def _build_pipelines(self) -> list[Any]:
-        configured = getattr(cfg, "ENABLED_PIPELINES", None)
-        names = [name for name in configured if isinstance(name, str)] if isinstance(configured, list) else []
-
-        if not names:
-            names = ["seven_s", "generic_template"]
-
-        # Generic pipeline is always available as fallback.
-        if "generic_template" not in names:
-            names.append("generic_template")
-
-        pipeline_map = {
-            "seven_s": self._seven_s_pipeline,
-            "generic_template": self._generic_pipeline,
-        }
-
-        selected: list[Any] = []
-        for name in names:
-            pipeline = pipeline_map.get(name)
-            if pipeline is None:
-                logger.warning("Unknown pipeline in enabled_pipelines: %s", name)
-                continue
-            selected.append(pipeline)
-
-        if not selected:
-            selected.append(self._generic_pipeline)
-
-        return selected
+        config: list = cfg.ENABLED_PIPELINES or ["seven_s", "generic_template"]
+        # ponytail: identity check detects cfg.ENABLED_PIPELINES = new_list reassignments
+        if config is not self._cached_config:
+            names = list(config)
+            if "generic_template" not in names:
+                names.append("generic_template")
+            selected = [self._pipeline_map[n] for n in names if n in self._pipeline_map]
+            self._cached_pipelines = selected or [self._pipeline_map["generic_template"]]
+            self._cached_config = config
+        return self._cached_pipelines
 
     async def run_message(
         self,

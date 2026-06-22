@@ -9,12 +9,15 @@ import contextlib
 import json
 import logging
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from oden.time_utils import now_utc_iso_millis
-
 logger = logging.getLogger(__name__)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 # Valid pipeline run statuses
 STATUS_PENDING = "pending"
@@ -43,7 +46,7 @@ def start_pipeline_run(
                 (message_id, pipeline_name, status, started_at)
             VALUES (?, ?, ?, ?)
             """,
-            (message_id, pipeline_name, STATUS_RUNNING, now_utc_iso_millis()),
+            (message_id, pipeline_name, STATUS_RUNNING, _now()),
         )
         conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
@@ -63,7 +66,7 @@ def _finish_run(
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE pipeline_runs SET status = ?, completed_at = ?, output_file = ? WHERE id = ?",
-            (status, now_utc_iso_millis(), output_file, run_id),
+            (status, _now(), output_file, run_id),
         )
         conn.commit()
     finally:
@@ -101,7 +104,7 @@ def fail_pipeline_run(
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE pipeline_runs SET status = ?, completed_at = ?, error_code = ?, error_message = ? WHERE id = ?",
-            (STATUS_FAILED, now_utc_iso_millis(), error_code, error_message, run_id),
+            (STATUS_FAILED, _now(), error_code, error_message, run_id),
         )
         conn.commit()
     finally:
@@ -126,7 +129,7 @@ def append_pipeline_event(
             (
                 run_id,
                 event_type,
-                now_utc_iso_millis(),
+                _now(),
                 json.dumps(details, ensure_ascii=False) if details else None,
             ),
         )

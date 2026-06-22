@@ -11,6 +11,15 @@ from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.pipelines_db import get_events_for_run, get_runs_for_message
 from oden.web_handlers._helpers import handle_errors, require_writer
 
+_orchestrator: PipelineOrchestrator | None = None
+
+
+def _get_orchestrator() -> PipelineOrchestrator:
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
+    return _orchestrator
+
 
 def _get_int_query(request: web.Request, key: str, default: int, minimum: int, maximum: int) -> int:
     value_raw = request.query.get(key)
@@ -86,8 +95,7 @@ async def message_reprocess_handler(request: web.Request) -> web.Response:
     if app_state.reader is None or app_state.writer is None:
         return web.json_response({"success": False, "error": "Inte ansluten till signal-cli"}, status=503)
 
-    orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
-    did_run = await orchestrator.reprocess(
+    did_run = await _get_orchestrator().reprocess(
         message_id=message_id,
         reader=app_state.reader,
         writer=app_state.writer,
