@@ -12,6 +12,12 @@ import time
 from oden import __version__
 from oden.app_state import get_app_state
 from oden.config import DISPLAY_NAME
+from oden.messages_db import (
+    STATUS_QUEUED,
+    create_raw_message,
+    update_message_status,
+)
+from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.processing import process_message
 
 logger = logging.getLogger(__name__)
@@ -261,6 +267,7 @@ async def subscribe_and_listen(host: str, port: int) -> None:
     reader = None
     writer = None
     app_state = get_app_state()
+    orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
     try:
         reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100)  # 100 MB limit
         logger.info("Connection successful. Waiting for messages...")
@@ -302,7 +309,29 @@ async def subscribe_and_listen(host: str, port: int) -> None:
                         logger.debug(f"Skipping message for non-active account: {msg_account}")
                         continue
 
-                    await process_message(msg_data, reader, writer)
+                    message_id: int | None = None
+                    account_for_storage = msg_account or cfg.SIGNAL_NUMBER
+
+                    # Persist-first: store raw, unprocessed payload before any processing.
+                    try:
+                        message_id = create_raw_message(cfg.CONFIG_DB, account_for_storage, msg_data)
+                        update_message_status(cfg.CONFIG_DB, message_id, STATUS_QUEUED)
+                    except Exception as db_error:
+                        logger.error("Could not persist raw message before processing: %r", db_error)
+
+                    try:
+                        if message_id is not None:
+                            await orchestrator.run_message(
+                                message_id=message_id,
+                                msg_data=msg_data,
+                                reader=reader,
+                                writer=writer,
+                            )
+                        else:
+                            # Fallback path if DB persistence failed.
+                            await process_message(msg_data, reader, writer)
+                    except Exception:
+                        raise
                 except Exception as e:
                     logger.error(f"Could not process message.\n  Error: {repr(e)}")
         finally:

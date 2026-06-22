@@ -31,13 +31,20 @@ def _now_utc() -> str:
 def create_raw_message(
     db_path: Path,
     account: str,
-    envelope: dict[str, Any],
+    raw_message: dict[str, Any],
 ) -> int:
     """
-    Persist a raw Signal envelope before any pipeline processing.
+    Persist a raw Signal message before any pipeline processing.
 
     Returns the new row id (message_id).
     """
+    # Incoming payload can be either:
+    # - envelope dict (sourceNumber, dataMessage, ...)
+    # - wrapper dict with {"envelope": {...}, ...}
+    envelope = raw_message.get("envelope") if isinstance(raw_message, dict) else None
+    if not isinstance(envelope, dict):
+        envelope = raw_message
+
     dm = envelope.get("dataMessage") or {}
     group_v2 = dm.get("groupV2") or {}
 
@@ -63,7 +70,7 @@ def create_raw_message(
             (
                 account,
                 ts_utc,
-                json.dumps(envelope, ensure_ascii=False),
+                json.dumps(raw_message, ensure_ascii=False),
                 envelope.get("sourceNumber"),
                 envelope.get("sourceName"),
                 group_v2.get("id"),

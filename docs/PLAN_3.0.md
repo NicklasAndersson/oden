@@ -90,17 +90,17 @@ Web GUI — "Meddelandehantering"-tab
 
 ### Fas 2 — Ingest och orkestrering *(beror på Fas 1)*
 
-- [ ] **2a. Persist-first i signal_listener.py**
+- [x] **2a. Persist-first i signal_listener.py**
   Ändra `subscribe_and_listen()` så att rå payload skrivs till
   `raw_messages` *innan* orkestraren anropas. Om DB-skrivning misslyckas
   loggas felet men ingest stoppas inte.
 
-- [ ] **2b. PipelineOrchestrator (pipeline_orchestrator.py)**
+- [x] **2b. PipelineOrchestrator (pipeline_orchestrator.py)**
   Ny klass som laddar aktiva pipelines, kör dem i ordning per message_id,
   skriver run-status och events till DB, och exponerar
   `reprocess(message_id)` för GUI.
 
-- [ ] **2c. GenericTemplatePipeline (oden/pipelines/generic_template.py)**
+- [x] **2c. GenericTemplatePipeline (oden/pipelines/generic_template.py)**
   Extrahera befintlig logik från `process_message()` till en pipeline-klass.
   Bevarar all semantik: append-regler, command-svar, attachment-hantering,
   template-rendering, filskrivning. `processing.py` anropas av pipeline-klassen.
@@ -209,3 +209,5 @@ Web GUI — "Meddelandehantering"-tab
 |-------|-----|---------|
 | 2026-06-22 | — | Plan skapad. Fas 1–5 definierade. |
 | 2026-06-22 | — | Fas 1 klar. Schema v5-migration, messages_db.py, pipelines_db.py. 240/240 tester gröna. |
+| 2026-06-22 | — | Fas 2a + 2b klar. Persist-first i listener, ny PipelineOrchestrator, pipeline_runs/events skrivs. Hittat/löst: inkommande payload kan vara wrapper med envelope; messages_db normaliserar nu för metadata men sparar hela råobjektet i envelope_raw. Fallback kvar: om DB-persist misslyckas körs befintlig process_message ändå. 240/240 tester gröna. |
+| 2026-06-22 | — | Fas 2c klar. Ny pipeline-package med GenericTemplatePipeline och orchestratorn kör nu pipeline-klassen istället för direktanrop. Hittat/löst: importordning i pipeline_orchestrator.py (ruff I001) och autoformatterad fil. 240/240 tester gröna. |
