@@ -155,7 +155,7 @@ Web GUI — "Meddelandehantering"-tab
   Schemalagd cleanup av `raw_messages` och `pipeline_events` äldre än
   konfigurerbart antal dagar (default 30). Exponeras i GUI under Avancerat.
 
-- [ ] **5c. Testutökning**
+- [x] **5c. Testutökning**
   - Migration-test: uppgradering v4 → v5 utan dataförlust.
   - Ingest-test: payload alltid sparad även om pipeline kraschar.
   - Regressions-test: generisk pipeline producerar identiskt utfall som idag.
@@ -258,3 +258,4 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 5d klar. README och centrala docs (FEATURES, WEB_GUI) uppdaterade för DB-first ingest, multipipeline, 7S, meddelandehantering, retention och nya konfigurationsnycklar. |
 | 2026-06-22 | — | Fas 6b klar. Ny Pipelines-flik i dashboard med visning av aktiva/tillgängliga pipelines, urvalsbeskrivning, aktivera/inaktivera och upp/ner-ordning. Frontend kopplad till `/api/pipelines`, `/api/pipelines/{name}/enabled` och `/api/pipelines/reorder`. |
 | 2026-06-22 | — | Fas 6a klar. Ny backendmodul `pipeline_handlers.py` med endpoints för list/toggle/reorder (`/api/pipelines*`), kopplad i `web_server.py` och exporterad via `web_handlers/__init__.py`. Nya API-tester i `tests/test_web_api.py` för listing, toggling, reorder och validering av okända pipelines. |
+| 2026-06-22 | — | Fas 5c klar. Tillagt migrationstest v4→v5 med databevarande (`tests/test_config_db.py`), orchestrator-tester för pipeline-krasch med bevarad råpayload samt reprocess-idempotens (`tests/test_pipeline_orchestrator.py`), och API-regression för `/api/messages` list/detalj/stats/reprocess (`tests/test_web_api.py`). Riktad testkörning: 62/62 gröna. |

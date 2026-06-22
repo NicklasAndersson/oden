@@ -224,6 +224,90 @@ class TestSchemaVersion(unittest.TestCase):
 
         self.assertIsNotNone(row)
 
+    def test_migration_v4_to_v5_preserves_existing_data(self):
+        import sqlite3
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = Path(f.name)
+        db_path.unlink(missing_ok=True)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL, type TEXT NOT NULL)")
+            cursor.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            cursor.execute(
+                """
+                CREATE TABLE responses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    keywords TEXT NOT NULL,
+                    body TEXT NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE groups (
+                    group_id TEXT NOT NULL,
+                    account TEXT NOT NULL DEFAULT '',
+                    name TEXT NOT NULL,
+                    member_count INTEGER NOT NULL DEFAULT 0,
+                    is_member INTEGER NOT NULL DEFAULT 1,
+                    last_seen TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (group_id, account)
+                )
+                """
+            )
+
+            cursor.execute(
+                "INSERT INTO config (key, value, type) VALUES (?, ?, ?)",
+                ("signal_number", "+46701234567", "str"),
+            )
+            cursor.execute(
+                "INSERT INTO config (key, value, type) VALUES (?, ?, ?)",
+                ("append_window_minutes", "45", "int"),
+            )
+            cursor.execute(
+                "INSERT INTO responses (keywords, body) VALUES (?, ?)",
+                ('["legacy"]', "legacy body"),
+            )
+            cursor.execute(
+                "INSERT INTO groups (group_id, account, name, member_count, is_member, last_seen) VALUES (?, ?, ?, ?, ?, ?)",
+                ("g-1", "+46701234567", "Legacy Group", 3, 1, "2026-01-01T00:00:00Z"),
+            )
+            cursor.execute("INSERT INTO metadata (key, value) VALUES (?, ?)", ("schema_version", "4"))
+            conn.commit()
+        finally:
+            conn.close()
+
+        init_db(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM metadata WHERE key = 'schema_version'")
+            self.assertEqual(cursor.fetchone()[0], "5")
+
+            cursor.execute("SELECT value FROM config WHERE key = 'append_window_minutes'")
+            self.assertEqual(cursor.fetchone()[0], "45")
+
+            cursor.execute("SELECT body FROM responses WHERE keywords = ?", ('["legacy"]',))
+            self.assertEqual(cursor.fetchone()[0], "legacy body")
+
+            cursor.execute("SELECT name, member_count FROM groups WHERE group_id = ? AND account = ?", ("g-1", "+46701234567"))
+            group_row = cursor.fetchone()
+            self.assertEqual(group_row[0], "Legacy Group")
+            self.assertEqual(group_row[1], 3)
+
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('raw_messages', 'pipeline_runs', 'pipeline_events')"
+            )
+            tables = {row[0] for row in cursor.fetchall()}
+            self.assertEqual(tables, {"raw_messages", "pipeline_runs", "pipeline_events"})
+        finally:
+            conn.close()
+            db_path.unlink(missing_ok=True)
+
 
 class TestGroupsCRUD(unittest.TestCase):
     """Test CRUD operations for the groups table."""
