@@ -481,6 +481,7 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 | `signal_cli_host` | string | `127.0.0.1` | signal-cli TCP-värd |
 | `signal_cli_port` | integer | `7583` | signal-cli TCP-port |
 | `signal_cli_log_file` | string | *(ingen)* | Fil för signal-cli stdout/stderr |
+| `diagnostic_mode` | boolean | `False` | Om `True` är signal-cli fil-loggning alltid aktiv (fallback: `~/.oden/signal-cli.log`) |
 | `unmanaged_signal_cli` | boolean | `False` | Om `True`, startar/stoppar Oden inte signal-cli (extern hantering) |
 
 #### Meddelandehantering
@@ -547,6 +548,13 @@ Oden loggar till tre destinationer samtidigt.
 Loggnivån (`log_level`) sparas persistent i en separat `log_level`-fil. Vid första start används `DEBUG` (verbose) tills setup är klar, därefter sparas den konfigurerade nivån.
 
 Tillgängliga nivåer: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
+
+### Diagnostic mode
+
+När `diagnostic_mode` är aktivt loggas signal-cli alltid till fil.
+
+- Om `signal_cli_log_file` är satt används den sökvägen.
+- Om `signal_cli_log_file` inte är satt används fallback-filen `~/.oden/signal-cli.log`.
 
 ---
 

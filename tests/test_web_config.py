@@ -190,6 +190,13 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         self.assertIn("raw_message_retention_days", data)
         self.assertIsInstance(data["raw_message_retention_days"], int)
 
+    async def test_config_returns_diagnostic_mode(self):
+        """Verify /api/config includes diagnostic mode toggle."""
+        resp = await self.client.get("/api/config")
+        data = await resp.json()
+        self.assertIn("diagnostic_mode", data)
+        self.assertIsInstance(data["diagnostic_mode"], bool)
+
     async def test_save_invalid_retention_days_rejected(self):
         """Retention must be an int between 1 and 3650."""
         resp = await self.client.post(
@@ -227,6 +234,22 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         )
         data = await resp.json()
         self.assertTrue(data["success"])
+
+    async def test_save_diagnostic_mode(self):
+        """Verify diagnostic mode can be persisted via /api/config-save."""
+        save_resp = await self.client.post(
+            "/api/config-save",
+            json={
+                "signal_number": "+46700000000",
+                "diagnostic_mode": True,
+            },
+        )
+        save_data = await save_resp.json()
+        self.assertTrue(save_data["success"])
+
+        cfg_resp = await self.client.get("/api/config")
+        cfg_data = await cfg_resp.json()
+        self.assertTrue(cfg_data["diagnostic_mode"])
 
 
 class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):

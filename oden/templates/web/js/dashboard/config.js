@@ -30,6 +30,7 @@ async function loadConfigForm() {
         document.getElementById('cfg-web-port').value = config.web_port || 8080;
         document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
         document.getElementById('cfg-raw-retention-days').value = config.raw_message_retention_days || 30;
+        document.getElementById('cfg-diagnostic-mode').checked = config.diagnostic_mode || false;
 
         // Signal confirmations
         document.getElementById('cfg-auto-reaction').checked = config.auto_reaction_enabled || false;

@@ -249,7 +249,7 @@ def reload_config() -> dict:
     global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, REGEX_PATTERNS
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
-    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, LOG_FILE
+    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, DIAGNOSTIC_MODE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
     global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
     global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS
@@ -283,6 +283,7 @@ def reload_config() -> dict:
     PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
     FILENAME_FORMAT = app_config.get("filename_format", "classic")
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
+    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
     LOG_LEVEL = app_config["log_level"]
     LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
@@ -447,6 +448,7 @@ try:
     PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
     FILENAME_FORMAT = app_config.get("filename_format", "classic")
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
+    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
     LOG_LEVEL = app_config.get("log_level", logging.INFO)
     LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
@@ -480,6 +482,7 @@ except Exception as e:
     PLUS_PLUS_ENABLED = False
     FILENAME_FORMAT = "classic"
     SIGNAL_CLI_LOG_FILE = None
+    DIAGNOSTIC_MODE = False
     LOG_LEVEL = logging.INFO
     LOG_FILE = str(get_default_log_path())
     WEB_ENABLED = True

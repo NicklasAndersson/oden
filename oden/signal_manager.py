@@ -125,6 +125,19 @@ def get_signal_cli_env() -> dict:
     return env
 
 
+def get_effective_signal_cli_log_file() -> Path | None:
+    """Resolve the signal-cli log file path for the current runtime.
+
+    In diagnostic mode, signal-cli logging is always enabled and falls back
+    to a stable file in ODEN_HOME when no explicit path is configured.
+    """
+    if cfg.SIGNAL_CLI_LOG_FILE:
+        return Path(cfg.SIGNAL_CLI_LOG_FILE).expanduser()
+    if cfg.DIAGNOSTIC_MODE:
+        return cfg.ODEN_HOME / "signal-cli.log"
+    return None
+
+
 def get_process_creationflags() -> int:
     """Return platform-appropriate subprocess creation flags."""
     if sys.platform != "win32":
@@ -256,14 +269,16 @@ class SignalManager:
 
         logger.info(f"Starting signal-cli: {' '.join(command)}")
 
-        if cfg.SIGNAL_CLI_LOG_FILE:
+        log_file = get_effective_signal_cli_log_file()
+        if log_file:
             try:
-                self.log_file_handle = open(cfg.SIGNAL_CLI_LOG_FILE, "a")  # noqa: SIM115
+                log_file.parent.mkdir(parents=True, exist_ok=True)
+                self.log_file_handle = open(log_file, "a")  # noqa: SIM115
                 stdout_target = self.log_file_handle
                 stderr_target = self.log_file_handle
-                logger.info(f"Redirecting signal-cli output to {cfg.SIGNAL_CLI_LOG_FILE}")
+                logger.info("Redirecting signal-cli output to %s", log_file)
             except OSError as e:
-                logger.warning(f"Could not open log file {cfg.SIGNAL_CLI_LOG_FILE}: {e}. Logging to stderr.")
+                logger.warning("Could not open log file %s: %s. Logging to stderr.", log_file, e)
                 stdout_target = subprocess.PIPE
                 stderr_target = subprocess.PIPE
         else:
