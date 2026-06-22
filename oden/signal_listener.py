@@ -13,6 +13,7 @@ from oden import __version__
 from oden.app_state import get_app_state
 from oden.config import DISPLAY_NAME
 from oden.messages_db import (
+    STATUS_IGNORED,
     STATUS_QUEUED,
     create_raw_message,
     update_message_status,
@@ -315,6 +316,25 @@ async def subscribe_and_listen(host: str, port: int) -> None:
 
                     message_id: int | None = None
                     account_for_storage = msg_account or cfg.SIGNAL_NUMBER
+
+                    # signal-cli exception envelopes: decryption failures, missing session keys, etc.
+                    # These carry no message content — log them and skip processing.
+                    signal_exc = msg_data.get("exception")
+                    if signal_exc:
+                        exc_type = signal_exc.get("type", "Unknown")
+                        exc_msg = signal_exc.get("message", "")
+                        logger.warning(
+                            "signal-cli exception envelope — inget meddelande sparas. [%s] %s",
+                            exc_type,
+                            exc_msg,
+                        )
+                        if cfg.DB_FIRST_ENABLED:
+                            try:
+                                exc_id = create_raw_message(cfg.CONFIG_DB, account_for_storage, msg_data)
+                                update_message_status(cfg.CONFIG_DB, exc_id, STATUS_IGNORED)
+                            except Exception:
+                                pass
+                        continue
 
                     if not cfg.DB_FIRST_ENABLED:
                         await process_message(msg_data, reader, writer)
