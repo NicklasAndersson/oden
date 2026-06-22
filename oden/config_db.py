@@ -196,8 +196,61 @@ def init_db(db_path: Path) -> None:
                 )
                 cursor.execute("DROP TABLE groups_old")
 
+        # Migration to schema version 5: add raw_messages, pipeline_runs, pipeline_events
+        if current_version < 5:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS raw_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account TEXT NOT NULL,
+                    timestamp_utc TEXT NOT NULL,
+                    envelope_raw TEXT NOT NULL,
+                    source_number TEXT,
+                    source_name TEXT,
+                    group_id TEXT,
+                    group_name TEXT,
+                    message_body TEXT,
+                    has_attachments INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'received',
+                    status_timestamp TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                )
+            """)
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_raw_messages_account_ts ON raw_messages(account, timestamp_utc DESC)"
+            )
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_raw_messages_status ON raw_messages(status)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pipeline_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_id INTEGER NOT NULL,
+                    pipeline_name TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    started_at TEXT,
+                    completed_at TEXT,
+                    output_file TEXT,
+                    error_code TEXT,
+                    error_message TEXT,
+                    FOREIGN KEY (message_id) REFERENCES raw_messages(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pipeline_runs_message_id ON pipeline_runs(message_id)")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_pipeline_runs_status ON pipeline_runs(pipeline_name, status)"
+            )
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pipeline_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id INTEGER NOT NULL,
+                    event_type TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+                    details TEXT,
+                    FOREIGN KEY (run_id) REFERENCES pipeline_runs(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pipeline_events_run_id ON pipeline_events(run_id)")
+
         # Store current schema version (never downgrade)
-        latest_version = max(current_version, 4)
+        latest_version = max(current_version, 5)
         cursor.execute(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
             ("schema_version", str(latest_version)),

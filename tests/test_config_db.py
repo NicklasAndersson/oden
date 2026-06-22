@@ -151,9 +151,9 @@ class TestResponsesCRUD(unittest.TestCase):
 
 
 class TestSchemaVersion(unittest.TestCase):
-    """Test that schema migration bumps version to 4."""
+    """Test that schema migration bumps version to 5."""
 
-    def test_schema_version_is_4(self):
+    def test_schema_version_is_5(self):
         import sqlite3
 
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -168,7 +168,27 @@ class TestSchemaVersion(unittest.TestCase):
         conn.close()
         db_path.unlink(missing_ok=True)
 
-        self.assertEqual(row[0], "4")
+        self.assertEqual(row[0], "5")
+
+    def test_raw_messages_table_exists(self):
+        import sqlite3
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = Path(f.name)
+        db_path.unlink(missing_ok=True)
+        init_db(db_path)
+
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN"
+            " ('raw_messages', 'pipeline_runs', 'pipeline_events')"
+        )
+        tables = {row[0] for row in cursor.fetchall()}
+        conn.close()
+        db_path.unlink(missing_ok=True)
+
+        self.assertEqual(tables, {"raw_messages", "pipeline_runs", "pipeline_events"})
 
     def test_responses_table_exists(self):
         import sqlite3
