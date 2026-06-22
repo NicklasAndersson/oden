@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from oden.time_utils import now_utc_iso_millis
+
 logger = logging.getLogger(__name__)
 
 # Valid message statuses
@@ -22,10 +24,6 @@ STATUS_PROCESSING = "processing"
 STATUS_PROCESSED = "processed"
 STATUS_FAILED = "failed"
 STATUS_IGNORED = "ignored"
-
-
-def _now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def create_raw_message(
@@ -52,7 +50,7 @@ def create_raw_message(
     if ts_ms:
         ts_utc = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     else:
-        ts_utc = _now_utc()
+        ts_utc = now_utc_iso_millis()
 
     attachments = dm.get("attachments") or []
 
@@ -78,7 +76,7 @@ def create_raw_message(
                 dm.get("message"),
                 1 if attachments else 0,
                 STATUS_RECEIVED,
-                _now_utc(),
+                now_utc_iso_millis(),
             ),
         )
         conn.commit()
@@ -101,12 +99,12 @@ def update_message_status(
         if group_name is not None:
             cursor.execute(
                 "UPDATE raw_messages SET status = ?, status_timestamp = ?, group_name = ? WHERE id = ?",
-                (status, _now_utc(), group_name, message_id),
+                (status, now_utc_iso_millis(), group_name, message_id),
             )
         else:
             cursor.execute(
                 "UPDATE raw_messages SET status = ?, status_timestamp = ? WHERE id = ?",
-                (status, _now_utc(), message_id),
+                (status, now_utc_iso_millis(), message_id),
             )
         conn.commit()
     finally:

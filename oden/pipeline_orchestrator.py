@@ -40,7 +40,7 @@ class PipelineOrchestrator:
         self._seven_s_pipeline = SevenSPipeline()
         self._generic_pipeline = GenericTemplatePipeline()
 
-    def _get_enabled_pipeline_names(self) -> list[str]:
+    def _build_pipelines(self) -> list[Any]:
         configured = getattr(cfg, "ENABLED_PIPELINES", None)
         names = [name for name in configured if isinstance(name, str)] if isinstance(configured, list) else []
 
@@ -51,16 +51,13 @@ class PipelineOrchestrator:
         if "generic_template" not in names:
             names.append("generic_template")
 
-        return names
-
-    def _build_pipelines(self) -> list[Any]:
         pipeline_map = {
             "seven_s": self._seven_s_pipeline,
             "generic_template": self._generic_pipeline,
         }
 
         selected: list[Any] = []
-        for name in self._get_enabled_pipeline_names():
+        for name in names:
             pipeline = pipeline_map.get(name)
             if pipeline is None:
                 logger.warning("Unknown pipeline in enabled_pipelines: %s", name)

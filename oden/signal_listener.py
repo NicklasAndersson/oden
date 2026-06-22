@@ -347,37 +347,34 @@ async def subscribe_and_listen(host: str, port: int) -> None:
                     except Exception as db_error:
                         logger.error("Could not persist raw message before processing: %r", db_error)
 
-                    try:
-                        if message_id is not None:
-                            await orchestrator.run_message(
-                                message_id=message_id,
-                                msg_data=msg_data,
-                                reader=reader,
-                                writer=writer,
-                            )
+                    if message_id is not None:
+                        await orchestrator.run_message(
+                            message_id=message_id,
+                            msg_data=msg_data,
+                            reader=reader,
+                            writer=writer,
+                        )
 
-                            now_ts = time.monotonic()
-                            if now_ts - last_retention_cleanup_ts >= RETENTION_CLEANUP_INTERVAL_SECONDS:
-                                summary = cleanup_old_data(cfg.CONFIG_DB, cfg.RAW_MESSAGE_RETENTION_DAYS)
-                                total_deleted = (
-                                    summary["deleted_raw_messages"]
-                                    + summary["deleted_pipeline_runs"]
-                                    + summary["deleted_pipeline_events"]
+                        now_ts = time.monotonic()
+                        if now_ts - last_retention_cleanup_ts >= RETENTION_CLEANUP_INTERVAL_SECONDS:
+                            summary = cleanup_old_data(cfg.CONFIG_DB, cfg.RAW_MESSAGE_RETENTION_DAYS)
+                            total_deleted = (
+                                summary["deleted_raw_messages"]
+                                + summary["deleted_pipeline_runs"]
+                                + summary["deleted_pipeline_events"]
+                            )
+                            if total_deleted:
+                                logger.info(
+                                    "Retention cleanup removed raw=%d runs=%d events=%d (days=%d)",
+                                    summary["deleted_raw_messages"],
+                                    summary["deleted_pipeline_runs"],
+                                    summary["deleted_pipeline_events"],
+                                    summary["retention_days"],
                                 )
-                                if total_deleted:
-                                    logger.info(
-                                        "Retention cleanup removed raw=%d runs=%d events=%d (days=%d)",
-                                        summary["deleted_raw_messages"],
-                                        summary["deleted_pipeline_runs"],
-                                        summary["deleted_pipeline_events"],
-                                        summary["retention_days"],
-                                    )
-                                last_retention_cleanup_ts = now_ts
-                        else:
-                            # Fallback path if DB persistence failed.
-                            await process_message(msg_data, reader, writer)
-                    except Exception:
-                        raise
+                            last_retention_cleanup_ts = now_ts
+                    else:
+                        # Fallback path if DB persistence failed.
+                        await process_message(msg_data, reader, writer)
                 except Exception as e:
                     logger.error(f"Could not process message.\n  Error: {repr(e)}")
         finally:

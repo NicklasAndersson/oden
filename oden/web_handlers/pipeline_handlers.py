@@ -8,7 +8,6 @@ Endpoints:
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 from typing import Any
@@ -19,21 +18,9 @@ from oden import config as cfg
 from oden.config_db import set_config_value
 from oden.pipelines.generic_template import GenericTemplatePipeline
 from oden.pipelines.seven_s import SevenSPipeline
+from oden.web_handlers._helpers import handle_errors, parse_json_body
 
 logger = logging.getLogger(__name__)
-
-
-def _get_pipeline_metadata(pipeline: Any) -> dict[str, Any]:
-    """Extract metadata from a pipeline instance."""
-    metadata = {
-        "name": getattr(pipeline, "name", "unknown"),
-        "display_name": getattr(pipeline, "display_name", pipeline.name),
-        "description": getattr(pipeline, "description", ""),
-        "selection_criteria": getattr(pipeline, "selection_criteria", ""),
-        "supports_config": getattr(pipeline, "supports_config", False),
-        "config_schema": getattr(pipeline, "config_schema", None),
-    }
-    return metadata
 
 
 def _get_available_pipelines() -> dict[str, dict[str, Any]]:
@@ -44,9 +31,20 @@ def _get_available_pipelines() -> dict[str, dict[str, Any]]:
         "seven_s": SevenSPipeline(),
         "generic_template": GenericTemplatePipeline(),
     }
-    return {name: _get_pipeline_metadata(p) for name, p in pipelines.items()}
+    return {
+        name: {
+            "name": getattr(p, "name", "unknown"),
+            "display_name": getattr(p, "display_name", p.name),
+            "description": getattr(p, "description", ""),
+            "selection_criteria": getattr(p, "selection_criteria", ""),
+            "supports_config": getattr(p, "supports_config", False),
+            "config_schema": getattr(p, "config_schema", None),
+        }
+        for name, p in pipelines.items()
+    }
 
 
+@handle_errors("listing pipelines")
 async def list_pipelines(request: web.Request) -> web.Response:
     """List all available and enabled pipelines.
 
@@ -83,39 +81,34 @@ async def list_pipelines(request: web.Request) -> web.Response:
       }
     }
     """
-    try:
-        available = _get_available_pipelines()
+    available = _get_available_pipelines()
 
-        # Get enabled pipelines from config
-        enabled_list: list[str] = cfg.ENABLED_PIPELINES or ["generic_template"]
-        enabled_pipelines = [
-            {
-                "order": i + 1,
-                "name": name,
-                "enabled": True,
-                "config": {},
-            }
-            for i, name in enumerate(enabled_list)
-        ]
+    # Get enabled pipelines from config
+    enabled_list: list[str] = cfg.ENABLED_PIPELINES or ["generic_template"]
+    enabled_pipelines = [
+        {
+            "order": i + 1,
+            "name": name,
+            "enabled": True,
+            "config": {},
+        }
+        for i, name in enumerate(enabled_list)
+    ]
 
-        # Get statistics from database
-        stats = _get_pipeline_stats()
+    # Get statistics from database
+    stats = _get_pipeline_stats()
 
-        return web.json_response(
-            {
-                "available": list(available.values()),
-                "enabled": enabled_pipelines,
-                "stats": stats,
-            }
-        )
-    except Exception as e:
-        logger.error("Error listing pipelines: %s", e)
-        return web.json_response(
-            {"error": "Failed to list pipelines"},
-            status=500,
-        )
+    return web.json_response(
+        {
+            "available": list(available.values()),
+            "enabled": enabled_pipelines,
+            "stats": stats,
+        }
+    )
 
 
+@handle_errors("toggling pipeline")
+@parse_json_body
 async def toggle_pipeline(request: web.Request) -> web.Response:
     """Enable or disable a specific pipeline.
 
@@ -132,52 +125,47 @@ async def toggle_pipeline(request: web.Request) -> web.Response:
       "updated_list": ["seven_s", "generic_template"]
     }
     """
-    try:
-        pipeline_name = request.match_info.get("name", "")
-        if not pipeline_name:
-            return web.json_response(
-                {"error": "Pipeline name required"},
-                status=400,
-            )
-
-        data = await request.json()
-        enabled = data.get("enabled", False)
-
-        # Get current enabled list
-        current_list: list[str] = cfg.ENABLED_PIPELINES or ["generic_template"]
-
-        # Update list
-        if enabled and pipeline_name not in current_list:
-            current_list.append(pipeline_name)
-        elif not enabled and pipeline_name in current_list:
-            current_list.remove(pipeline_name)
-
-        # Ensure generic_template is always present as fallback
-        if "generic_template" not in current_list:
-            current_list.append("generic_template")
-
-        # Save to config
-        set_config_value(cfg.CONFIG_DB, "enabled_pipelines", current_list)
-
-        # Update in-memory config
-        cfg.ENABLED_PIPELINES = current_list
-
-        logger.info("Pipeline %s %s", pipeline_name, "enabled" if enabled else "disabled")
-
+    pipeline_name = request.match_info.get("name", "")
+    if not pipeline_name:
         return web.json_response(
-            {
-                "success": True,
-                "updated_list": current_list,
-            }
-        )
-    except Exception as e:
-        logger.error("Error toggling pipeline: %s", e)
-        return web.json_response(
-            {"error": "Failed to update pipeline"},
-            status=500,
+            {"error": "Pipeline name required"},
+            status=400,
         )
 
+    data = request["json_body"]
+    enabled = data.get("enabled", False)
 
+    # Get current enabled list
+    current_list: list[str] = cfg.ENABLED_PIPELINES or ["generic_template"]
+
+    # Update list
+    if enabled and pipeline_name not in current_list:
+        current_list.append(pipeline_name)
+    elif not enabled and pipeline_name in current_list:
+        current_list.remove(pipeline_name)
+
+    # Ensure generic_template is always present as fallback
+    if "generic_template" not in current_list:
+        current_list.append("generic_template")
+
+    # Save to config
+    set_config_value(cfg.CONFIG_DB, "enabled_pipelines", current_list)
+
+    # Update in-memory config
+    cfg.ENABLED_PIPELINES = current_list
+
+    logger.info("Pipeline %s %s", pipeline_name, "enabled" if enabled else "disabled")
+
+    return web.json_response(
+        {
+            "success": True,
+            "updated_list": current_list,
+        }
+    )
+
+
+@handle_errors("reordering pipelines")
+@parse_json_body
 async def reorder_pipelines(request: web.Request) -> web.Response:
     """Change the execution order of pipelines.
 
@@ -194,54 +182,42 @@ async def reorder_pipelines(request: web.Request) -> web.Response:
       "updated_list": ["generic_template", "seven_s"]
     }
     """
-    try:
-        data = await request.json()
-        new_order: list[str] = data.get("order", [])
+    data = request["json_body"]
+    new_order: list[str] = data.get("order", [])
 
-        if not isinstance(new_order, list):
+    if not isinstance(new_order, list):
+        return web.json_response(
+            {"error": "order must be a list"},
+            status=400,
+        )
+
+    # Validate all names are valid pipelines
+    available = _get_available_pipelines()
+    for name in new_order:
+        if name not in available:
             return web.json_response(
-                {"error": "order must be a list"},
+                {"error": f"Unknown pipeline: {name}"},
                 status=400,
             )
 
-        # Validate all names are valid pipelines
-        available = _get_available_pipelines()
-        for name in new_order:
-            if name not in available:
-                return web.json_response(
-                    {"error": f"Unknown pipeline: {name}"},
-                    status=400,
-                )
+    # Ensure generic_template is present
+    if "generic_template" not in new_order:
+        new_order.append("generic_template")
 
-        # Ensure generic_template is present
-        if "generic_template" not in new_order:
-            new_order.append("generic_template")
+    # Save to config
+    set_config_value(cfg.CONFIG_DB, "enabled_pipelines", new_order)
 
-        # Save to config
-        set_config_value(cfg.CONFIG_DB, "enabled_pipelines", new_order)
+    # Update in-memory config
+    cfg.ENABLED_PIPELINES = new_order
 
-        # Update in-memory config
-        cfg.ENABLED_PIPELINES = new_order
+    logger.info("Pipeline order changed to: %s", new_order)
 
-        logger.info("Pipeline order changed to: %s", new_order)
-
-        return web.json_response(
-            {
-                "success": True,
-                "updated_list": new_order,
-            }
-        )
-    except json.JSONDecodeError:
-        return web.json_response(
-            {"error": "Invalid JSON"},
-            status=400,
-        )
-    except Exception as e:
-        logger.error("Error reordering pipelines: %s", e)
-        return web.json_response(
-            {"error": "Failed to reorder pipelines"},
-            status=500,
-        )
+    return web.json_response(
+        {
+            "success": True,
+            "updated_list": new_order,
+        }
+    )
 
 
 def _get_pipeline_stats() -> dict[str, Any]:

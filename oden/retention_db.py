@@ -32,46 +32,28 @@ def cleanup_old_data(db_path: Path, retention_days: int) -> dict[str, int]:
         cursor = conn.cursor()
         cursor.execute("BEGIN")
 
-        # First remove pipeline events that are old on their own.
-        cursor.execute("DELETE FROM pipeline_events WHERE occurred_at < ?", (cutoff,))
-        deleted_events_by_age = cursor.rowcount
-
-        # Then remove runs/messages by raw message age to avoid orphaned rows.
-        cursor.execute("SELECT id FROM raw_messages WHERE created_at < ?", (cutoff,))
-        old_message_ids = [row[0] for row in cursor.fetchall()]
-
-        deleted_runs = 0
-        deleted_events_for_runs = 0
-        deleted_messages = 0
-
-        if old_message_ids:
-            placeholders = ",".join("?" for _ in old_message_ids)
-
-            cursor.execute(
-                f"SELECT id FROM pipeline_runs WHERE message_id IN ({placeholders})",
-                old_message_ids,
-            )
-            run_ids = [row[0] for row in cursor.fetchall()]
-
-            if run_ids:
-                run_placeholders = ",".join("?" for _ in run_ids)
-                cursor.execute(
-                    f"DELETE FROM pipeline_events WHERE run_id IN ({run_placeholders})",
-                    run_ids,
+        cursor.execute(
+            """
+            DELETE FROM pipeline_events
+            WHERE run_id IN (
+                SELECT id FROM pipeline_runs
+                WHERE message_id IN (
+                    SELECT id FROM raw_messages WHERE created_at < ?
                 )
-                deleted_events_for_runs = cursor.rowcount
-
-            cursor.execute(
-                f"DELETE FROM pipeline_runs WHERE message_id IN ({placeholders})",
-                old_message_ids,
             )
-            deleted_runs = cursor.rowcount
+            """,
+            (cutoff,),
+        )
+        deleted_events = cursor.rowcount
 
-            cursor.execute(
-                f"DELETE FROM raw_messages WHERE id IN ({placeholders})",
-                old_message_ids,
-            )
-            deleted_messages = cursor.rowcount
+        cursor.execute(
+            "DELETE FROM pipeline_runs WHERE message_id IN (SELECT id FROM raw_messages WHERE created_at < ?)",
+            (cutoff,),
+        )
+        deleted_runs = cursor.rowcount
+
+        cursor.execute("DELETE FROM raw_messages WHERE created_at < ?", (cutoff,))
+        deleted_messages = cursor.rowcount
 
         conn.commit()
 
@@ -79,7 +61,7 @@ def cleanup_old_data(db_path: Path, retention_days: int) -> dict[str, int]:
             "retention_days": retention_days,
             "deleted_raw_messages": deleted_messages,
             "deleted_pipeline_runs": deleted_runs,
-            "deleted_pipeline_events": deleted_events_by_age + deleted_events_for_runs,
+            "deleted_pipeline_events": deleted_events,
         }
     except Exception:
         conn.rollback()

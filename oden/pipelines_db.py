@@ -9,9 +9,10 @@ import contextlib
 import json
 import logging
 import sqlite3
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from oden.time_utils import now_utc_iso_millis
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,6 @@ STATUS_RUNNING = "running"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
 STATUS_SKIPPED = "skipped"
-
-
-def _now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def start_pipeline_run(
@@ -46,10 +43,29 @@ def start_pipeline_run(
                 (message_id, pipeline_name, status, started_at)
             VALUES (?, ?, ?, ?)
             """,
-            (message_id, pipeline_name, STATUS_RUNNING, _now_utc()),
+            (message_id, pipeline_name, STATUS_RUNNING, now_utc_iso_millis()),
         )
         conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
+    finally:
+        conn.close()
+
+
+def _finish_run(
+    db_path: Path,
+    run_id: int,
+    status: str,
+    *,
+    output_file: str | None = None,
+) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE pipeline_runs SET status = ?, completed_at = ?, output_file = ? WHERE id = ?",
+            (status, now_utc_iso_millis(), output_file, run_id),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -61,16 +77,7 @@ def complete_pipeline_run(
     output_file: str | None = None,
 ) -> None:
     """Mark a pipeline run as successfully done."""
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE pipeline_runs SET status = ?, completed_at = ?, output_file = ? WHERE id = ?",
-            (STATUS_DONE, _now_utc(), output_file, run_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+    _finish_run(db_path, run_id, STATUS_DONE, output_file=output_file)
 
 
 def skip_pipeline_run(
@@ -78,16 +85,7 @@ def skip_pipeline_run(
     run_id: int,
 ) -> None:
     """Mark a pipeline run as skipped (message did not match this pipeline)."""
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE pipeline_runs SET status = ?, completed_at = ? WHERE id = ?",
-            (STATUS_SKIPPED, _now_utc(), run_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+    _finish_run(db_path, run_id, STATUS_SKIPPED)
 
 
 def fail_pipeline_run(
@@ -103,7 +101,7 @@ def fail_pipeline_run(
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE pipeline_runs SET status = ?, completed_at = ?, error_code = ?, error_message = ? WHERE id = ?",
-            (STATUS_FAILED, _now_utc(), error_code, error_message, run_id),
+            (STATUS_FAILED, now_utc_iso_millis(), error_code, error_message, run_id),
         )
         conn.commit()
     finally:
@@ -128,7 +126,7 @@ def append_pipeline_event(
             (
                 run_id,
                 event_type,
-                _now_utc(),
+                now_utc_iso_millis(),
                 json.dumps(details, ensure_ascii=False) if details else None,
             ),
         )
