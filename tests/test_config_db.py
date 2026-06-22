@@ -294,7 +294,9 @@ class TestSchemaVersion(unittest.TestCase):
             cursor.execute("SELECT body FROM responses WHERE keywords = ?", ('["legacy"]',))
             self.assertEqual(cursor.fetchone()[0], "legacy body")
 
-            cursor.execute("SELECT name, member_count FROM groups WHERE group_id = ? AND account = ?", ("g-1", "+46701234567"))
+            cursor.execute(
+                "SELECT name, member_count FROM groups WHERE group_id = ? AND account = ?", ("g-1", "+46701234567")
+            )
             group_row = cursor.fetchone()
             self.assertEqual(group_row[0], "Legacy Group")
             self.assertEqual(group_row[1], 3)

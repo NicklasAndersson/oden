@@ -256,9 +256,7 @@ def _get_pipeline_stats() -> dict[str, Any]:
             cursor = conn.cursor()
 
             # Total processed messages
-            cursor.execute(
-                "SELECT COUNT(*) FROM raw_messages WHERE status IN ('processed', 'failed', 'ignored')"
-            )
+            cursor.execute("SELECT COUNT(*) FROM raw_messages WHERE status IN ('processed', 'failed', 'ignored')")
             total_processed = cursor.fetchone()[0] or 0
 
             # By pipeline

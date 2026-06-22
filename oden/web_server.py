@@ -180,7 +180,6 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_patch("/api/pipelines/{name}/enabled", toggle_pipeline)
         app.router.add_post("/api/pipelines/reorder", reorder_pipelines)
 
-
         # Contact routes
         app.router.add_get("/api/contacts", contacts_handler)
         app.router.add_post("/api/contacts/refresh", contacts_refresh_handler)
