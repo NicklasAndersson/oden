@@ -220,6 +220,7 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - **Visa alla grupper** kontot är med i
 - **Ignorera grupper** direkt från GUI (klicka "Ignorera")
 - **Whitelist-grupper** direkt från GUI (klicka "Whitelist" – om satt sparas endast dessa grupper)
+- **Pipelines** - Hantera aktiva pipelines, urvalslogik, på/av och körordning
 - **Template-editor** - Redigera rapportmallar med live-förhandsvisning
 - **Stäng av Oden** - Shutdown-knapp i GUI
 

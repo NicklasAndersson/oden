@@ -269,12 +269,9 @@ Pipelines förväntas:
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
-| GET | `/api/pipelines` | Lista alla tillgängliga pipelines |
-| GET | `/api/pipelines/{name}` | Detaljer för en pipeline |
+| GET | `/api/pipelines` | Lista tillgängliga pipelines, aktiva pipelines och körningsstatistik |
 | POST | `/api/pipelines/reorder` | Ändra exekveringsordning |
 | PATCH | `/api/pipelines/{name}/enabled` | Aktivera/deaktivera pipeline |
-
-*Kommande i nästa iteration*
 
 ---
 
