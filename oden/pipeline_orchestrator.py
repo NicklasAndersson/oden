@@ -7,7 +7,6 @@ pipeline while recording pipeline run status and events in SQLite.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -33,33 +32,6 @@ from oden.processing import process_message
 logger = logging.getLogger(__name__)
 
 
-def _normalize_enabled_pipeline_names(value: Any) -> list[str]:
-    names: list[str] = []
-
-    if isinstance(value, list):
-        names = [name for name in value if isinstance(name, str) and name]
-    elif isinstance(value, str):
-        raw = value.strip()
-        if raw:
-            try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError:
-                parsed = None
-
-            if isinstance(parsed, list):
-                names = [name for name in parsed if isinstance(name, str) and name]
-            else:
-                names = [name.strip() for name in raw.split(",") if name.strip()]
-
-    if not names:
-        names = ["seven_s", "generic_template"]
-
-    if "generic_template" not in names:
-        names.append("generic_template")
-
-    return list(dict.fromkeys(names))
-
-
 class _GenericPipeline:
     name = "generic_template"
     display_name = "Generisk mall-pipeline"
@@ -80,17 +52,19 @@ class PipelineOrchestrator:
             "seven_s": SevenSPipeline(),
             "generic_template": _GenericPipeline(),
         }
-        self._cached_pipeline_key: tuple[str, ...] | None = None
+        self._cached_config: list | None = None
         self._cached_pipelines: list[Any] = []
 
     def _build_pipelines(self) -> list[Any]:
-        names = _normalize_enabled_pipeline_names(cfg.ENABLED_PIPELINES)
-        key = tuple(names)
-
-        if key != self._cached_pipeline_key:
+        config: list = cfg.ENABLED_PIPELINES or ["seven_s", "generic_template"]
+        # ponytail: identity check detects cfg.ENABLED_PIPELINES = new_list reassignments
+        if config is not self._cached_config:
+            names = list(config)
+            if "generic_template" not in names:
+                names.append("generic_template")
             selected = [self._pipeline_map[n] for n in names if n in self._pipeline_map]
             self._cached_pipelines = selected or [self._pipeline_map["generic_template"]]
-            self._cached_pipeline_key = key
+            self._cached_config = config
         return self._cached_pipelines
 
     async def run_message(

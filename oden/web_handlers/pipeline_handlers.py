@@ -8,7 +8,6 @@ Endpoints:
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 from typing import Any
@@ -46,34 +45,6 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
 
 def _get_available_pipelines() -> dict[str, dict[str, Any]]:
     return _AVAILABLE_PIPELINES
-
-
-def _normalize_enabled_pipeline_names(value: Any) -> list[str]:
-    names: list[str] = []
-
-    if isinstance(value, list):
-        names = [name for name in value if isinstance(name, str) and name]
-    elif isinstance(value, str):
-        raw = value.strip()
-        if raw:
-            try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError:
-                parsed = None
-
-            if isinstance(parsed, list):
-                names = [name for name in parsed if isinstance(name, str) and name]
-            else:
-                names = [name.strip() for name in raw.split(",") if name.strip()]
-
-    if not names:
-        names = ["generic_template"]
-
-    if "generic_template" not in names:
-        names.append("generic_template")
-
-    # Keep order but remove duplicates
-    return list(dict.fromkeys(names))
 
 
 @handle_errors("listing pipelines")
@@ -116,7 +87,7 @@ async def list_pipelines(request: web.Request) -> web.Response:
     available = _get_available_pipelines()
 
     # Get enabled pipelines from config
-    enabled_list = _normalize_enabled_pipeline_names(cfg.ENABLED_PIPELINES)
+    enabled_list: list[str] = cfg.ENABLED_PIPELINES or ["generic_template"]
     enabled_pipelines = [
         {
             "order": i + 1,
@@ -168,7 +139,7 @@ async def toggle_pipeline(request: web.Request) -> web.Response:
     enabled = data.get("enabled", False)
 
     # Get current enabled list
-    current_list = _normalize_enabled_pipeline_names(cfg.ENABLED_PIPELINES)
+    current_list: list[str] = cfg.ENABLED_PIPELINES or ["generic_template"]
 
     # Update list
     if enabled and pipeline_name not in current_list:
