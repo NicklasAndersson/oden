@@ -131,7 +131,7 @@ Web GUI — "Meddelandehantering"-tab
   - `POST /api/messages/{id}/reprocess` — kör om via orkestraren.
   - `GET /api/messages/stats` — aggregat per period/grupp/pipeline.
 
-- [ ] **4b. GUI-tab "Meddelandehantering"**
+- [x] **4b. GUI-tab "Meddelandehantering"**
   Ny tab i dashboarden (`dashboard.html`):
   - Vänster panel: kronologisk meddelandelista med statusbadge, grupp,
     avsändare, flaggor (7S, IGNORED, APPEND, ERROR).
@@ -140,7 +140,7 @@ Web GUI — "Meddelandehantering"-tab
   - Sidopanel: räknare (totalt/processat/ignorerat/misslyckat) och
     filterkontroller.
 
-- [ ] **4c. Frontend**
+- [x] **4c. Frontend**
   Ny JS-modul `js/dashboard/message_queue.js` — polling var 3:e sekund
   när tab är aktiv, filter-dropdowns, detaljvy med raw JSON och pipeline-trace.
   CSS-tillägg i `dashboard.css`.
@@ -213,3 +213,4 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 2c klar. Ny pipeline-package med GenericTemplatePipeline och orchestratorn kör nu pipeline-klassen istället för direktanrop. Hittat/löst: importordning i pipeline_orchestrator.py (ruff I001) och autoformatterad fil. 240/240 tester gröna. |
 | 2026-06-22 | — | Fas 3a + 3b klar. Ny SevenSPipeline med robust 7S-parser och filskrivning, samt routing via config-nyckeln enabled_pipelines (default: seven_s, generic_template). Orchestratorn kör nu multipipeline i ordning och markerar skipped/completed/failed per run. Hittat/löst: ruff SIM108 i pipeline_orchestrator.py. 246/246 tester gröna (inkl nya 7S-tester). |
 | 2026-06-22 | — | Fas 4a klar. Ny backendmodul message_handlers.py med endpoints för list/detalj/stats/reprocess (`/api/messages*`), kopplad i web_server och web_handlers-export. 246/246 tester gröna. |
+| 2026-06-22 | — | Fas 4b + 4c klar. Ny Meddelandehantering-tab i dashboard med listvy, detaljvy, statusbadges, stats och reprocess-knapp. Polling när tabben är aktiv samt filter på status. 246/246 tester gröna. |

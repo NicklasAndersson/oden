@@ -395,6 +395,159 @@ td {
 .tab-content.active {
     display: block;
 }
+
+/* Message observability tab */
+.messages-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.messages-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.messages-filters select {
+    padding: 6px 10px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #16213e;
+    color: #fff;
+}
+.messages-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+@media (max-width: 900px) {
+    .messages-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.messages-list,
+.messages-detail {
+    background: #0d1421;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px;
+    max-height: 380px;
+    overflow-y: auto;
+}
+.message-row {
+    width: 100%;
+    text-align: left;
+    border: 1px solid #2a3550;
+    background: #16213e;
+    color: #fff;
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+.message-row:hover {
+    border-color: #4fc3f7;
+}
+.message-row.selected {
+    border-color: #4fc3f7;
+    background: #1c2b4f;
+}
+.message-row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.message-row-title {
+    font-weight: 600;
+}
+.message-row-meta {
+    color: #8ea0c0;
+    font-size: 0.8em;
+    margin-top: 4px;
+}
+.message-row-body {
+    color: #d9e2f2;
+    font-size: 0.85em;
+    margin-top: 6px;
+}
+.message-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75em;
+    font-weight: 600;
+    border: 1px solid #555;
+}
+.status-received,
+.status-queued,
+.status-processing {
+    color: #ffb74d;
+    border-color: #ffb74d;
+}
+.status-processed,
+.status-done {
+    color: #4caf50;
+    border-color: #4caf50;
+}
+.status-failed {
+    color: #ef5350;
+    border-color: #ef5350;
+}
+.status-ignored,
+.status-skipped {
+    color: #9e9e9e;
+    border-color: #9e9e9e;
+}
+.message-detail-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+}
+.pipeline-run {
+    border: 1px solid #2a3550;
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 8px;
+    background: #131f39;
+}
+.pipeline-run-meta {
+    color: #8ea0c0;
+    font-size: 0.8em;
+    margin-top: 4px;
+}
+.pipeline-run-error {
+    color: #ef5350;
+    margin-top: 6px;
+}
+.pipeline-events {
+    margin: 8px 0 0 16px;
+    color: #ced8ea;
+    font-size: 0.85em;
+}
+.message-raw-json {
+    background: #0a101d;
+    border: 1px solid #2a3550;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 0.8em;
+    color: #d7e0f2;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.messages-actions {
+    margin-top: 10px;
+}
+.messages-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+    color: #d7e0f2;
+}
 /* Template editor styles */
 .template-split-view {
     display: grid;

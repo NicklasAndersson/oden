@@ -41,6 +41,7 @@
                     <button class="tab-btn" onclick="showTab('responses')">Svar</button>
                     <button class="tab-btn" onclick="showTab('accounts')">Signal-konton</button>
                     <button class="tab-btn" onclick="showTab('contacts')">Kontakter</button>
+                    <button class="tab-btn" onclick="showTab('messages')">Meddelandehantering</button>
                 </div>
 
                 {% include "includes/dashboard/tab_basic.html" %}
@@ -49,6 +50,7 @@
                 {% include "includes/dashboard/tab_responses.html" %}
                 {% include "includes/dashboard/tab_accounts.html" %}
                 {% include "includes/dashboard/tab_contacts.html" %}
+                {% include "includes/dashboard/tab_messages.html" %}
 
             </div>
 
@@ -76,6 +78,7 @@
     {% include "js/dashboard/responses.js" %}
     {% include "js/dashboard/accounts.js" %}
     {% include "js/dashboard/contacts.js" %}
+    {% include "js/dashboard/message_queue.js" %}
     {% include "js/dashboard/templates.js" %}
     {% include "js/dashboard/tabs.js" %}
     {% include "js/dashboard/init.js" %}

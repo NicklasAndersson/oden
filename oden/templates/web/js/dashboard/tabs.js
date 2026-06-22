@@ -27,4 +27,8 @@ function showTab(tabName) {
     if (tabName === 'contacts') {
         loadContacts();
     }
+    // Load message observability dashboard when switching to messages tab
+    if (tabName === 'messages') {
+        loadMessagesDashboard();
+    }
 }
