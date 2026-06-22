@@ -100,7 +100,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: build-dmg/signal-cli
-          key: signal-cli-0.14.4.1-v1
+          key: signal-cli-0.14.5-v1
 
       # Download JRE x64 (for Intel build - works via Rosetta on Apple Silicon)
       - name: Download JRE x64
@@ -119,7 +119,7 @@ jobs:
         if: steps.cache-signal-cli.outputs.cache-hit != 'true'
         run: |
           mkdir -p build-dmg/signal-cli
-          SIGNAL_CLI_VERSION="0.14.4.1"
+          SIGNAL_CLI_VERSION="0.14.5"
           curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
           tar -xzf signal-cli.tar.gz
           mv signal-cli-${SIGNAL_CLI_VERSION}/* build-dmg/signal-cli/
@@ -329,7 +329,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: build-win/signal-cli
-          key: signal-cli-0.14.4.1-windows-v1
+          key: signal-cli-0.14.5-windows-v1
 
       - name: Download JRE x64
         if: steps.cache-jre-x64-win.outputs.cache-hit != 'true'
@@ -351,7 +351,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path build-win/signal-cli | Out-Null
-          $signalCliVersion = "0.14.4.1"
+          $signalCliVersion = "0.14.5"
           $signalCliUrl = "https://github.com/AsamK/signal-cli/releases/download/v$signalCliVersion/signal-cli-$signalCliVersion.tar.gz"
           Invoke-WebRequest -Uri $signalCliUrl -OutFile signal-cli.tar.gz
           tar -xzf signal-cli.tar.gz -C build-win
