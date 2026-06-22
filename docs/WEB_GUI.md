@@ -120,6 +120,17 @@ Hantera signal-cli-konton (multi-account daemon-läge).
 | **Radera konto** | Ta bort kontodata från signal-cli (avregistrerar inte från Signal) |
 | **Tvångsradera** | Radera kontodatan direkt från filsystemet (för korrupta konton) |
 
+#### Meddelandehantering
+
+Meddelandehantering visar råmeddelanden, pipelinehistorik och reprocess-funktionalitet för Oden 3.0.
+
+| Funktion | Beskrivning |
+|----------|-------------|
+| **Lista meddelanden** | Visar råmeddelanden med status, konto, grupp och avsändare |
+| **Detaljvy** | Visar raw envelope, pipeline-runs och pipeline-events |
+| **Reprocess** | Kör om ett valt meddelande via orchestratorn |
+| **Filter** | Filtrera på status, grupp, konto och pipeline |
+
 ### Övriga funktioner
 
 | Funktion | Beskrivning |
@@ -164,6 +175,14 @@ Setup-routes registreras alltid. I setup-mode är de de enda tillgängliga rutte
 ### Dashboard-endpoints
 
 #### Konfiguration
+
+Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first ingest, aktiva pipelines och retention.
+
+| Nyckel | Beskrivning |
+|--------|-------------|
+| `db_first_enabled` | Om `False` körs det äldre direkta flödet utan persist-first |
+| `enabled_pipelines` | JSON-lista som styr körordningen för aktiva pipelines |
+| `raw_message_retention_days` | Antal dagar som råmeddelanden och pipeline-events sparas |
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
@@ -213,6 +232,15 @@ Setup-routes registreras alltid. I setup-mode är de de enda tillgängliga rutte
 | GET | `/api/contacts` | Lista cachade kontakter |
 | POST | `/api/contacts/refresh` | Hämta kontakter från signal-cli |
 | PUT | `/api/contacts/{number}` | Uppdatera kontaktuppgifter (namn, smeknamn, anteckning, timer) |
+
+#### Meddelandehantering
+
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/messages` | Lista råmeddelanden med filter och paginering |
+| GET | `/api/messages/{id}` | Hämta meddelandedetaljer inklusive raw envelope och pipeline-runs |
+| GET | `/api/messages/stats` | Hämta aggregat per status/konto/grupp |
+| POST | `/api/messages/{id}/reprocess` | Kör om ett lagrat meddelande |
 
 #### Mallar
 

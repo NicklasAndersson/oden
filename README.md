@@ -2,7 +2,7 @@
 
 ![logotyp](images/logo_small.jpg)
 
-Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidian-valv.
+Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidian-valv. Version 3.0 lägger till DB-first ingest, multipipeline-stöd, 7S-specialhantering och en ny vy för meddelandehantering i Web GUI.
 
 ## Snabbstart
 
@@ -163,10 +163,12 @@ Noteringar:
 
 - **Setup-wizard** - Guidar dig genom konfigurationen vid första start
 - **Web GUI** - Dashboard med config, loggar, grupphantering, template-editor och kontohantering
+- **Meddelandehantering** - Se råmeddelanden, pipeline-körningar och reprocessa enskilda meddelanden
 - **Multi-account** - Hantera flera Signal-konton via *Signal-konton*-fliken (länka, aktivera, radera)
 - **System Tray** - Starta/stoppa, öppna GUI och avsluta Oden från systemfältet (macOS/Linux/Windows)
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten *(avstängt per default, aktiveras i config)*
+- **7S RAPPORT** - Specialpipeline för 7S-format med egen parser och rapportmall
 - **Platslänkar** - Google Maps, Apple Maps och OSM-länkar omvandlas automatiskt till geo-koordinater
 - **Anpassningsbara rapportmallar** - Redigera Jinja2-mallar direkt i GUI:ns template-editor
 - **Regex-länkar** - Konfigurera mönster (t.ex. registreringsnummer) som automatiskt blir Obsidian-länkar
@@ -176,6 +178,8 @@ Noteringar:
 Konfigurationen hanteras via **setup-wizarden** som öppnas automatiskt vid första start. All config sparas i en SQLite-databas (`config.db`) i din Oden-hemkatalog.
 
 Ändringar kan också göras via Web GUI:ns konfigurationssida.
+
+I Oden 3.0 finns även inställningar för DB-first-flödet, aktiva pipelines och retention av råmeddelanden i den avancerade konfigurationen.
 
 ## System Tray
 
