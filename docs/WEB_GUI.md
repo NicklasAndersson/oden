@@ -131,6 +131,18 @@ Meddelandehantering visar råmeddelanden, pipelinehistorik och reprocess-funktio
 | **Reprocess** | Kör om ett valt meddelande via orchestratorn |
 | **Filter** | Filtrera på status, grupp, konto och pipeline |
 
+#### Pipelines
+
+Pipelines-fliken visar hur meddelanden routas i DB-first-flödet och låter dig styra vilka pipelines som körs.
+
+| Funktion | Beskrivning |
+|----------|-------------|
+| **Aktiva pipelines** | Visar nuvarande körordning för aktiva pipelines |
+| **Urvalslogik** | Visar textbeskrivning av hur varje pipeline väljer meddelanden |
+| **Aktivera/Inaktivera** | Slå av/på en pipeline direkt från GUI |
+| **Ändra ordning** | Flytta pipeline upp/ner i körordning |
+| **Körningsräknare** | Visar antal historiska körningar per pipeline |
+
 ### Övriga funktioner
 
 | Funktion | Beskrivning |
@@ -241,6 +253,14 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 | GET | `/api/messages/{id}` | Hämta meddelandedetaljer inklusive raw envelope och pipeline-runs |
 | GET | `/api/messages/stats` | Hämta aggregat per status/konto/grupp |
 | POST | `/api/messages/{id}/reprocess` | Kör om ett lagrat meddelande |
+
+#### Pipelines
+
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/pipelines` | Lista tillgängliga pipelines, aktiva pipelines och körningsstatistik |
+| PATCH | `/api/pipelines/{name}/enabled` | Aktivera/inaktivera en pipeline |
+| POST | `/api/pipelines/reorder` | Uppdatera körordning för aktiva pipelines |
 
 #### Mallar
 

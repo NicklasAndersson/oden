@@ -19,6 +19,10 @@ function showTab(tabName) {
     if (tabName === 'responses') {
         loadResponses();
     }
+    // Load pipelines when switching to pipelines tab
+    if (tabName === 'pipelines') {
+        loadPipelinesDashboard();
+    }
     // Load accounts when switching to accounts tab
     if (tabName === 'accounts') {
         loadAccounts();

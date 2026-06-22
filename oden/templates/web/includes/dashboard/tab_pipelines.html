@@ -1,0 +1,30 @@
+<div id="tab-pipelines" class="tab-content">
+    <div class="pipelines-toolbar">
+        <div class="pipelines-toolbar-text">
+            <h3>Pipelines</h3>
+            <p>Välj vilka pipelines som är aktiva och i vilken ordning de körs.</p>
+        </div>
+        <button class="btn" onclick="loadPipelinesDashboard()">Uppdatera</button>
+    </div>
+
+    <div class="pipelines-layout">
+        <div class="pipelines-list-pane">
+            <h4>Aktiva pipelines (körordning)</h4>
+            <div id="pipelines-enabled-list" class="pipelines-list">
+                <div class="empty-state">Laddar aktiva pipelines...</div>
+            </div>
+        </div>
+
+        <div class="pipelines-list-pane">
+            <h4>Tillgängliga pipelines</h4>
+            <div id="pipelines-available-list" class="pipelines-list">
+                <div class="empty-state">Laddar tillgängliga pipelines...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pipelines-footnote">
+        <strong>Notering:</strong> Stöd för flera instanser av samma pipeline med olika inställningar
+        planeras för senare fas.
+    </div>
+</div>

@@ -39,6 +39,7 @@
                     <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
                     <button class="tab-btn" onclick="showTab('templates')">Mallar</button>
                     <button class="tab-btn" onclick="showTab('responses')">Svar</button>
+                    <button class="tab-btn" onclick="showTab('pipelines')">Pipelines</button>
                     <button class="tab-btn" onclick="showTab('accounts')">Signal-konton</button>
                     <button class="tab-btn" onclick="showTab('contacts')">Kontakter</button>
                     <button class="tab-btn" onclick="showTab('messages')">Meddelandehantering</button>
@@ -48,6 +49,7 @@
                 {% include "includes/dashboard/tab_advanced.html" %}
                 {% include "includes/dashboard/tab_templates.html" %}
                 {% include "includes/dashboard/tab_responses.html" %}
+                {% include "includes/dashboard/tab_pipelines.html" %}
                 {% include "includes/dashboard/tab_accounts.html" %}
                 {% include "includes/dashboard/tab_contacts.html" %}
                 {% include "includes/dashboard/tab_messages.html" %}
@@ -76,6 +78,7 @@
     {% include "js/dashboard/invitations.js" %}
     {% include "js/dashboard/config.js" %}
     {% include "js/dashboard/responses.js" %}
+    {% include "js/dashboard/pipelines.js" %}
     {% include "js/dashboard/accounts.js" %}
     {% include "js/dashboard/contacts.js" %}
     {% include "js/dashboard/message_queue.js" %}

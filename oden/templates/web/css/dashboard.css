@@ -548,6 +548,129 @@ td {
     margin-top: 14px;
     color: #d7e0f2;
 }
+
+/* Pipeline management tab */
+.pipelines-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.pipelines-toolbar-text h3 {
+    margin: 0;
+    color: #4fc3f7;
+}
+.pipelines-toolbar-text p {
+    margin: 4px 0 0;
+    color: #8ea0c0;
+    font-size: 0.9em;
+}
+.pipelines-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+@media (max-width: 900px) {
+    .pipelines-layout {
+        grid-template-columns: 1fr;
+    }
+}
+.pipelines-list-pane h4 {
+    margin: 0 0 10px;
+    color: #d7e0f2;
+}
+.pipelines-list {
+    background: #0d1421;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+.pipeline-card {
+    border: 1px solid #2a3550;
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #131f39;
+}
+.pipeline-card.disabled {
+    opacity: 0.85;
+    background: #101a30;
+}
+.pipeline-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.pipeline-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.pipeline-order {
+    color: #8ea0c0;
+    font-weight: 600;
+}
+.pipeline-title {
+    font-weight: 600;
+    color: #ffffff;
+}
+.pipeline-controls {
+    display: flex;
+    gap: 6px;
+}
+.pipeline-chip {
+    display: inline-block;
+    font-size: 0.72em;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 2px 8px;
+    border: 1px solid #555;
+}
+.pipeline-chip.active {
+    color: #4caf50;
+    border-color: #4caf50;
+}
+.pipeline-chip.inactive {
+    color: #9e9e9e;
+    border-color: #9e9e9e;
+}
+.pipeline-criteria,
+.pipeline-description,
+.pipeline-meta {
+    margin-top: 8px;
+    font-size: 0.86em;
+}
+.pipeline-criteria {
+    color: #d7e0f2;
+}
+.pipeline-description {
+    color: #b7c5de;
+}
+.pipeline-meta {
+    color: #8ea0c0;
+}
+.btn.btn-small {
+    padding: 4px 8px;
+    font-size: 0.8em;
+}
+.btn-danger-outline {
+    border: 1px solid #ef5350;
+    color: #ef5350;
+    background: transparent;
+}
+.btn-danger-outline:hover {
+    background: rgba(239, 83, 80, 0.15);
+}
+.pipelines-footnote {
+    margin-top: 12px;
+    color: #8ea0c0;
+    font-size: 0.9em;
+}
 /* Template editor styles */
 .template-split-view {
     display: grid;

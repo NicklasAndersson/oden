@@ -177,7 +177,7 @@ Web GUI — "Meddelandehantering"-tab
   pipelines. Exponera pipeline-metadata (visningsnamn, beskrivning, hur den
   väljer meddelanden, statistik).
 
-- [ ] **6b. Frontend — "Pipelines"-flik**
+- [x] **6b. Frontend — "Pipelines"-flik**
   Ny flik i web-gränssnitt som visar:
   - Aktiva pipelines i körordning
   - Statistik: antal processade meddelanden per pipeline
@@ -209,6 +209,8 @@ Web GUI — "Meddelandehantering"-tab
 | `oden/web_handlers/pipeline_handlers.py` | **Ny** — list/toggle/reorder för pipelines |
 | `oden/templates/web/dashboard.html` | Ny tab Meddelandehantering |
 | `oden/templates/web/js/dashboard/message_queue.js` | **Ny** — frontend |
+| `oden/templates/web/includes/dashboard/tab_pipelines.html` | **Ny** — GUI-flik för pipeline-administration |
+| `oden/templates/web/js/dashboard/pipelines.js` | **Ny** — frontendlogik för list/toggle/reorder |
 | `oden/templates/web/css/dashboard.css` | Tillägg för ny vy |
 | `templates/seven_s.md.j2` | **Ny** — 7S-rapport template |
 | `tests/test_pipeline_orchestrator.py` | **Ny** |
@@ -254,4 +256,5 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 5c delvis utökad. Nya tester för retention-cleanup och web-config validering av `raw_message_retention_days`. Full testsvit: 251/251 gröna. |
 | 2026-06-22 | — | Plan uppdaterad med Fas 5d: explicit dokumentationsspår för att synka README och docs med DB-first/multipipeline/7S/retention-implementationen. |
 | 2026-06-22 | — | Fas 5d klar. README och centrala docs (FEATURES, WEB_GUI) uppdaterade för DB-first ingest, multipipeline, 7S, meddelandehantering, retention och nya konfigurationsnycklar. |
+| 2026-06-22 | — | Fas 6b klar. Ny Pipelines-flik i dashboard med visning av aktiva/tillgängliga pipelines, urvalsbeskrivning, aktivera/inaktivera och upp/ner-ordning. Frontend kopplad till `/api/pipelines`, `/api/pipelines/{name}/enabled` och `/api/pipelines/reorder`. |
 | 2026-06-22 | — | Fas 6a klar. Ny backendmodul `pipeline_handlers.py` med endpoints för list/toggle/reorder (`/api/pipelines*`), kopplad i `web_server.py` och exporterad via `web_handlers/__init__.py`. Nya API-tester i `tests/test_web_api.py` för listing, toggling, reorder och validering av okända pipelines. |
