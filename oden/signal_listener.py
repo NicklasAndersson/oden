@@ -312,6 +312,10 @@ async def subscribe_and_listen(host: str, port: int) -> None:
                     message_id: int | None = None
                     account_for_storage = msg_account or cfg.SIGNAL_NUMBER
 
+                    if not cfg.DB_FIRST_ENABLED:
+                        await process_message(msg_data, reader, writer)
+                        continue
+
                     # Persist-first: store raw, unprocessed payload before any processing.
                     try:
                         message_id = create_raw_message(cfg.CONFIG_DB, account_for_storage, msg_data)

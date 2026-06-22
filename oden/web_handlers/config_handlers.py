@@ -50,6 +50,7 @@ async def config_handler(request: web.Request) -> web.Response:
         "auto_reaction_enabled": config.get("auto_reaction_enabled", False),
         "auto_reaction_emoji": config.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": config.get("auto_read_receipt_enabled", False),
+        "db_first_enabled": config.get("db_first_enabled", True),
         "oden_home": str(cfg.ODEN_HOME),
         "config_db_path": str(cfg.CONFIG_DB),
     }
@@ -91,6 +92,7 @@ async def config_save_handler(request: web.Request) -> web.Response:
         "auto_reaction_enabled": data.get("auto_reaction_enabled", False),
         "auto_reaction_emoji": data.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": data.get("auto_read_receipt_enabled", False),
+        "db_first_enabled": data.get("db_first_enabled", True),
     }
 
     # Handle regex_patterns if provided
