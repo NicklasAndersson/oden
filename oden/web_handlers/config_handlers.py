@@ -22,6 +22,29 @@ from oden.web_handlers._helpers import handle_errors, parse_json_body, require_w
 logger = logging.getLogger(__name__)
 
 
+def _as_bool(value: object, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+
+def _as_int(value: object, default: int) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return default
+    return default
+
+
 async def config_handler(request: web.Request) -> web.Response:
     """Return current config as JSON (reads live from database)."""
     # Read config fresh from database to support live reload
@@ -33,7 +56,7 @@ async def config_handler(request: web.Request) -> web.Response:
         "signal_cli_port": config.get("signal_cli_port", 7583),
         "signal_cli_path": config.get("signal_cli_path"),
         "signal_cli_log_file": config.get("signal_cli_log_file"),
-        "diagnostic_mode": config.get("diagnostic_mode", False),
+        "diagnostic_mode": _as_bool(config.get("diagnostic_mode", False), False),
         "unmanaged_signal_cli": config.get("unmanaged_signal_cli", False),
         "vault_path": config["vault_path"],
         "timezone": str(config["timezone"]),
@@ -52,7 +75,7 @@ async def config_handler(request: web.Request) -> web.Response:
         "auto_reaction_emoji": config.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": config.get("auto_read_receipt_enabled", False),
         "db_first_enabled": config.get("db_first_enabled", True),
-        "raw_message_retention_days": config.get("raw_message_retention_days", 30),
+        "raw_message_retention_days": _as_int(config.get("raw_message_retention_days", 30), 30),
         "oden_home": str(cfg.ODEN_HOME),
         "config_db_path": str(cfg.CONFIG_DB),
     }

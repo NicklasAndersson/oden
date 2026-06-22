@@ -403,6 +403,24 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             data = await resp.json()
             self.assertIn("Unknown pipeline", data["error"])
 
+    async def test_list_pipelines_normalizes_string_config_value(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    '["seven_s","generic_template"]',
+                ),
+            ):
+                resp = await self.client.get("/api/pipelines")
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            enabled_names = [item["name"] for item in data["enabled"]]
+            self.assertEqual(enabled_names, ["seven_s", "generic_template"])
+
 
 class TestMessageObservabilityAPI(AioHTTPTestCase):
     """Tests for /api/messages endpoints."""
