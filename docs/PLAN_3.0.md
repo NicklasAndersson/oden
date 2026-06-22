@@ -170,6 +170,27 @@ Web GUI — "Meddelandehantering"-tab
   - `docs/SETUP_FLOW.md` / övriga relevanta docs där konfigurationsnycklar ändrats
   - driftnoteringar för `db_first_enabled`, `enabled_pipelines`, `raw_message_retention_days`
 
+### Fas 6 — Pipeline-administrationsmeny *(kan köras parallellt med Fas 5)*
+
+- [ ] **6a. Backend-API för pipelines**
+  Nya endpoints för att lista, aktivera/inaktivera och ändra körordning för
+  pipelines. Exponera pipeline-metadata (visningsnamn, beskrivning, hur den
+  väljer meddelanden, statistik).
+
+- [ ] **6b. Frontend — "Pipelines"-flik**
+  Ny flik i web-gränssnitt som visar:
+  - Aktiva pipelines i körordning
+  - Statistik: antal processade meddelanden per pipeline
+  - Knapp för att slå av/på individuell pipeline
+  - Upp/ner-knappar för att ändra körordning
+  - Länk till pipeline-beskrivning
+
+- [ ] **6c. Pipeline-instanser (design, ej implementerad)**
+  Design för framtida stöd för samma pipeline flera gånger med olika
+  inställningar (t.ex. två `generic_template` med olika vault-sökvägar).
+  Kräver schema-ändring från `enabled_pipelines` (array) till
+  `pipeline_instances` (tabell). Prioriterad för v3.1+.
+
 ## Filer att skapa/ändra
 
 | Fil | Förändring |
@@ -209,6 +230,11 @@ Web GUI — "Meddelandehantering"-tab
 - WebSocket-streaming i realtid (framtida förbättring)
 - Extern köinfrastruktur (Redis, RabbitMQ etc.)
 - Fler specialpipelines än 7S
+
+## Relaterad dokumentation
+
+- [`docs/PIPELINES.md`](PIPELINES.md) — Förklaring av pipeline-arkitektur, befintliga pipelines, hur man skriver nya
+- [`docs/PLAN_PIPELINES_MENU.md`](PLAN_PIPELINES_MENU.md) — Implementationsplan för Fas 6 (pipeline-administrationsmeny)
 
 ## Progress-logg
 
