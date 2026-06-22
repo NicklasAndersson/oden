@@ -102,6 +102,9 @@ class SevenSPipeline:
     """Special pipeline that parses and stores 7S reports."""
 
     name = "seven_s"
+    display_name = "7S RAPPORT-pipeline"
+    description = "Parserar strukturerade 7S RAPPORT-meddelanden och sparar dem som separat rapportfil."
+    selection_criteria = "Körs när första icke-tomma raden i meddelandet börjar med '7S RAPPORT'."
 
     async def run(
         self,

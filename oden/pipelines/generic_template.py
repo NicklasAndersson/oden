@@ -16,6 +16,9 @@ class GenericTemplatePipeline:
     """Pipeline wrapper around the legacy process_message flow."""
 
     name = "generic_template"
+    display_name = "Generisk mall-pipeline"
+    description = "Standardflödet som skriver meddelanden till markdown enligt rapport/append-mallar."
+    selection_criteria = "Fallback: körs för alla meddelanden som inte redan hanterats av tidigare pipeline."
 
     async def run(
         self,
