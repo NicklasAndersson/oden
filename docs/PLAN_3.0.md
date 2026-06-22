@@ -163,6 +163,13 @@ Web GUI — "Meddelandehantering"-tab
   - Reprocess-test: idempotens vid upprepad körning.
   - API-test: list/detalj/filter/stats/reprocess-endpoints.
 
+- [ ] **5d. Dokumentationsuppdatering**
+  Uppdatera all dokumentation så att den matchar nya implementationen i 3.0:
+  - `README.md` (DB-first, multipipeline, 7S-stöd, Meddelandehantering, retention)
+  - `docs/FEATURES.md` och `docs/WEB_GUI.md` (nya funktioner och GUI-flöden)
+  - `docs/SETUP_FLOW.md` / övriga relevanta docs där konfigurationsnycklar ändrats
+  - driftnoteringar för `db_first_enabled`, `enabled_pipelines`, `raw_message_retention_days`
+
 ## Filer att skapa/ändra
 
 | Fil | Förändring |
@@ -218,3 +225,4 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | CI-fix: PR snapshot-pipeline föll i docker arm64-bygget. Rotorsak var ogiltig Python one-liner i Dockerfile (compound `with` efter semikolon). Fixad till kompatibel rad-för-rad-variant i ARM64-injektionssteget för `libsignal_jni.so`. |
 | 2026-06-22 | — | Fas 5b klar. Retention-policy implementerad med ny config-nyckel `raw_message_retention_days` (default 30), cleanup-logik i `retention_db.py`, periodisk körning i listener och ny inställning i Avancerat-fliken i GUI. |
 | 2026-06-22 | — | Fas 5c delvis utökad. Nya tester för retention-cleanup och web-config validering av `raw_message_retention_days`. Full testsvit: 251/251 gröna. |
+| 2026-06-22 | — | Plan uppdaterad med Fas 5d: explicit dokumentationsspår för att synka README och docs med DB-first/multipipeline/7S/retention-implementationen. |
