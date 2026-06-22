@@ -32,6 +32,11 @@ def cleanup_old_data(db_path: Path, retention_days: int) -> dict[str, int]:
         cursor = conn.cursor()
         cursor.execute("BEGIN")
 
+        # Delete old events by their own age (regardless of parent message age)
+        cursor.execute("DELETE FROM pipeline_events WHERE occurred_at < ?", (cutoff,))
+        deleted_events = cursor.rowcount
+
+        # Also delete events whose parent runs belong to old messages (cascade cleanup)
         cursor.execute(
             """
             DELETE FROM pipeline_events
@@ -44,7 +49,7 @@ def cleanup_old_data(db_path: Path, retention_days: int) -> dict[str, int]:
             """,
             (cutoff,),
         )
-        deleted_events = cursor.rowcount
+        deleted_events += cursor.rowcount
 
         cursor.execute(
             "DELETE FROM pipeline_runs WHERE message_id IN (SELECT id FROM raw_messages WHERE created_at < ?)",

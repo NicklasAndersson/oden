@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
+
 # Valid message statuses
 STATUS_RECEIVED = "received"
 STATUS_QUEUED = "queued"

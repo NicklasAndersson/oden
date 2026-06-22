@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
+
 # Valid pipeline run statuses
 STATUS_PENDING = "pending"
 STATUS_RUNNING = "running"

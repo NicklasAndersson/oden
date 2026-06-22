@@ -25,12 +25,14 @@ class LogBuffer(logging.Handler):
         """Store a log record in the buffer."""
         try:
             formatted = self.format(record)
-            self._buffer.append({
-                "timestamp": datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S"),
-                "level": record.levelname,
-                "name": record.name,
-                "message": formatted.split(" - ", 3)[-1] if " - " in formatted else record.getMessage(),
-            })
+            self._buffer.append(
+                {
+                    "timestamp": datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S"),
+                    "level": record.levelname,
+                    "name": record.name,
+                    "message": formatted.split(" - ", 3)[-1] if " - " in formatted else record.getMessage(),
+                }
+            )
         except Exception:
             self.handleError(record)
 
