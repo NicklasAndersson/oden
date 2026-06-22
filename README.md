@@ -139,6 +139,26 @@ ruff check .
 ruff format .
 ```
 
+### Optional PR snapshot release
+
+Det finns ett valbart CI-flöde för att bygga snapshot-release direkt från en PR.
+
+Så här triggar du det:
+
+1. Lägg label `snapshot-release` på en PR mot `main`.
+2. Eller kör workflow **Build and Release** manuellt via `workflow_dispatch` med input `pr_snapshot=true`.
+
+Vad som skapas:
+
+- En pre-release på GitHub med taggformat `pr-<PR_NUMMER>-snapshot-<SHA7>`
+- Docker-taggar med PR-prefix (separerade från vanliga `snapshot-*` på `main`)
+- Build-artefakter (macOS DMG, Windows installer om builden lyckas, source-zip)
+
+Noteringar:
+
+- PR snapshot-release är avsedd för verifiering och kan ersättas av nyare snapshot för samma PR.
+- Vanliga snapshot-releaser från `main` påverkas inte av PR snapshot-flödet.
+
 ### Funktioner
 
 - **Setup-wizard** - Guidar dig genom konfigurationen vid första start
