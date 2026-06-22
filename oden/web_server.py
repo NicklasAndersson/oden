@@ -34,6 +34,10 @@ from oden.web_handlers import (
     groups_handler,
     invitations_handler,
     join_group_handler,
+    message_detail_handler,
+    message_reprocess_handler,
+    message_stats_handler,
+    messages_list_handler,
     refresh_groups_handler,
     response_create_handler,
     response_delete_handler,
@@ -151,6 +155,12 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/config-save", config_save_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)
         app.router.add_post("/api/shutdown", shutdown_handler)
+
+        # Message observability routes
+        app.router.add_get("/api/messages", messages_list_handler)
+        app.router.add_get("/api/messages/stats", message_stats_handler)
+        app.router.add_get("/api/messages/{id:\\d+}", message_detail_handler)
+        app.router.add_post("/api/messages/{id:\\d+}/reprocess", message_reprocess_handler)
 
         # Account management routes
         app.router.add_get("/api/accounts", accounts_list_handler)

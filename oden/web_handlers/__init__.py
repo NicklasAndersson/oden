@@ -38,6 +38,12 @@ from oden.web_handlers.group_handlers import (
     toggle_whitelist_group_handler,
     update_group_handler,
 )
+from oden.web_handlers.message_handlers import (
+    message_detail_handler,
+    message_reprocess_handler,
+    message_stats_handler,
+    messages_list_handler,
+)
 from oden.web_handlers.response_handlers import (
     response_create_handler,
     response_delete_handler,
@@ -98,6 +104,11 @@ __all__ = [
     "accept_invitation_handler",
     "decline_invitation_handler",
     "update_group_handler",
+    # Message handlers
+    "messages_list_handler",
+    "message_detail_handler",
+    "message_reprocess_handler",
+    "message_stats_handler",
     # Setup handlers
     "setup_handler",
     "setup_status_handler",

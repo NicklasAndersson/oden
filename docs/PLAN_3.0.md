@@ -123,7 +123,7 @@ Web GUI — "Meddelandehantering"-tab
 
 ### Fas 4 — GUI/API för observability *(kan börjas parallellt med Fas 3)*
 
-- [ ] **4a. Backend-API (oden/web_handlers/message_handlers.py)**
+- [x] **4a. Backend-API (oden/web_handlers/message_handlers.py)**
   Nya endpoints registrerade i `web_server.py`:
   - `GET /api/messages` — lista med filter (status, pipeline, group,
     account, tid) och paginering.
@@ -212,3 +212,4 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 2a + 2b klar. Persist-first i listener, ny PipelineOrchestrator, pipeline_runs/events skrivs. Hittat/löst: inkommande payload kan vara wrapper med envelope; messages_db normaliserar nu för metadata men sparar hela råobjektet i envelope_raw. Fallback kvar: om DB-persist misslyckas körs befintlig process_message ändå. 240/240 tester gröna. |
 | 2026-06-22 | — | Fas 2c klar. Ny pipeline-package med GenericTemplatePipeline och orchestratorn kör nu pipeline-klassen istället för direktanrop. Hittat/löst: importordning i pipeline_orchestrator.py (ruff I001) och autoformatterad fil. 240/240 tester gröna. |
 | 2026-06-22 | — | Fas 3a + 3b klar. Ny SevenSPipeline med robust 7S-parser och filskrivning, samt routing via config-nyckeln enabled_pipelines (default: seven_s, generic_template). Orchestratorn kör nu multipipeline i ordning och markerar skipped/completed/failed per run. Hittat/löst: ruff SIM108 i pipeline_orchestrator.py. 246/246 tester gröna (inkl nya 7S-tester). |
+| 2026-06-22 | — | Fas 4a klar. Ny backendmodul message_handlers.py med endpoints för list/detalj/stats/reprocess (`/api/messages*`), kopplad i web_server och web_handlers-export. 246/246 tester gröna. |
