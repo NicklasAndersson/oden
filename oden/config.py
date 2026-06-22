@@ -251,7 +251,7 @@ def reload_config() -> dict:
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
     global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
-    global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED
+    global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
 
     logger.info("Reloading configuration from database")
 
@@ -291,6 +291,7 @@ def reload_config() -> dict:
     AUTO_REACTION_ENABLED = app_config.get("auto_reaction_enabled", False)
     AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
     AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
+    ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["seven_s", "generic_template"])
 
     # Persist and apply the log level so it takes effect immediately
     from oden.log_utils import apply_log_level, write_log_level
@@ -452,6 +453,7 @@ try:
     AUTO_REACTION_ENABLED = app_config.get("auto_reaction_enabled", False)
     AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
     AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
+    ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["seven_s", "generic_template"])
 
 except Exception as e:
     logger.error("Error loading configuration: %s", e)
@@ -482,3 +484,4 @@ except Exception as e:
     AUTO_REACTION_ENABLED = False
     AUTO_REACTION_EMOJI = "✅"
     AUTO_READ_RECEIPT_ENABLED = False
+    ENABLED_PIPELINES = ["seven_s", "generic_template"]

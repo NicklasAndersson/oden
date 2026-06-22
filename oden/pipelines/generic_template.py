@@ -23,5 +23,6 @@ class GenericTemplatePipeline:
         msg_data: dict[str, Any],
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
-    ) -> None:
+    ) -> bool:
         await process_message(msg_data, reader, writer)
+        return True

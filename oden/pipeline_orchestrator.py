@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from oden import config as cfg
 from oden.messages_db import (
     STATUS_FAILED,
     STATUS_PROCESSED,
@@ -19,10 +20,12 @@ from oden.messages_db import (
     update_message_status,
 )
 from oden.pipelines.generic_template import GenericTemplatePipeline
+from oden.pipelines.seven_s import SevenSPipeline
 from oden.pipelines_db import (
     append_pipeline_event,
     complete_pipeline_run,
     fail_pipeline_run,
+    skip_pipeline_run,
     start_pipeline_run,
 )
 
@@ -34,7 +37,40 @@ class PipelineOrchestrator:
 
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
+        self._seven_s_pipeline = SevenSPipeline()
         self._generic_pipeline = GenericTemplatePipeline()
+
+    def _get_enabled_pipeline_names(self) -> list[str]:
+        configured = getattr(cfg, "ENABLED_PIPELINES", None)
+        names = [name for name in configured if isinstance(name, str)] if isinstance(configured, list) else []
+
+        if not names:
+            names = ["seven_s", "generic_template"]
+
+        # Generic pipeline is always available as fallback.
+        if "generic_template" not in names:
+            names.append("generic_template")
+
+        return names
+
+    def _build_pipelines(self) -> list[Any]:
+        pipeline_map = {
+            "seven_s": self._seven_s_pipeline,
+            "generic_template": self._generic_pipeline,
+        }
+
+        selected: list[Any] = []
+        for name in self._get_enabled_pipeline_names():
+            pipeline = pipeline_map.get(name)
+            if pipeline is None:
+                logger.warning("Unknown pipeline in enabled_pipelines: %s", name)
+                continue
+            selected.append(pipeline)
+
+        if not selected:
+            selected.append(self._generic_pipeline)
+
+        return selected
 
     async def run_message(
         self,
@@ -47,52 +83,67 @@ class PipelineOrchestrator:
         """Run configured pipelines for one message.
 
         Current behavior:
-        - Runs the legacy processing flow as pipeline `generic_template`
+        - Runs configured pipelines in order from ENABLED_PIPELINES
+        - First pipeline that handles the message ends the chain
         - Tracks run state/events in pipeline tables
         - Updates raw message status to processed/failed
         """
         update_message_status(self._db_path, message_id, STATUS_PROCESSING)
-
-        run_id = start_pipeline_run(self._db_path, message_id, self._generic_pipeline.name)
-        append_pipeline_event(
-            self._db_path,
-            run_id,
-            "pipeline_started",
-            {"pipeline": self._generic_pipeline.name},
-        )
-
-        try:
-            await self._generic_pipeline.run(
-                msg_data=msg_data,
-                reader=reader,
-                writer=writer,
-            )
-            complete_pipeline_run(self._db_path, run_id)
+        for pipeline in self._build_pipelines():
+            run_id = start_pipeline_run(self._db_path, message_id, pipeline.name)
             append_pipeline_event(
                 self._db_path,
                 run_id,
-                "pipeline_completed",
-                {"pipeline": self._generic_pipeline.name},
+                "pipeline_started",
+                {"pipeline": pipeline.name},
             )
-            update_message_status(self._db_path, message_id, STATUS_PROCESSED)
-        except Exception as exc:
-            fail_pipeline_run(
-                self._db_path,
-                run_id,
-                error_code="pipeline_exception",
-                error_message=repr(exc),
-            )
-            append_pipeline_event(
-                self._db_path,
-                run_id,
-                "pipeline_failed",
-                {
-                    "pipeline": self._generic_pipeline.name,
-                    "error": repr(exc),
-                },
-            )
-            update_message_status(self._db_path, message_id, STATUS_FAILED)
-            raise
+
+            try:
+                handled = await pipeline.run(
+                    msg_data=msg_data,
+                    reader=reader,
+                    writer=writer,
+                )
+
+                if handled:
+                    complete_pipeline_run(self._db_path, run_id)
+                    append_pipeline_event(
+                        self._db_path,
+                        run_id,
+                        "pipeline_completed",
+                        {"pipeline": pipeline.name},
+                    )
+                    update_message_status(self._db_path, message_id, STATUS_PROCESSED)
+                    return
+
+                skip_pipeline_run(self._db_path, run_id)
+                append_pipeline_event(
+                    self._db_path,
+                    run_id,
+                    "pipeline_skipped",
+                    {"pipeline": pipeline.name},
+                )
+            except Exception as exc:
+                fail_pipeline_run(
+                    self._db_path,
+                    run_id,
+                    error_code="pipeline_exception",
+                    error_message=repr(exc),
+                )
+                append_pipeline_event(
+                    self._db_path,
+                    run_id,
+                    "pipeline_failed",
+                    {
+                        "pipeline": pipeline.name,
+                        "error": repr(exc),
+                    },
+                )
+                update_message_status(self._db_path, message_id, STATUS_FAILED)
+                raise
+
+        # Defensive fallback if all configured pipelines skipped unexpectedly.
+        update_message_status(self._db_path, message_id, STATUS_PROCESSED)
 
     async def reprocess(
         self,

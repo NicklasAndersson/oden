@@ -107,7 +107,7 @@ Web GUI — "Meddelandehantering"-tab
 
 ### Fas 3 — 7S-specialpipeline *(beror på Fas 2)*
 
-- [ ] **3a. SevenSPipeline (oden/pipelines/seven_s.py)**
+- [x] **3a. SevenSPipeline (oden/pipelines/seven_s.py)**
   - Robust matchning av 7S RAPPORT-format (case-insensitive, tolererar
     varianter i fältnamn och radordning).
   - Parserar och validerar alla fält; strukturerat fel-objekt för partiellt
@@ -116,7 +116,7 @@ Web GUI — "Meddelandehantering"-tab
   - Returnerar `skipped` om meddelandet inte matchar → generisk pipeline
     tar vid utan ytterligare config.
 
-- [ ] **3b. Routing-regler och config**
+- [x] **3b. Routing-regler och config**
   - `GenericTemplatePipeline` alltid aktiv som fallback.
   - `SevenSPipeline` aktiv per default, kan stängas av via config-nyckel
     `enabled_pipelines` (JSON-lista).
@@ -211,3 +211,4 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 1 klar. Schema v5-migration, messages_db.py, pipelines_db.py. 240/240 tester gröna. |
 | 2026-06-22 | — | Fas 2a + 2b klar. Persist-first i listener, ny PipelineOrchestrator, pipeline_runs/events skrivs. Hittat/löst: inkommande payload kan vara wrapper med envelope; messages_db normaliserar nu för metadata men sparar hela råobjektet i envelope_raw. Fallback kvar: om DB-persist misslyckas körs befintlig process_message ändå. 240/240 tester gröna. |
 | 2026-06-22 | — | Fas 2c klar. Ny pipeline-package med GenericTemplatePipeline och orchestratorn kör nu pipeline-klassen istället för direktanrop. Hittat/löst: importordning i pipeline_orchestrator.py (ruff I001) och autoformatterad fil. 240/240 tester gröna. |
+| 2026-06-22 | — | Fas 3a + 3b klar. Ny SevenSPipeline med robust 7S-parser och filskrivning, samt routing via config-nyckeln enabled_pipelines (default: seven_s, generic_template). Orchestratorn kör nu multipipeline i ordning och markerar skipped/completed/failed per run. Hittat/löst: ruff SIM108 i pipeline_orchestrator.py. 246/246 tester gröna (inkl nya 7S-tester). |

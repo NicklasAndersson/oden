@@ -16,5 +16,9 @@ class MessagePipeline(Protocol):
         msg_data: dict[str, Any],
         reader: Any,
         writer: Any,
-    ) -> None:
-        """Execute pipeline logic for one message."""
+    ) -> bool:
+        """Execute pipeline logic for one message.
+
+        Returns True if the message was handled by this pipeline,
+        False if the message should be passed to the next pipeline.
+        """
