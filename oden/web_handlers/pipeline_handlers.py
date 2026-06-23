@@ -17,7 +17,7 @@ from aiohttp import web
 from oden import config as cfg
 from oden.config_db import set_config_value
 from oden.pipeline_orchestrator import _GenericPipeline
-from oden.pipeline_settings import normalize_group_filter_settings, normalize_pipeline_settings
+from oden.pipeline_settings import normalize_group_filter_settings, normalize_pipeline_settings, normalize_generic_template_settings
 from oden.pipelines.group_filter import GroupFilterPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.web_handlers._helpers import handle_errors, parse_json_body
@@ -54,8 +54,23 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
         "display_name": _GenericPipeline.display_name,
         "description": _GenericPipeline.description,
         "selection_criteria": _GenericPipeline.selection_criteria,
-        "supports_config": False,
-        "config_schema": None,
+        "supports_config": True,
+        "config_schema": {
+            "type": "object",
+            "properties": {
+                "templates": {
+                    "type": "object",
+                    "properties": {
+                        "report_md": {"type": "string"},
+                        "append_md": {"type": "string"},
+                    },
+                },
+                "regex_patterns": {"type": "object", "additionalProperties": {"type": "string"}},
+                "auto_reaction_enabled": {"type": "boolean"},
+                "auto_reaction_emoji": {"type": "string"},
+                "auto_read_receipt_enabled": {"type": "boolean"},
+            },
+        },
     },
 }
 
@@ -278,6 +293,8 @@ async def update_pipeline_config(request: web.Request) -> web.Response:
 
     if pipeline_name == "group_filter":
         normalized_config = normalize_group_filter_settings(pipeline_config)
+    elif pipeline_name == "generic_template":
+        normalized_config = normalize_generic_template_settings(pipeline_config)
     else:
         normalized_config = pipeline_config
 

@@ -111,9 +111,6 @@ async def config_save_handler(request: web.Request) -> web.Response:
         "web_port": data.get("web_port", 8080),
         "log_level": data.get("log_level", "INFO"),
         "filename_format": data.get("filename_format", "classic"),
-        "auto_reaction_enabled": data.get("auto_reaction_enabled", False),
-        "auto_reaction_emoji": data.get("auto_reaction_emoji", "✅"),
-        "auto_read_receipt_enabled": data.get("auto_read_receipt_enabled", False),
         "db_first_enabled": data.get("db_first_enabled", True),
         "raw_message_retention_days": data.get("raw_message_retention_days", 30),
     }
@@ -125,7 +122,8 @@ async def config_save_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    # Handle regex_patterns if provided
+    # Handle regex_patterns if provided (for backwards compatibility / testing)
+    # They are now moved to pipeline configuration but still accepted here for migration
     if "regex_patterns" in data:
         patterns = data["regex_patterns"]
         if not isinstance(patterns, dict):

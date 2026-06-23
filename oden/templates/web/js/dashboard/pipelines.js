@@ -94,6 +94,141 @@ function addGroupFilterGroup(groupName) {
     }
 }
 
+function renderGenericTemplateSettings(item) {
+    const cfg = item.config || {};
+    const templates = cfg.templates || { report_md: '', append_md: '' };
+    const regexPatterns = cfg.regex_patterns || {};
+    const autoReactionEnabled = cfg.auto_reaction_enabled || false;
+    const autoReactionEmoji = cfg.auto_reaction_emoji || '✅';
+    const autoReadReceiptEnabled = cfg.auto_read_receipt_enabled || false;
+
+    // Render regex patterns table
+    const regexRows = Object.entries(regexPatterns).map(([name, pattern]) => `
+        <div class="regex-row-inline" data-name="${escapeHtml(name)}">
+            <input type="text" class="regex-name-inline" value="${escapeHtml(name)}" readonly style="flex: 1; padding: 4px 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; margin-right: 6px;">
+            <input type="text" class="regex-pattern-inline" value="${escapeHtml(pattern)}" readonly style="flex: 2; padding: 4px 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; margin-right: 6px; font-family: monospace; font-size: 0.9em;">
+            <button type="button" class="btn btn-small" onclick="removeGenericTemplateRegexRow(this)" style="padding: 4px 8px; color: #ff6b6b;">✕</button>
+        </div>
+    `).join('');
+
+    const regexTableHtml = regexRows ? regexRows + '<div style="margin-top: 8px; display: flex; gap: 6px;"><button type="button" class="btn btn-small" onclick="addGenericTemplateRegexRow()">➕ Lägg till mönster</button></div>' : '<div class="refresh-info" style="margin-top: 8px;">Inga regex-mönster konfigurerade ännu. Klicka "Lägg till mönster" för att lägga till.</div>';
+
+    return `
+        <div class="pipeline-settings">
+            <div class="pipeline-settings-row">
+                <h4 style="margin: 0 0 12px 0;">Rapportmallar</h4>
+                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                    <div style="flex: 1;">
+                        <label for="pipeline-config-generic_template-report_md" style="display: block; margin-bottom: 6px; font-size: 0.9em;">Rapportmall (report.md.j2)</label>
+                        <textarea id="pipeline-config-generic_template-report_md" rows="6" style="width: 100%; padding: 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; font-family: monospace; font-size: 0.85em;" placeholder="Jinja2-mall för rapporter...">${escapeHtml(templates.report_md || '')}</textarea>
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="pipeline-config-generic_template-append_md" style="display: block; margin-bottom: 6px; font-size: 0.9em;">Tilläggsmall (append.md.j2)</label>
+                        <textarea id="pipeline-config-generic_template-append_md" rows="6" style="width: 100%; padding: 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; font-family: monospace; font-size: 0.85em;" placeholder="Jinja2-mall för tillägg...">${escapeHtml(templates.append_md || '')}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pipeline-settings-row">
+                <h4 style="margin: 0 0 12px 0;">Regex-mönster för länkande</h4>
+                <div id="pipeline-config-generic_template-regex-patterns" style="display: flex; flex-direction: column; gap: 6px;">
+                    ${regexTableHtml}
+                </div>
+            </div>
+
+            <div class="pipeline-settings-row">
+                <h4 style="margin: 0 0 12px 0;">Signal-bekräftelser</h4>
+                <div class="config-grid">
+                    <div class="config-field">
+                        <label>
+                            <input type="checkbox" id="pipeline-config-generic_template-auto_reaction" ${autoReactionEnabled ? 'checked' : ''}>
+                            Auto-reaktion
+                        </label>
+                        <span class="help-text" style="font-size: 0.85em; color: #888;">Reagera med emoji på sparade meddelanden</span>
+                    </div>
+                    <div class="config-field">
+                        <label for="pipeline-config-generic_template-auto_reaction_emoji" style="font-size: 0.9em;">Reaktions-emoji</label>
+                        <input type="text" id="pipeline-config-generic_template-auto_reaction_emoji" value="${escapeHtml(autoReactionEmoji)}" style="width: 80px; padding: 4px 6px;">
+                    </div>
+                    <div class="config-field">
+                        <label>
+                            <input type="checkbox" id="pipeline-config-generic_template-auto_read_receipt" ${autoReadReceiptEnabled ? 'checked' : ''}>
+                            Läskvitton
+                        </label>
+                        <span class="help-text" style="font-size: 0.85em; color: #888;">Skicka läskvitto när meddelande bearbetats</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pipeline-settings-actions">
+                <button class="btn btn-small" onclick="saveGenericTemplateSettings()">Spara inställningar</button>
+            </div>
+        </div>
+    `;
+}
+
+function addGenericTemplateRegexRow() {
+    const container = document.getElementById('pipeline-config-generic_template-regex-patterns');
+    if (!container) return;
+
+    const name = prompt('Mönsternamn (t.ex. registration_number):');
+    if (!name || !name.trim()) return;
+
+    const pattern = prompt('Regex-mönster (t.ex. [A-Z]{3}[0-9]{2}[A-Z0-9]):');
+    if (!pattern || !pattern.trim()) return;
+
+    const newRow = document.createElement('div');
+    newRow.className = 'regex-row-inline';
+    newRow.dataset.name = name.trim();
+    newRow.innerHTML = `
+        <input type="text" class="regex-name-inline" value="${escapeHtml(name)}" readonly style="flex: 1; padding: 4px 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; margin-right: 6px;">
+        <input type="text" class="regex-pattern-inline" value="${escapeHtml(pattern)}" readonly style="flex: 2; padding: 4px 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; margin-right: 6px; font-family: monospace; font-size: 0.9em;">
+        <button type="button" class="btn btn-small" onclick="removeGenericTemplateRegexRow(this)" style="padding: 4px 8px; color: #ff6b6b;">✕</button>
+    `;
+    container.insertBefore(newRow, container.lastElementChild);
+}
+
+function removeGenericTemplateRegexRow(btn) {
+    const row = btn.closest('.regex-row-inline');
+    row.remove();
+}
+
+async function saveGenericTemplateSettings() {
+    const reportMd = document.getElementById('pipeline-config-generic_template-report_md')?.value || '';
+    const appendMd = document.getElementById('pipeline-config-generic_template-append_md')?.value || '';
+    const autoReaction = document.getElementById('pipeline-config-generic_template-auto_reaction')?.checked || false;
+    const autoReactionEmoji = document.getElementById('pipeline-config-generic_template-auto_reaction_emoji')?.value || '✅';
+    const autoReadReceipt = document.getElementById('pipeline-config-generic_template-auto_read_receipt')?.checked || false;
+
+    const regexPatterns = {};
+    document.querySelectorAll('#pipeline-config-generic_template-regex-patterns .regex-row-inline').forEach(row => {
+        const name = row.dataset.name || '';
+        const pattern = row.querySelector('.regex-pattern-inline')?.value || '';
+        if (name && pattern) {
+            regexPatterns[name] = pattern;
+        }
+    });
+
+    const config = {
+        templates: {
+            report_md: reportMd,
+            append_md: appendMd,
+        },
+        regex_patterns: regexPatterns,
+        auto_reaction_enabled: autoReaction,
+        auto_reaction_emoji: autoReactionEmoji,
+        auto_read_receipt_enabled: autoReadReceipt,
+    };
+
+    try {
+        await savePipelineConfig('generic_template', config);
+        showConfigMessage('Pipeline-inställningar sparade.', 'success');
+        await loadPipelinesDashboard();
+    } catch (error) {
+        showConfigMessage(`Kunde inte spara inställningar: ${error.message}`, 'error');
+    }
+}
+
 function renderEnabledPipelines() {
     const container = document.getElementById('pipelines-enabled-list');
     const enabled = pipelinesState.enabled || [];
@@ -114,6 +249,8 @@ function renderEnabledPipelines() {
 
         const settingsHtml = meta?.supports_config && item.name === 'group_filter'
             ? renderGroupFilterSettings(item)
+            : meta?.supports_config && item.name === 'generic_template'
+            ? renderGenericTemplateSettings(item)
             : '';
 
         return `

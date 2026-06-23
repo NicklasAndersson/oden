@@ -37,7 +37,6 @@
                 <div class="tabs">
                     <button class="tab-btn active" onclick="showTab('basic')">Grundläggande</button>
                     <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
-                    <button class="tab-btn" onclick="showTab('templates')">Mallar</button>
                     <button class="tab-btn" onclick="showTab('responses')">Svar</button>
                     <button class="tab-btn" onclick="showTab('pipelines')">Pipelines</button>
                     <button class="tab-btn" onclick="showTab('accounts')">Signal-konton</button>
@@ -47,7 +46,6 @@
 
                 {% include "includes/dashboard/tab_basic.html" %}
                 {% include "includes/dashboard/tab_advanced.html" %}
-                {% include "includes/dashboard/tab_templates.html" %}
                 {% include "includes/dashboard/tab_responses.html" %}
                 {% include "includes/dashboard/tab_pipelines.html" %}
                 {% include "includes/dashboard/tab_accounts.html" %}
@@ -71,7 +69,6 @@
     <script>
     const version = '{{ version }}';
     {% include "js/dashboard/shared.js" %}
-    {% include "js/dashboard/regex.js" %}
     {% include "js/dashboard/dirty-tracking.js" %}
     {% include "js/dashboard/logs.js" %}
     {% include "js/dashboard/groups.js" %}
@@ -82,7 +79,6 @@
     {% include "js/dashboard/accounts.js" %}
     {% include "js/dashboard/contacts.js" %}
     {% include "js/dashboard/message_queue.js" %}
-    {% include "js/dashboard/templates.js" %}
     {% include "js/dashboard/tabs.js" %}
     {% include "js/dashboard/init.js" %}
     </script>

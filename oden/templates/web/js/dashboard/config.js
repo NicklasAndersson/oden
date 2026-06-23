@@ -1,5 +1,4 @@
-// config.js — Depends on: shared.js (showConfigMessage, showMessage),
-//              regex.js (loadRegexPatterns)
+// config.js — Depends on: shared.js (showConfigMessage, showMessage)
 //
 // Loads the main configuration form, plus reset/export/shutdown.
 // Saving is handled by auto-save.js (debounced on every change).
@@ -29,14 +28,6 @@ async function loadConfigForm() {
         document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
         document.getElementById('cfg-raw-retention-days').value = config.raw_message_retention_days || 30;
         document.getElementById('cfg-diagnostic-mode').checked = config.diagnostic_mode || false;
-
-        // Signal confirmations
-        document.getElementById('cfg-auto-reaction').checked = config.auto_reaction_enabled || false;
-        document.getElementById('cfg-auto-reaction-emoji').value = config.auto_reaction_emoji || '✅';
-        document.getElementById('cfg-auto-read-receipt').checked = config.auto_read_receipt_enabled || false;
-
-        // Regex patterns
-        loadRegexPatterns(config.regex_patterns || {});
     } catch (error) {
         console.error('Error loading config:', error);
     }

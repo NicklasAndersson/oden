@@ -244,6 +244,41 @@ def get_config() -> dict:
     return config
 
 
+def _migrate_settings_to_pipelines(app_config: dict) -> None:
+    """Migrate old settings to pipeline configuration if needed.
+    
+    Moves regex_patterns, auto_reaction_enabled, etc. from global config
+    to the generic_template pipeline configuration for new installations.
+    """
+    pipeline_settings = app_config.get("pipeline_settings", {})
+    generic_config = pipeline_settings.get("generic_template", {})
+    
+    # Check if migration is needed (no generic_template config yet)
+    if not generic_config:
+        # Collect old settings
+        old_regex = app_config.get("regex_patterns", {})
+        old_auto_reaction = app_config.get("auto_reaction_enabled", False)
+        old_auto_reaction_emoji = app_config.get("auto_reaction_emoji", "✅")
+        old_auto_read_receipt = app_config.get("auto_read_receipt_enabled", False)
+        
+        # Only migrate if any of these have non-default values
+        if old_regex or old_auto_reaction or old_auto_read_receipt:
+            generic_config = {
+                "templates": {"report_md": "", "append_md": ""},
+                "regex_patterns": old_regex,
+                "auto_reaction_enabled": old_auto_reaction,
+                "auto_reaction_emoji": old_auto_reaction_emoji,
+                "auto_read_receipt_enabled": old_auto_read_receipt,
+            }
+            pipeline_settings["generic_template"] = generic_config
+            app_config["pipeline_settings"] = pipeline_settings
+            
+            # Save migrated settings
+            from oden.config_db import set_config_value
+            set_config_value(CONFIG_DB, "pipeline_settings", pipeline_settings)
+            logger.info("Migrated settings to generic_template pipeline configuration")
+
+
 def reload_config() -> dict:
     """Reload configuration from database and update module-level variables."""
     global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
@@ -264,6 +299,10 @@ def reload_config() -> dict:
     logger.info("Reload: CONFIG_DB=%s", CONFIG_DB)
 
     app_config = get_config()
+    
+    # Migrate old settings to pipeline configuration if needed
+    _migrate_settings_to_pipelines(app_config)
+    
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
     if not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
@@ -275,7 +314,12 @@ def reload_config() -> dict:
     UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
     SIGNAL_CLI_HOST = app_config.get("signal_cli_host", "127.0.0.1")
     SIGNAL_CLI_PORT = app_config.get("signal_cli_port", 7583)
-    REGEX_PATTERNS = app_config.get("regex_patterns", {})
+    
+    # Read from pipeline settings first, fallback to old config for backwards compatibility
+    pipeline_settings = app_config.get("pipeline_settings", {})
+    generic_config = pipeline_settings.get("generic_template", {})
+    REGEX_PATTERNS = generic_config.get("regex_patterns", app_config.get("regex_patterns", {}))
+    
     TIMEZONE = app_config["timezone"]
     APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
     IGNORED_GROUPS = app_config.get("ignored_groups", [])
@@ -291,9 +335,12 @@ def reload_config() -> dict:
     WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
     WEB_PORT = app_config.get("web_port", 8080)
     WEB_ACCESS_LOG = app_config.get("web_access_log")
-    AUTO_REACTION_ENABLED = app_config.get("auto_reaction_enabled", False)
-    AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
-    AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
+    
+    # Read from pipeline settings first, fallback to old config for backwards compatibility
+    AUTO_REACTION_ENABLED = generic_config.get("auto_reaction_enabled", app_config.get("auto_reaction_enabled", False))
+    AUTO_REACTION_EMOJI = generic_config.get("auto_reaction_emoji", app_config.get("auto_reaction_emoji", "✅"))
+    AUTO_READ_RECEIPT_ENABLED = generic_config.get("auto_read_receipt_enabled", app_config.get("auto_read_receipt_enabled", False))
+    
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
     ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["group_filter", "seven_s", "generic_template"])
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
