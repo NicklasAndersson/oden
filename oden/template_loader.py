@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, Template, TemplateSyntaxError
+from jinja2 import Template, TemplateSyntaxError
 from jinja2.sandbox import SandboxedEnvironment
 
 from oden.bundle_utils import get_bundle_path
@@ -31,47 +31,8 @@ VALID_TEMPLATES = {REPORT_TEMPLATE, APPEND_TEMPLATE}
 
 
 def get_templates_path() -> Path:
-    """Get the path to the templates directory.
-
-    Returns:
-        Path to the templates directory (bundled or source).
-    """
+    """Get the path to the templates directory."""
     return get_bundle_path() / TEMPLATES_DIR
-
-
-@lru_cache(maxsize=1)
-def _get_jinja_env() -> Environment:
-    """Get or create a cached Jinja2 environment.
-
-    Returns:
-        Configured Jinja2 Environment instance.
-    """
-    templates_path = get_templates_path()
-    logger.debug(f"Loading templates from: {templates_path}")
-
-    env = Environment(
-        loader=FileSystemLoader(str(templates_path)),
-        trim_blocks=True,
-        lstrip_blocks=False,
-        keep_trailing_newline=True,
-    )
-    return env
-
-
-def get_template(template_name: str) -> Template:
-    """Load a Jinja2 template by name.
-
-    Args:
-        template_name: Name of the template file (e.g., 'report.md.j2').
-
-    Returns:
-        Compiled Jinja2 Template object.
-
-    Raises:
-        jinja2.TemplateNotFound: If the template file doesn't exist.
-    """
-    env = _get_jinja_env()
-    return env.get_template(template_name)
 
 
 def render_report(
@@ -254,13 +215,8 @@ def save_template_content(template_name: str, content: str) -> bool:
 
 def clear_template_cache() -> None:
     """Clear the cached Jinja2 environment to reload templates."""
-    _get_jinja_env.cache_clear()
-    # Clear sandboxed environment cache if it exists
-    if hasattr(_get_sandboxed_env, "cache_clear"):
-        _get_sandboxed_env.cache_clear()
-    # Clear _get_template_from_db cache if it exists (it may not be called yet)
-    if hasattr(_get_template_from_db, "cache_clear"):
-        _get_template_from_db.cache_clear()
+    _get_sandboxed_env.cache_clear()
+    _get_template_from_db.cache_clear()
     logger.debug("Template cache cleared")
 
 

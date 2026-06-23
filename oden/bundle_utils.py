@@ -107,11 +107,6 @@ def get_app_support_dir() -> Path:
     return app_support
 
 
-def get_pointer_file_path() -> Path:
-    """Get the path to the oden_home pointer file."""
-    return get_app_support_dir() / POINTER_FILENAME
-
-
 def get_oden_home_path() -> Path | None:
     """Get the Oden home directory path.
 
@@ -138,7 +133,7 @@ def get_oden_home_path() -> Path | None:
         except (OSError, ValueError) as e:
             logger.error(f"Invalid ODEN_HOME environment variable '{env_home}': {e}")
 
-    pointer_file = get_pointer_file_path()
+    pointer_file = get_app_support_dir() / POINTER_FILENAME
 
     if not pointer_file.exists():
         return None
@@ -171,7 +166,7 @@ def set_oden_home_path(path: Path) -> bool:
     Returns:
         True if successful, False otherwise.
     """
-    pointer_file = get_pointer_file_path()
+    pointer_file = get_app_support_dir() / POINTER_FILENAME
 
     # Create app support directory if needed using centralized function
     success, error = ensure_directory(pointer_file.parent)
@@ -240,7 +235,7 @@ def clear_oden_home_pointer() -> bool:
     Returns:
         True if successful, False otherwise.
     """
-    pointer_file = get_pointer_file_path()
+    pointer_file = get_app_support_dir() / POINTER_FILENAME
 
     try:
         if pointer_file.exists():
