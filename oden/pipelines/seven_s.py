@@ -7,10 +7,13 @@ entry. Non-matching messages are skipped so downstream pipelines can process.
 from __future__ import annotations
 
 import datetime
+import logging
 import os
 import re
 import unicodedata
 from typing import Any
+
+import mgrs
 
 from oden import config as cfg
 from oden.app_state import get_app_state
@@ -54,6 +57,31 @@ def _normalize_label(label: str) -> str:
     text = text.strip().lower()
     text = re.sub(r"[^a-z0-9]+", "", text)
     return _LABEL_ALIASES.get(text, text)
+
+
+def _extract_location(stalle: str) -> tuple[str, str | None]:
+    """Extract location (address) and coordinates from Ställe field.
+
+    Handles MGRS format: "34VCM 79349 26095, Långkärrsvägen"
+    Returns: (address, "[lat, lon]" for Obsidian Maps or None if conversion fails)
+    """
+    if "," not in stalle:
+        return stalle.strip(), None
+
+    parts = stalle.split(",", 1)
+    mgrs_str = parts[0].strip()
+    address = parts[1].strip() if len(parts) > 1 else ""
+
+    # Try to convert MGRS to decimal coordinates for Obsidian Maps plugin
+    coords = None
+    try:
+        m = mgrs.MGRS()
+        lat, lon = m.toLatLon(mgrs_str)
+        coords = f"[{lat:.6f}, {lon:.6f}]"
+    except Exception as e:
+        logging.getLogger(__name__).debug(f"Failed to convert MGRS '{mgrs_str}' to coordinates: {e}")
+
+    return address or stalle.strip(), coords
 
 
 def is_7s_message(message_text: str | None) -> bool:
@@ -144,29 +172,36 @@ class SevenSPipeline:
 
         sender_display = format_sender_display(source_name, source_number)
         timestamp_iso = dt.isoformat()
+        address, coords = _extract_location(fields["stalle"])
 
-        content = (
+        frontmatter = (
             "---\n"
             "report_type: 7s\n"
             f"group_title: {resolved_group_title}\n"
             f"group_id: {group_id or ''}\n"
             f"timestamp: {timestamp_iso}\n"
-            "---\n\n"
-            "# 7S RAPPORT\n\n"
-            f"- Till: {fields['till']}\n"
-            f"- Från: {fields['fran']}\n"
-            f"- TNR: {fields['tnr']}\n"
-            f"- Stund: {fields['stund']}\n"
-            f"- Ställe: {fields['stalle']}\n"
-            f"- Styrka: {fields['styrka']}\n"
-            f"- Slag: {fields['slag']}\n"
-            f"- Sysselsättning: {fields['sysselsattning']}\n"
-            f"- Symbol: {fields['symbol']}\n"
-            f"- Sagesman: {fields['sagesman']}\n"
-            f"- Sedan: {fields['sedan']}\n\n"
-            "## Metadata\n\n"
-            f"- Avsändare: {sender_display}\n"
-            f"- Inkom: {timestamp_iso}\n"
+        )
+        if coords:
+            frontmatter += f"location: {coords}\n"
+        frontmatter += "---\n\n"
+
+        content = (
+            frontmatter
+            + "# 7S RAPPORT\n\n"
+            + f"- Till: {fields['till']}\n"
+            + f"- Från: {fields['fran']}\n"
+            + f"- TNR: {fields['tnr']}\n"
+            + f"- Stund: {fields['stund']}\n"
+            + f"- Ställe: {fields['stalle']}\n"
+            + f"- Styrka: {fields['styrka']}\n"
+            + f"- Slag: {fields['slag']}\n"
+            + f"- Sysselsättning: {fields['sysselsattning']}\n"
+            + f"- Symbol: {fields['symbol']}\n"
+            + f"- Sagesman: {fields['sagesman']}\n"
+            + f"- Sedan: {fields['sedan']}\n\n"
+            + "## Metadata\n\n"
+            + f"- Avsändare: {sender_display}\n"
+            + f"- Inkom: {timestamp_iso}\n"
         )
 
         with open(filepath, "w", encoding="utf-8") as f:
