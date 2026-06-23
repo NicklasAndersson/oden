@@ -185,47 +185,24 @@ SNAPSHOT_PUBLISHED_AT=()
 load_release_choices() {
     local json="$1"
     local mode="$2"
-    local encoded_tag=""
-    local encoded_published_at=""
     local tag=""
     local published_at=""
     local release_lines=""
-    local parse_error_file=""
 
     SNAPSHOT_TAGS=()
     SNAPSHOT_PUBLISHED_AT=()
 
-    parse_error_file="$(mktemp)"
-    if ! release_lines="$(
-        RELEASES_JSON="$json" /usr/bin/osascript -l JavaScript 2>"$parse_error_file" <<'JXA'
-try {
-    const releases = JSON.parse($.getenv("RELEASES_JSON"));
-    for (const release of releases) {
-        if (!release || !release.tag_name) {
-            continue;
-        }
-        const encodedTag = Buffer.from(release.tag_name, "utf8").toString("base64");
-        const encodedPublishedAt = Buffer.from(release.published_at || "", "utf8").toString("base64");
-        console.log(`${encodedTag}|${encodedPublishedAt}`);
-    }
-} catch (error) {
-    console.error(`Kunde inte tolka release-information från GitHub: ${error.message}`);
-    $.exit(1);
-}
-JXA
-    )"; then
-        if [[ -s "$parse_error_file" ]]; then
-            cat "$parse_error_file" >&2
-        fi
-        rm -f "$parse_error_file"
-        return 1
+    # Try jq first (tag + date); fall back to grep/sed (tag only, no dates)
+    if command -v jq &>/dev/null; then
+        release_lines="$(printf '%s' "$json" | jq -r '.[] | select(.tag_name != null) | .tag_name + "|" + (.published_at // "")' 2>/dev/null)" || release_lines=""
     fi
-    rm -f "$parse_error_file"
+    if [[ -z "$release_lines" ]]; then
+        release_lines="$(printf '%s' "$json" | grep -o '"tag_name":"[^"]*"' | sed 's/"tag_name":"//;s/"$/|/')" || release_lines=""
+    fi
 
-    while IFS='|' read -r encoded_tag encoded_published_at; do
-        [[ -n "$encoded_tag" ]] || continue
-        tag="$(printf '%s' "$encoded_tag" | base64 --decode)"
-        published_at="$(printf '%s' "$encoded_published_at" | base64 --decode)"
+    [[ -n "$release_lines" ]] || return 1
+
+    while IFS='|' read -r tag published_at; do
         [[ -n "$tag" ]] || continue
         if matches_snapshot_mode "$tag" "$mode"; then
             SNAPSHOT_TAGS+=("$tag")
