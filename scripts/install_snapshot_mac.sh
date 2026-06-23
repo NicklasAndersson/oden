@@ -200,10 +200,10 @@ choose_snapshot_tag() {
     fi
 
     if [[ "$ODEN_SNAPSHOT_SELECT" == "ask" ]] && has_prompt_tty; then
-        print_info "Välj snapshot-version (standard: 1)"
+        print_info "Välj snapshot-version (standard: 1)" >&2
         local i=1
         for tag in "${tags[@]}"; do
-            printf "  %2d) %s\n" "$i" "$tag"
+            printf "  %2d) %s\n" "$i" "$tag" >&2
             i=$((i + 1))
             if [[ $i -gt 15 ]]; then
                 break
@@ -220,7 +220,7 @@ choose_snapshot_tag() {
             echo "${tags[$((choice - 1))]}"
             return 0
         fi
-        print_warning "Ogiltigt val. Använder senaste snapshot i listan."
+        print_warning "Ogiltigt val. Använder senaste snapshot i listan." >&2
     fi
 
     echo "${tags[0]}"
