@@ -15,7 +15,7 @@ dependencies = [
     "aiohttp-jinja2>=1.6",
     "jinja2>=3.1.6",
     "qrcode>=8.2",
-    "tzdata>=2024.1",
+    "tzdata>=2026.2",
 ]
 
 [project.scripts]
@@ -24,12 +24,12 @@ oden = "oden.s7_watcher:main"
 [project.optional-dependencies]
 tray = [
     "pystray>=0.19.5",
-    "Pillow>=9.0.0",
+    "Pillow>=12.2.0",
 ]
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "ruff~=0.15.10",
+    "ruff~=0.15.12",
     "playwright>=1.58.0",
 ]
 
