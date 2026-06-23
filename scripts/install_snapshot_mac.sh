@@ -11,6 +11,8 @@
 #
 # Användning:
 #   curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_snapshot_mac.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_snapshot_mac.sh | bash -s -- --choose
+#   curl -fsSL https://raw.githubusercontent.com/NicklasAndersson/oden/main/scripts/install_snapshot_mac.sh | bash -s -- --tag snapshot-abc1234
 #
 # Eller:
 #   ./install_snapshot_mac.sh
@@ -25,6 +27,7 @@
 #   ODEN_SNAPSHOT_TYPE=auto   # Föredra PR-snapshots, fallback till regular (default)
 #   ODEN_SNAPSHOT_TAG=<tag>   # Installera exakt tag (ex: snapshot-abc1234)
 #   ODEN_SNAPSHOT_SELECT=ask  # Fråga användaren vilken snapshot som ska installeras
+#   ODEN_SNAPSHOT_SELECT=latest # Installera senaste utan fråga
 
 set -euo pipefail
 
@@ -49,7 +52,7 @@ INSTALL_DIR="/Applications"
 #   "auto"   - prefer PR snapshots, fallback to regular (default)
 ODEN_SNAPSHOT_TYPE="${ODEN_SNAPSHOT_TYPE:-auto}"
 ODEN_SNAPSHOT_TAG="${ODEN_SNAPSHOT_TAG:-}"
-ODEN_SNAPSHOT_SELECT="${ODEN_SNAPSHOT_SELECT:-latest}"
+ODEN_SNAPSHOT_SELECT="${ODEN_SNAPSHOT_SELECT:-}"
 
 # --- Optional CLI flags ---
 #   --choose        Ask user to pick from available snapshot tags
@@ -96,6 +99,35 @@ print_warning() {
 print_info() {
     echo -e "${C_BLUE}ℹ $1${C_RESET}"
 }
+
+has_prompt_tty() {
+    [[ -t 0 ]] || [[ -r /dev/tty ]]
+}
+
+prompt_line() {
+    local prompt="$1"
+    local __result_var="$2"
+    local input=""
+
+    if [[ -t 0 ]]; then
+        read -rp "$prompt" input
+    elif [[ -r /dev/tty ]]; then
+        read -r -p "$prompt" input < /dev/tty
+    else
+        input=""
+    fi
+
+    printf -v "$__result_var" '%s' "$input"
+}
+
+# Default to interactive selection when a prompt-capable terminal exists.
+if [[ -z "$ODEN_SNAPSHOT_SELECT" ]]; then
+    if has_prompt_tty; then
+        ODEN_SNAPSHOT_SELECT="ask"
+    else
+        ODEN_SNAPSHOT_SELECT="latest"
+    fi
+fi
 
 # --- Banner ---
 echo -e "${C_YELLOW}${C_BOLD}"
@@ -167,7 +199,7 @@ choose_snapshot_tag() {
         return 0
     fi
 
-    if [[ "$ODEN_SNAPSHOT_SELECT" == "ask" ]] && [[ -t 0 ]]; then
+    if [[ "$ODEN_SNAPSHOT_SELECT" == "ask" ]] && has_prompt_tty; then
         print_info "Välj snapshot-version (standard: 1)"
         local i=1
         for tag in "${tags[@]}"; do
@@ -179,7 +211,7 @@ choose_snapshot_tag() {
         done
 
         local choice=""
-        read -rp "Ange nummer [1]: " choice
+        prompt_line "Ange nummer [1]: " choice
         if [[ -z "$choice" ]]; then
             echo "${tags[0]}"
             return 0
