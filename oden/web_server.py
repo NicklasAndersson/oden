@@ -141,9 +141,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
     )
     logo_path = get_bundle_path() / "images" / "oden_1024.png"
     if logo_path.exists():
-        env.globals["oden_logo_uri"] = (
-            "data:image/png;base64," + base64.b64encode(logo_path.read_bytes()).decode()
-        )
+        env.globals["oden_logo_uri"] = "data:image/png;base64," + base64.b64encode(logo_path.read_bytes()).decode()
 
     # Setup routes (always available)
     app.router.add_get("/setup", setup_handler)
