@@ -6,6 +6,7 @@ and initial setup wizard for first-run configuration.
 """
 
 import asyncio
+import base64
 import logging
 
 import aiohttp_jinja2
@@ -13,6 +14,7 @@ import jinja2
 from aiohttp import web
 
 from oden import __version__
+from oden.bundle_utils import get_bundle_path
 from oden import config as cfg
 from oden.log_buffer import get_log_buffer
 from oden.web_handlers.account_handlers import (
@@ -132,11 +134,16 @@ def create_app(setup_mode: bool = False) -> web.Application:
     app = web.Application()
 
     # Set up Jinja2 template engine for HTML rendering
-    aiohttp_jinja2.setup(
+    env = aiohttp_jinja2.setup(
         app,
         loader=jinja2.PackageLoader("oden", "templates/web"),
         autoescape=jinja2.select_autoescape(["html"]),
     )
+    logo_path = get_bundle_path() / "images" / "oden_1024.png"
+    if logo_path.exists():
+        env.globals["oden_logo_uri"] = (
+            "data:image/png;base64," + base64.b64encode(logo_path.read_bytes()).decode()
+        )
 
     # Setup routes (always available)
     app.router.add_get("/setup", setup_handler)
