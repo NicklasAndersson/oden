@@ -22,6 +22,29 @@ from oden.web_handlers._helpers import handle_errors, parse_json_body, require_w
 logger = logging.getLogger(__name__)
 
 
+def _as_bool(value: object, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+
+def _as_int(value: object, default: int) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return default
+    return default
+
+
 async def config_handler(request: web.Request) -> web.Response:
     """Return current config as JSON (reads live from database)."""
     # Read config fresh from database to support live reload
@@ -33,6 +56,7 @@ async def config_handler(request: web.Request) -> web.Response:
         "signal_cli_port": config.get("signal_cli_port", 7583),
         "signal_cli_path": config.get("signal_cli_path"),
         "signal_cli_log_file": config.get("signal_cli_log_file"),
+        "diagnostic_mode": _as_bool(config.get("diagnostic_mode", False), False),
         "unmanaged_signal_cli": config.get("unmanaged_signal_cli", False),
         "vault_path": config["vault_path"],
         "timezone": str(config["timezone"]),
@@ -50,6 +74,8 @@ async def config_handler(request: web.Request) -> web.Response:
         "auto_reaction_enabled": config.get("auto_reaction_enabled", False),
         "auto_reaction_emoji": config.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": config.get("auto_read_receipt_enabled", False),
+        "db_first_enabled": config.get("db_first_enabled", True),
+        "raw_message_retention_days": _as_int(config.get("raw_message_retention_days", 30), 30),
         "oden_home": str(cfg.ODEN_HOME),
         "config_db_path": str(cfg.CONFIG_DB),
     }
@@ -83,6 +109,7 @@ async def config_save_handler(request: web.Request) -> web.Response:
         "signal_cli_host": data.get("signal_cli_host", "127.0.0.1"),
         "signal_cli_port": data.get("signal_cli_port", 7583),
         "signal_cli_path": data.get("signal_cli_path"),
+        "diagnostic_mode": data.get("diagnostic_mode", False),
         "unmanaged_signal_cli": data.get("unmanaged_signal_cli", False),
         "web_enabled": data.get("web_enabled", True),
         "web_port": data.get("web_port", 8080),
@@ -91,7 +118,16 @@ async def config_save_handler(request: web.Request) -> web.Response:
         "auto_reaction_enabled": data.get("auto_reaction_enabled", False),
         "auto_reaction_emoji": data.get("auto_reaction_emoji", "✅"),
         "auto_read_receipt_enabled": data.get("auto_read_receipt_enabled", False),
+        "db_first_enabled": data.get("db_first_enabled", True),
+        "raw_message_retention_days": data.get("raw_message_retention_days", 30),
     }
+
+    retention_days = form_updates["raw_message_retention_days"]
+    if not isinstance(retention_days, int) or retention_days < 1 or retention_days > 3650:
+        return web.json_response(
+            {"success": False, "error": "raw_message_retention_days måste vara ett heltal mellan 1 och 3650"},
+            status=400,
+        )
 
     # Handle regex_patterns if provided
     if "regex_patterns" in data:

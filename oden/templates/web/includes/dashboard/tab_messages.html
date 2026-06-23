@@ -1,0 +1,45 @@
+<div id="tab-messages" class="tab-content">
+    <div class="messages-toolbar">
+        <div class="messages-filters">
+            <label for="messages-status-filter">Status</label>
+            <select id="messages-status-filter" onchange="loadMessagesDashboard()">
+                <option value="">Alla</option>
+                <option value="received">received</option>
+                <option value="queued">queued</option>
+                <option value="processing">processing</option>
+                <option value="processed">processed</option>
+                <option value="failed">failed</option>
+                <option value="ignored">ignored</option>
+            </select>
+        </div>
+        <button class="btn" onclick="loadMessagesDashboard()">Uppdatera</button>
+    </div>
+
+    <div class="messages-grid">
+        <div class="messages-list-pane">
+            <h3>Inkomna meddelanden</h3>
+            <div id="messages-list" class="messages-list">
+                <div class="empty-state">Laddar meddelanden...</div>
+            </div>
+        </div>
+
+        <div class="messages-detail-pane">
+            <h3>Meddelandedetalj</h3>
+            <div id="message-detail" class="messages-detail">
+                <div class="empty-state">Välj ett meddelande i listan.</div>
+            </div>
+            <div class="messages-actions">
+                <button class="btn" id="btn-reprocess-message" onclick="reprocessSelectedMessage()" disabled>
+                    Reprocessa markerat meddelande
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="messages-stats" id="messages-stats">
+        <span>Totalt: <strong id="messages-stat-total">0</strong></span>
+        <span>Processed: <strong id="messages-stat-processed">0</strong></span>
+        <span>Failed: <strong id="messages-stat-failed">0</strong></span>
+        <span>Ignored: <strong id="messages-stat-ignored">0</strong></span>
+    </div>
+</div>
