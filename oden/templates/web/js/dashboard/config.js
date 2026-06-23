@@ -18,8 +18,6 @@ async function loadConfigForm() {
         document.getElementById('cfg-startup-message').value = config.startup_message || 'self';
         document.getElementById('cfg-filename-format').value = config.filename_format || 'classic';
         document.getElementById('cfg-plus-plus').checked = config.plus_plus_enabled || false;
-        document.getElementById('cfg-ignored-groups').value = (config.ignored_groups || []).join(', ');
-        document.getElementById('cfg-whitelist-groups').value = (config.whitelist_groups || []).join(', ');
 
         // Advanced tab
         document.getElementById('cfg-signal-host').value = config.signal_cli_host || '127.0.0.1';

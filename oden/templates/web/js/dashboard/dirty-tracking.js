@@ -30,10 +30,6 @@ async function _doAutoSave() {
         startup_message: document.getElementById('cfg-startup-message').value,
         filename_format: document.getElementById('cfg-filename-format').value,
         plus_plus_enabled: document.getElementById('cfg-plus-plus').checked,
-        ignored_groups: document.getElementById('cfg-ignored-groups').value
-            .split(',').map(s => s.trim()).filter(s => s),
-        whitelist_groups: document.getElementById('cfg-whitelist-groups').value
-            .split(',').map(s => s.trim()).filter(s => s),
         signal_cli_host: document.getElementById('cfg-signal-host').value,
         signal_cli_port: parseInt(document.getElementById('cfg-signal-port').value) || 7583,
         signal_cli_path: document.getElementById('cfg-signal-path').value || null,

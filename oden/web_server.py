@@ -44,8 +44,6 @@ from oden.web_handlers.group_handlers import (
     invitations_handler,
     join_group_handler,
     refresh_groups_handler,
-    toggle_ignore_group_handler,
-    toggle_whitelist_group_handler,
     update_group_handler,
 )
 from oden.web_handlers.message_handlers import (
@@ -54,7 +52,12 @@ from oden.web_handlers.message_handlers import (
     message_stats_handler,
     messages_list_handler,
 )
-from oden.web_handlers.pipeline_handlers import list_pipelines, reorder_pipelines, toggle_pipeline
+from oden.web_handlers.pipeline_handlers import (
+    list_pipelines,
+    reorder_pipelines,
+    toggle_pipeline,
+    update_pipeline_config,
+)
 from oden.web_handlers.response_handlers import (
     response_create_handler,
     response_delete_handler,
@@ -165,8 +168,6 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/groups", groups_handler)
         app.router.add_post("/api/groups/refresh", refresh_groups_handler)
         app.router.add_post("/api/groups/update", update_group_handler)
-        app.router.add_post("/api/toggle-ignore-group", toggle_ignore_group_handler)
-        app.router.add_post("/api/toggle-whitelist-group", toggle_whitelist_group_handler)
         app.router.add_post("/api/config-save", config_save_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)
         app.router.add_post("/api/shutdown", shutdown_handler)
@@ -190,6 +191,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         # Pipeline management routes
         app.router.add_get("/api/pipelines", list_pipelines)
         app.router.add_patch("/api/pipelines/{name}/enabled", toggle_pipeline)
+        app.router.add_patch("/api/pipelines/{name}/config", update_pipeline_config)
         app.router.add_post("/api/pipelines/reorder", reorder_pipelines)
 
         # Contact routes

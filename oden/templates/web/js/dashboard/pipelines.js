@@ -23,6 +23,31 @@ function pipelineRunCount(name) {
     return pipelinesState.stats.by_pipeline?.[name] || 0;
 }
 
+function renderGroupFilterSettings(item) {
+    const cfg = item.config || {};
+    const mode = cfg.mode === 'whitelist' ? 'whitelist' : 'blacklist';
+    const groups = Array.isArray(cfg.groups) ? cfg.groups : [];
+
+    return `
+        <div class="pipeline-settings">
+            <div class="pipeline-settings-row">
+                <label for="pipeline-config-group_filter-mode">Filterläge</label>
+                <select id="pipeline-config-group_filter-mode">
+                    <option value="blacklist" ${mode === 'blacklist' ? 'selected' : ''}>Blacklist (exkludera listade grupper)</option>
+                    <option value="whitelist" ${mode === 'whitelist' ? 'selected' : ''}>Whitelist (tillåt endast listade grupper)</option>
+                </select>
+            </div>
+            <div class="pipeline-settings-row">
+                <label for="pipeline-config-group_filter-groups">Grupper (en per rad)</label>
+                <textarea id="pipeline-config-group_filter-groups" rows="4" placeholder="Exempelgrupp A\nExempelgrupp B">${escapeHtml(groups.join('\n'))}</textarea>
+            </div>
+            <div class="pipeline-settings-actions">
+                <button class="btn btn-small" onclick="saveGroupFilterSettings()">Spara filter</button>
+            </div>
+        </div>
+    `;
+}
+
 function renderEnabledPipelines() {
     const container = document.getElementById('pipelines-enabled-list');
     const enabled = pipelinesState.enabled || [];
@@ -41,6 +66,10 @@ function renderEnabledPipelines() {
         const description = meta?.description || '';
         const runCount = pipelineRunCount(item.name);
 
+        const settingsHtml = meta?.supports_config && item.name === 'group_filter'
+            ? renderGroupFilterSettings(item)
+            : '';
+
         return `
             <div class="pipeline-card enabled">
                 <div class="pipeline-card-header">
@@ -57,6 +86,7 @@ function renderEnabledPipelines() {
                 </div>
                 <div class="pipeline-criteria"><strong>Väljer:</strong> ${escapeHtml(criteria)}</div>
                 ${description ? `<div class="pipeline-description">${escapeHtml(description)}</div>` : ''}
+                ${settingsHtml}
                 <div class="pipeline-meta">Körningar: ${runCount}</div>
             </div>
         `;
@@ -180,6 +210,46 @@ async function movePipeline(name, direction) {
         await loadPipelinesDashboard();
     } catch (error) {
         showConfigMessage(`Kunde inte ändra ordning: ${error.message}`, 'error');
+    }
+}
+
+async function savePipelineConfig(name, config) {
+    const response = await fetch(`/api/pipelines/${encodeURIComponent(name)}/config`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || payload.success === false) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+}
+
+async function saveGroupFilterSettings() {
+    const modeEl = document.getElementById('pipeline-config-group_filter-mode');
+    const groupsEl = document.getElementById('pipeline-config-group_filter-groups');
+    if (!modeEl || !groupsEl) {
+        return;
+    }
+
+    const groups = groupsEl.value
+        .split('\n')
+        .map(item => item.trim())
+        .filter(Boolean);
+
+    try {
+        await savePipelineConfig('group_filter', {
+            mode: modeEl.value === 'whitelist' ? 'whitelist' : 'blacklist',
+            groups,
+        });
+        showConfigMessage('Gruppfilter sparat.', 'success');
+        await loadPipelinesDashboard();
+        await fetchGroups();
+    } catch (error) {
+        showConfigMessage(`Kunde inte spara gruppfilter: ${error.message}`, 'error');
     }
 }
 
