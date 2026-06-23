@@ -162,42 +162,68 @@ RELEASES_JSON=$(curl -fsSL "${API_URL}?per_page=20") || {
     exit 1
 }
 
-extract_tags() {
-    local json="$1"
+matches_snapshot_mode() {
+    local tag="$1"
     local mode="$2"
 
     case "$mode" in
         "pr")
-            echo "$json" \
-                | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
-                | sed 's/.*"tag_name" *: *"//;s/"$//' || true
+            [[ "$tag" =~ ^pr-.*-snapshot-.*$ ]]
             ;;
         "main")
-            echo "$json" \
-                | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
-                | sed 's/.*"tag_name" *: *"//;s/"$//' || true
+            [[ "$tag" =~ ^snapshot-.*$ ]]
             ;;
         "auto"|*)
-            {
-                echo "$json" \
-                    | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
-                    | sed 's/.*"tag_name" *: *"//;s/"$//' || true
-                echo "$json" \
-                    | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
-                    | sed 's/.*"tag_name" *: *"//;s/"$//' || true
-            } | awk '!seen[$0]++'
+            [[ "$tag" =~ ^pr-.*-snapshot-.*$ ]] || [[ "$tag" =~ ^snapshot-.*$ ]]
             ;;
     esac
 }
 
-choose_snapshot_tag() {
-    local tags_text="$1"
-    local tags=()
+extract_release_choices() {
+    local json="$1"
+    local mode="$2"
+    local release_info=""
     local tag=""
+    local published_at=""
 
-    while IFS= read -r tag; do
-        [[ -n "$tag" ]] && tags+=("$tag")
-    done <<<"$tags_text"
+    while IFS='|' read -r tag published_at; do
+        [[ -n "$tag" ]] || continue
+        if matches_snapshot_mode "$tag" "$mode"; then
+            printf '%s|%s\n' "$tag" "$published_at"
+        fi
+    done < <(
+        perl -0ne 'while (/"tag_name"\s*:\s*"([^"]+)".*?"published_at"\s*:\s*"([^"]+)"/sg) { print "$1|$2\n" }' \
+            <<<"$json"
+    )
+}
+
+format_release_timestamp() {
+    local iso_timestamp="$1"
+
+    if [[ "$iso_timestamp" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}) ]]; then
+        printf '%s-%s-%s %s:%s UTC' \
+            "${BASH_REMATCH[1]}" \
+            "${BASH_REMATCH[2]}" \
+            "${BASH_REMATCH[3]}" \
+            "${BASH_REMATCH[4]}" \
+            "${BASH_REMATCH[5]}"
+    else
+        printf '%s' "$iso_timestamp"
+    fi
+}
+
+choose_snapshot_tag() {
+    local release_choices_text="$1"
+    local tags=()
+    local release_times=()
+    local tag=""
+    local published_at=""
+
+    while IFS='|' read -r tag published_at; do
+        [[ -n "$tag" ]] || continue
+        tags+=("$tag")
+        release_times+=("$published_at")
+    done <<<"$release_choices_text"
 
     if [[ ${#tags[@]} -eq 0 ]]; then
         echo ""
@@ -208,7 +234,9 @@ choose_snapshot_tag() {
         print_info "Välj snapshot-version (standard: 1)" >&2
         local i=1
         for tag in "${tags[@]}"; do
-            printf "  %2d) %s\n" "$i" "$tag" >&2
+            local release_time_display=""
+            release_time_display="$(format_release_timestamp "${release_times[$((i - 1))]}")"
+            printf "  %2d) %s (%s)\n" "$i" "$tag" "$release_time_display" >&2
             i=$((i + 1))
             if [[ $i -gt 15 ]]; then
                 break
@@ -238,7 +266,7 @@ if [[ -n "$ODEN_SNAPSHOT_TAG" ]]; then
     SNAPSHOT_TAG="$ODEN_SNAPSHOT_TAG"
     print_info "Använder explicit snapshot-tag: ${SNAPSHOT_TAG}"
 else
-    TAG_CANDIDATES="$(extract_tags "$RELEASES_JSON" "$ODEN_SNAPSHOT_TYPE")"
+    TAG_CANDIDATES="$(extract_release_choices "$RELEASES_JSON" "$ODEN_SNAPSHOT_TYPE")"
     SNAPSHOT_TAG="$(choose_snapshot_tag "$TAG_CANDIDATES")"
 fi
 
