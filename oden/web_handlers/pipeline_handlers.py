@@ -17,7 +17,11 @@ from aiohttp import web
 from oden import config as cfg
 from oden.config_db import set_config_value
 from oden.pipeline_orchestrator import _GenericPipeline
-from oden.pipeline_settings import normalize_group_filter_settings, normalize_pipeline_settings, normalize_generic_template_settings
+from oden.pipeline_settings import (
+    normalize_generic_template_settings,
+    normalize_group_filter_settings,
+    normalize_pipeline_settings,
+)
 from oden.pipelines.group_filter import GroupFilterPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.web_handlers._helpers import handle_errors, parse_json_body
