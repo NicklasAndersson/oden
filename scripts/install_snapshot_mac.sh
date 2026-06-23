@@ -15,10 +15,16 @@
 # Eller:
 #   ./install_snapshot_mac.sh
 #
+# Med versionsval:
+#   ./install_snapshot_mac.sh --choose
+#   ./install_snapshot_mac.sh --tag snapshot-abc1234
+#
 # Env-variabler:
 #   ODEN_SNAPSHOT_TYPE=pr     # Endast PR-snapshots (pr-*-snapshot-*)
 #   ODEN_SNAPSHOT_TYPE=main   # Endast regular snapshots (snapshot-*)
 #   ODEN_SNAPSHOT_TYPE=auto   # Föredra PR-snapshots, fallback till regular (default)
+#   ODEN_SNAPSHOT_TAG=<tag>   # Installera exakt tag (ex: snapshot-abc1234)
+#   ODEN_SNAPSHOT_SELECT=ask  # Fråga användaren vilken snapshot som ska installeras
 
 set -euo pipefail
 
@@ -42,6 +48,33 @@ INSTALL_DIR="/Applications"
 #   "main"   - only regular snapshots (snapshot-*)
 #   "auto"   - prefer PR snapshots, fallback to regular (default)
 ODEN_SNAPSHOT_TYPE="${ODEN_SNAPSHOT_TYPE:-auto}"
+ODEN_SNAPSHOT_TAG="${ODEN_SNAPSHOT_TAG:-}"
+ODEN_SNAPSHOT_SELECT="${ODEN_SNAPSHOT_SELECT:-latest}"
+
+# --- Optional CLI flags ---
+#   --choose        Ask user to pick from available snapshot tags
+#   --tag <tag>     Use exact snapshot tag
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --choose)
+            ODEN_SNAPSHOT_SELECT="ask"
+            shift
+            ;;
+        --tag)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --tag kräver ett värde, t.ex. --tag snapshot-abc1234" >&2
+                exit 1
+            fi
+            ODEN_SNAPSHOT_TAG="$2"
+            shift 2
+            ;;
+        *)
+            echo "Error: Okänd flagga: $1" >&2
+            echo "Använd: --choose eller --tag <tag>" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # --- Helper Functions ---
 print_header() {
@@ -97,40 +130,80 @@ RELEASES_JSON=$(curl -fsSL "${API_URL}?per_page=20") || {
     exit 1
 }
 
-# Find snapshot tag based on preference
+extract_tags() {
+    local json="$1"
+    local mode="$2"
+
+    case "$mode" in
+        "pr")
+            echo "$json" \
+                | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
+                | sed 's/.*"tag_name" *: *"//;s/"$//' || true
+            ;;
+        "main")
+            echo "$json" \
+                | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
+                | sed 's/.*"tag_name" *: *"//;s/"$//' || true
+            ;;
+        "auto"|*)
+            {
+                echo "$json" \
+                    | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
+                    | sed 's/.*"tag_name" *: *"//;s/"$//' || true
+                echo "$json" \
+                    | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
+                    | sed 's/.*"tag_name" *: *"//;s/"$//' || true
+            } | awk '!seen[$0]++'
+            ;;
+    esac
+}
+
+choose_snapshot_tag() {
+    local tags_text="$1"
+    mapfile -t tags <<<"$tags_text"
+
+    if [[ ${#tags[@]} -eq 0 ]]; then
+        echo ""
+        return 0
+    fi
+
+    if [[ "$ODEN_SNAPSHOT_SELECT" == "ask" ]] && [[ -t 0 ]]; then
+        print_info "Välj snapshot-version (standard: 1)"
+        local i=1
+        for tag in "${tags[@]}"; do
+            printf "  %2d) %s\n" "$i" "$tag"
+            i=$((i + 1))
+            if [[ $i -gt 15 ]]; then
+                break
+            fi
+        done
+
+        local choice=""
+        read -rp "Ange nummer [1]: " choice
+        if [[ -z "$choice" ]]; then
+            echo "${tags[0]}"
+            return 0
+        fi
+        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 )) && (( choice <= ${#tags[@]} )); then
+            echo "${tags[$((choice - 1))]}"
+            return 0
+        fi
+        print_warning "Ogiltigt val. Använder senaste snapshot i listan."
+    fi
+
+    echo "${tags[0]}"
+}
+
+# Find snapshot tag (explicit tag wins)
 SNAPSHOT_TAG=""
 
-case "$ODEN_SNAPSHOT_TYPE" in
-    "pr")
-        # Only PR snapshots
-        SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
-            | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
-            | head -1 \
-            | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
-        ;;
-    "main")
-        # Only regular snapshots
-        SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
-            | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
-            | head -1 \
-            | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
-        ;;
-    "auto"|*)
-        # Auto: prefer PR snapshots, fallback to regular
-        SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
-            | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
-            | head -1 \
-            | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
-        
-        if [[ -z "$SNAPSHOT_TAG" ]]; then
-            SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
-                | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
-                | head -1 \
-                | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
-            [[ -n "$SNAPSHOT_TAG" ]] && print_info "Ingen PR-snapshot hittad. Använder vanlig snapshot."
-        fi
-        ;;
-esac
+if [[ -n "$ODEN_SNAPSHOT_TAG" ]]; then
+    SNAPSHOT_TAG="$ODEN_SNAPSHOT_TAG"
+    print_info "Använder explicit snapshot-tag: ${SNAPSHOT_TAG}"
+else
+    TAG_CANDIDATES="$(extract_tags "$RELEASES_JSON" "$ODEN_SNAPSHOT_TYPE")"
+    SNAPSHOT_TAG="$(choose_snapshot_tag "$TAG_CANDIDATES")"
+fi
 
 if [[ -z "$SNAPSHOT_TAG" ]]; then
     print_error "Kunde inte tolka snapshot-taggen."
