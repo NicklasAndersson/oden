@@ -716,6 +716,9 @@ td {
     line-height: 1.5;
     resize: vertical;
 }
+.template-editor-modal-content textarea {
+    min-height: 70vh;
+}
 .template-editor-pane textarea:focus {
     outline: none;
     border-color: var(--color-accent);
@@ -734,6 +737,9 @@ td {
     white-space: pre-wrap;
     word-wrap: break-word;
     min-height: 350px;
+}
+.template-preview-content-large {
+    min-height: 70vh;
 }
 .template-error {
     padding: 10px 15px;
@@ -932,6 +938,21 @@ td {
     width: 90%;
     text-align: center;
     border: 1px solid var(--color-border);
+}
+.template-editor-modal-content {
+    max-width: 1400px;
+    width: min(96vw, 1400px);
+    text-align: left;
+}
+.template-editor-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.template-split-view-large {
+    min-height: 70vh;
 }
 /* QR code container */
 .qr-container {

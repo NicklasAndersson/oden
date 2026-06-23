@@ -2,20 +2,114 @@
 //
 // Jinja2 template editor with live preview, save/reset, and export.
 
-async function loadTemplate() {
-    const templateName = document.getElementById('template-select').value;
-    const editor = document.getElementById('template-editor');
-    const variablesContainer = document.getElementById('template-variables');
+function getTemplateModal() {
+    return document.getElementById('template-editor-modal');
+}
+
+function isTemplateModalOpen() {
+    const modal = getTemplateModal();
+    return modal && !modal.classList.contains('hidden');
+}
+
+function getActiveTemplateEditor() {
+    if (isTemplateModalOpen()) {
+        return document.getElementById('template-editor-large');
+    }
+    return document.getElementById('template-editor');
+}
+
+function setTemplateContent(content) {
+    document.getElementById('template-editor').value = content;
+
+    const largeEditor = document.getElementById('template-editor-large');
+    if (largeEditor) {
+        largeEditor.value = content;
+    }
+}
+
+function setTemplatePreview(preview) {
+    const previewDiv = document.getElementById('template-preview');
+    previewDiv.textContent = preview;
+
+    const largePreviewDiv = document.getElementById('template-preview-large');
+    if (largePreviewDiv) {
+        largePreviewDiv.textContent = preview;
+    }
+}
+
+function setTemplateEmptyPreview(message) {
+    const html = '<div class="empty-state">' + escapeHtml(message) + '</div>';
+    document.getElementById('template-preview').innerHTML = html;
+
+    const largePreviewDiv = document.getElementById('template-preview-large');
+    if (largePreviewDiv) {
+        largePreviewDiv.innerHTML = html;
+    }
+}
+
+function setTemplateError(message) {
     const errorDiv = document.getElementById('template-error');
+    const largeErrorDiv = document.getElementById('template-error-large');
+
+    if (message) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        if (largeErrorDiv) {
+            largeErrorDiv.textContent = message;
+            largeErrorDiv.style.display = 'block';
+        }
+        return;
+    }
 
     errorDiv.style.display = 'none';
+    if (largeErrorDiv) {
+        largeErrorDiv.style.display = 'none';
+    }
+}
+
+function syncTemplateContentFromActiveEditor() {
+    const editor = getActiveTemplateEditor();
+    setTemplateContent(editor.value);
+    return editor.value;
+}
+
+function openTemplateEditorModal() {
+    const modal = getTemplateModal();
+    setTemplateContent(document.getElementById('template-editor').value);
+
+    const previewDiv = document.getElementById('template-preview');
+    const largePreviewDiv = document.getElementById('template-preview-large');
+    if (largePreviewDiv) {
+        largePreviewDiv.innerHTML = previewDiv.innerHTML;
+    }
+
+    setTemplateError('');
+    modal.classList.remove('hidden');
+    document.getElementById('template-editor-large').focus();
+}
+
+function closeTemplateEditorModal(event) {
+    if (event && event.target && event.target !== getTemplateModal()) {
+        return;
+    }
+
+    syncTemplateContentFromActiveEditor();
+    setTemplateError('');
+    getTemplateModal().classList.add('hidden');
+}
+
+async function loadTemplate() {
+    const templateName = document.getElementById('template-select').value;
+    const variablesContainer = document.getElementById('template-variables');
+
+    setTemplateError('');
 
     try {
         const response = await fetch(`/api/templates/${templateName}`);
         const data = await response.json();
 
         if (response.ok) {
-            editor.value = data.content;
+            setTemplateContent(data.content);
 
             // Display variables
             if (data.variables && data.variables.length > 0) {
@@ -34,26 +128,22 @@ async function loadTemplate() {
             // Auto-preview
             await previewTemplate();
         } else {
-            errorDiv.textContent = data.error || 'Kunde inte ladda mall';
-            errorDiv.style.display = 'block';
+            setTemplateError(data.error || 'Kunde inte ladda mall');
         }
     } catch (error) {
-        errorDiv.textContent = 'Nätverksfel: ' + error.message;
-        errorDiv.style.display = 'block';
+        setTemplateError('Nätverksfel: ' + error.message);
     }
 }
 
 async function previewTemplate() {
     const templateName = document.getElementById('template-select').value;
-    const content = document.getElementById('template-editor').value;
-    const previewDiv = document.getElementById('template-preview');
-    const errorDiv = document.getElementById('template-error');
+    const content = syncTemplateContentFromActiveEditor();
     const useFullData = document.getElementById('template-full-data').checked;
 
-    errorDiv.style.display = 'none';
+    setTemplateError('');
 
     if (!content.trim()) {
-        previewDiv.innerHTML = '<div class="empty-state">Ingen mall att förhandsgranska</div>';
+        setTemplateEmptyPreview('Ingen mall att förhandsgranska');
         return;
     }
 
@@ -66,28 +156,24 @@ async function previewTemplate() {
         const data = await response.json();
 
         if (data.success) {
-            previewDiv.textContent = data.preview;
+            setTemplatePreview(data.preview);
         } else {
-            errorDiv.textContent = data.error || 'Förhandsvisning misslyckades';
-            errorDiv.style.display = 'block';
-            previewDiv.innerHTML = '<div class="empty-state">Fel i mallen - se felmeddelande ovan</div>';
+            setTemplateError(data.error || 'Förhandsvisning misslyckades');
+            setTemplateEmptyPreview('Fel i mallen - se felmeddelande ovan');
         }
     } catch (error) {
-        errorDiv.textContent = 'Nätverksfel: ' + error.message;
-        errorDiv.style.display = 'block';
+        setTemplateError('Nätverksfel: ' + error.message);
     }
 }
 
 async function saveTemplate() {
     const templateName = document.getElementById('template-select').value;
-    const content = document.getElementById('template-editor').value;
-    const errorDiv = document.getElementById('template-error');
+    const content = syncTemplateContentFromActiveEditor();
 
-    errorDiv.style.display = 'none';
+    setTemplateError('');
 
     if (!content.trim()) {
-        errorDiv.textContent = 'Mallinnehåll kan inte vara tomt';
-        errorDiv.style.display = 'block';
+        setTemplateError('Mallinnehåll kan inte vara tomt');
         return;
     }
 
@@ -108,24 +194,21 @@ async function saveTemplate() {
                 showConfigMessage(message, 'success');
             }
         } else {
-            errorDiv.textContent = data.error || 'Kunde inte spara mall';
-            errorDiv.style.display = 'block';
+            setTemplateError(data.error || 'Kunde inte spara mall');
         }
     } catch (error) {
-        errorDiv.textContent = 'Nätverksfel: ' + error.message;
-        errorDiv.style.display = 'block';
+        setTemplateError('Nätverksfel: ' + error.message);
     }
 }
 
 async function resetTemplate() {
     const templateName = document.getElementById('template-select').value;
-    const errorDiv = document.getElementById('template-error');
 
     if (!confirm('Är du säker på att du vill återställa mallen till standardvärdet? Dina ändringar kommer att försvinna.')) {
         return;
     }
 
-    errorDiv.style.display = 'none';
+    setTemplateError('');
 
     try {
         const response = await fetch(`/api/templates/${templateName}/reset`, {
@@ -134,16 +217,14 @@ async function resetTemplate() {
         const data = await response.json();
 
         if (data.success) {
-            document.getElementById('template-editor').value = data.content;
+            setTemplateContent(data.content);
             showConfigMessage('Mall återställd till standard!', 'success');
             await previewTemplate();
         } else {
-            errorDiv.textContent = data.error || 'Kunde inte återställa mall';
-            errorDiv.style.display = 'block';
+            setTemplateError(data.error || 'Kunde inte återställa mall');
         }
     } catch (error) {
-        errorDiv.textContent = 'Nätverksfel: ' + error.message;
-        errorDiv.style.display = 'block';
+        setTemplateError('Nätverksfel: ' + error.message);
     }
 }
 

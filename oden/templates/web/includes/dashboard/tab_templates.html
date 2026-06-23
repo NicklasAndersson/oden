@@ -47,10 +47,44 @@
 
         <div class="config-actions" style="margin-top: 15px;">
             <button type="button" class="btn btn-primary" onclick="previewTemplate()">👁️ Förhandsgranska</button>
+            <button type="button" class="btn btn-secondary" onclick="openTemplateEditorModal()">⤢ Öppna större fönster</button>
             <button type="button" class="btn btn-primary" onclick="saveTemplate()">💾 Spara mall</button>
             <button type="button" class="btn btn-secondary" onclick="resetTemplate()">↩️ Återställ standard</button>
             <button type="button" class="btn btn-secondary" onclick="exportCurrentTemplate()">⬇️ Ladda ner</button>
             <button type="button" class="btn btn-secondary" onclick="exportAllTemplates()">⬇️ Ladda ner alla</button>
+        </div>
+    </div>
+
+    <div id="template-editor-modal" class="modal-overlay hidden" onclick="closeTemplateEditorModal(event)">
+        <div class="modal-content template-editor-modal-content" onclick="event.stopPropagation()">
+            <div class="template-editor-modal-header">
+                <div>
+                    <h3>📝 Rapportmallar</h3>
+                    <p class="help-paragraph" style="margin: 6px 0 0 0;">Större arbetsyta med samma editor och förhandsvisning.</p>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeTemplateEditorModal()">✕</button>
+            </div>
+
+            <div class="template-split-view template-split-view-large">
+                <div class="template-editor-pane">
+                    <h4 class="pane-heading">Editor</h4>
+                    <textarea id="template-editor-large" placeholder="Laddar mall..."></textarea>
+                </div>
+                <div class="template-preview-pane">
+                    <h4 class="pane-heading">Förhandsvisning</h4>
+                    <div id="template-preview-large" class="template-preview-content template-preview-content-large">
+                        <div class="empty-state">Klicka "Förhandsgranska" för att se resultatet</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="template-error-large" class="template-error" style="display: none;"></div>
+
+            <div class="config-actions" style="margin-top: 15px;">
+                <button type="button" class="btn btn-primary" onclick="previewTemplate()">👁️ Förhandsgranska</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()">💾 Spara mall</button>
+                <button type="button" class="btn btn-secondary" onclick="closeTemplateEditorModal()">Stäng</button>
+            </div>
         </div>
     </div>
 </div>
