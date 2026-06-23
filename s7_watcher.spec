@@ -2,6 +2,8 @@
 # PyInstaller spec file for Oden macOS app bundle
 # Builds an app with bundled JRE and signal-cli
 
+import glob
+import importlib.util
 import os
 import sys
 
@@ -45,6 +47,7 @@ hiddenimports = [
     'oden.app_state',
     'oden.tray',
     'PIL',
+    'mgrs',
 ]
 
 if sys.platform == 'darwin':
@@ -52,10 +55,19 @@ if sys.platform == 'darwin':
 elif sys.platform == 'win32':
     hiddenimports.extend(['pystray._win32', 'PIL.ImageWin'])
 
+# mgrs loads its native extension via ctypes at runtime — PyInstaller
+# can't detect this statically, so we collect it explicitly.
+_mgrs_binaries = []
+_mgrs_spec = importlib.util.find_spec('mgrs')
+if _mgrs_spec and _mgrs_spec.origin:
+    _site_pkgs = os.path.dirname(os.path.dirname(_mgrs_spec.origin))
+    for _lib in glob.glob(os.path.join(_site_pkgs, 'libmgrs*.so')):
+        _mgrs_binaries.append((_lib, '.'))
+
 a = Analysis(
     ['oden/s7_watcher.py'],
     pathex=[],
-    binaries=[],
+    binaries=_mgrs_binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
