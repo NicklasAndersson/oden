@@ -14,6 +14,11 @@
 #
 # Eller:
 #   ./install_snapshot_mac.sh
+#
+# Env-variabler:
+#   ODEN_SNAPSHOT_TYPE=pr     # Endast PR-snapshots (pr-*-snapshot-*)
+#   ODEN_SNAPSHOT_TYPE=main   # Endast regular snapshots (snapshot-*)
+#   ODEN_SNAPSHOT_TYPE=auto   # Föredra PR-snapshots, fallback till regular (default)
 
 set -euo pipefail
 
@@ -30,6 +35,13 @@ REPO="NicklasAndersson/oden"
 API_URL="https://api.github.com/repos/${REPO}/releases"
 APP_NAME="Oden.app"
 INSTALL_DIR="/Applications"
+
+# --- Snapshot type preference ---
+# ODEN_SNAPSHOT_TYPE can be:
+#   "pr"     - only PR snapshots (pr-*-snapshot-*)
+#   "main"   - only regular snapshots (snapshot-*)
+#   "auto"   - prefer PR snapshots, fallback to regular (default)
+ODEN_SNAPSHOT_TYPE="${ODEN_SNAPSHOT_TYPE:-auto}"
 
 # --- Helper Functions ---
 print_header() {
@@ -85,12 +97,40 @@ RELEASES_JSON=$(curl -fsSL "${API_URL}?per_page=20") || {
     exit 1
 }
 
-# Find the first snapshot tag (snapshot-<sha>)
-# The JSON is complex with nested objects, so just search for the tag pattern
-SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
-    | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
-    | head -1 \
-    | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
+# Find snapshot tag based on preference
+SNAPSHOT_TAG=""
+
+case "$ODEN_SNAPSHOT_TYPE" in
+    "pr")
+        # Only PR snapshots
+        SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
+            | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
+            | head -1 \
+            | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
+        ;;
+    "main")
+        # Only regular snapshots
+        SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
+            | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
+            | head -1 \
+            | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
+        ;;
+    "auto"|*)
+        # Auto: prefer PR snapshots, fallback to regular
+        SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
+            | grep -o '"tag_name" *: *"pr-[^"]*-snapshot-[^"]*"' \
+            | head -1 \
+            | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
+        
+        if [[ -z "$SNAPSHOT_TAG" ]]; then
+            SNAPSHOT_TAG=$(echo "$RELEASES_JSON" \
+                | grep -o '"tag_name" *: *"snapshot-[^"]*"' \
+                | head -1 \
+                | sed 's/.*"tag_name" *: *"//;s/"$//' || true)
+            [[ -n "$SNAPSHOT_TAG" ]] && print_info "Ingen PR-snapshot hittad. Använder vanlig snapshot."
+        fi
+        ;;
+esac
 
 if [[ -z "$SNAPSHOT_TAG" ]]; then
     print_error "Kunde inte tolka snapshot-taggen."

@@ -14,6 +14,10 @@
     --color-text-faint: #666;
     --color-border: #333;
     --color-border-hover: #555;
+    --color-border-subtle: #2a3550;
+    --color-text-dim: #d7e0f2;
+    --color-text-subtle: #8ea0c0;
+    --color-bg-raised: #131f39;
     --spacing-sm: 10px;
     --spacing-md: 15px;
     --spacing-lg: 20px;

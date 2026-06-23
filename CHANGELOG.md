@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **signal-cli 0.14.5**: Uppdaterat till senaste signal-cli (0.14.5) med libsignal-client 0.94.4. Docker ARM64-fixet uppdaterat till ny källrepository (`bbernhard/libsignal-client-builds`)
+
 ## [2.2.0] - 2026-04-22
 
 ### Added

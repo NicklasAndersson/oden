@@ -2,7 +2,7 @@
 
 ![logotyp](images/logo_small.jpg)
 
-Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidian-valv.
+Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidian-valv. Version 3.0 lägger till DB-first ingest, multipipeline-stöd, 7S-specialhantering och en ny vy för meddelandehantering i Web GUI.
 
 ## Snabbstart
 
@@ -139,14 +139,36 @@ ruff check .
 ruff format .
 ```
 
+### Optional PR snapshot release
+
+Det finns ett valbart CI-flöde för att bygga snapshot-release direkt från en PR.
+
+Så här triggar du det:
+
+1. Lägg label `snapshot-release` på en PR mot `main`.
+2. Eller kör workflow **Build and Release** manuellt via `workflow_dispatch` med input `pr_snapshot=true`.
+
+Vad som skapas:
+
+- En pre-release på GitHub med taggformat `pr-<PR_NUMMER>-snapshot-<SHA7>`
+- Docker-taggar med PR-prefix (separerade från vanliga `snapshot-*` på `main`)
+- Build-artefakter (macOS DMG, Windows installer om builden lyckas, source-zip)
+
+Noteringar:
+
+- PR snapshot-release är avsedd för verifiering och kan ersättas av nyare snapshot för samma PR.
+- Vanliga snapshot-releaser från `main` påverkas inte av PR snapshot-flödet.
+
 ### Funktioner
 
 - **Setup-wizard** - Guidar dig genom konfigurationen vid första start
 - **Web GUI** - Dashboard med config, loggar, grupphantering, template-editor och kontohantering
+- **Meddelandehantering** - Se råmeddelanden, pipeline-körningar och reprocessa enskilda meddelanden
 - **Multi-account** - Hantera flera Signal-konton via *Signal-konton*-fliken (länka, aktivera, radera)
 - **System Tray** - Starta/stoppa, öppna GUI och avsluta Oden från systemfältet (macOS/Linux/Windows)
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten *(avstängt per default, aktiveras i config)*
+- **7S RAPPORT** - Specialpipeline för 7S-format med egen parser och rapportmall
 - **Platslänkar** - Google Maps, Apple Maps och OSM-länkar omvandlas automatiskt till geo-koordinater
 - **Anpassningsbara rapportmallar** - Redigera Jinja2-mallar direkt i GUI:ns template-editor
 - **Regex-länkar** - Konfigurera mönster (t.ex. registreringsnummer) som automatiskt blir Obsidian-länkar
@@ -156,6 +178,8 @@ ruff format .
 Konfigurationen hanteras via **setup-wizarden** som öppnas automatiskt vid första start. All config sparas i en SQLite-databas (`config.db`) i din Oden-hemkatalog.
 
 Ändringar kan också göras via Web GUI:ns konfigurationssida.
+
+I Oden 3.0 finns även inställningar för DB-first-flödet, aktiva pipelines och retention av råmeddelanden i den avancerade konfigurationen.
 
 ## System Tray
 
@@ -196,6 +220,7 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - **Visa alla grupper** kontot är med i
 - **Ignorera grupper** direkt från GUI (klicka "Ignorera")
 - **Whitelist-grupper** direkt från GUI (klicka "Whitelist" – om satt sparas endast dessa grupper)
+- **Pipelines** - Hantera aktiva pipelines, urvalslogik, på/av och körordning
 - **Template-editor** - Redigera rapportmallar med live-förhandsvisning
 - **Stäng av Oden** - Shutdown-knapp i GUI
 
@@ -207,6 +232,9 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - [SETUP_FLOW.md](./docs/SETUP_FLOW.md) - Setup-wizardens alla steg
 - [WEB_GUI.md](./docs/WEB_GUI.md) - Web-gränssnitt och API-referens
 - [REPORT_TEMPLATE.md](./docs/REPORT_TEMPLATE.md) - Mallsystem (Jinja2)
+- [PIPELINES.md](./docs/PIPELINES.md) - Pipeline-arkitektur, befintliga pipelines och hur man utvecklar nya
+- [PLAN_PIPELINES_MENU.md](./docs/PLAN_PIPELINES_MENU.md) - Implementationsplan för pipeline-administrationsmeny
+- [PLAN_3.0.md](./docs/PLAN_3.0.md) - Overblick över Oden 3.0 och alla implementationsfaser
 - [WINDOWS_NATIVE_PLAN.md](./docs/WINDOWS_NATIVE_PLAN.md) - Native Windows installer: status och implementationsplan
 - [WINDOWS_SETUP.md](./docs/WINDOWS_SETUP.md) - Docker-baserad Windows-installation
 
