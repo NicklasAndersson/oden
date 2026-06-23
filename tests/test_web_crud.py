@@ -11,111 +11,6 @@ from aiohttp.test_utils import AioHTTPTestCase
 from oden.web_server import create_app
 
 
-class TestToggleGroupPersistence(AioHTTPTestCase):
-    """Test that toggling whitelist/ignore groups persists to config_db."""
-
-    async def get_application(self):
-        return create_app(setup_mode=False)
-
-    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
-    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
-    async def test_toggle_whitelist_adds_group(self, mock_get, mock_set, mock_reload):
-        """Toggling whitelist for a new group adds it to config_db."""
-        mock_get.return_value = []
-
-        resp = await self.client.post(
-            "/api/toggle-whitelist-group",
-            json={"groupName": "TestGroup"},
-        )
-        data = await resp.json()
-        self.assertTrue(data["success"])
-        self.assertIn("TestGroup", data["whitelistGroups"])
-
-        # Verify set_config_value was called with the updated list
-        mock_set.assert_called_once()
-        call_args = mock_set.call_args
-        self.assertEqual(call_args[0][1], "whitelist_groups")
-        self.assertIn("TestGroup", call_args[0][2])
-        mock_reload.assert_called_once()
-
-    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
-    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
-    async def test_toggle_whitelist_removes_group(self, mock_get, mock_set, mock_reload):
-        """Toggling whitelist for an existing group removes it from config_db."""
-        mock_get.return_value = ["TestGroup", "OtherGroup"]
-
-        resp = await self.client.post(
-            "/api/toggle-whitelist-group",
-            json={"groupName": "TestGroup"},
-        )
-        data = await resp.json()
-        self.assertTrue(data["success"])
-        self.assertNotIn("TestGroup", data["whitelistGroups"])
-        self.assertIn("OtherGroup", data["whitelistGroups"])
-
-        call_args = mock_set.call_args
-        saved_list = call_args[0][2]
-        self.assertNotIn("TestGroup", saved_list)
-        self.assertIn("OtherGroup", saved_list)
-
-    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
-    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
-    async def test_toggle_ignore_adds_group(self, mock_get, mock_set, mock_reload):
-        """Toggling ignore for a new group adds it to config_db."""
-        mock_get.return_value = []
-
-        resp = await self.client.post(
-            "/api/toggle-ignore-group",
-            json={"groupName": "IgnoredGroup"},
-        )
-        data = await resp.json()
-        self.assertTrue(data["success"])
-        self.assertIn("IgnoredGroup", data["ignoredGroups"])
-
-        call_args = mock_set.call_args
-        self.assertEqual(call_args[0][1], "ignored_groups")
-        self.assertIn("IgnoredGroup", call_args[0][2])
-        mock_reload.assert_called_once()
-
-    @unittest.mock.patch("oden.web_handlers._helpers.reload_config")
-    @unittest.mock.patch("oden.web_handlers._helpers.set_config_value")
-    @unittest.mock.patch("oden.web_handlers.group_handlers.get_config_value")
-    async def test_toggle_ignore_removes_group(self, mock_get, mock_set, mock_reload):
-        """Toggling ignore for an existing group removes it from config_db."""
-        mock_get.return_value = ["IgnoredGroup"]
-
-        resp = await self.client.post(
-            "/api/toggle-ignore-group",
-            json={"groupName": "IgnoredGroup"},
-        )
-        data = await resp.json()
-        self.assertTrue(data["success"])
-        self.assertNotIn("IgnoredGroup", data["ignoredGroups"])
-
-        call_args = mock_set.call_args
-        saved_list = call_args[0][2]
-        self.assertNotIn("IgnoredGroup", saved_list)
-
-    async def test_toggle_whitelist_empty_name_rejected(self):
-        """Toggling whitelist with empty group name returns 400."""
-        resp = await self.client.post(
-            "/api/toggle-whitelist-group",
-            json={"groupName": ""},
-        )
-        self.assertEqual(resp.status, 400)
-
-    async def test_toggle_ignore_empty_name_rejected(self):
-        """Toggling ignore with empty group name returns 400."""
-        resp = await self.client.post(
-            "/api/toggle-ignore-group",
-            json={"groupName": ""},
-        )
-        self.assertEqual(resp.status, 400)
-
-
 class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     """Test the full CRUD lifecycle for /api/responses endpoints."""
 
@@ -483,7 +378,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
 
 
 class TestGroupsHandlerResponse(AioHTTPTestCase):
-    """Test that groups_handler returns whitelist and ignore lists correctly."""
+    """Test that groups_handler exposes group filter lists from pipeline settings."""
 
     async def get_application(self):
         return create_app(setup_mode=False)
@@ -491,9 +386,8 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_all_groups", return_value=[])
     @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
     async def test_groups_response_includes_whitelist(self, mock_cfg, _mock_db):
-        """groups_handler returns whitelistGroups from config."""
-        mock_cfg.IGNORED_GROUPS = []
-        mock_cfg.WHITELIST_GROUPS = ["Alpha", "Bravo"]
+        """groups_handler returns whitelistGroups from group_filter settings."""
+        mock_cfg.PIPELINE_SETTINGS = {"group_filter": {"mode": "whitelist", "groups": ["Alpha", "Bravo"]}}
         mock_cfg.SIGNAL_NUMBER = "+460000"
         from oden.app_state import get_app_state
 
@@ -523,8 +417,7 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_all_groups")
     async def test_groups_merges_db_and_cache(self, mock_db_groups, mock_cfg):
         """groups_handler merges DB groups with in-memory cache."""
-        mock_cfg.IGNORED_GROUPS = []
-        mock_cfg.WHITELIST_GROUPS = []
+        mock_cfg.PIPELINE_SETTINGS = {"group_filter": {"mode": "blacklist", "groups": []}}
         mock_cfg.SIGNAL_NUMBER = "+460000"
         # DB has a group discovered from a message (no member info)
         mock_db_groups.return_value = [

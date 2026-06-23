@@ -9,16 +9,20 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.config_db import get_config_value
 from oden.groups_db import get_all_groups, upsert_groups_bulk
+from oden.pipeline_settings import normalize_group_filter_settings, normalize_pipeline_settings
 from oden.web_handlers._helpers import (
     handle_errors,
     parse_json_body,
     require_writer,
-    update_config_and_reload,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_group_filter_settings() -> dict:
+    settings = normalize_pipeline_settings(cfg.PIPELINE_SETTINGS)
+    return normalize_group_filter_settings(settings.get("group_filter"))
 
 
 async def groups_handler(request: web.Request) -> web.Response:
@@ -75,78 +79,15 @@ async def groups_handler(request: web.Request) -> web.Response:
                     "isAdmin": is_admin,
                 }
 
+    group_filter_settings = _get_group_filter_settings()
+    mode = group_filter_settings.get("mode", "blacklist")
+    configured_groups = group_filter_settings.get("groups", [])
+
+    ignored_groups = configured_groups if mode == "blacklist" else []
+    whitelist_groups = configured_groups if mode == "whitelist" else []
+
     groups = sorted(merged.values(), key=lambda g: g.get("name", ""))
-    return web.json_response(
-        {"groups": groups, "ignoredGroups": cfg.IGNORED_GROUPS, "whitelistGroups": cfg.WHITELIST_GROUPS}
-    )
-
-
-@handle_errors("toggle ignore group")
-@parse_json_body
-async def toggle_ignore_group_handler(request: web.Request) -> web.Response:
-    """Toggle ignore status for a group."""
-    data = request["json_body"]
-    group_name = data.get("groupName", "").strip()
-
-    if not group_name:
-        return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
-
-    # Read current ignored groups from config_db
-    ignored_groups = get_config_value(cfg.CONFIG_DB, "ignored_groups") or []
-
-    # Toggle the group
-    if group_name in ignored_groups:
-        ignored_groups.remove(group_name)
-        action = "borttagen från"
-    else:
-        ignored_groups.append(group_name)
-        action = "tillagd i"
-
-    # Persist to config_db and reload
-    update_config_and_reload("ignored_groups", ignored_groups)
-
-    logger.info(f"Group '{group_name}' {action} ignored_groups")
-    return web.json_response(
-        {
-            "success": True,
-            "message": f"Grupp '{group_name}' {action} ignorerade grupper",
-            "ignoredGroups": ignored_groups,
-        }
-    )
-
-
-@handle_errors("toggle whitelist group")
-@parse_json_body
-async def toggle_whitelist_group_handler(request: web.Request) -> web.Response:
-    """Toggle whitelist status for a group."""
-    data = request["json_body"]
-    group_name = data.get("groupName", "").strip()
-
-    if not group_name:
-        return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
-
-    # Read current whitelist groups from config_db
-    whitelist_groups = get_config_value(cfg.CONFIG_DB, "whitelist_groups") or []
-
-    # Toggle the group
-    if group_name in whitelist_groups:
-        whitelist_groups.remove(group_name)
-        action = "borttagen från"
-    else:
-        whitelist_groups.append(group_name)
-        action = "tillagd i"
-
-    # Persist to config_db and reload
-    update_config_and_reload("whitelist_groups", whitelist_groups)
-
-    logger.info(f"Group '{group_name}' {action} whitelist_groups")
-    return web.json_response(
-        {
-            "success": True,
-            "message": f"Grupp '{group_name}' {action} whitelist",
-            "whitelistGroups": whitelist_groups,
-        }
-    )
+    return web.json_response({"groups": groups, "ignoredGroups": ignored_groups, "whitelistGroups": whitelist_groups})
 
 
 @handle_errors("join group")

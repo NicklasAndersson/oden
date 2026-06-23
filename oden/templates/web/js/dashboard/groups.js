@@ -1,8 +1,6 @@
-// groups.js — Depends on: shared.js (escapeHtml, showConfigMessage,
-//              currentIgnoredGroups, currentWhitelistGroups)
+// groups.js — Depends on: shared.js (escapeHtml, showConfigMessage)
 //
-// Fetches and renders the groups list, handles ignore/whitelist toggles,
-// join-group form submission, and group administration modal.
+// Fetches and renders the groups list and handles group administration.
 
 // Cache full group data for the edit modal
 let _groupsCache = [];
@@ -12,8 +10,6 @@ async function fetchGroups() {
         const response = await fetch('/api/groups');
         const data = await response.json();
         const container = document.getElementById('groups-container');
-        currentIgnoredGroups = data.ignoredGroups || [];
-        currentWhitelistGroups = data.whitelistGroups || [];
         _groupsCache = data.groups || [];
 
         if (_groupsCache.length === 0) {
@@ -22,29 +18,17 @@ async function fetchGroups() {
         }
 
         container.innerHTML = _groupsCache.map(group => {
-            const isIgnored = currentIgnoredGroups.includes(group.name);
-            const isWhitelisted = currentWhitelistGroups.includes(group.name);
             const editBtn = group.isAdmin
                 ? `<button class="btn btn-secondary btn-sm" onclick="openGroupEditModal('${escapeHtml(group.id)}')" title="Redigera grupp">Redigera</button>`
                 : '';
             return `
-                <div class="group-item ${isIgnored ? 'ignored' : ''} ${isWhitelisted ? 'whitelisted' : ''}" data-group-name="${escapeHtml(group.name)}">
+                <div class="group-item" data-group-name="${escapeHtml(group.name)}">
                     <div class="group-info">
                         <div class="group-name">${escapeHtml(group.name)}</div>
                         <div class="group-meta">${group.memberCount} medlemmar</div>
                     </div>
                     <div class="group-buttons">
                         ${editBtn}
-                        <button class="toggle-btn toggle-ignore ${isIgnored ? 'ignored' : ''}"
-                                onclick="toggleIgnoreGroup('${escapeHtml(group.name)}')"
-                                title="${isIgnored ? 'Sluta ignorera' : 'Ignorera grupp'}">
-                            ${isIgnored ? '✓ Ignorerad' : 'Ignorera'}
-                        </button>
-                        <button class="toggle-btn toggle-whitelist ${isWhitelisted ? 'whitelisted' : ''}"
-                                onclick="toggleWhitelistGroup('${escapeHtml(group.name)}')"
-                                title="${isWhitelisted ? 'Ta bort från whitelist' : 'Lägg till i whitelist'}">
-                            ${isWhitelisted ? '✓ Whitelist' : 'Whitelist'}
-                        </button>
                     </div>
                 </div>
             `;
@@ -264,48 +248,6 @@ async function refreshGroups() {
             btn.textContent = 'Uppdatera';
         }
         await fetchGroups();
-    }
-}
-
-async function toggleIgnoreGroup(groupName) {
-    try {
-        const response = await fetch('/api/toggle-ignore-group', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ groupName })
-        });
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            showConfigMessage('Grupp uppdaterad! Ändringen appliceras direkt.', 'success');
-            await fetchGroups();
-            await loadConfigForm();
-        } else {
-            alert(result.error || 'Något gick fel');
-        }
-    } catch (error) {
-        alert('Nätverksfel: ' + error.message);
-    }
-}
-
-async function toggleWhitelistGroup(groupName) {
-    try {
-        const response = await fetch('/api/toggle-whitelist-group', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ groupName })
-        });
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            showConfigMessage('Whitelist uppdaterad! Ändringen appliceras direkt.', 'success');
-            await fetchGroups();
-            await loadConfigForm();
-        } else {
-            alert(result.error || 'Något gick fel');
-        }
-    } catch (error) {
-        alert('Nätverksfel: ' + error.message);
     }
 }
 

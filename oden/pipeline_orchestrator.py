@@ -14,11 +14,13 @@ from typing import Any
 from oden import config as cfg
 from oden.messages_db import (
     STATUS_FAILED,
+    STATUS_IGNORED,
     STATUS_PROCESSED,
     STATUS_PROCESSING,
     get_message_detail,
     update_message_status,
 )
+from oden.pipelines.group_filter import GroupFilterPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.pipelines_db import (
     append_pipeline_event,
@@ -49,6 +51,7 @@ class PipelineOrchestrator:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
         self._pipeline_map: dict[str, Any] = {
+            "group_filter": GroupFilterPipeline(),
             "seven_s": SevenSPipeline(),
             "generic_template": _GenericPipeline(),
         }
@@ -56,7 +59,7 @@ class PipelineOrchestrator:
         self._cached_pipelines: list[Any] = []
 
     def _build_pipelines(self) -> list[Any]:
-        config: list = cfg.ENABLED_PIPELINES or ["seven_s", "generic_template"]
+        config: list = cfg.ENABLED_PIPELINES or ["group_filter", "seven_s", "generic_template"]
         # ponytail: identity check detects cfg.ENABLED_PIPELINES = new_list reassignments
         if config is not self._cached_config:
             names = list(config)
@@ -108,7 +111,10 @@ class PipelineOrchestrator:
                         "pipeline_completed",
                         {"pipeline": pipeline.name},
                     )
-                    update_message_status(self._db_path, message_id, STATUS_PROCESSED)
+                    status_on_handle = getattr(pipeline, "status_on_handle", STATUS_PROCESSED)
+                    if status_on_handle not in {STATUS_PROCESSED, STATUS_IGNORED}:
+                        status_on_handle = STATUS_PROCESSED
+                    update_message_status(self._db_path, message_id, status_on_handle)
                     return
 
                 skip_pipeline_run(self._db_path, run_id)

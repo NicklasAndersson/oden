@@ -191,6 +191,16 @@ Web GUI — "Meddelandehantering"-tab
   Kräver schema-ändring från `enabled_pipelines` (array) till
   `pipeline_instances` (tabell). Prioriterad för v3.1+.
 
+- [~] **6d. Pipeline-inställningar (pågående implementering)**
+  Inför konfigurerbara pipeline-settings i befintlig modell:
+  - `pipeline_settings` i config (JSON) per pipeline-namn.
+  - Första användning: `group_filter`-pipeline med `mode` (`blacklist`/`whitelist`)
+    och `groups` (lista av gruppnamn).
+  - Gruppfiltrering tas bort ur legacy `process_message()` och sker enbart i
+    pipelinekedjan (eller via globala settings om aktuellt).
+  - Grupp-listan i GUI behålls för översikt/administration, medan filterstyrning
+    flyttas till Pipelines-fliken.
+
 ## Filer att skapa/ändra
 
 | Fil | Förändring |
@@ -258,4 +268,5 @@ Web GUI — "Meddelandehantering"-tab
 | 2026-06-22 | — | Fas 5d klar. README och centrala docs (FEATURES, WEB_GUI) uppdaterade för DB-first ingest, multipipeline, 7S, meddelandehantering, retention och nya konfigurationsnycklar. |
 | 2026-06-22 | — | Fas 6b klar. Ny Pipelines-flik i dashboard med visning av aktiva/tillgängliga pipelines, urvalsbeskrivning, aktivera/inaktivera och upp/ner-ordning. Frontend kopplad till `/api/pipelines`, `/api/pipelines/{name}/enabled` och `/api/pipelines/reorder`. |
 | 2026-06-22 | — | Fas 6a klar. Ny backendmodul `pipeline_handlers.py` med endpoints för list/toggle/reorder (`/api/pipelines*`), kopplad i `web_server.py` och exporterad via `web_handlers/__init__.py`. Nya API-tester i `tests/test_web_api.py` för listing, toggling, reorder och validering av okända pipelines. |
+| 2026-06-23 | — | Fas 6d påbörjad. Ny `group_filter`-pipeline med settings (`mode`, `groups`) och ny config-nyckel `pipeline_settings`. Legacy-gruppfiltrering borttagen från `process_message()`. API utökat med `PATCH /api/pipelines/{name}/config`. Grupper-fliken behåller gruppöversikt men filterstyrning flyttad till Pipelines-fliken. Tester uppdaterade för nya modellen. |
 | 2026-06-22 | — | Fas 5c klar. Tillagt migrationstest v4→v5 med databevarande (`tests/test_config_db.py`), orchestrator-tester för pipeline-krasch med bevarad råpayload samt reprocess-idempotens (`tests/test_pipeline_orchestrator.py`), och API-regression för `/api/messages` list/detalj/stats/reprocess (`tests/test_web_api.py`). Riktad testkörning: 62/62 gröna. |

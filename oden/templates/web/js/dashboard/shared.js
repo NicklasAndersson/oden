@@ -2,10 +2,6 @@
 //
 // Shared state and utility functions used across all dashboard modules.
 
-// ========== Shared State ==========
-let currentIgnoredGroups = [];
-let currentWhitelistGroups = [];
-
 // ========== Utility Functions ==========
 
 function escapeHtml(text) {

@@ -230,15 +230,6 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
 
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
 
-    # Whitelist has priority: if set, only allow whitelisted groups
-    if cfg.WHITELIST_GROUPS:
-        if group_title and group_title not in cfg.WHITELIST_GROUPS:
-            logger.info(f"Skipping message: group '{group_title}' not in whitelist")
-            return
-    elif group_title and group_title in cfg.IGNORED_GROUPS:
-        logger.info(f"Skipping message from ignored group: {group_title}")
-        return
-
     # Track group in database so it persists across restarts
     if group_title and group_id:
         with contextlib.suppress(Exception):

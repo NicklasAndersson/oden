@@ -403,6 +403,56 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             data = await resp.json()
             self.assertIn("Unknown pipeline", data["error"])
 
+    async def test_list_pipelines_includes_group_filter(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["group_filter", "seven_s", "generic_template"],
+                ),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.PIPELINE_SETTINGS",
+                    {"group_filter": {"mode": "whitelist", "groups": ["Alpha"]}},
+                ),
+            ):
+                resp = await self.client.get("/api/pipelines")
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            group_filter = next((p for p in data["available"] if p["name"] == "group_filter"), None)
+            self.assertIsNotNone(group_filter)
+            self.assertTrue(group_filter["supports_config"])
+
+            enabled_group_filter = next((p for p in data["enabled"] if p["name"] == "group_filter"), None)
+            self.assertIsNotNone(enabled_group_filter)
+            self.assertEqual(enabled_group_filter["config"]["mode"], "whitelist")
+            self.assertEqual(enabled_group_filter["config"]["groups"], ["Alpha"])
+
+    async def test_update_pipeline_config_group_filter(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.PIPELINE_SETTINGS",
+                    {},
+                ),
+            ):
+                resp = await self.client.patch(
+                    "/api/pipelines/group_filter/config",
+                    json={"config": {"mode": "blacklist", "groups": ["Alpha", "Bravo"]}},
+                )
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertTrue(data["success"])
+            self.assertEqual(data["config"]["mode"], "blacklist")
+            self.assertEqual(data["config"]["groups"], ["Alpha", "Bravo"])
+
 
 class TestMessageObservabilityAPI(AioHTTPTestCase):
     """Tests for /api/messages endpoints."""

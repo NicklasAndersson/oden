@@ -17,6 +17,8 @@ from aiohttp import web
 from oden import config as cfg
 from oden.config_db import set_config_value
 from oden.pipeline_orchestrator import _GenericPipeline
+from oden.pipeline_settings import normalize_group_filter_settings, normalize_pipeline_settings
+from oden.pipelines.group_filter import GroupFilterPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
@@ -24,6 +26,21 @@ logger = logging.getLogger(__name__)
 
 # Static pipeline metadata registry — update when adding new pipelines.
 _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
+    "group_filter": {
+        "name": GroupFilterPipeline.name,
+        "display_name": GroupFilterPipeline.display_name,
+        "description": GroupFilterPipeline.description,
+        "selection_criteria": GroupFilterPipeline.selection_criteria,
+        "supports_config": True,
+        "config_schema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["blacklist", "whitelist"]},
+                "groups": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["mode", "groups"],
+        },
+    },
     "seven_s": {
         "name": SevenSPipeline.name,
         "display_name": SevenSPipeline.display_name,
@@ -45,6 +62,15 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
 
 def _get_available_pipelines() -> dict[str, dict[str, Any]]:
     return _AVAILABLE_PIPELINES
+
+
+def _get_pipeline_settings() -> dict[str, Any]:
+    return normalize_pipeline_settings(cfg.PIPELINE_SETTINGS)
+
+
+def _save_pipeline_settings(settings: dict[str, Any]) -> None:
+    set_config_value(cfg.CONFIG_DB, "pipeline_settings", settings)
+    cfg.PIPELINE_SETTINGS = settings
 
 
 @handle_errors("listing pipelines")
@@ -88,12 +114,13 @@ async def list_pipelines(request: web.Request) -> web.Response:
 
     # Get enabled pipelines from config
     enabled_list: list[str] = cfg.ENABLED_PIPELINES or ["generic_template"]
+    pipeline_settings = _get_pipeline_settings()
     enabled_pipelines = [
         {
             "order": i + 1,
             "name": name,
             "enabled": True,
-            "config": {},
+            "config": pipeline_settings.get(name, {}),
         }
         for i, name in enumerate(enabled_list)
     ]
@@ -221,6 +248,45 @@ async def reorder_pipelines(request: web.Request) -> web.Response:
             "updated_list": new_order,
         }
     )
+
+
+@handle_errors("updating pipeline config")
+@parse_json_body
+async def update_pipeline_config(request: web.Request) -> web.Response:
+    """Update settings for a pipeline that supports configuration.
+
+    PATCH /api/pipelines/{name}/config
+
+    Request:
+    {
+      "config": {...}
+    }
+    """
+    pipeline_name = request.match_info.get("name", "")
+    available = _get_available_pipelines()
+    pipeline_meta = available.get(pipeline_name)
+    if not pipeline_meta:
+        return web.json_response({"error": f"Unknown pipeline: {pipeline_name}"}, status=400)
+
+    if not pipeline_meta.get("supports_config"):
+        return web.json_response({"error": f"Pipeline does not support config: {pipeline_name}"}, status=400)
+
+    data = request["json_body"]
+    pipeline_config = data.get("config")
+    if not isinstance(pipeline_config, dict):
+        return web.json_response({"error": "config must be an object"}, status=400)
+
+    if pipeline_name == "group_filter":
+        normalized_config = normalize_group_filter_settings(pipeline_config)
+    else:
+        normalized_config = pipeline_config
+
+    settings = _get_pipeline_settings()
+    settings[pipeline_name] = normalized_config
+    _save_pipeline_settings(settings)
+
+    logger.info("Pipeline config updated for %s", pipeline_name)
+    return web.json_response({"success": True, "config": normalized_config})
 
 
 def _get_pipeline_stats() -> dict[str, Any]:
