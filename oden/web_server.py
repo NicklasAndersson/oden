@@ -14,8 +14,8 @@ import jinja2
 from aiohttp import web
 
 from oden import __version__
-from oden.bundle_utils import get_bundle_path
 from oden import config as cfg
+from oden.bundle_utils import get_bundle_path
 from oden.log_buffer import get_log_buffer
 from oden.web_handlers.account_handlers import (
     accounts_activate_handler,
