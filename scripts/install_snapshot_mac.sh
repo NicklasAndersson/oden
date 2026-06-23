@@ -179,18 +179,22 @@ matches_snapshot_mode() {
     esac
 }
 
-extract_release_choices() {
+SNAPSHOT_TAGS=()
+SNAPSHOT_PUBLISHED_AT=()
+
+load_release_choices() {
     local json="$1"
     local mode="$2"
+    local encoded_tag=""
+    local encoded_published_at=""
     local tag=""
     local published_at=""
+    local release_lines=""
 
-    while IFS='|' read -r tag published_at; do
-        [[ -n "$tag" ]] || continue
-        if matches_snapshot_mode "$tag" "$mode"; then
-            printf '%s|%s\n' "$tag" "$published_at"
-        fi
-    done < <(
+    SNAPSHOT_TAGS=()
+    SNAPSHOT_PUBLISHED_AT=()
+
+    if ! release_lines="$(
         RELEASES_JSON="$json" /usr/bin/osascript -l JavaScript <<'JXA'
 try {
     const releases = JSON.parse($.getenv("RELEASES_JSON"));
@@ -198,14 +202,29 @@ try {
         if (!release || !release.tag_name) {
             continue;
         }
-        console.log(`${release.tag_name}|${release.published_at || ""}`);
+        const encodedTag = Buffer.from(release.tag_name, "utf8").toString("base64");
+        const encodedPublishedAt = Buffer.from(release.published_at || "", "utf8").toString("base64");
+        console.log(`${encodedTag}|${encodedPublishedAt}`);
     }
 } catch (error) {
     console.error(`Kunde inte tolka release-information från GitHub: ${error.message}`);
     $.exit(1);
 }
 JXA
-    )
+    )"; then
+        return 1
+    fi
+
+    while IFS='|' read -r encoded_tag encoded_published_at; do
+        [[ -n "$encoded_tag" ]] || continue
+        tag="$(printf '%s' "$encoded_tag" | base64 --decode)"
+        published_at="$(printf '%s' "$encoded_published_at" | base64 --decode)"
+        [[ -n "$tag" ]] || continue
+        if matches_snapshot_mode "$tag" "$mode"; then
+            SNAPSHOT_TAGS+=("$tag")
+            SNAPSHOT_PUBLISHED_AT+=("$published_at")
+        fi
+    done <<<"$release_lines"
 }
 
 format_release_timestamp() {
@@ -230,19 +249,7 @@ format_release_timestamp() {
 }
 
 choose_snapshot_tag() {
-    local release_choices_text="$1"
-    local tags=()
-    local release_times=()
-    local tag=""
-    local published_at=""
-
-    while IFS='|' read -r tag published_at; do
-        [[ -n "$tag" ]] || continue
-        tags+=("$tag")
-        release_times+=("$published_at")
-    done <<<"$release_choices_text"
-
-    if [[ ${#tags[@]} -eq 0 ]]; then
+    if [[ ${#SNAPSHOT_TAGS[@]} -eq 0 ]]; then
         echo ""
         return 0
     fi
@@ -250,10 +257,11 @@ choose_snapshot_tag() {
     if [[ "$ODEN_SNAPSHOT_SELECT" == "ask" ]] && has_prompt_tty; then
         print_info "Välj snapshot-version (standard: 1)" >&2
         local i=1
-        for tag in "${tags[@]}"; do
+        local tag=""
+        for tag in "${SNAPSHOT_TAGS[@]}"; do
             local idx=$((i - 1))
             local release_time_display=""
-            release_time_display="$(format_release_timestamp "${release_times[$idx]}")"
+            release_time_display="$(format_release_timestamp "${SNAPSHOT_PUBLISHED_AT[$idx]}")"
             printf "  %2d) %s (%s)\n" "$i" "$tag" "$release_time_display" >&2
             i=$((i + 1))
             if [[ $i -gt 15 ]]; then
@@ -264,17 +272,17 @@ choose_snapshot_tag() {
         local choice=""
         prompt_line "Ange nummer [1]: " choice
         if [[ -z "$choice" ]]; then
-            echo "${tags[0]}"
+            echo "${SNAPSHOT_TAGS[0]}"
             return 0
         fi
-        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 )) && (( choice <= ${#tags[@]} )); then
-            echo "${tags[$((choice - 1))]}"
+        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 )) && (( choice <= ${#SNAPSHOT_TAGS[@]} )); then
+            echo "${SNAPSHOT_TAGS[$((choice - 1))]}"
             return 0
         fi
         print_warning "Ogiltigt val. Använder senaste snapshot i listan." >&2
     fi
 
-    echo "${tags[0]}"
+    echo "${SNAPSHOT_TAGS[0]}"
 }
 
 # Find snapshot tag (explicit tag wins)
@@ -284,8 +292,11 @@ if [[ -n "$ODEN_SNAPSHOT_TAG" ]]; then
     SNAPSHOT_TAG="$ODEN_SNAPSHOT_TAG"
     print_info "Använder explicit snapshot-tag: ${SNAPSHOT_TAG}"
 else
-    TAG_CANDIDATES="$(extract_release_choices "$RELEASES_JSON" "$ODEN_SNAPSHOT_TYPE")"
-    SNAPSHOT_TAG="$(choose_snapshot_tag "$TAG_CANDIDATES")"
+    load_release_choices "$RELEASES_JSON" "$ODEN_SNAPSHOT_TYPE" || {
+        print_error "Kunde inte läsa snapshot-listan från GitHub."
+        exit 1
+    }
+    SNAPSHOT_TAG="$(choose_snapshot_tag)"
 fi
 
 if [[ -z "$SNAPSHOT_TAG" ]]; then
