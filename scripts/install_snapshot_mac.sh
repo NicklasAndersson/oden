@@ -192,7 +192,12 @@ extract_tags() {
 
 choose_snapshot_tag() {
     local tags_text="$1"
-    mapfile -t tags <<<"$tags_text"
+    local tags=()
+    local tag=""
+
+    while IFS= read -r tag; do
+        [[ -n "$tag" ]] && tags+=("$tag")
+    done <<<"$tags_text"
 
     if [[ ${#tags[@]} -eq 0 ]]; then
         echo ""
