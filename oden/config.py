@@ -275,6 +275,7 @@ def _migrate_settings_to_pipelines(app_config: dict) -> None:
 
             # Save migrated settings
             from oden.config_db import set_config_value
+
             set_config_value(CONFIG_DB, "pipeline_settings", pipeline_settings)
             logger.info("Migrated settings to generic_template pipeline configuration")
 
@@ -339,7 +340,9 @@ def reload_config() -> dict:
     # Read from pipeline settings first, fallback to old config for backwards compatibility
     AUTO_REACTION_ENABLED = generic_config.get("auto_reaction_enabled", app_config.get("auto_reaction_enabled", False))
     AUTO_REACTION_EMOJI = generic_config.get("auto_reaction_emoji", app_config.get("auto_reaction_emoji", "✅"))
-    AUTO_READ_RECEIPT_ENABLED = generic_config.get("auto_read_receipt_enabled", app_config.get("auto_read_receipt_enabled", False))
+    AUTO_READ_RECEIPT_ENABLED = generic_config.get(
+        "auto_read_receipt_enabled", app_config.get("auto_read_receipt_enabled", False)
+    )
 
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
     ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["group_filter", "seven_s", "generic_template"])
