@@ -190,12 +190,14 @@ load_release_choices() {
     local tag=""
     local published_at=""
     local release_lines=""
+    local parse_error_file=""
 
     SNAPSHOT_TAGS=()
     SNAPSHOT_PUBLISHED_AT=()
 
+    parse_error_file="$(mktemp)"
     if ! release_lines="$(
-        RELEASES_JSON="$json" /usr/bin/osascript -l JavaScript <<'JXA'
+        RELEASES_JSON="$json" /usr/bin/osascript -l JavaScript 2>"$parse_error_file" <<'JXA'
 try {
     const releases = JSON.parse($.getenv("RELEASES_JSON"));
     for (const release of releases) {
@@ -212,8 +214,13 @@ try {
 }
 JXA
     )"; then
+        if [[ -s "$parse_error_file" ]]; then
+            cat "$parse_error_file" >&2
+        fi
+        rm -f "$parse_error_file"
         return 1
     fi
+    rm -f "$parse_error_file"
 
     while IFS='|' read -r encoded_tag encoded_published_at; do
         [[ -n "$encoded_tag" ]] || continue
@@ -230,7 +237,7 @@ JXA
 format_release_timestamp() {
     local iso_timestamp="$1"
 
-    if [[ "$iso_timestamp" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+    if [[ "$iso_timestamp" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|[+-][0-9]{2}:?[0-9]{2})$ ]]; then
         local timezone_label="${BASH_REMATCH[7]}"
         if [[ "$timezone_label" == "Z" ]]; then
             timezone_label="UTC"
