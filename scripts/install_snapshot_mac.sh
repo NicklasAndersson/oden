@@ -182,7 +182,6 @@ matches_snapshot_mode() {
 extract_release_choices() {
     local json="$1"
     local mode="$2"
-    local release_info=""
     local tag=""
     local published_at=""
 
@@ -192,21 +191,34 @@ extract_release_choices() {
             printf '%s|%s\n' "$tag" "$published_at"
         fi
     done < <(
-        perl -0ne 'while (/"tag_name"\s*:\s*"([^"]+)".*?"published_at"\s*:\s*"([^"]+)"/sg) { print "$1|$2\n" }' \
-            <<<"$json"
+        RELEASES_JSON="$json" /usr/bin/osascript -l JavaScript <<'JXA'
+const releases = JSON.parse($.getenv("RELEASES_JSON"));
+for (const release of releases) {
+    if (!release || !release.tag_name) {
+        continue;
+    }
+    console.log(`${release.tag_name}|${release.published_at || ""}`);
+}
+JXA
     )
 }
 
 format_release_timestamp() {
     local iso_timestamp="$1"
 
-    if [[ "$iso_timestamp" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}) ]]; then
-        printf '%s-%s-%s %s:%s UTC' \
+    if [[ "$iso_timestamp" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+        local timezone_label="${BASH_REMATCH[7]}"
+        if [[ "$timezone_label" == "Z" ]]; then
+            timezone_label="UTC"
+        fi
+        printf '%s-%s-%s %s:%s:%s %s' \
             "${BASH_REMATCH[1]}" \
             "${BASH_REMATCH[2]}" \
             "${BASH_REMATCH[3]}" \
             "${BASH_REMATCH[4]}" \
-            "${BASH_REMATCH[5]}"
+            "${BASH_REMATCH[5]}" \
+            "${BASH_REMATCH[6]}" \
+            "$timezone_label"
     else
         printf '%s' "$iso_timestamp"
     fi
