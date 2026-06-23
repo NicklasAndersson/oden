@@ -11,10 +11,6 @@ function showTab(tabName) {
     document.getElementById('tab-' + tabName).classList.add('active');
     event.target.classList.add('active');
 
-    // Load template when switching to templates tab
-    if (tabName === 'templates') {
-        loadTemplate();
-    }
     // Load responses when switching to responses tab
     if (tabName === 'responses') {
         loadResponses();
