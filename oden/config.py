@@ -143,6 +143,7 @@ def validate_signal_number(
         try:
             accounts = get_existing_accounts()
         except Exception as e:
+            # ponytail: lenient at startup — signal-cli may not be ready yet
             logger.debug("Could not validate signal_number against accounts: %s", e)
             return True, None, []
 
