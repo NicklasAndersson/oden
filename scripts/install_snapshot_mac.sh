@@ -192,12 +192,17 @@ extract_release_choices() {
         fi
     done < <(
         RELEASES_JSON="$json" /usr/bin/osascript -l JavaScript <<'JXA'
-const releases = JSON.parse($.getenv("RELEASES_JSON"));
-for (const release of releases) {
-    if (!release || !release.tag_name) {
-        continue;
+try {
+    const releases = JSON.parse($.getenv("RELEASES_JSON"));
+    for (const release of releases) {
+        if (!release || !release.tag_name) {
+            continue;
+        }
+        console.log(`${release.tag_name}|${release.published_at || ""}`);
     }
-    console.log(`${release.tag_name}|${release.published_at || ""}`);
+} catch (error) {
+    console.error(`Kunde inte tolka release-information från GitHub: ${error.message}`);
+    $.exit(1);
 }
 JXA
     )
@@ -246,8 +251,9 @@ choose_snapshot_tag() {
         print_info "Välj snapshot-version (standard: 1)" >&2
         local i=1
         for tag in "${tags[@]}"; do
+            local idx=$((i - 1))
             local release_time_display=""
-            release_time_display="$(format_release_timestamp "${release_times[$((i - 1))]}")"
+            release_time_display="$(format_release_timestamp "${release_times[$idx]}")"
             printf "  %2d) %s (%s)\n" "$i" "$tag" "$release_time_display" >&2
             i=$((i + 1))
             if [[ $i -gt 15 ]]; then
