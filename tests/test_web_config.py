@@ -263,7 +263,7 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
     async def get_application(self):
         return create_app(setup_mode=True)
 
-    @unittest.mock.patch("oden.signal_manager.get_existing_accounts", return_value=[])
+    @unittest.mock.patch("oden.signal_manager.get_existing_accounts", return_value=[{"number": "+46701234567"}])
     @unittest.mock.patch("oden.config.set_oden_home_path", return_value=True)
     @unittest.mock.patch("oden.config.validate_oden_home", return_value=(True, None))
     @unittest.mock.patch("oden.config.validate_path_within_home")
@@ -320,7 +320,7 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
             self.assertEqual(result["startup_message"], "none")
             self.assertEqual(result["timezone"], "UTC")
 
-    @unittest.mock.patch("oden.signal_manager.get_existing_accounts", return_value=[])
+    @unittest.mock.patch("oden.signal_manager.get_existing_accounts", return_value=[{"number": "+46709876543"}])
     @unittest.mock.patch("oden.config.set_oden_home_path", return_value=True)
     @unittest.mock.patch("oden.config.validate_oden_home", return_value=(True, None))
     @unittest.mock.patch("oden.config.validate_path_within_home")

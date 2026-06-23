@@ -471,7 +471,15 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         try:
             accounts = get_existing_accounts()
             account_numbers = [a["number"] for a in accounts]
-            if accounts and signal_number not in account_numbers:
+            if not accounts:
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": "Inga signal-cli-konton hittades. Länka ett konto innan du sparar.",
+                    },
+                    status=400,
+                )
+            if signal_number not in account_numbers:
                 logger.warning(
                     "Setup save rejected: %s not in signal-cli accounts %s",
                     signal_number,
@@ -486,7 +494,14 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
                     status=400,
                 )
         except Exception as e:
-            logger.debug("Could not validate signal_number against accounts: %s", e)
+            logger.warning("Could not validate signal_number against accounts: %s", e)
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": "Kunde inte kontakta signal-cli för validering. Kontrollera att signal-cli körs.",
+                },
+                status=400,
+            )
 
         # Expand and validate vault path
         vault_path = str(Path(vault_path).expanduser())
