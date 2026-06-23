@@ -312,3 +312,209 @@ class TestAccountManagementAPI(AioHTTPTestCase):
         # (note: &lt; may appear as a literal string in JS, e.g. replace(/</g, '&lt;'),
         # so we only check && which should never appear as &amp;&amp;)
         self.assertNotIn("&amp;&amp;", text)
+
+
+class TestPipelineManagementAPI(AioHTTPTestCase):
+    """Tests for pipeline management API endpoints."""
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    async def test_list_pipelines_returns_available_and_enabled(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.get("/api/pipelines")
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertIn("available", data)
+            self.assertIn("enabled", data)
+            self.assertIn("stats", data)
+            self.assertTrue(any(p["name"] == "seven_s" for p in data["available"]))
+            self.assertTrue(any(p["name"] == "generic_template" for p in data["available"]))
+
+    async def test_toggle_pipeline_disable_updates_enabled_list(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.patch(
+                    "/api/pipelines/seven_s/enabled",
+                    json={"enabled": False},
+                )
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertTrue(data["success"])
+            self.assertEqual(data["updated_list"], ["generic_template"])
+
+    async def test_reorder_pipelines_updates_order(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.post(
+                    "/api/pipelines/reorder",
+                    json={"order": ["generic_template", "seven_s"]},
+                )
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertTrue(data["success"])
+            self.assertEqual(data["updated_list"], ["generic_template", "seven_s"])
+
+    async def test_reorder_pipelines_rejects_unknown_pipeline(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
+                    ["seven_s", "generic_template"],
+                ),
+            ):
+                resp = await self.client.post(
+                    "/api/pipelines/reorder",
+                    json={"order": ["not_a_pipeline"]},
+                )
+
+            self.assertEqual(resp.status, 400)
+            data = await resp.json()
+            self.assertIn("Unknown pipeline", data["error"])
+
+
+class TestMessageObservabilityAPI(AioHTTPTestCase):
+    """Tests for /api/messages endpoints."""
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    def _create_message(self, db_path: Path, *, status: str, group_id: str = "g-1", group_name: str = "Group 1") -> int:
+        from oden.messages_db import create_raw_message, update_message_status
+
+        msg = {
+            "envelope": {
+                "sourceNumber": "+46701111111",
+                "sourceName": "Test Name",
+                "timestamp": 1710000000000,
+                "dataMessage": {
+                    "message": "hello",
+                    "groupV2": {
+                        "id": group_id,
+                        "name": group_name,
+                    },
+                },
+            }
+        }
+        message_id = create_raw_message(db_path, "+46700000000", msg)
+        update_message_status(db_path, message_id, status)
+        return message_id
+
+    async def test_messages_list_filters_by_status(self):
+        from oden.config_db import init_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            init_db(db_path)
+            self._create_message(db_path, status="processed")
+            self._create_message(db_path, status="failed")
+
+            with unittest.mock.patch("oden.web_handlers.message_handlers.cfg.CONFIG_DB", db_path):
+                resp = await self.client.get("/api/messages?status=processed")
+
+            self.assertEqual(resp.status, 200)
+            payload = await resp.json()
+            self.assertEqual(payload["count"], 1)
+            self.assertEqual(payload["messages"][0]["status"], "processed")
+
+    async def test_message_detail_includes_runs_and_events(self):
+        from oden.config_db import init_db
+        from oden.pipelines_db import append_pipeline_event, complete_pipeline_run, start_pipeline_run
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            init_db(db_path)
+            message_id = self._create_message(db_path, status="processed")
+            run_id = start_pipeline_run(db_path, message_id, "seven_s")
+            append_pipeline_event(db_path, run_id, "pipeline_started", {"pipeline": "seven_s"})
+            complete_pipeline_run(db_path, run_id)
+
+            with unittest.mock.patch("oden.web_handlers.message_handlers.cfg.CONFIG_DB", db_path):
+                resp = await self.client.get(f"/api/messages/{message_id}")
+
+            self.assertEqual(resp.status, 200)
+            payload = await resp.json()
+            self.assertEqual(payload["message"]["id"], message_id)
+            self.assertEqual(len(payload["runs"]), 1)
+            self.assertEqual(payload["runs"][0]["pipeline_name"], "seven_s")
+            self.assertEqual(payload["runs"][0]["events"][0]["event_type"], "pipeline_started")
+
+    async def test_message_stats_counts_statuses(self):
+        from oden.config_db import init_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            init_db(db_path)
+            self._create_message(db_path, status="processed")
+            self._create_message(db_path, status="failed")
+            self._create_message(db_path, status="ignored")
+
+            with unittest.mock.patch("oden.web_handlers.message_handlers.cfg.CONFIG_DB", db_path):
+                resp = await self.client.get("/api/messages/stats")
+
+            self.assertEqual(resp.status, 200)
+            payload = await resp.json()
+            self.assertEqual(payload["total"], 3)
+            self.assertEqual(payload["processed"], 1)
+            self.assertEqual(payload["failed"], 1)
+            self.assertEqual(payload["ignored"], 1)
+
+    async def test_reprocess_returns_503_without_writer(self):
+        with unittest.mock.patch("oden.web_handlers._helpers.get_app_state") as mock_state:
+            mock_state.return_value.writer = None
+            resp = await self.client.post("/api/messages/123/reprocess")
+
+        self.assertEqual(resp.status, 503)
+        payload = await resp.json()
+        self.assertFalse(payload["success"])
+
+    async def test_reprocess_calls_orchestrator_when_connected(self):
+        state = unittest.mock.Mock()
+        state.writer = object()
+        state.reader = object()
+
+        with (
+            unittest.mock.patch("oden.web_handlers._helpers.get_app_state", return_value=state),
+            unittest.mock.patch("oden.web_handlers.message_handlers.get_app_state", return_value=state),
+            unittest.mock.patch("oden.web_handlers.message_handlers.PipelineOrchestrator") as mock_orchestrator_class,
+        ):
+            mock_orchestrator = mock_orchestrator_class.return_value
+            mock_orchestrator.reprocess = unittest.mock.AsyncMock(return_value=True)
+
+            resp = await self.client.post("/api/messages/321/reprocess")
+
+        self.assertEqual(resp.status, 200)
+        payload = await resp.json()
+        self.assertTrue(payload["success"])
+        mock_orchestrator.reprocess.assert_awaited_once()
