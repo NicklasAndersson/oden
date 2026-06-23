@@ -19,6 +19,10 @@ function showTab(tabName) {
     if (tabName === 'responses') {
         loadResponses();
     }
+    // Load pipelines when switching to pipelines tab
+    if (tabName === 'pipelines') {
+        loadPipelinesDashboard();
+    }
     // Load accounts when switching to accounts tab
     if (tabName === 'accounts') {
         loadAccounts();
@@ -26,5 +30,9 @@ function showTab(tabName) {
     // Load contacts when switching to contacts tab
     if (tabName === 'contacts') {
         loadContacts();
+    }
+    // Load message observability dashboard when switching to messages tab
+    if (tabName === 'messages') {
+        loadMessagesDashboard();
     }
 }

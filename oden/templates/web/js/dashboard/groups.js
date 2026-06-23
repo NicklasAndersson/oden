@@ -35,12 +35,12 @@ async function fetchGroups() {
                     </div>
                     <div class="group-buttons">
                         ${editBtn}
-                        <button class="toggle-ignore ${isIgnored ? 'ignored' : ''}"
+                        <button class="toggle-btn toggle-ignore ${isIgnored ? 'ignored' : ''}"
                                 onclick="toggleIgnoreGroup('${escapeHtml(group.name)}')"
                                 title="${isIgnored ? 'Sluta ignorera' : 'Ignorera grupp'}">
                             ${isIgnored ? '✓ Ignorerad' : 'Ignorera'}
                         </button>
-                        <button class="toggle-whitelist ${isWhitelisted ? 'whitelisted' : ''}"
+                        <button class="toggle-btn toggle-whitelist ${isWhitelisted ? 'whitelisted' : ''}"
                                 onclick="toggleWhitelistGroup('${escapeHtml(group.name)}')"
                                 title="${isWhitelisted ? 'Ta bort från whitelist' : 'Lägg till i whitelist'}">
                             ${isWhitelisted ? '✓ Whitelist' : 'Whitelist'}

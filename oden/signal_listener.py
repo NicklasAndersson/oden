@@ -12,9 +12,19 @@ import time
 from oden import __version__
 from oden.app_state import get_app_state
 from oden.config import DISPLAY_NAME
+from oden.messages_db import (
+    STATUS_IGNORED,
+    STATUS_QUEUED,
+    create_raw_message,
+    update_message_status,
+)
+from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.processing import process_message
+from oden.retention_db import cleanup_old_data
 
 logger = logging.getLogger(__name__)
+
+RETENTION_CLEANUP_INTERVAL_SECONDS = 3600
 
 
 async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
@@ -261,6 +271,8 @@ async def subscribe_and_listen(host: str, port: int) -> None:
     reader = None
     writer = None
     app_state = get_app_state()
+    orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
+    last_retention_cleanup_ts = 0.0
     try:
         reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100)  # 100 MB limit
         logger.info("Connection successful. Waiting for messages...")
@@ -302,7 +314,67 @@ async def subscribe_and_listen(host: str, port: int) -> None:
                         logger.debug(f"Skipping message for non-active account: {msg_account}")
                         continue
 
-                    await process_message(msg_data, reader, writer)
+                    message_id: int | None = None
+                    account_for_storage = msg_account or cfg.SIGNAL_NUMBER
+
+                    # signal-cli exception envelopes: decryption failures, missing session keys, etc.
+                    # These carry no message content — log them and skip processing.
+                    signal_exc = msg_data.get("exception")
+                    if signal_exc:
+                        exc_type = signal_exc.get("type", "Unknown")
+                        exc_msg = signal_exc.get("message", "")
+                        logger.warning(
+                            "signal-cli exception envelope — inget meddelande sparas. [%s] %s",
+                            exc_type,
+                            exc_msg,
+                        )
+                        if cfg.DB_FIRST_ENABLED:
+                            try:
+                                exc_id = create_raw_message(cfg.CONFIG_DB, account_for_storage, msg_data)
+                                update_message_status(cfg.CONFIG_DB, exc_id, STATUS_IGNORED)
+                            except Exception:
+                                pass
+                        continue
+
+                    if not cfg.DB_FIRST_ENABLED:
+                        await process_message(msg_data, reader, writer)
+                        continue
+
+                    # Persist-first: store raw, unprocessed payload before any processing.
+                    try:
+                        message_id = create_raw_message(cfg.CONFIG_DB, account_for_storage, msg_data)
+                        update_message_status(cfg.CONFIG_DB, message_id, STATUS_QUEUED)
+                    except Exception as db_error:
+                        logger.error("Could not persist raw message before processing: %r", db_error)
+
+                    if message_id is not None:
+                        await orchestrator.run_message(
+                            message_id=message_id,
+                            msg_data=msg_data,
+                            reader=reader,
+                            writer=writer,
+                        )
+
+                        now_ts = time.monotonic()
+                        if now_ts - last_retention_cleanup_ts >= RETENTION_CLEANUP_INTERVAL_SECONDS:
+                            summary = cleanup_old_data(cfg.CONFIG_DB, cfg.RAW_MESSAGE_RETENTION_DAYS)
+                            total_deleted = (
+                                summary["deleted_raw_messages"]
+                                + summary["deleted_pipeline_runs"]
+                                + summary["deleted_pipeline_events"]
+                            )
+                            if total_deleted:
+                                logger.info(
+                                    "Retention cleanup removed raw=%d runs=%d events=%d (days=%d)",
+                                    summary["deleted_raw_messages"],
+                                    summary["deleted_pipeline_runs"],
+                                    summary["deleted_pipeline_events"],
+                                    summary["retention_days"],
+                                )
+                            last_retention_cleanup_ts = now_ts
+                    else:
+                        # Fallback path if DB persistence failed.
+                        await process_message(msg_data, reader, writer)
                 except Exception as e:
                     logger.error(f"Could not process message.\n  Error: {repr(e)}")
         finally:
