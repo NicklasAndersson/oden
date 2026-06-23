@@ -27,6 +27,13 @@ function renderGroupFilterSettings(item) {
     const cfg = item.config || {};
     const mode = cfg.mode === 'whitelist' ? 'whitelist' : 'blacklist';
     const groups = Array.isArray(cfg.groups) ? cfg.groups : [];
+    const knownGroups = getKnownGroupNames();
+    const suggestionsHtml = knownGroups.length
+        ? knownGroups.map(groupName => {
+            const isSelected = groups.includes(groupName);
+            return `<button type="button" class="btn btn-small ${isSelected ? 'btn-secondary' : ''}" data-group-name="${escapeHtml(groupName)}" onclick="addGroupFilterGroupFromButton(this)">${escapeHtml(groupName)}</button>`;
+        }).join('')
+        : '<span class="text-muted">Inga kända grupper ännu.</span>';
 
     return `
         <div class="pipeline-settings">
@@ -40,12 +47,51 @@ function renderGroupFilterSettings(item) {
             <div class="pipeline-settings-row">
                 <label for="pipeline-config-group_filter-groups">Grupper (en per rad)</label>
                 <textarea id="pipeline-config-group_filter-groups" rows="4" placeholder="Exempelgrupp A\nExempelgrupp B">${escapeHtml(groups.join('\n'))}</textarea>
+                <div class="refresh-info" style="margin-top: 8px;">
+                    Förslag från befintliga grupper (klicka för att lägga till):
+                </div>
+                <div class="pipeline-suggestions" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+                    ${suggestionsHtml}
+                </div>
+                <div class="refresh-info" style="margin-top: 6px;">
+                    Du kan också skriva egna gruppnamn som ännu inte finns.
+                </div>
             </div>
             <div class="pipeline-settings-actions">
                 <button class="btn btn-small" onclick="saveGroupFilterSettings()">Spara filter</button>
             </div>
         </div>
     `;
+}
+
+function getKnownGroupNames() {
+    const source = Array.isArray(_groupsCache) ? _groupsCache : [];
+    const names = source
+        .map(group => (group?.name || '').trim())
+        .filter(Boolean);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'sv'));
+}
+
+function addGroupFilterGroupFromButton(button) {
+    addGroupFilterGroup(button?.dataset?.groupName || '');
+}
+
+function addGroupFilterGroup(groupName) {
+    const groupsEl = document.getElementById('pipeline-config-group_filter-groups');
+    const normalized = (groupName || '').trim();
+    if (!groupsEl || !normalized) {
+        return;
+    }
+
+    const groups = groupsEl.value
+        .split('\n')
+        .map(item => item.trim())
+        .filter(Boolean);
+
+    if (!groups.includes(normalized)) {
+        groups.push(normalized);
+        groupsEl.value = groups.join('\n');
+    }
 }
 
 function renderEnabledPipelines() {
