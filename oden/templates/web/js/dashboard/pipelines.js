@@ -11,6 +11,18 @@ let pipelinesState = {
     },
 };
 
+const genericTemplateVariableCache = {};
+const genericTemplateMeta = {
+    report_md: {
+        apiName: 'report.md.j2',
+        label: 'Rapportmall',
+    },
+    append_md: {
+        apiName: 'append.md.j2',
+        label: 'Tilläggsmall',
+    },
+};
+
 function getEnabledNames() {
     return pipelinesState.enabled.map(item => item.name);
 }
@@ -21,6 +33,171 @@ function isPipelineEnabled(name) {
 
 function pipelineRunCount(name) {
     return pipelinesState.stats.by_pipeline?.[name] || 0;
+}
+
+function getGenericTemplateStorageField(key) {
+    return document.getElementById(`pipeline-config-generic_template-${key}`);
+}
+
+function getGenericTemplateEditorModal() {
+    return document.getElementById('generic-template-editor-modal');
+}
+
+function getGenericTemplateEditorKey() {
+    return document.getElementById('generic-template-editor-select')?.value || 'report_md';
+}
+
+function getGenericTemplateEditorApiName() {
+    return genericTemplateMeta[getGenericTemplateEditorKey()]?.apiName || 'report.md.j2';
+}
+
+function setGenericTemplateEditorError(message) {
+    const errorDiv = document.getElementById('generic-template-editor-error');
+    if (!errorDiv) {
+        return;
+    }
+
+    if (!message) {
+        errorDiv.style.display = 'none';
+        return;
+    }
+
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+function setGenericTemplateEditorPreviewText(preview) {
+    const previewDiv = document.getElementById('generic-template-editor-preview');
+    if (previewDiv) {
+        previewDiv.textContent = preview;
+    }
+}
+
+function setGenericTemplateEditorPreviewEmpty(message) {
+    const previewDiv = document.getElementById('generic-template-editor-preview');
+    if (previewDiv) {
+        previewDiv.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+    }
+}
+
+function syncGenericTemplateEditorDraft() {
+    const key = getGenericTemplateEditorKey();
+    const field = getGenericTemplateStorageField(key);
+    const editor = document.getElementById('generic-template-editor-textarea');
+    if (field && editor) {
+        field.value = editor.value;
+    }
+}
+
+async function loadGenericTemplateEditorVariables() {
+    const templateName = getGenericTemplateEditorApiName();
+    const variablesContainer = document.getElementById('generic-template-editor-variables');
+    if (!variablesContainer) {
+        return;
+    }
+
+    if (genericTemplateVariableCache[templateName]) {
+        variablesContainer.innerHTML = genericTemplateVariableCache[templateName];
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/templates/${templateName}`);
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        const html = (data.variables || []).map(function(v) {
+            var brOpen = '{' + '{';
+            var brClose = '}' + '}';
+            var req = v.required ? '<span class="template-var-required">*</span>' : '';
+            return '<div class="template-var-item">'
+                + '<span class="template-var-name">' + brOpen + ' ' + escapeHtml(v.name) + ' ' + brClose + '</span>'
+                + req
+                + '<div class="template-var-desc">' + escapeHtml(v.description) + '</div>'
+                + '</div>';
+        }).join('');
+
+        genericTemplateVariableCache[templateName] = html || '<div class="empty-state">Inga variabler hittades</div>';
+        variablesContainer.innerHTML = genericTemplateVariableCache[templateName];
+    } catch (error) {
+        variablesContainer.innerHTML = `<div class="empty-state">Kunde inte ladda variabler: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+async function switchGenericTemplateEditorTemplate() {
+    syncGenericTemplateEditorDraft();
+
+    const field = getGenericTemplateStorageField(getGenericTemplateEditorKey());
+    const editor = document.getElementById('generic-template-editor-textarea');
+    if (field && editor) {
+        editor.value = field.value || '';
+    }
+
+    await loadGenericTemplateEditorVariables();
+    await previewGenericTemplateEditor();
+}
+
+async function openGenericTemplateEditor() {
+    const modal = getGenericTemplateEditorModal();
+    const select = document.getElementById('generic-template-editor-select');
+    const editor = document.getElementById('generic-template-editor-textarea');
+    if (!modal || !select || !editor) {
+        return;
+    }
+
+    setGenericTemplateEditorError('');
+    select.value = 'report_md';
+    editor.value = getGenericTemplateStorageField('report_md')?.value || '';
+    modal.classList.remove('hidden');
+    await loadGenericTemplateEditorVariables();
+    await previewGenericTemplateEditor();
+    editor.focus();
+}
+
+function closeGenericTemplateEditor(event) {
+    if (event && event.target && event.target !== getGenericTemplateEditorModal()) {
+        return;
+    }
+
+    syncGenericTemplateEditorDraft();
+    setGenericTemplateEditorError('');
+    getGenericTemplateEditorModal()?.classList.add('hidden');
+}
+
+async function previewGenericTemplateEditor() {
+    const editor = document.getElementById('generic-template-editor-textarea');
+    const useFullData = document.getElementById('generic-template-editor-full-data')?.checked || false;
+    if (!editor) {
+        return;
+    }
+
+    syncGenericTemplateEditorDraft();
+    setGenericTemplateEditorError('');
+
+    if (!editor.value.trim()) {
+        setGenericTemplateEditorPreviewEmpty('Ingen mall att förhandsgranska');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/templates/${getGenericTemplateEditorApiName()}/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: editor.value, full: useFullData }),
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            setGenericTemplateEditorPreviewText(data.preview);
+        } else {
+            setGenericTemplateEditorError(data.error || 'Förhandsvisning misslyckades');
+            setGenericTemplateEditorPreviewEmpty('Fel i mallen - se felmeddelande ovan');
+        }
+    } catch (error) {
+        setGenericTemplateEditorError('Nätverksfel: ' + error.message);
+    }
 }
 
 function renderGroupFilterSettings(item) {
@@ -112,21 +289,29 @@ function renderGenericTemplateSettings(item) {
     `).join('');
 
     const regexTableHtml = regexRows ? regexRows + '<div style="margin-top: 8px; display: flex; gap: 6px;"><button type="button" class="btn btn-small" onclick="addGenericTemplateRegexRow()">➕ Lägg till mönster</button></div>' : '<div class="refresh-info" style="margin-top: 8px;">Inga regex-mönster konfigurerade ännu. Klicka "Lägg till mönster" för att lägga till.</div>';
+    const reportSummary = templates.report_md ? 'Anpassad mall sparad' : 'Standardmall används';
+    const appendSummary = templates.append_md ? 'Anpassad mall sparad' : 'Standardmall används';
 
     return `
         <div class="pipeline-settings">
             <div class="pipeline-settings-row">
                 <h4 style="margin: 0 0 12px 0;">Rapportmallar</h4>
-                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                    <div style="flex: 1;">
-                        <label for="pipeline-config-generic_template-report_md" style="display: block; margin-bottom: 6px; font-size: 0.9em;">Rapportmall (report.md.j2)</label>
-                        <textarea id="pipeline-config-generic_template-report_md" rows="6" style="width: 100%; padding: 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; font-family: monospace; font-size: 0.85em;" placeholder="Jinja2-mall för rapporter...">${escapeHtml(templates.report_md || '')}</textarea>
+                <div class="pipeline-template-summary">
+                    <div class="pipeline-template-summary-item">
+                        <strong>Rapportmall</strong>
+                        <span>${escapeHtml(reportSummary)}</span>
                     </div>
-                    <div style="flex: 1;">
-                        <label for="pipeline-config-generic_template-append_md" style="display: block; margin-bottom: 6px; font-size: 0.9em;">Tilläggsmall (append.md.j2)</label>
-                        <textarea id="pipeline-config-generic_template-append_md" rows="6" style="width: 100%; padding: 6px; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; font-family: monospace; font-size: 0.85em;" placeholder="Jinja2-mall för tillägg...">${escapeHtml(templates.append_md || '')}</textarea>
+                    <div class="pipeline-template-summary-item">
+                        <strong>Tilläggsmall</strong>
+                        <span>${escapeHtml(appendSummary)}</span>
                     </div>
                 </div>
+                <div class="refresh-info" style="margin-top: 8px;">Öppna mallredigeraren för att redigera och förhandsgranska mallarna i ett större fönster.</div>
+                <div class="pipeline-settings-actions" style="justify-content: flex-start; margin-top: 10px;">
+                    <button type="button" class="btn btn-small" onclick="openGenericTemplateEditor()">Öppna mallredigerare</button>
+                </div>
+                <textarea id="pipeline-config-generic_template-report_md" class="pipeline-template-storage" aria-hidden="true">${escapeHtml(templates.report_md || '')}</textarea>
+                <textarea id="pipeline-config-generic_template-append_md" class="pipeline-template-storage" aria-hidden="true">${escapeHtml(templates.append_md || '')}</textarea>
             </div>
 
             <div class="pipeline-settings-row">
@@ -194,6 +379,7 @@ function removeGenericTemplateRegexRow(btn) {
 }
 
 async function saveGenericTemplateSettings() {
+    syncGenericTemplateEditorDraft();
     const reportMd = document.getElementById('pipeline-config-generic_template-report_md')?.value || '';
     const appendMd = document.getElementById('pipeline-config-generic_template-append_md')?.value || '';
     const autoReaction = document.getElementById('pipeline-config-generic_template-auto_reaction')?.checked || false;
@@ -223,6 +409,9 @@ async function saveGenericTemplateSettings() {
     try {
         await savePipelineConfig('generic_template', config);
         showConfigMessage('Pipeline-inställningar sparade.', 'success');
+        if (!getGenericTemplateEditorModal()?.classList.contains('hidden')) {
+            closeGenericTemplateEditor();
+        }
         await loadPipelinesDashboard();
     } catch (error) {
         showConfigMessage(`Kunde inte spara inställningar: ${error.message}`, 'error');

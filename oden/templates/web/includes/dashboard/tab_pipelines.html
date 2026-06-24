@@ -27,4 +27,61 @@
         <strong>Notering:</strong> Stöd för flera instanser av samma pipeline med olika inställningar
         planeras för senare fas.
     </div>
+
+    <div id="generic-template-editor-modal" class="modal-overlay hidden" onclick="closeGenericTemplateEditor(event)">
+        <div class="modal-content generic-template-editor-modal-content" onclick="event.stopPropagation()">
+            <div class="template-editor-modal-header">
+                <div>
+                    <h3>📝 Rapportmallar</h3>
+                    <p class="help-paragraph" style="margin: 6px 0 0 0;">Mallinställningarna sparas i <code>generic_template</code>-pipelinens konfiguration.</p>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeGenericTemplateEditor()">✕</button>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center; flex-wrap: wrap;">
+                <div>
+                    <label for="generic-template-editor-select" style="margin-right: 8px;">Mall:</label>
+                    <select id="generic-template-editor-select" onchange="switchGenericTemplateEditorTemplate()">
+                        <option value="report_md">Rapportmall (report.md.j2)</option>
+                        <option value="append_md">Tilläggsmall (append.md.j2)</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="generic-template-editor-full-data" onchange="previewGenericTemplateEditor()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="text-muted" style="font-size: 0.9em;">Visa alla variabler</span>
+                </div>
+            </div>
+
+            <div class="template-split-view template-split-view-large">
+                <div class="template-editor-pane">
+                    <h4 class="pane-heading">Editor</h4>
+                    <textarea id="generic-template-editor-textarea" placeholder="Laddar mall..." oninput="syncGenericTemplateEditorDraft()"></textarea>
+                </div>
+                <div class="template-preview-pane">
+                    <h4 class="pane-heading">Förhandsvisning</h4>
+                    <div id="generic-template-editor-preview" class="template-preview-content template-preview-content-large">
+                        <div class="empty-state">Klicka "Förhandsgranska" för att se resultatet</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="generic-template-editor-error" class="template-error" style="display: none;"></div>
+
+            <details class="template-variables-section">
+                <summary>📋 Tillgängliga variabler</summary>
+                <div id="generic-template-editor-variables" class="template-variables-list">
+                    <div class="empty-state">Laddar variabler...</div>
+                </div>
+            </details>
+
+            <div class="config-actions" style="margin-top: 15px;">
+                <button type="button" class="btn btn-primary" onclick="previewGenericTemplateEditor()">👁️ Förhandsgranska</button>
+                <button type="button" class="btn btn-primary" onclick="saveGenericTemplateSettings(true)">💾 Spara inställningar</button>
+                <button type="button" class="btn btn-secondary" onclick="closeGenericTemplateEditor()">Stäng</button>
+            </div>
+        </div>
+    </div>
 </div>
