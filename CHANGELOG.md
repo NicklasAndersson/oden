@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-06-24
+
+### Added
+
+- **FORS-pipeline**: Ny specialpipeline (`pipelines/fors.py`) för FORS-format
+- **PEDARS-pipeline**: Ny specialpipeline (`pipelines/pedars.py`) för PEDARS-format
+- **Vault-subdirectory per pipeline**: Ny `vault_subdir`-inställning per strukturerad pipeline för att styra utdata till vald undermapp i vaulten
+- **Toggle för subdir per pipeline**: Av/på-stöd i GUI för att snabbt aktivera eller inaktivera pipeline-specifik undermapp
+- **Egen grupper-flik i dashboard**: Grupphantering har flyttats till en separat flik för tydligare navigation
+
+### Changed
+
+- **Kodförenkling i pipelines**: Gemensam app-state-hämtning centraliserad via `StructuredReportPipeline`-basen för mindre duplicering
+
+### Removed
+
+- **`++` append-läge**: Legacy append-läge borttaget från meddelandeflödet
+- **Föråldrade GUI-inställningar**: Relaterade äldre inställningar städade bort i samband med append-borttagning
+
 ## [3.0.0] - 2026-06-24
 
 ### 🚀 Oden 3.0 — DB-first multipipeline med 7S-stöd
