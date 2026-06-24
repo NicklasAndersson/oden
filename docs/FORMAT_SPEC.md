@@ -32,8 +32,10 @@ TNR<DDHHMM>[_<n>].md
 ```
 
 - `TNR` — fast prefix (versaler).
-- `DDHHMM` — tidsnummer ur observationens tidpunkt: dag-i-månad, timme, minut,
-  nollutfyllt tvåsiffrigt (UTC-offset enligt §4). Ex: 14 feb 07:55 → `140755`.
+- `DDHHMM` — rapportens eget tidsnummer som kommer från fältet `TNR` i 7S-inmatningen.
+  Formatet är dag-i-månad, timme, minut, nollutfyllt tvåsiffrigt. Det är ofta samma
+  som observationstiden men behöver inte vara det, eftersom `Stund` avser när
+  observationen gjordes medan `TNR` kan avse när rapporten skickades in.
 - `_<n>` — kollisionssuffix. Om en fil med samma TNR redan finns läggs `_2`,
   `_3`, … till i ankomstordning. Första filen får inget suffix.
 - Exempel: `TNR140755.md`, `TNR140755_2.md`.
@@ -78,7 +80,7 @@ sagesman: AQ
 |-------------|----------|--------|
 | `id`        | sträng   | Stabil unik identifierare. Format `7S-NNN` i exempeldata; valfri stabil sträng i drift (t.ex. UUID). Måste vara unik över hela vaulten. |
 | `typ`       | sträng   | Konstant `7S-rapport`. Skiljer rapporter från andra noter i grafvyn. |
-| `tnr`       | sträng   | Samma som filnamnets TNR-del, **utan** `TNR`-prefix och **utan** `.md`. Inkludera ev. kollisionssuffix (`140755_2`). Sträng, inte tal (kan ha ledande nollor och `_`). |
+| `tnr`       | sträng   | Samma som filnamnets TNR-del, **utan** `TNR`-prefix och **utan** `.md`. Hämtas från inmatningens `TNR` och kan därför skilja sig från observationstiden. Inkludera ev. kollisionssuffix (`140755_2`). Sträng, inte tal (kan ha ledande nollor och `_`). |
 | `tidpunkt`  | sträng   | ISO 8601 lokal tid, `YYYY-MM-DDTHH:MM:SS`. Observationens tidpunkt. Detta är den auktoritativa tidsstämpeln. |
 | `plats`     | sträng   | Fritext-platsnamn. **Citerad** (dubbelfnuttar) eftersom den kan innehålla specialtecken. |
 | `lat`       | tal      | WGS84 decimalgrader, 5 decimaler. Nordlig latitud positiv. |
@@ -232,6 +234,9 @@ Kompani med huvudanropssignal **QO**. Plutoner:
 | `EQ`   | stabspluton |
 
 I drift kan finare signaler förekomma; för detta format räcker plutonsnivå.
+Oden bevarar inkommande `sagesman` även när värdet avviker från `AQ`-`EQ`, men
+bör logga en varning för att markera att signalen inte följer den kanoniska
+plutonsnivån.
 Geografisk koppling (en pluton ansvarar normalt för en sektor) är en
 *egenskap hos insatsen*, inte ett formatkrav.
 

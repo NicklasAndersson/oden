@@ -4,6 +4,11 @@
 
 let selectedMessageId = null;
 
+function resetMessageDetail(message) {
+    document.getElementById('message-detail').innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+    document.getElementById('btn-reprocess-message').disabled = true;
+}
+
 function formatMessageLabel(msg) {
     const sender = msg.source_name || msg.source_number || 'Okänd';
     const group = msg.group_name || 'inbox';
@@ -40,9 +45,13 @@ function renderMessageDetail(payload) {
 
     const runsHtml = runs.map(run => {
         const events = run.events || [];
-        const eventsHtml = events.map(event =>
-            `<li><strong>${escapeHtml(event.event_type)}</strong> <span>${escapeHtml(event.occurred_at || '')}</span></li>`
-        ).join('');
+        const eventsHtml = events.map(event => {
+            const details = event.details || {};
+            const detailText = details.message || details.error || details.value || '';
+            const detailHtml = detailText ? ` <span class="pipeline-event-details">${escapeHtml(detailText)}</span>` : '';
+            const warningClass = event.event_type === 'pipeline_warning' ? ' pipeline-event-warning' : '';
+            return `<li class="pipeline-event${warningClass}"><strong>${escapeHtml(event.event_type)}</strong> <span>${escapeHtml(event.occurred_at || '')}</span>${detailHtml}</li>`;
+        }).join('');
 
         return `
             <div class="pipeline-run">
@@ -80,7 +89,7 @@ async function loadMessageDetail(messageId) {
         renderMessageDetail(payload);
         document.getElementById('btn-reprocess-message').disabled = false;
     } catch (error) {
-        document.getElementById('message-detail').innerHTML = `<div class="empty-state">Kunde inte ladda detalj: ${escapeHtml(error.message)}</div>`;
+        resetMessageDetail(`Kunde inte ladda detalj: ${error.message}`);
     }
 }
 
@@ -103,9 +112,13 @@ async function loadMessageStats() {
 async function loadMessagesDashboard() {
     try {
         const status = document.getElementById('messages-status-filter').value;
+        const hasContentOnly = document.getElementById('messages-has-content-filter').checked;
         const params = new URLSearchParams({ limit: '100' });
         if (status) {
             params.set('status', status);
+        }
+        if (hasContentOnly) {
+            params.set('has_content', '1');
         }
 
         const response = await fetch(`/api/messages?${params.toString()}`);
@@ -119,11 +132,17 @@ async function loadMessagesDashboard() {
 
         if (selectedMessageId && messages.some(m => m.id === selectedMessageId)) {
             await loadMessageDetail(selectedMessageId);
+        } else if (selectedMessageId) {
+            selectedMessageId = null;
+            resetMessageDetail('Välj ett meddelande i listan.');
+        } else if (!messages.length) {
+            resetMessageDetail('Välj ett meddelande i listan.');
         }
 
         await loadMessageStats();
     } catch (error) {
         document.getElementById('messages-list').innerHTML = `<div class="empty-state">Kunde inte ladda meddelanden: ${escapeHtml(error.message)}</div>`;
+        resetMessageDetail('Välj ett meddelande i listan.');
     }
 }
 

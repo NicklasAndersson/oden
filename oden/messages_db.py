@@ -120,6 +120,7 @@ def list_messages(
     account: str | None = None,
     status: str | None = None,
     group_id: str | None = None,
+    has_content_only: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
@@ -140,6 +141,8 @@ def list_messages(
     if group_id:
         conditions.append("group_id = ?")
         params.append(group_id)
+    if has_content_only:
+        conditions.append("COALESCE(TRIM(message_body), '') != ''")
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     params.extend([limit, offset])

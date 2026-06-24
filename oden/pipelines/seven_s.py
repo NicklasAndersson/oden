@@ -22,6 +22,8 @@ from oden.app_state import get_app_state
 from oden.formatting import get_safe_group_dir_path
 from oden.link_formatter import apply_regex_links
 
+logger = logging.getLogger(__name__)
+
 _REQUIRED_FIELDS = {
     "till",
     "fran",
@@ -210,6 +212,7 @@ class SevenSPipeline:
         writer: Any,
     ) -> bool:
         del reader, writer  # Not used by this pipeline currently.
+        self.last_warnings: list[dict[str, str]] = []
 
         envelope = msg_data.get("envelope", {})
         if not envelope:
@@ -238,15 +241,26 @@ class SevenSPipeline:
         raw_stund = fields["stund"].strip()
         if not re.fullmatch(r"\d{6}", raw_tnr):
             raise ValueError("7S TNR must be DDHHMM")
-        if raw_tnr != raw_stund:
-            raise ValueError("7S TNR and Stund must match")
+        # TNR identifies the submitted report, while Stund captures when the
+        # observation happened. They are both DDHHMM but may legitimately differ.
+        if not re.fullmatch(r"\d{6}", raw_stund):
+            raise ValueError("7S Stund must be DDHHMM")
 
         sagesman = fields["sagesman"].strip().upper()
         if not re.fullmatch(r"[A-E]Q", sagesman):
-            raise ValueError("7S Sagesman must match schema pattern [A-E]Q")
+            warning = {
+                "field": "sagesman",
+                "value": sagesman,
+                "message": "7S Sagesman is non-canonical; writing report anyway",
+            }
+            self.last_warnings.append(warning)
+            logger.warning(
+                "7S Sagesman is non-canonical (%r); writing report anyway",
+                sagesman,
+            )
 
         observation_dt = _resolve_observation_datetime(raw_stund, dt)
-        resolved_tnr = observation_dt.strftime("%d%H%M")
+        resolved_tnr = raw_tnr
 
         resolved_group_title = group_title or "inbox"
         filepath, resolved_tnr = _build_7s_filepath(resolved_group_title, resolved_tnr)

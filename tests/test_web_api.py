@@ -460,7 +460,15 @@ class TestMessageObservabilityAPI(AioHTTPTestCase):
     async def get_application(self):
         return create_app(setup_mode=False)
 
-    def _create_message(self, db_path: Path, *, status: str, group_id: str = "g-1", group_name: str = "Group 1") -> int:
+    def _create_message(
+        self,
+        db_path: Path,
+        *,
+        status: str,
+        group_id: str = "g-1",
+        group_name: str = "Group 1",
+        message_body: str | None = "hello",
+    ) -> int:
         from oden.messages_db import create_raw_message, update_message_status
 
         msg = {
@@ -469,7 +477,7 @@ class TestMessageObservabilityAPI(AioHTTPTestCase):
                 "sourceName": "Test Name",
                 "timestamp": 1710000000000,
                 "dataMessage": {
-                    "message": "hello",
+                    "message": message_body,
                     "groupV2": {
                         "id": group_id,
                         "name": group_name,
@@ -497,6 +505,25 @@ class TestMessageObservabilityAPI(AioHTTPTestCase):
             payload = await resp.json()
             self.assertEqual(payload["count"], 1)
             self.assertEqual(payload["messages"][0]["status"], "processed")
+
+    async def test_messages_list_can_hide_messages_without_content(self):
+        from oden.config_db import init_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+            init_db(db_path)
+            self._create_message(db_path, status="processed", message_body="hello")
+            self._create_message(db_path, status="processed", message_body="   ")
+            self._create_message(db_path, status="processed", message_body=None)
+
+            with unittest.mock.patch("oden.web_handlers.message_handlers.cfg.CONFIG_DB", db_path):
+                resp = await self.client.get("/api/messages?status=processed&has_content=1")
+
+            self.assertEqual(resp.status, 200)
+            payload = await resp.json()
+            self.assertEqual(payload["count"], 1)
+            self.assertTrue(payload["has_content_only"])
+            self.assertEqual(payload["messages"][0]["message_body"], "hello")
 
     async def test_message_detail_includes_runs_and_events(self):
         from oden.config_db import init_db

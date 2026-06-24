@@ -10,7 +10,9 @@ from oden.pipelines.seven_s import SevenSPipeline, is_7s_message, parse_7s_repor
 _TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
 
 
-def _make_msg_data(*, sagesman="AQ", stalle="Långkärrsvägen", symbol="Svart", group="7s-test"):
+def _make_msg_data(
+    *, sagesman="AQ", stalle="Långkärrsvägen", symbol="Svart", group="7s-test", tnr="221520", stund="221520"
+):
     return {
         "envelope": {
             "sourceName": "Nicklas",
@@ -18,7 +20,7 @@ def _make_msg_data(*, sagesman="AQ", stalle="Långkärrsvägen", symbol="Svart",
             "timestamp": _TIMESTAMP,
             "dataMessage": {
                 "message": (
-                    f"7S RAPPORT\nTill: TST\nFrån: TS\nTNR: 221520\nStund: 221520\n"
+                    f"7S RAPPORT\nTill: TST\nFrån: TS\nTNR: {tnr}\nStund: {stund}\n"
                     f"Ställe: {stalle}\nStyrka: 1\nSlag: Vi\nSysselsättning: Patrull\n"
                     f"Symbol: {symbol}\nSagesman: {sagesman}\nSedan: Återgår till bas\n"
                 ),
@@ -155,16 +157,49 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(handled)
 
     @patch("oden.pipelines.seven_s.get_app_state")
-    async def test_run_rejects_invalid_sagesman_for_schema(self, mock_get_app_state):
+    async def test_run_allows_distinct_tnr_and_stund(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
             pipeline = SevenSPipeline()
-            with self.assertRaisesRegex(ValueError, "Sagesman"):
-                await pipeline.run(
+            handled = await pipeline.run(
+                msg_data=_make_msg_data(tnr="221035", stund="221034"),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "7s-test" / "TNR221035.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn('tnr: "221035"', content)
+        self.assertIn("**TNR:** 221035", content)
+        self.assertIn('tidpunkt: "2026-06-22T10:34:00"', content)
+        self.assertIn("**Stund:** 2026-06-22 10:34", content)
+
+    @patch("oden.pipelines.seven_s.get_app_state")
+    async def test_run_warns_but_writes_invalid_sagesman(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+            pipeline = SevenSPipeline()
+            with self.assertLogs("oden.pipelines.seven_s", level="WARNING") as captured_logs:
+                handled = await pipeline.run(
                     msg_data=_make_msg_data(sagesman="2A GRUPP"),
                     reader=AsyncMock(),
                     writer=AsyncMock(),
                 )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn("non-canonical", "\n".join(captured_logs.output))
+        self.assertIn("sagesman: 2A GRUPP", content)
+        self.assertIn("**Sagesman:** 2A GRUPP", content)

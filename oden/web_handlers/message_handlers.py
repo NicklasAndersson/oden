@@ -32,6 +32,13 @@ def _get_int_query(request: web.Request, key: str, default: int, minimum: int, m
     return max(minimum, min(maximum, value))
 
 
+def _get_bool_query(request: web.Request, key: str) -> bool:
+    value_raw = request.query.get(key)
+    if value_raw is None:
+        return False
+    return value_raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @handle_errors("list messages")
 async def messages_list_handler(request: web.Request) -> web.Response:
     """List stored raw messages with simple filtering and pagination."""
@@ -41,12 +48,14 @@ async def messages_list_handler(request: web.Request) -> web.Response:
     account = request.query.get("account") or None
     status = request.query.get("status") or None
     group_id = request.query.get("group_id") or None
+    has_content_only = _get_bool_query(request, "has_content")
 
     messages = list_messages(
         cfg.CONFIG_DB,
         account=account,
         status=status,
         group_id=group_id,
+        has_content_only=has_content_only,
         limit=limit,
         offset=offset,
     )
@@ -57,6 +66,7 @@ async def messages_list_handler(request: web.Request) -> web.Response:
             "limit": limit,
             "offset": offset,
             "count": len(messages),
+            "has_content_only": has_content_only,
         }
     )
 

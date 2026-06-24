@@ -103,6 +103,17 @@ class PipelineOrchestrator:
                     writer=writer,
                 )
 
+                for warning in getattr(pipeline, "last_warnings", []) or []:
+                    append_pipeline_event(
+                        self._db_path,
+                        run_id,
+                        "pipeline_warning",
+                        {
+                            "pipeline": pipeline.name,
+                            **warning,
+                        },
+                    )
+
                 if handled:
                     complete_pipeline_run(self._db_path, run_id)
                     append_pipeline_event(

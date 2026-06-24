@@ -25,6 +25,15 @@ class _HandlingPipeline:
         return True
 
 
+class _WarningPipeline:
+    name = "warning"
+
+    async def run(self, *, msg_data, reader, writer):
+        del msg_data, reader, writer
+        self.last_warnings = [{"message": "non-canonical sagesman", "field": "sagesman", "value": "2A GRUPP"}]
+        return True
+
+
 class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
@@ -118,3 +127,24 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
         orchestrator = PipelineOrchestrator(self.db_path)
         result = await orchestrator.reprocess(message_id=999999, reader=None, writer=None)
         self.assertFalse(result)
+
+    async def test_run_message_persists_pipeline_warning_events(self):
+        message_id = self._create_sample_message()
+        orchestrator = PipelineOrchestrator(self.db_path)
+        orchestrator._build_pipelines = lambda: [_WarningPipeline()]  # type: ignore[method-assign]
+
+        await orchestrator.run_message(
+            message_id=message_id,
+            msg_data={"envelope": {"dataMessage": {"message": "hej"}}},
+            reader=None,
+            writer=None,
+        )
+
+        runs = get_runs_for_message(self.db_path, message_id)
+        self.assertEqual(len(runs), 1)
+
+        events = get_events_for_run(self.db_path, runs[0]["id"])
+        warning_events = [event for event in events if event["event_type"] == "pipeline_warning"]
+        self.assertEqual(len(warning_events), 1)
+        self.assertEqual(warning_events[0]["details"]["field"], "sagesman")
+        self.assertEqual(warning_events[0]["details"]["value"], "2A GRUPP")

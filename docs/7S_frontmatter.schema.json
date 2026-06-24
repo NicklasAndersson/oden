@@ -30,7 +30,7 @@
     "tnr": {
       "type": "string",
       "pattern": "^[0-9]{6}(_[0-9]+)?$",
-      "description": "Tidsnummer DDHHMM, optionally with a collision suffix _n. String (may carry leading zeros and underscore). Matches the filename TNR part without the 'TNR' prefix.",
+      "description": "Report TNR DDHHMM, optionally with a collision suffix _n. String (may carry leading zeros and underscore). Matches the filename TNR part without the 'TNR' prefix. This value is preserved from the incoming 7S report and may differ from the observation time in 'tidpunkt'.",
       "examples": [
         "140755",
         "140755_2"
@@ -73,10 +73,11 @@
     },
     "sagesman": {
       "type": "string",
-      "pattern": "^[A-E]Q$",
-      "description": "Reporting unit call sign. Company QO; line platoons AQ/BQ/CQ/DQ, staff platoon EQ. (Production may use finer signs; widen this pattern then.)",
+      "minLength": 1,
+      "description": "Reporting unit call sign as provided in the 7S report. Canonical platoon-level values are AQ/BQ/CQ/DQ/EQ, but production may use finer-grained signals; consumers should treat non-canonical values as warnings rather than schema failures.",
       "examples": [
         "AQ",
+        "2A GRUPP",
         "CQ",
         "EQ"
       ]

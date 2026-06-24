@@ -49,8 +49,11 @@ Nuvarande default:
 
 **Vad den gör:**
 - Parsar strukturerad 7S-rapport (Till, Från, TNR, Stund, Ställe, Styrka, Slag, Sysselsättning, Symbol, Sagesman, Sedan)
-- Validerar alla obligatoriska fält och schemakritiska värden som `TNR`, `Stund` och `Sagesman`
-- Skriver strukturerad markdown-fil till `vault/{group_name}/TNR<DDHHMM>[_n].md`
+- Validerar alla obligatoriska fält samt att `TNR` och `Stund` båda följer formatet `DDHHMM`
+- Tolkar `Stund` som observationstid och bevarar `TNR` som rapportens eget tidsnummer, även när de skiljer sig
+- Loggar en varning om `Sagesman` avviker från den kanoniska plutonsnivån (`AQ`-`EQ`), men skriver rapporten ändå
+- Sparar sådana avvikelser som `pipeline_warning` i meddelandets pipeline-events så att de syns i observability-vyn
+- Skriver strukturerad markdown-fil till `vault/{group_name}/TNR<DDHHMM>[_n].md`, där filnamnet följer rapportens `TNR`
 - Genererar schemaformad YAML-frontmatter enligt [FORMAT_SPEC.md](FORMAT_SPEC.md) och [7S_frontmatter.schema.json](7S_frontmatter.schema.json)
 - Konverterar MGRS i `Ställe` till `lat`, `lon` och `location` när koordinater kan härledas
 - Länkar särskiljande kännetecken i `Symbol` med `[[...]]` enligt specen

@@ -512,6 +512,12 @@ td {
     color: #ced8ea;
     font-size: 0.85em;
 }
+.pipeline-event-warning {
+    color: var(--color-warning);
+}
+.pipeline-event-details {
+    color: var(--color-text-subtle);
+}
 .message-raw-json {
     background: #0a101d;
     border: 1px solid var(--color-border-subtle);
@@ -531,6 +537,12 @@ td {
     gap: 12px;
     margin-top: 14px;
     color: var(--color-text-dim);
+}
+.checkbox-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-subtle);
 }
 
 /* Pipeline management tab */
