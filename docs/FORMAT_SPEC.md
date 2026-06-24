@@ -56,6 +56,10 @@ Varje fil består av två delar:
 En tom rad skiljer frontmatter från kropp. Filen är UTF-8, LF-radslut, och
 avslutas med en avslutande nyrad.
 
+Med **frontmatter** avses alltså YAML-blocket högst upp i filen, mellan de två
+`---`-raderna. Det är filens maskinläsbara metadata, separerat från den
+människoläsbara rapportkroppen.
+
 ---
 
 ## 4. Frontmatter (YAML)
@@ -120,16 +124,23 @@ kolon, och åtskilda av en tom rad. TNR upprepas först i kroppen för läsbarhe
 
 Fälten (7S):
 
+Notation i tabellen nedan: uttrycket `= frontmatter <nyckel>` betyder att samma
+uppgift också ska finnas i YAML-frontmatteren högst upp i filen. Det betyder
+inte att olika 7S-fält måste vara lika med varandra bara för att de båda
+refererar till frontmatter. Exempel: `TNR` i kroppen hämtas från frontmatter
+`tnr`, medan `Stund` i kroppen återger frontmatter `tidpunkt` i ett annat,
+människoläsbart format.
+
 | Fält              | Innehåll |
 |-------------------|----------|
-| `TNR`             | = frontmatter `tnr`. |
-| `Stund`           | Tidpunkt, människoläsbar `YYYY-MM-DD HH:MM` (utan sekunder). Samma ögonblick som `tidpunkt`. |
-| `Ställe`          | = frontmatter `plats` (utan citationstecken). |
+| `TNR`             | Samma uppgift som i frontmatter `tnr`, återgiven i kroppen för läsbarhet. |
+| `Stund`           | Samma tidpunkt som i frontmatter `tidpunkt`, men i människoläsbar form `YYYY-MM-DD HH:MM` (utan sekunder). |
+| `Ställe`          | Samma uppgift som i frontmatter `plats`, men utan citationstecken. |
 | `Styrka`          | Antal/styrka. Ex: `1 fordon`, `2 personer`, `1 fordon, 2 personer`, `Familj (3-4)`. |
 | `Slag`            | Typ av observation. Ex: `Person`, `Fordon`, `Fordon + person`, `Person (cykel)`, `Fordon (jordbruk)`. |
 | `Sysselsättning`  | Vad de gör. Fritext, en mening. |
 | `Symbol`          | Särskiljande kännetecken. **Här placeras länkar** (§6). |
-| `Sagesman`        | = frontmatter `sagesman`. |
+| `Sagesman`        | Samma uppgift som i frontmatter `sagesman`, återgiven i kroppen för läsbarhet. |
 
 **Konsistenskrav:** fälten måste vara inbördes förenliga. Ett `Slag: Fordon`
 får inte ha `Sysselsättning` eller `Symbol` som beskriver en fotgängare, och
