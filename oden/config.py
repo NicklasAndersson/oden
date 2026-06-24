@@ -284,17 +284,30 @@ def _migrate_settings_to_pipelines(app_config: dict) -> None:
 def _migrate_enabled_pipelines(app_config: dict) -> None:
     """Ensure new built-in pipelines appear in the default execution order."""
     enabled = list(app_config.get("enabled_pipelines") or [])
-    if not enabled or "fors" in enabled:
+    if not enabled:
         return
 
-    insert_at = enabled.index("seven_s") + 1 if "seven_s" in enabled else len(enabled)
-    enabled.insert(insert_at, "fors")
+    changed = False
+    if "fors" not in enabled:
+        insert_at = enabled.index("seven_s") + 1 if "seven_s" in enabled else len(enabled)
+        enabled.insert(insert_at, "fors")
+        changed = True
+
+    if "pedars" not in enabled:
+        insert_after = "fors" if "fors" in enabled else "seven_s"
+        insert_at = enabled.index(insert_after) + 1 if insert_after in enabled else len(enabled)
+        enabled.insert(insert_at, "pedars")
+        changed = True
+
+    if not changed:
+        return
+
     app_config["enabled_pipelines"] = enabled
 
     from oden.config_db import set_config_value
 
     set_config_value(CONFIG_DB, "enabled_pipelines", enabled)
-    logger.info("Inserted fors into enabled_pipelines after seven_s")
+    logger.info("Inserted missing built-in pipelines into enabled_pipelines")
 
 
 def reload_config() -> dict:
@@ -363,7 +376,9 @@ def reload_config() -> dict:
     )
 
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
-    ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["group_filter", "seven_s", "fors", "generic_template"])
+    ENABLED_PIPELINES = app_config.get(
+        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+    )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
 
@@ -529,7 +544,9 @@ try:
     AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
     AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
-    ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["group_filter", "seven_s", "fors", "generic_template"])
+    ENABLED_PIPELINES = app_config.get(
+        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+    )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
 
@@ -564,6 +581,6 @@ except Exception as e:
     AUTO_REACTION_EMOJI = "✅"
     AUTO_READ_RECEIPT_ENABLED = False
     DB_FIRST_ENABLED = True
-    ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "generic_template"]
+    ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
     PIPELINE_SETTINGS = {"group_filter": {"mode": "blacklist", "groups": []}}
     RAW_MESSAGE_RETENTION_DAYS = 30

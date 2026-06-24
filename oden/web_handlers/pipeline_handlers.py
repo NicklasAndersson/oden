@@ -24,6 +24,7 @@ from oden.pipeline_settings import (
 )
 from oden.pipelines.fors import ForsPipeline
 from oden.pipelines.group_filter import GroupFilterPipeline
+from oden.pipelines.pedars import PedarsPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
@@ -59,6 +60,14 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
         "display_name": ForsPipeline.display_name,
         "description": ForsPipeline.description,
         "selection_criteria": ForsPipeline.selection_criteria,
+        "supports_config": False,
+        "config_schema": None,
+    },
+    "pedars": {
+        "name": PedarsPipeline.name,
+        "display_name": PedarsPipeline.display_name,
+        "description": PedarsPipeline.description,
+        "selection_criteria": PedarsPipeline.selection_criteria,
         "supports_config": False,
         "config_schema": None,
     },

@@ -9,13 +9,14 @@ from oden.pipelines.structured_report import (
     StructuredReportContext,
     StructuredReportPipeline,
     build_base_frontmatter,
+    find_first_matching_line,
     is_structured_report_message,
     iter_nonempty_lines,
     normalize_label,
     parse_labeled_fields,
 )
 
-_TOP_LEVEL_REQUIRED_FIELDS = {"till", "fran", "tnr", "forbandets_position", "orientering", "slutsatser"}
+_TOP_LEVEL_REQUIRED_FIELDS = {"till", "fran", "tnr", "forbandets_position", "orientering"}
 _TOP_LEVEL_OPTIONAL_FIELDS: set[str] = set()
 _R_REQUIRED_FIELDS = {"genomford", "pagaende", "planerad"}
 
@@ -26,9 +27,14 @@ _LABEL_ALIASES = {
     "tnr": "tnr",
     "genomford": "genomford",
     "genomförd": "genomford",
+    "genomfordverksamhet": "genomford",
+    "genomfördverksamhet": "genomford",
     "pagaende": "pagaende",
     "pågående": "pagaende",
+    "pagaendeverksamhet": "pagaende",
+    "pågåendeverksamhet": "pagaende",
     "planerad": "planerad",
+    "planeradverksamhet": "planerad",
 }
 
 _SECTION_ALIASES = {
@@ -56,15 +62,18 @@ def parse_fors_report(message_text: str) -> dict[str, str]:
     if not lines or not is_fors_message(lines[0]):
         raise ValueError("Not a FORS report")
 
+    first_section_index = find_first_matching_line(lines[1:], _normalize_section_heading)
+    section_start = first_section_index + 1 if first_section_index is not None else len(lines)
+
     fields = parse_labeled_fields(
-        lines[1:],
+        lines[1:section_start],
         required_fields={"till", "fran", "tnr"},
         optional_fields=_TOP_LEVEL_OPTIONAL_FIELDS,
         normalize=_normalize_label,
         error_prefix="FORS report",
     )
 
-    index = 1
+    index = section_start
     while index < len(lines):
         section_name = _normalize_section_heading(lines[index])
         if not section_name:
@@ -147,11 +156,16 @@ class ForsPipeline(StructuredReportPipeline):
             "",
             f"**Planerad:** {fields['planerad'].strip()}",
             "",
-            "## S – SLUTSATSER",
-            "",
-            fields["slutsatser"],
-            "",
-            "SLUT!",
-            "",
         ]
+        slutsatser = fields.get("slutsatser", "").strip()
+        if slutsatser:
+            body_lines.extend(
+                [
+                    "## S – SLUTSATSER",
+                    "",
+                    slutsatser,
+                    "",
+                ]
+            )
+        body_lines.extend(["SLUT!", ""])
         return "\n".join(frontmatter_lines + body_lines)

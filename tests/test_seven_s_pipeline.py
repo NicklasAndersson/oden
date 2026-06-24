@@ -138,8 +138,8 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn('location: "59.49063,17.46740"', content)
         self.assertIn("sagesman: AQ", content)
         self.assertIn("**TNR:** 221520", content)
-        self.assertIn("**Stund:** 2026-06-22 15:20", content)
-        self.assertIn("**Ställe:** Långkärrsvägen", content)
+        self.assertIn("**Stund:** 221520", content)
+        self.assertIn("**Ställe:** 34VCM 79349 26095, Långkärrsvägen", content)
         self.assertIn("**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]", content)
         self.assertIn("**Sedan:** Återgår till bas", content)
         self.assertNotIn("# 7S RAPPORT", content)
@@ -216,7 +216,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("**TNR:** 221035", content)
         self.assertIn('tidpunkt: "2026-06-22T10:34:00"', content)
         self.assertIn('signal_tidpunkt: "2026-06-22T19:31:09"', content)
-        self.assertIn("**Stund:** 2026-06-22 10:34", content)
+        self.assertIn("**Stund:** 221034", content)
 
     @patch("oden.pipelines.seven_s.get_app_state")
     async def test_run_warns_but_writes_invalid_sagesman(self, mock_get_app_state):

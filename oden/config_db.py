@@ -39,7 +39,7 @@ DEFAULT_CONFIG = {
     "auto_reaction_emoji": "✅",
     "auto_read_receipt_enabled": False,
     "db_first_enabled": True,
-    "enabled_pipelines": ["group_filter", "seven_s", "fors", "generic_template"],
+    "enabled_pipelines": ["group_filter", "seven_s", "fors", "pedars", "generic_template"],
     "pipeline_settings": {"group_filter": {"mode": "blacklist", "groups": []}},
     "raw_message_retention_days": 30,
     "signal_typing_indicators": False,

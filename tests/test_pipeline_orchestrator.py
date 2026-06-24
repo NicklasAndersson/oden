@@ -157,5 +157,6 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
             pipelines = orchestrator._build_pipelines()
 
         self.assertEqual(
-            [pipeline.name for pipeline in pipelines], ["group_filter", "seven_s", "fors", "generic_template"]
+            [pipeline.name for pipeline in pipelines],
+            ["group_filter", "seven_s", "fors", "pedars", "generic_template"],
         )

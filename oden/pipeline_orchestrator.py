@@ -22,6 +22,7 @@ from oden.messages_db import (
 )
 from oden.pipelines.fors import ForsPipeline
 from oden.pipelines.group_filter import GroupFilterPipeline
+from oden.pipelines.pedars import PedarsPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.pipelines_db import (
     append_pipeline_event,
@@ -55,13 +56,14 @@ class PipelineOrchestrator:
             "group_filter": GroupFilterPipeline(),
             "seven_s": SevenSPipeline(),
             "fors": ForsPipeline(),
+            "pedars": PedarsPipeline(),
             "generic_template": _GenericPipeline(),
         }
         self._cached_config: list | None = None
         self._cached_pipelines: list[Any] = []
 
     def _build_pipelines(self) -> list[Any]:
-        config: list = cfg.ENABLED_PIPELINES or ["group_filter", "seven_s", "fors", "generic_template"]
+        config: list = cfg.ENABLED_PIPELINES or ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
         # ponytail: identity check detects cfg.ENABLED_PIPELINES = new_list reassignments
         if config is not self._cached_config:
             names = list(config)

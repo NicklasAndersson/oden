@@ -166,7 +166,7 @@ class SevenSPipeline(StructuredReportPipeline):
             )
 
         plats, lat, lon = _extract_location(fields["stalle"])
-        stund_display = context.report_dt.strftime("%Y-%m-%d %H:%M")
+        stund_display = fields["stund"].strip()
         symbol_raw = fields["symbol"].strip()
         symbol = _link_remaining_plates(apply_regex_links(symbol_raw) or symbol_raw)
 
@@ -195,7 +195,7 @@ class SevenSPipeline(StructuredReportPipeline):
             "",
             f"**Stund:** {stund_display}",
             "",
-            f"**Ställe:** {plats}",
+            f"**Ställe:** {fields['stalle'].strip()}",
             "",
             f"**Styrka:** {fields['styrka'].strip()}",
             "",

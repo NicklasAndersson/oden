@@ -61,6 +61,31 @@ class TestForsPipelineHelpers(unittest.TestCase):
         self.assertEqual(fields["planerad"], "Gå på march")
         self.assertEqual(fields["slutsatser"], "Striden är snart över")
 
+    def test_parse_fors_report_accepts_long_tnr_and_optional_slutsatser(self):
+        text = (
+            "FORS-RAPPORT\n"
+            "Till: TILL\n"
+            "Från: FRA\n"
+            "TNR: 241330BAPR2026\n\n"
+            "F FÖRBANDETS POSITION\n"
+            "UPK3\n\n"
+            "O ORIENTERING\n"
+            "FI är övermäktig\n\n"
+            "R REDOGÖRELSE FÖR VHT\n"
+            "Genomförd verksamhet: Sammanstöt med FI\n"
+            "Pågående verksamhet: Svinar\n"
+            "Planerad verksamhet: Gå på march\n\n"
+            "SLUT!\n"
+        )
+
+        fields = parse_fors_report(text)
+
+        self.assertEqual(fields["tnr"], "241330BAPR2026")
+        self.assertEqual(fields["genomford"], "Sammanstöt med FI")
+        self.assertEqual(fields["pagaende"], "Svinar")
+        self.assertEqual(fields["planerad"], "Gå på march")
+        self.assertNotIn("slutsatser", fields)
+
 
 class TestForsPipelineRun(unittest.IsolatedAsyncioTestCase):
     @patch("oden.pipelines.fors.get_app_state")
@@ -101,6 +126,34 @@ class TestForsPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("## S – SLUTSATSER", content)
         self.assertIn("Striden är snart över", content)
         self.assertTrue(content.rstrip().endswith("SLUT!"))
+
+    @patch("oden.pipelines.fors.get_app_state")
+    async def test_run_handles_long_tnr_without_slutsatser(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+            pipeline = ForsPipeline()
+            msg_data = _make_msg_data(tnr="241330BAPR2026")
+            msg_data["envelope"]["dataMessage"]["message"] = msg_data["envelope"]["dataMessage"]["message"].replace(
+                "S – SLUTSATSER\nStriden är snart över\n\n", ""
+            )
+
+            handled = await pipeline.run(
+                msg_data=msg_data,
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "7s-test" / "TNR241330BAPR2026.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn('tnr: "241330BAPR2026"', content)
+        self.assertIn('tidpunkt: "2026-04-24T13:30:00"', content)
+        self.assertNotIn("## S – SLUTSATSER", content)
 
     async def test_run_skips_non_fors(self):
         pipeline = ForsPipeline()

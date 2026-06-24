@@ -15,6 +15,23 @@ from typing import Any
 from oden import config as cfg
 from oden.formatting import get_safe_group_dir_path
 
+_SHORT_REPORT_TIME_RE = re.compile(r"^\d{6}$")
+_LONG_REPORT_TIME_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([A-Z])([A-Z]{3})(\d{4})$")
+_SWEDISH_MONTHS = {
+    "JAN": 1,
+    "FEB": 2,
+    "MAR": 3,
+    "APR": 4,
+    "MAJ": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AUG": 8,
+    "SEP": 9,
+    "OKT": 10,
+    "NOV": 11,
+    "DEC": 12,
+}
+
 
 def normalize_label(label: str, aliases: Mapping[str, str] | None = None) -> str:
     text = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode("ascii")
@@ -31,6 +48,13 @@ def yaml_quote(value: str) -> str:
 
 def iter_nonempty_lines(message_text: str) -> list[str]:
     return [line.strip() for line in message_text.splitlines() if line.strip()]
+
+
+def find_first_matching_line(lines: Sequence[str], matcher: Callable[[str], str]) -> int | None:
+    for index, line in enumerate(lines):
+        if matcher(line):
+            return index
+    return None
 
 
 def is_structured_report_message(message_text: str | None, prefixes: Sequence[str]) -> bool:
@@ -73,30 +97,45 @@ def resolve_report_datetime(
     *,
     field_label: str,
 ) -> datetime.datetime:
-    if not re.fullmatch(r"\d{6}", compact_time):
-        raise ValueError(f"{field_label} must be DDHHMM")
+    if _SHORT_REPORT_TIME_RE.fullmatch(compact_time):
+        day = int(compact_time[0:2])
+        hour = int(compact_time[2:4])
+        minute = int(compact_time[4:6])
 
-    day = int(compact_time[0:2])
-    hour = int(compact_time[2:4])
-    minute = int(compact_time[4:6])
-
-    try:
-        candidate = reference_dt.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
-    except ValueError as exc:
-        raise ValueError(f"{field_label} is not a valid local date/time") from exc
-
-    if candidate > reference_dt:
-        year = reference_dt.year
-        month = reference_dt.month - 1
-        if month == 0:
-            month = 12
-            year -= 1
         try:
-            candidate = candidate.replace(year=year, month=month)
+            candidate = reference_dt.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
         except ValueError as exc:
             raise ValueError(f"{field_label} is not a valid local date/time") from exc
 
-    return candidate
+        if candidate > reference_dt:
+            year = reference_dt.year
+            month = reference_dt.month - 1
+            if month == 0:
+                month = 12
+                year -= 1
+            try:
+                candidate = candidate.replace(year=year, month=month)
+            except ValueError as exc:
+                raise ValueError(f"{field_label} is not a valid local date/time") from exc
+
+        return candidate
+
+    long_match = _LONG_REPORT_TIME_RE.fullmatch(compact_time.upper())
+    if not long_match:
+        raise ValueError(f"{field_label} must be DDHHMM or DDHHMMZMÅNÅÅÅÅ")
+
+    day = int(long_match.group(1))
+    hour = int(long_match.group(2))
+    minute = int(long_match.group(3))
+    month = _SWEDISH_MONTHS.get(long_match.group(5))
+    year = int(long_match.group(6))
+    if month is None:
+        raise ValueError(f"{field_label} has invalid month abbreviation")
+
+    try:
+        return datetime.datetime(year, month, day, hour, minute, tzinfo=reference_dt.tzinfo)
+    except ValueError as exc:
+        raise ValueError(f"{field_label} is not a valid local date/time") from exc
 
 
 def build_report_filepath(group_title: str, tnr_base: str, *, prefix: str = "TNR") -> tuple[str, str]:
@@ -128,7 +167,7 @@ def extract_message_details(envelope: dict[str, Any]) -> tuple[str | None, str |
 
 @dataclass(frozen=True)
 class StructuredReportContext:
-    fields: dict[str, str]
+    fields: dict[str, Any]
     raw_tnr: str
     resolved_tnr: str
     report_dt: datetime.datetime
@@ -186,7 +225,7 @@ class StructuredReportPipeline:
     def build_report_datetime(
         self,
         *,
-        fields: dict[str, str],
+        fields: dict[str, Any],
         reference_dt: datetime.datetime,
     ) -> datetime.datetime:
         return resolve_report_datetime(
