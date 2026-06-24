@@ -101,7 +101,7 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
 
 
 class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     @patch("oden.config.REGEX_PATTERNS", {"custom_feature": r"logotyp-fragment DGE"})
     async def test_run_handles_7s_and_writes_spec_file(self, mock_get_app_state):
         app_state = Mock()
@@ -122,7 +122,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            output_path = Path(tmpdir) / "TNR221520.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
@@ -138,22 +138,21 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn('location: "59.49063,17.46740"', content)
         self.assertIn("sagesman: AQ", content)
         self.assertIn("**TNR:** 221520", content)
-        self.assertIn("**Stund:** 2026-06-22 15:20", content)
-        self.assertIn("**Ställe:** Långkärrsvägen", content)
+        self.assertIn("**Stund:** 221520", content)
+        self.assertIn("**Ställe:** 34VCM 79349 26095, Långkärrsvägen", content)
         self.assertIn("**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]", content)
         self.assertIn("**Sedan:** Återgår till bas", content)
         self.assertNotIn("# 7S RAPPORT", content)
         self.assertNotIn("## Metadata", content)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_adds_collision_suffix_to_filename_and_tnr(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
-            group_dir = Path(tmpdir) / "7s-test"
-            group_dir.mkdir(parents=True, exist_ok=True)
+            group_dir = Path(tmpdir)
             (group_dir / "TNR221520.md").write_text("existing\n", encoding="utf-8")
 
             pipeline = SevenSPipeline()
@@ -170,6 +169,28 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn('tnr: "221520_2"', content)
         self.assertIn("**TNR:** 221520_2", content)
+
+    @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_respects_vault_subdir_setting(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.PIPELINE_SETTINGS", {"seven_s": {"vault_subdir": "spaningsrapporter"}}),
+        ):
+            pipeline = SevenSPipeline()
+            handled = await pipeline.run(
+                msg_data=_make_msg_data(),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "spaningsrapporter" / "TNR221520.md"
+            self.assertTrue(output_path.exists())
 
     async def test_run_skips_non_7s(self):
         pipeline = SevenSPipeline()
@@ -193,7 +214,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(handled)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_allows_distinct_tnr_and_stund(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -208,7 +229,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221035.md"
+            output_path = Path(tmpdir) / "TNR221035.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
@@ -216,9 +237,9 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("**TNR:** 221035", content)
         self.assertIn('tidpunkt: "2026-06-22T10:34:00"', content)
         self.assertIn('signal_tidpunkt: "2026-06-22T19:31:09"', content)
-        self.assertIn("**Stund:** 2026-06-22 10:34", content)
+        self.assertIn("**Stund:** 221034", content)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_warns_but_writes_invalid_sagesman(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -234,7 +255,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
                 )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            output_path = Path(tmpdir) / "TNR221520.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
@@ -242,7 +263,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sagesman: 2A GRUPP", content)
         self.assertIn("**Sagesman:** 2A GRUPP", content)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_omits_optional_sedan_when_missing(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -257,7 +278,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            output_path = Path(tmpdir) / "TNR221520.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 

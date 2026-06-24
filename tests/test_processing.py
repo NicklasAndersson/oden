@@ -320,22 +320,24 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         await process_message(empty_message, mock_reader, mock_writer)
         mock_open.assert_not_called()
 
-    @patch("oden.processing.render_append")
-    @patch("oden.config.PLUS_PLUS_ENABLED", True)
+    @patch("oden.processing.render_report")
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("builtins.open", new_callable=mock_open)
+    @patch("os.makedirs")
+    @patch("oden.config.VAULT_PATH", "mock_vault")
+    @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_append_plus_plus_success(self, mock_open, mock_find_latest, mock_render):
-        """Tests that a '++' message successfully appends to a recent file."""
-        mock_render.return_value = (
-            "---\n\nTNR: 050000 (2026-02-05T00:00:00)\nAvsändare: John Doe ( [[+123]])\n\nadding more details\n"
-        )
+    async def test_process_message_plus_plus_is_normal_message(
+        self, mock_makedirs, mock_open, mock_find_latest, mock_render
+    ):
+        """Messages starting with '++' are no longer treated as append commands."""
+        mock_render.return_value = "rendered content"
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 123,
+                "timestamp": 1765890600000,
                 "dataMessage": {"message": "++ adding more details", "groupV2": {"name": "My Group"}},
             }
         }
@@ -343,15 +345,13 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
 
         await process_message(message_obj, mock_reader, mock_writer)
 
-        mock_find_latest.assert_called_once()
-        mock_open.assert_called_once_with("/mock_vault/My Group/recent_file.md", "a", encoding="utf-8")
-
-        # Verify render_append was called with correct message (without ++)
+        mock_find_latest.assert_not_called()
+        mock_open.assert_called_once()
+        self.assertEqual(mock_open.call_args.args[1], "w")
         mock_render.assert_called_once()
         call_kwargs = mock_render.call_args.kwargs
-        self.assertEqual(call_kwargs["message"], "adding more details")
+        self.assertEqual(call_kwargs["message"], "++ adding more details")
 
-    @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value=None)
     @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
@@ -360,10 +360,10 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
     @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_append_plus_plus_failure(
+    async def test_process_message_plus_plus_no_append_fallback_path_unused(
         self, mock_makedirs, mock_open, mock_render, mock_find_latest
     ):
-        """Tests that a '++' message falls through to create a new file when no recent file is found."""
+        """'++' does not enter append flow; append lookup should never run."""
         mock_render.return_value = "rendered content"
         message_obj = {
             "envelope": {
@@ -375,44 +375,51 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         }
         mock_reader, mock_writer = AsyncMock(), AsyncMock()
 
-        with self.assertLogs("oden.processing", level="INFO") as log:
-            await process_message(message_obj, mock_reader, mock_writer)
+        await process_message(message_obj, mock_reader, mock_writer)
 
-            mock_find_latest.assert_called_once()
-            self.assertTrue(any("APPEND FAILED" in message for message in log.output))
-
-            # Verify a new file was created (mode "w") with the ++ stripped from the message
-            open_args, open_kwargs = mock_open.call_args
-            opened_path = open_args[0]
-            opened_mode = open_args[1]
-            self.assertTrue(
-                opened_path.startswith(os.path.join("mock_vault", "My Group")),
-                msg=f"Unexpected path used for new file: {opened_path!r}",
-            )
-            self.assertEqual(opened_mode, "w")
-            self.assertEqual(open_kwargs.get("encoding"), "utf-8")
+        mock_find_latest.assert_not_called()
+        open_args, open_kwargs = mock_open.call_args
+        opened_path = open_args[0]
+        opened_mode = open_args[1]
+        self.assertTrue(
+            opened_path.startswith(os.path.join("mock_vault", "My Group")),
+            msg=f"Unexpected path used for new file: {opened_path!r}",
+        )
+        self.assertEqual(opened_mode, "w")
+        self.assertEqual(open_kwargs.get("encoding"), "utf-8")
+        call_kwargs = mock_render.call_args.kwargs
+        self.assertEqual(call_kwargs["message"], "++ this should fail")
 
     @patch("oden.processing.render_report")
     @patch("oden.processing.render_append")
-    @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/My Group/recent_file.md")
     @patch("os.makedirs")
     @patch("oden.config.VAULT_PATH", "mock_vault")
     @patch("oden.config.FILENAME_FORMAT", "classic")
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
-    async def test_process_message_append_plus_plus_oserror_falls_through(
+    async def test_process_message_reply_append_oserror_falls_through(
         self, mock_makedirs, mock_find_latest, mock_render_append, mock_render_report
     ):
-        """Tests that a '++' append falling back on OSError creates a new file."""
+        """Reply append falling back on OSError creates a new file."""
         mock_render_append.return_value = "appended content"
         mock_render_report.return_value = "rendered content"
+        now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
+        one_min_ago_ts_ms = now_ts_ms - (1 * 60 * 1000)
         message_obj = {
             "envelope": {
                 "sourceName": "John Doe",
                 "sourceNumber": "+123",
-                "timestamp": 1765890600000,
-                "dataMessage": {"message": "++ this should fallback", "groupV2": {"name": "My Group"}},
+                "timestamp": now_ts_ms,
+                "dataMessage": {
+                    "message": "This should fallback",
+                    "groupV2": {"name": "My Group"},
+                    "quote": {
+                        "id": one_min_ago_ts_ms,
+                        "author": "+123",
+                        "text": "Original message",
+                    },
+                },
             }
         }
         mock_reader, mock_writer = AsyncMock(), AsyncMock()
@@ -808,25 +815,34 @@ class TestReactionAndReceipt(unittest.IsolatedAsyncioTestCase):
     @patch("oden.processing._send_read_receipt", new_callable=AsyncMock)
     @patch("oden.processing._send_reaction", new_callable=AsyncMock)
     @patch("oden.processing.render_append")
-    @patch("oden.config.PLUS_PLUS_ENABLED", True)
     @patch("oden.processing._find_latest_file_for_sender", return_value="/mock_vault/Grp/recent.md")
     @patch("builtins.open", new_callable=mock_open)
     @patch("oden.config.WHITELIST_GROUPS", [])
     @patch("oden.config.IGNORED_GROUPS", set())
     async def test_hooks_triggered_on_append(self, mock_open_fn, mock_find, mock_render, mock_reaction, mock_receipt):
-        """Reaction and receipt hooks are triggered after successful append."""
+        """Reaction and receipt hooks are triggered after successful reply append."""
         mock_render.return_value = "appended content"
+        now_ts_ms = int(datetime.datetime.now().timestamp() * 1000)
+        one_min_ago_ts_ms = now_ts_ms - (1 * 60 * 1000)
         message_obj = {
             "envelope": {
                 "sourceName": "John",
                 "sourceNumber": "+123",
-                "timestamp": 1700000000000,
-                "dataMessage": {"message": "++ more info", "groupV2": {"name": "Grp", "id": "g1"}},
+                "timestamp": now_ts_ms,
+                "dataMessage": {
+                    "message": "more info",
+                    "groupV2": {"name": "Grp", "id": "g1"},
+                    "quote": {
+                        "id": one_min_ago_ts_ms,
+                        "author": "+123",
+                        "text": "Original message",
+                    },
+                },
             }
         }
         await process_message(message_obj, AsyncMock(), AsyncMock())
-        mock_reaction.assert_called_once_with("+123", 1700000000000, "g1")
-        mock_receipt.assert_called_once_with("+123", 1700000000000)
+        mock_reaction.assert_called_once_with("+123", now_ts_ms, "g1")
+        mock_receipt.assert_called_once_with("+123", now_ts_ms)
 
 
 if __name__ == "__main__":

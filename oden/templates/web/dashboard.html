@@ -25,8 +25,6 @@
         </header>
 
         <div class="grid">
-            {% include "includes/dashboard/groups.html" %}
-
             <div class="card full-width">
                 <h2>⚙️ Inställningar</h2>
                 <div id="config-message" class="warning-banner">
@@ -36,6 +34,7 @@
 
                 <div class="tabs">
                     <button class="tab-btn active" onclick="showTab('basic')">Grundläggande</button>
+                    <button class="tab-btn" onclick="showTab('groups')">Grupper</button>
                     <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
                     <button class="tab-btn" onclick="showTab('responses')">Svar</button>
                     <button class="tab-btn" onclick="showTab('pipelines')">Pipelines</button>
@@ -45,6 +44,7 @@
                 </div>
 
                 {% include "includes/dashboard/tab_basic.html" %}
+                {% include "includes/dashboard/tab_groups.html" %}
                 {% include "includes/dashboard/tab_advanced.html" %}
                 {% include "includes/dashboard/tab_responses.html" %}
                 {% include "includes/dashboard/tab_pipelines.html" %}

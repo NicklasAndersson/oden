@@ -261,15 +261,17 @@ def _migrate_settings_to_pipelines(app_config: dict) -> None:
         old_auto_reaction = app_config.get("auto_reaction_enabled", False)
         old_auto_reaction_emoji = app_config.get("auto_reaction_emoji", "✅")
         old_auto_read_receipt = app_config.get("auto_read_receipt_enabled", False)
+        old_filename_format = app_config.get("filename_format", "classic")
 
         # Only migrate if any of these have non-default values
-        if old_regex or old_auto_reaction or old_auto_read_receipt:
+        if old_regex or old_auto_reaction or old_auto_read_receipt or old_filename_format != "classic":
             generic_config = {
                 "templates": {"report_md": "", "append_md": ""},
                 "regex_patterns": old_regex,
                 "auto_reaction_enabled": old_auto_reaction,
                 "auto_reaction_emoji": old_auto_reaction_emoji,
                 "auto_read_receipt_enabled": old_auto_read_receipt,
+                "filename_format": old_filename_format,
             }
             pipeline_settings["generic_template"] = generic_config
             app_config["pipeline_settings"] = pipeline_settings
@@ -281,12 +283,41 @@ def _migrate_settings_to_pipelines(app_config: dict) -> None:
             logger.info("Migrated settings to generic_template pipeline configuration")
 
 
+def _migrate_enabled_pipelines(app_config: dict) -> None:
+    """Ensure new built-in pipelines appear in the default execution order."""
+    enabled = list(app_config.get("enabled_pipelines") or [])
+    if not enabled:
+        return
+
+    changed = False
+    if "fors" not in enabled:
+        insert_at = enabled.index("seven_s") + 1 if "seven_s" in enabled else len(enabled)
+        enabled.insert(insert_at, "fors")
+        changed = True
+
+    if "pedars" not in enabled:
+        insert_after = "fors" if "fors" in enabled else "seven_s"
+        insert_at = enabled.index(insert_after) + 1 if insert_after in enabled else len(enabled)
+        enabled.insert(insert_at, "pedars")
+        changed = True
+
+    if not changed:
+        return
+
+    app_config["enabled_pipelines"] = enabled
+
+    from oden.config_db import set_config_value
+
+    set_config_value(CONFIG_DB, "enabled_pipelines", enabled)
+    logger.info("Inserted missing built-in pipelines into enabled_pipelines")
+
+
 def reload_config() -> dict:
     """Reload configuration from database and update module-level variables."""
     global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, REGEX_PATTERNS
     global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
-    global PLUS_PLUS_ENABLED, FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, DIAGNOSTIC_MODE, LOG_LEVEL, LOG_FILE
+    global FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, DIAGNOSTIC_MODE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
     global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
     global PIPELINE_SETTINGS
@@ -304,6 +335,7 @@ def reload_config() -> dict:
 
     # Migrate old settings to pipeline configuration if needed
     _migrate_settings_to_pipelines(app_config)
+    _migrate_enabled_pipelines(app_config)
 
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
@@ -327,8 +359,7 @@ def reload_config() -> dict:
     IGNORED_GROUPS = app_config.get("ignored_groups", [])
     WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
     STARTUP_MESSAGE = app_config.get("startup_message", "self")
-    PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
-    FILENAME_FORMAT = app_config.get("filename_format", "classic")
+    FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
     LOG_LEVEL = app_config["log_level"]
@@ -346,7 +377,9 @@ def reload_config() -> dict:
     )
 
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
-    ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["group_filter", "seven_s", "generic_template"])
+    ENABLED_PIPELINES = app_config.get(
+        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+    )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
 
@@ -498,8 +531,9 @@ try:
     IGNORED_GROUPS = app_config.get("ignored_groups", [])
     WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
     STARTUP_MESSAGE = app_config.get("startup_message", "self")
-    PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
-    FILENAME_FORMAT = app_config.get("filename_format", "classic")
+    pipeline_settings = app_config.get("pipeline_settings", {})
+    generic_config = pipeline_settings.get("generic_template", {})
+    FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
     LOG_LEVEL = app_config.get("log_level", logging.INFO)
@@ -512,7 +546,9 @@ try:
     AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
     AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
-    ENABLED_PIPELINES = app_config.get("enabled_pipelines", ["group_filter", "seven_s", "generic_template"])
+    ENABLED_PIPELINES = app_config.get(
+        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+    )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
 
@@ -533,7 +569,6 @@ except Exception as e:
     IGNORED_GROUPS = []
     WHITELIST_GROUPS = []
     STARTUP_MESSAGE = "self"
-    PLUS_PLUS_ENABLED = False
     FILENAME_FORMAT = "classic"
     SIGNAL_CLI_LOG_FILE = None
     DIAGNOSTIC_MODE = False
@@ -547,6 +582,6 @@ except Exception as e:
     AUTO_REACTION_EMOJI = "✅"
     AUTO_READ_RECEIPT_ENABLED = False
     DB_FIRST_ENABLED = True
-    ENABLED_PIPELINES = ["group_filter", "seven_s", "generic_template"]
+    ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
     PIPELINE_SETTINGS = {"group_filter": {"mode": "blacklist", "groups": []}}
     RAW_MESSAGE_RETENTION_DAYS = 30

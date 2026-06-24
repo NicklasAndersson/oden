@@ -252,8 +252,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     quote = dm.get("quote")
     now = datetime.datetime.now(cfg.TIMEZONE)
 
-    # --- Append Logic ---
-    is_plus_plus_append = cfg.PLUS_PLUS_ENABLED and msg and msg.strip().startswith("++")
+    # --- Append Logic (reply only) ---
     is_reply_append = False
     if quote:
         quote_ts = quote.get("id", 0)
@@ -261,25 +260,19 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         if (now - quote_dt) < datetime.timedelta(minutes=cfg.APPEND_WINDOW_MINUTES):
             is_reply_append = True
 
-    if is_plus_plus_append or is_reply_append:
+    if is_reply_append:
         if not group_title:
             logger.error("Cannot append message, missing group.")
             return
 
         group_dir = get_safe_group_dir_path(group_title)
 
-        # Determine whose file to append to
-        if is_reply_append:
-            # For replies, find the file of the *quoted author*
-            append_target_number = quote.get("author")
-            append_target_name = None  # Name isn't available in the quote object
-            if not append_target_number:
-                logger.error("Cannot append reply, quote author number is missing.")
-                return
-        else:
-            # For '++', find the file of the *current sender*
-            append_target_number = source_number
-            append_target_name = source_name
+        # For replies, find the file of the quoted author.
+        append_target_number = quote.get("author")
+        append_target_name = None  # Name isn't available in the quote object
+        if not append_target_number:
+            logger.error("Cannot append reply, quote author number is missing.")
+            return
 
         if not (append_target_name or append_target_number):
             logger.error("Cannot append message, missing target user details.")
@@ -291,7 +284,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         if latest_file:
             new_text = ""
             if msg:
-                new_text = msg.strip().removeprefix("++").strip() if is_plus_plus_append else msg.strip()
+                new_text = msg.strip()
 
             attachment_links = []
             if attachments:
@@ -325,7 +318,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                 try:
                     with open(latest_file, "a", encoding="utf-8") as f:
                         f.write(append_content)
-                    logger.info(f"APPENDED (reply or ++) TO: {latest_file}")
+                    logger.info(f"APPENDED (reply) TO: {latest_file}")
                     append_succeeded = True
                     # Fire-and-forget confirmations
                     msg_ts = envelope.get("timestamp")
@@ -342,14 +335,8 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
             logger.info("APPEND FAILED: No recent file found for sender.")
 
         if not append_succeeded:
-            if is_reply_append:
-                # If reply-append fails, it should be treated as a new message,
-                # but with the quote intact.
-                quote = dm.get("quote")
-            else:
-                # If ++ append fails, we just process it as a new message without the ++
-                if msg:
-                    msg = msg.strip().removeprefix("++").strip()
+            # If reply-append fails, treat as a new message with quote intact.
+            quote = dm.get("quote")
 
         # If the append was successful (or an empty append was intentionally consumed), we are done.
         # If the append failed, we continue on to process it as a new message.

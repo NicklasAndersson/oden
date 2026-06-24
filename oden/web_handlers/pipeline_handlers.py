@@ -22,7 +22,9 @@ from oden.pipeline_settings import (
     normalize_group_filter_settings,
     normalize_pipeline_settings,
 )
+from oden.pipelines.fors import ForsPipeline
 from oden.pipelines.group_filter import GroupFilterPipeline
+from oden.pipelines.pedars import PedarsPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
@@ -50,8 +52,42 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
         "display_name": SevenSPipeline.display_name,
         "description": SevenSPipeline.description,
         "selection_criteria": SevenSPipeline.selection_criteria,
-        "supports_config": False,
-        "config_schema": None,
+        "supports_config": True,
+        "config_schema": {
+            "type": "object",
+            "properties": {
+                "vault_subdir_enabled": {"type": "boolean"},
+                "vault_subdir": {"type": "string"},
+            },
+        },
+    },
+    "fors": {
+        "name": ForsPipeline.name,
+        "display_name": ForsPipeline.display_name,
+        "description": ForsPipeline.description,
+        "selection_criteria": ForsPipeline.selection_criteria,
+        "supports_config": True,
+        "config_schema": {
+            "type": "object",
+            "properties": {
+                "vault_subdir_enabled": {"type": "boolean"},
+                "vault_subdir": {"type": "string"},
+            },
+        },
+    },
+    "pedars": {
+        "name": PedarsPipeline.name,
+        "display_name": PedarsPipeline.display_name,
+        "description": PedarsPipeline.description,
+        "selection_criteria": PedarsPipeline.selection_criteria,
+        "supports_config": True,
+        "config_schema": {
+            "type": "object",
+            "properties": {
+                "vault_subdir_enabled": {"type": "boolean"},
+                "vault_subdir": {"type": "string"},
+            },
+        },
     },
     "generic_template": {
         "name": _GenericPipeline.name,

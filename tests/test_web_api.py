@@ -328,7 +328,7 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
                 unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
                 unittest.mock.patch(
                     "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "generic_template"],
+                    ["seven_s", "fors", "pedars", "generic_template"],
                 ),
             ):
                 resp = await self.client.get("/api/pipelines")
@@ -339,6 +339,8 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             self.assertIn("enabled", data)
             self.assertIn("stats", data)
             self.assertTrue(any(p["name"] == "seven_s" for p in data["available"]))
+            self.assertTrue(any(p["name"] == "fors" for p in data["available"]))
+            self.assertTrue(any(p["name"] == "pedars" for p in data["available"]))
             self.assertTrue(any(p["name"] == "generic_template" for p in data["available"]))
 
     async def test_toggle_pipeline_disable_updates_enabled_list(self):
@@ -349,7 +351,7 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
                 unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
                 unittest.mock.patch(
                     "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "generic_template"],
+                    ["seven_s", "fors", "pedars", "generic_template"],
                 ),
             ):
                 resp = await self.client.patch(
@@ -360,7 +362,7 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             self.assertEqual(resp.status, 200)
             data = await resp.json()
             self.assertTrue(data["success"])
-            self.assertEqual(data["updated_list"], ["generic_template"])
+            self.assertEqual(data["updated_list"], ["fors", "pedars", "generic_template"])
 
     async def test_reorder_pipelines_updates_order(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -370,18 +372,18 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
                 unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
                 unittest.mock.patch(
                     "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "generic_template"],
+                    ["seven_s", "fors", "pedars", "generic_template"],
                 ),
             ):
                 resp = await self.client.post(
                     "/api/pipelines/reorder",
-                    json={"order": ["generic_template", "seven_s"]},
+                    json={"order": ["generic_template", "seven_s", "fors", "pedars"]},
                 )
 
             self.assertEqual(resp.status, 200)
             data = await resp.json()
             self.assertTrue(data["success"])
-            self.assertEqual(data["updated_list"], ["generic_template", "seven_s"])
+            self.assertEqual(data["updated_list"], ["generic_template", "seven_s", "fors", "pedars"])
 
     async def test_reorder_pipelines_rejects_unknown_pipeline(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -391,7 +393,7 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
                 unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
                 unittest.mock.patch(
                     "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "generic_template"],
+                    ["seven_s", "fors", "pedars", "generic_template"],
                 ),
             ):
                 resp = await self.client.post(
@@ -411,7 +413,7 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
                 unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
                 unittest.mock.patch(
                     "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["group_filter", "seven_s", "generic_template"],
+                    ["group_filter", "seven_s", "fors", "pedars", "generic_template"],
                 ),
                 unittest.mock.patch(
                     "oden.web_handlers.pipeline_handlers.cfg.PIPELINE_SETTINGS",
@@ -452,6 +454,28 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             self.assertTrue(data["success"])
             self.assertEqual(data["config"]["mode"], "blacklist")
             self.assertEqual(data["config"]["groups"], ["Alpha", "Bravo"])
+
+    async def test_update_pipeline_config_seven_s_subdir_toggle(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.PIPELINE_SETTINGS",
+                    {},
+                ),
+            ):
+                resp = await self.client.patch(
+                    "/api/pipelines/seven_s/config",
+                    json={"config": {"vault_subdir_enabled": True, "vault_subdir": "spaningsrapporter"}},
+                )
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertTrue(data["success"])
+            self.assertTrue(data["config"]["vault_subdir_enabled"])
+            self.assertEqual(data["config"]["vault_subdir"], "spaningsrapporter")
 
 
 class TestMessageObservabilityAPI(AioHTTPTestCase):

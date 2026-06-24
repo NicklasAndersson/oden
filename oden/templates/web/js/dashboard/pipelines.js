@@ -282,6 +282,63 @@ function renderGroupFilterSettings(item) {
     `;
 }
 
+function renderStructuredSubdirSettings(item) {
+    const cfg = item.config || {};
+    const enabled = !!cfg.vault_subdir_enabled;
+    const subdir = cfg.vault_subdir || '';
+    const inputId = `pipeline-config-${item.name}-vault_subdir`;
+    const toggleId = `pipeline-config-${item.name}-vault_subdir_enabled`;
+
+    return `
+        <div class="pipeline-settings">
+            <div class="pipeline-settings-row">
+                <label>
+                    <input type="checkbox" id="${toggleId}" ${enabled ? 'checked' : ''} onchange="toggleStructuredSubdirInput('${item.name}')">
+                    Spara i underkatalog
+                </label>
+                <span class="help-text" style="font-size: 0.85em; color: #888;">Av: skriv i vault-roten. På: skriv i vald undermapp.</span>
+            </div>
+            <div class="pipeline-settings-row">
+                <label for="${inputId}">Underkatalog (relativ till vault)</label>
+                <input type="text" id="${inputId}" value="${escapeHtml(subdir)}" placeholder="t.ex. rapporter/7s" ${enabled ? '' : 'disabled'}>
+            </div>
+            <div class="pipeline-settings-actions">
+                <button class="btn btn-small" onclick="saveStructuredSubdirSettings('${item.name}')">Spara inställningar</button>
+            </div>
+        </div>
+    `;
+}
+
+function toggleStructuredSubdirInput(name) {
+    const enabledEl = document.getElementById(`pipeline-config-${name}-vault_subdir_enabled`);
+    const subdirEl = document.getElementById(`pipeline-config-${name}-vault_subdir`);
+    if (!enabledEl || !subdirEl) {
+        return;
+    }
+    subdirEl.disabled = !enabledEl.checked;
+}
+
+async function saveStructuredSubdirSettings(name) {
+    const enabledEl = document.getElementById(`pipeline-config-${name}-vault_subdir_enabled`);
+    const subdirEl = document.getElementById(`pipeline-config-${name}-vault_subdir`);
+    if (!enabledEl || !subdirEl) {
+        return;
+    }
+
+    const config = {
+        vault_subdir_enabled: enabledEl.checked,
+        vault_subdir: (subdirEl.value || '').trim(),
+    };
+
+    try {
+        await savePipelineConfig(name, config);
+        showConfigMessage('Pipeline-inställningar sparade.', 'success');
+        await loadPipelinesDashboard();
+    } catch (error) {
+        showConfigMessage(`Kunde inte spara inställningar: ${error.message}`, 'error');
+    }
+}
+
 function getKnownGroupNames() {
     const source = Array.isArray(_groupsCache) ? _groupsCache : [];
     const names = source
@@ -481,6 +538,8 @@ function renderEnabledPipelines() {
             ? renderGroupFilterSettings(item)
             : meta?.supports_config && item.name === 'generic_template'
             ? renderGenericTemplateSettings(item)
+            : meta?.supports_config && ['seven_s', 'fors', 'pedars'].includes(item.name)
+            ? renderStructuredSubdirSettings(item)
             : '';
 
         return `

@@ -256,7 +256,7 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
     """Test that setup_save_config_handler preserves existing config values.
 
     Verifies the fix for the stale CONFIG_DB binding bug where custom
-    config values (e.g. append_window_minutes, plus_plus_enabled) were
+    config values (e.g. append_window_minutes, startup_message) were
     lost and replaced with defaults when saving setup config.
     """
 
@@ -288,7 +288,6 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
             custom["vault_path"] = str(Path(tmpdir) / "vault")
             custom["display_name"] = "CustomName"
             custom["append_window_minutes"] = 120
-            custom["plus_plus_enabled"] = True
             custom["startup_message"] = "none"
             custom["timezone"] = "UTC"
             save_all_config(db_path, custom)
@@ -316,7 +315,6 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
             # Verify that NON-setup values were preserved from the existing database
             result = get_all_config(db_path)
             self.assertEqual(result["append_window_minutes"], 120)
-            self.assertTrue(result["plus_plus_enabled"])
             self.assertEqual(result["startup_message"], "none")
             self.assertEqual(result["timezone"], "UTC")
 
@@ -344,7 +342,7 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
             old_config["vault_path"] = str(Path(tmpdir) / "old-vault")
             old_config["display_name"] = "OldName"
             old_config["append_window_minutes"] = 90
-            old_config["plus_plus_enabled"] = True
+            old_config["startup_message"] = "all"
             save_all_config(db_path, old_config)
 
             cfg._update_paths(oden_home)
@@ -372,7 +370,7 @@ class TestSetupSaveConfigPreservesExisting(AioHTTPTestCase):
             self.assertEqual(result["display_name"], "NewName")
             # Non-setup keys should be preserved from existing config
             self.assertEqual(result["append_window_minutes"], 90)
-            self.assertTrue(result["plus_plus_enabled"])
+            self.assertEqual(result["startup_message"], "all")
 
 
 class TestSetupSaveConfigRejectsUnknownNumber(AioHTTPTestCase):
