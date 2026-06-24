@@ -239,9 +239,7 @@ class SevenSPipeline:
         )
         signal_timestamp_ms = envelope.get("serverReceivedTimestamp") or timestamp_ms
         signal_dt = (
-            datetime.datetime.fromtimestamp(signal_timestamp_ms / 1000, tz=cfg.TIMEZONE)
-            if signal_timestamp_ms
-            else dt
+            datetime.datetime.fromtimestamp(signal_timestamp_ms / 1000, tz=cfg.TIMEZONE) if signal_timestamp_ms else dt
         )
         source_id = envelope.get("sourceUuid")
         if not source_number:
