@@ -7,9 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-24
+
+### 🚀 Oden 3.0 — DB-first multipipeline med 7S-stöd
+
+Oden 3.0 är en genomgripande ombyggnad av ingest-arkitekturen. Alla inkommande
+Signal-meddelanden sparas nu rått i SQLite *innan* de processas — vilket möjliggör
+full meddelandehistorik, pipeline-spårning och reprocessning utan att förlora data.
+En ny PipelineOrchestrator styr vilken pipeline som hanterar varje meddelande.
+Första specialpipelinen är **7S RAPPORT**, utformad för HvSS-underrättelseformat.
+
+### Added
+
+- **DB-first ingest (schema v5)**: Tre nya tabeller — `raw_messages` (rå envelope per meddelande), `pipeline_runs` (en rad per pipeline-körning) och `pipeline_events` (detaljlogg per körning). Alla inkommande meddelanden persisteras i SQLite innan de når någon pipeline
+- **PipelineOrchestrator**: Ny central orkestrare (`pipeline_orchestrator.py`) som laddar aktiva pipelines, kör dem i prioritetsordning per meddelande, och skriver status och händelser till databasen
+- **7S-pipeline**: Specialpipeline (`pipelines/seven_s.py`) för 7S RAPPORT-format. Extraherar strukturerad frontmatter — TNR, stund, ställe (inklusive MGRS → koordinatkonvertering), styrka, slag, sysselsättning, symbol, sagesman och valfritt sedan-fält. Allt valideras mot ett strikt schema
+- **MGRS-koordinatkonvertering**: Orten i 7S-meddelanden konverteras automatiskt från MGRS-format (t.ex. `33VXF 56007 96107`) till WGS84-koordinater för Obsidian Maps-kompatibilitet
+- **Pipeline-administration (GUI)**: Ny "Pipelines"-flik i dashboard — lista, aktivera/inaktivera, prioritetsordning, redigera Jinja2-mall per pipeline och konfigurera gruppfilter direkt i pipeline-dialogen
+- **Meddelandehantering (GUI)**: Ny "Meddelandehantering"-flik — fullständig historik över mottagna meddelanden med pipeline-status, detaljvy (rå envelope, pipeline-spår, utdatafil) och reprocess-knapp
+- **Pipeline-API**: Nya REST-endpoints: `GET/POST/PATCH/DELETE /api/pipelines`, `GET /api/pipelines/{id}`, `POST /api/messages/{id}/reprocess`
+- **Meddelande-API**: `GET /api/messages`, `GET /api/messages/{id}` med filtrering på status, pipeline och tidsintervall
+- **Gruppfiltrering per pipeline**: Varje pipeline har nu sitt eget gruppfilter (whitelist/ignore). Globala gruppfilter-inställningar och tillhörande endpoints (`/api/groups/filter`) är borttagna
+- **DB-lagringspolicy**: Konfigurerbar retentionspolicy för `raw_messages` — antal dagar och/eller max antal poster. Inställningsbar i GUI
+- **Diagnostikläge**: `db_first_enabled`-flagga och tvingad signal-cli filloggning aktiveras i diagnostikläge för förbättrad felsökning
+- **Pipeline-inställningar**: Ny `pipeline_settings.py` med typade inställningsdefinitioner per pipeline — gruppfilter, mallkonfiguration och pipeline-specifika fält
+- **Gruppnamnförslag**: Pipeline-grupfiltret föreslår befintliga gruppnamn från databasen vid inmatning
+- **Snapshot-versionsval**: `install_snapshot_mac.sh` stöder nu att välja specifik snapshot-version från menyn, inklusive tidsstämplar i listningen
+- **Snapshot-felhantering**: Förbättrad och mer robust parsning av snapshot-releaser med tydliga felmeddelanden
+
+### Fixed
+
+- **Pipeline-aktivering**: Normalisering av `enabled_pipelines`-värden för stabil rendering i GUI
+- **Template-redigerare**: Standardmallinnehåll laddas korrekt i pipeline-dialogens malleditor vid nyöppning
+- **Template-editor position**: Malleditorn har flyttats in i pipeline-dialogen istället för att ligga som separat flik
+- **Regex-input mörkt läge**: Förbättrad kontrast för regex-inmatningsfält i dark mode
+- **Retentionsrensning**: Fristående `event_age`-rensning i `retention_db` återställd och korrekt formatterad
+- **ARM64 Docker libsignal**: Injektionsskript för ARM64-byggen återställt till kompatibelt format
+- **Setup-validering**: Ogiltigt signal-nummer avvisas nu korrekt när signal-cli-konton inte kan bekräftas
+- **Snapshot-installer Bash-kompatibilitet**: Ersatt `osascript -l JavaScript` (JXA) med ren bash (`jq`/`grep`) i installationsskriptet — fungerar på alla macOS utan beroende av Node.js APIs i JXA
+
 ### Changed
 
 - **signal-cli 0.14.5**: Uppdaterat till senaste signal-cli (0.14.5) med libsignal-client 0.94.4. Docker ARM64-fixet uppdaterat till ny källrepository (`bbernhard/libsignal-client-builds`)
+- **CSS-variabler**: Alla hårdkodade hex-färger i dashboard ersatta med CSS-variabler för bättre dark mode-konsistens och underhållbarhet
+- **Kodförenkling**: Ponytail-audit genomförd — dödkod raderad, heta kodstigar förenklats, onödiga abstraktioner borttagna
+- **Beroenden**: pytest ≥ 9.0.3, Pillow ≥ 12.2.0, tzdata ≥ 2026.2, codecov/codecov-action v7
 
 ## [2.2.0] - 2026-04-22
 
