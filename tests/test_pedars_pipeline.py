@@ -128,7 +128,7 @@ class TestPedarsPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR241345.md"
+            output_path = Path(tmpdir) / "TNR241345.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from oden import config as cfg
-from oden.formatting import get_safe_group_dir_path
 
 _SHORT_REPORT_TIME_RE = re.compile(r"^\d{6}$")
 _LONG_REPORT_TIME_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([A-Z])([A-Z]{3})(\d{4})$")
@@ -138,15 +137,28 @@ def resolve_report_datetime(
         raise ValueError(f"{field_label} is not a valid local date/time") from exc
 
 
-def build_report_filepath(group_title: str, tnr_base: str, *, prefix: str = "TNR") -> tuple[str, str]:
-    group_dir = get_safe_group_dir_path(group_title)
-    os.makedirs(group_dir, exist_ok=True)
+def build_report_filepath(vault_subdir: str | None, tnr_base: str, *, prefix: str = "TNR") -> tuple[str, str]:
+    """Resolve a collision-free filepath inside the vault.
+
+    If *vault_subdir* is a non-empty string the file is written to
+    ``VAULT_PATH/<vault_subdir>/``.  When it is ``None`` or an empty string
+    the file lands directly in the root of the vault.
+    """
+    if vault_subdir:
+        # Sanitise: strip leading separator, reject traversal
+        safe = os.path.normpath(vault_subdir).lstrip(os.sep)
+        if ".." in safe.split(os.sep):
+            raise ValueError(f"vault_subdir must not contain '..': {vault_subdir!r}")
+        target_dir = os.path.join(cfg.VAULT_PATH, safe)
+    else:
+        target_dir = cfg.VAULT_PATH
+    os.makedirs(target_dir, exist_ok=True)
 
     tnr = tnr_base
     counter = 2
     while True:
         filename = f"{prefix}{tnr}.md"
-        filepath = os.path.join(group_dir, filename)
+        filepath = os.path.join(target_dir, filename)
         if not os.path.exists(filepath):
             return filepath, tnr
         tnr = f"{tnr_base}_{counter}"
@@ -212,6 +224,10 @@ class StructuredReportPipeline:
     file_prefix = "TNR"
     tnr_field_name = "tnr"
     time_field_label = "TNR"
+    #: Subdirectory under VAULT_PATH where reports are written.
+    #: ``None`` (the default) means the vault root.
+    #: Can be overridden per-pipeline via PIPELINE_SETTINGS[name]["vault_subdir"].
+    vault_subdir: str | None = None
 
     def matches_message(self, message_text: str | None) -> bool:
         return is_structured_report_message(message_text, self.header_prefixes)
@@ -283,7 +299,12 @@ class StructuredReportPipeline:
         report_dt = self.build_report_datetime(fields=fields, reference_dt=dt)
 
         resolved_group_title = group_title or "inbox"
-        filepath, resolved_tnr = build_report_filepath(resolved_group_title, raw_tnr, prefix=self.file_prefix)
+
+        # vault_subdir: per-pipeline settings win over class-level default
+        pipeline_settings = cfg.PIPELINE_SETTINGS.get(self.name, {}) if isinstance(cfg.PIPELINE_SETTINGS, dict) else {}
+        effective_vault_subdir = pipeline_settings.get("vault_subdir", self.vault_subdir)
+
+        filepath, resolved_tnr = build_report_filepath(effective_vault_subdir, raw_tnr, prefix=self.file_prefix)
 
         content = self.render_report(
             StructuredReportContext(

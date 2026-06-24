@@ -104,7 +104,7 @@ class TestForsPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR241330.md"
+            output_path = Path(tmpdir) / "TNR241330.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
@@ -147,7 +147,7 @@ class TestForsPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR241330BAPR2026.md"
+            output_path = Path(tmpdir) / "TNR241330BAPR2026.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 

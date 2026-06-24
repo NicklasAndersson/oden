@@ -122,7 +122,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            output_path = Path(tmpdir) / "TNR221520.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
@@ -152,8 +152,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         mock_get_app_state.return_value = app_state
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
-            group_dir = Path(tmpdir) / "7s-test"
-            group_dir.mkdir(parents=True, exist_ok=True)
+            group_dir = Path(tmpdir)
             (group_dir / "TNR221520.md").write_text("existing\n", encoding="utf-8")
 
             pipeline = SevenSPipeline()
@@ -170,6 +169,28 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn('tnr: "221520_2"', content)
         self.assertIn("**TNR:** 221520_2", content)
+
+    @patch("oden.pipelines.seven_s.get_app_state")
+    async def test_run_respects_vault_subdir_setting(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.PIPELINE_SETTINGS", {"seven_s": {"vault_subdir": "spaningsrapporter"}}),
+        ):
+            pipeline = SevenSPipeline()
+            handled = await pipeline.run(
+                msg_data=_make_msg_data(),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "spaningsrapporter" / "TNR221520.md"
+            self.assertTrue(output_path.exists())
 
     async def test_run_skips_non_7s(self):
         pipeline = SevenSPipeline()
@@ -208,7 +229,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221035.md"
+            output_path = Path(tmpdir) / "TNR221035.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
@@ -234,7 +255,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
                 )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            output_path = Path(tmpdir) / "TNR221520.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
@@ -257,7 +278,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            output_path = Path(tmpdir) / "TNR221520.md"
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
