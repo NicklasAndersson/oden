@@ -12,6 +12,7 @@ let pipelinesState = {
 };
 
 const genericTemplateVariableCache = {};
+const genericTemplateDefaultContentCache = {};
 const genericTemplateMeta = {
     report_md: {
         apiName: 'report.md.j2',
@@ -49,6 +50,45 @@ function getGenericTemplateEditorKey() {
 
 function getGenericTemplateEditorApiName() {
     return genericTemplateMeta[getGenericTemplateEditorKey()]?.apiName || 'report.md.j2';
+}
+
+async function getGenericTemplateEditorContent(key) {
+    const field = getGenericTemplateStorageField(key);
+    const currentContent = field?.value || '';
+    if (currentContent.trim()) {
+        return currentContent;
+    }
+
+    const apiName = genericTemplateMeta[key]?.apiName;
+    if (!apiName) {
+        return currentContent;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(genericTemplateDefaultContentCache, apiName)) {
+        const cached = genericTemplateDefaultContentCache[apiName] || '';
+        if (field && !field.value.trim()) {
+            field.value = cached;
+        }
+        return cached;
+    }
+
+    try {
+        const response = await fetch(`/api/templates/${apiName}`);
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        const content = typeof data.content === 'string' ? data.content : '';
+        genericTemplateDefaultContentCache[apiName] = content;
+        if (field && !field.value.trim()) {
+            field.value = content;
+        }
+        return content;
+    } catch (error) {
+        setGenericTemplateEditorError(`Kunde inte ladda standardmall: ${error.message}`);
+        return currentContent;
+    }
 }
 
 function setGenericTemplateEditorError(message) {
@@ -129,10 +169,10 @@ async function loadGenericTemplateEditorVariables() {
 async function switchGenericTemplateEditorTemplate() {
     syncGenericTemplateEditorDraft();
 
-    const field = getGenericTemplateStorageField(getGenericTemplateEditorKey());
+    const key = getGenericTemplateEditorKey();
     const editor = document.getElementById('generic-template-editor-textarea');
-    if (field && editor) {
-        editor.value = field.value || '';
+    if (editor) {
+        editor.value = await getGenericTemplateEditorContent(key);
     }
 
     await loadGenericTemplateEditorVariables();
@@ -149,8 +189,9 @@ async function openGenericTemplateEditor() {
 
     setGenericTemplateEditorError('');
     select.value = 'report_md';
-    editor.value = getGenericTemplateStorageField('report_md')?.value || '';
+    editor.value = '';
     modal.classList.remove('hidden');
+    editor.value = await getGenericTemplateEditorContent('report_md');
     await loadGenericTemplateEditorVariables();
     await previewGenericTemplateEditor();
     editor.focus();
