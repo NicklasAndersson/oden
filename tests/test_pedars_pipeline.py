@@ -112,7 +112,7 @@ class TestPedarsPipelineHelpers(unittest.TestCase):
 
 
 class TestPedarsPipelineRun(unittest.IsolatedAsyncioTestCase):
-    @patch("oden.pipelines.pedars.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_handles_pedars_and_writes_report_file(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"

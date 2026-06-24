@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from oden.app_state import get_app_state
 from oden.pipelines.structured_report import (
     StructuredReportContext,
     StructuredReportPipeline,
@@ -242,9 +241,6 @@ class PedarsPipeline(StructuredReportPipeline):
     )
     report_id_prefix = "PEDARS"
     report_type = "PEDARS-rapport"
-
-    def _get_app_state(self) -> Any:
-        return get_app_state()
 
     def parse_report(self, message_text: str) -> dict[str, Any]:
         return parse_pedars_report(message_text)

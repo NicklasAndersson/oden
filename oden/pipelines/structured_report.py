@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from oden import config as cfg
+from oden.app_state import get_app_state
 
 _SHORT_REPORT_TIME_RE = re.compile(r"^\d{6}$")
 _LONG_REPORT_TIME_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([A-Z])([A-Z]{3})(\d{4})$")
@@ -233,7 +234,7 @@ class StructuredReportPipeline:
         return is_structured_report_message(message_text, self.header_prefixes)
 
     def _get_app_state(self) -> Any:
-        raise NotImplementedError
+        return get_app_state()
 
     def parse_report(self, message_text: str) -> dict[str, str]:
         raise NotImplementedError

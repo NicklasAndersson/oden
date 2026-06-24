@@ -88,7 +88,7 @@ class TestForsPipelineHelpers(unittest.TestCase):
 
 
 class TestForsPipelineRun(unittest.IsolatedAsyncioTestCase):
-    @patch("oden.pipelines.fors.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_handles_fors_and_writes_report_file(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -127,7 +127,7 @@ class TestForsPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Striden är snart över", content)
         self.assertTrue(content.rstrip().endswith("SLUT!"))
 
-    @patch("oden.pipelines.fors.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_handles_long_tnr_without_slutsatser(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"

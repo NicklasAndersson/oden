@@ -12,7 +12,6 @@ from typing import Any
 
 import mgrs
 
-from oden.app_state import get_app_state
 from oden.link_formatter import apply_regex_links
 from oden.pipelines.structured_report import (
     StructuredReportContext,
@@ -136,9 +135,6 @@ class SevenSPipeline(StructuredReportPipeline):
     header_prefixes = ("7S RAPPORT",)
     report_id_prefix = "7S"
     report_type = "7S-rapport"
-
-    def _get_app_state(self) -> Any:
-        return get_app_state()
 
     def parse_report(self, message_text: str) -> dict[str, str]:
         return parse_7s_report(message_text)

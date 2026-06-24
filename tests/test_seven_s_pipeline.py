@@ -101,7 +101,7 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
 
 
 class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     @patch("oden.config.REGEX_PATTERNS", {"custom_feature": r"logotyp-fragment DGE"})
     async def test_run_handles_7s_and_writes_spec_file(self, mock_get_app_state):
         app_state = Mock()
@@ -145,7 +145,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("# 7S RAPPORT", content)
         self.assertNotIn("## Metadata", content)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_adds_collision_suffix_to_filename_and_tnr(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -170,7 +170,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn('tnr: "221520_2"', content)
         self.assertIn("**TNR:** 221520_2", content)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_respects_vault_subdir_setting(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -214,7 +214,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(handled)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_allows_distinct_tnr_and_stund(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -239,7 +239,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn('signal_tidpunkt: "2026-06-22T19:31:09"', content)
         self.assertIn("**Stund:** 221034", content)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_warns_but_writes_invalid_sagesman(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -263,7 +263,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sagesman: 2A GRUPP", content)
         self.assertIn("**Sagesman:** 2A GRUPP", content)
 
-    @patch("oden.pipelines.seven_s.get_app_state")
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_omits_optional_sedan_when_missing(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
