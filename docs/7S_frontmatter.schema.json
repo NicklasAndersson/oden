@@ -10,6 +10,9 @@
     "typ",
     "tnr",
     "tidpunkt",
+    "signal_tidpunkt",
+    "signal_avsandare_nummer",
+    "signal_avsandare_id",
     "plats",
     "sagesman"
   ],
@@ -42,6 +45,30 @@
       "description": "ISO 8601 local datetime (no timezone offset). The authoritative timestamp of the observation.",
       "examples": [
         "2026-02-14T07:55:00"
+      ]
+    },
+    "signal_tidpunkt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+      "description": "ISO 8601 local datetime (no timezone offset) for when the Signal message was received.",
+      "examples": [
+        "2026-02-14T08:12:34"
+      ]
+    },
+    "signal_avsandare_nummer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Sender phone number from the Signal message.",
+      "examples": [
+        "+46701234567"
+      ]
+    },
+    "signal_avsandare_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Sender Signal identifier from the message, typically a UUID.",
+      "examples": [
+        "b1f2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
       ]
     },
     "plats": {

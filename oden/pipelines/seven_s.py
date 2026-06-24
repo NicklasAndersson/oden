@@ -35,8 +35,9 @@ _REQUIRED_FIELDS = {
     "sysselsattning",
     "symbol",
     "sagesman",
-    "sedan",
 }
+
+_OPTIONAL_FIELDS = {"sedan"}
 
 _LABEL_ALIASES = {
     "till": "till",
@@ -174,7 +175,7 @@ def parse_7s_report(message_text: str) -> dict[str, str]:
             continue
         label, value = line.split(":", 1)
         key = _normalize_label(label)
-        if key in _REQUIRED_FIELDS:
+        if key in _REQUIRED_FIELDS or key in _OPTIONAL_FIELDS:
             fields[key] = value.strip()
 
     missing = sorted(_REQUIRED_FIELDS - set(fields.keys()))
@@ -236,6 +237,17 @@ class SevenSPipeline:
             if timestamp_ms
             else datetime.datetime.now(cfg.TIMEZONE)
         )
+        signal_timestamp_ms = envelope.get("serverReceivedTimestamp") or timestamp_ms
+        signal_dt = (
+            datetime.datetime.fromtimestamp(signal_timestamp_ms / 1000, tz=cfg.TIMEZONE)
+            if signal_timestamp_ms
+            else dt
+        )
+        source_id = envelope.get("sourceUuid")
+        if not source_number:
+            raise ValueError("7S Signal sender number is missing")
+        if not source_id:
+            raise ValueError("7S Signal sender id is missing")
 
         raw_tnr = fields["tnr"].strip()
         raw_stund = fields["stund"].strip()
@@ -267,6 +279,7 @@ class SevenSPipeline:
 
         plats, lat, lon = _extract_location(fields["stalle"])
         tidpunkt = observation_dt.strftime("%Y-%m-%dT%H:%M:%S")
+        signal_tidpunkt = signal_dt.strftime("%Y-%m-%dT%H:%M:%S")
         stund_display = observation_dt.strftime("%Y-%m-%d %H:%M")
         symbol_raw = fields["symbol"].strip()
         symbol = _link_remaining_plates(apply_regex_links(symbol_raw) or symbol_raw)
@@ -277,6 +290,9 @@ class SevenSPipeline:
             "typ: 7S-rapport",
             f"tnr: {_yaml_quote(resolved_tnr)}",
             f"tidpunkt: {_yaml_quote(tidpunkt)}",
+            f"signal_tidpunkt: {_yaml_quote(signal_tidpunkt)}",
+            f"signal_avsandare_nummer: {_yaml_quote(source_number)}",
+            f"signal_avsandare_id: {_yaml_quote(source_id)}",
             f"plats: {_yaml_quote(plats)}",
         ]
         if lat is not None and lon is not None:
@@ -309,6 +325,10 @@ class SevenSPipeline:
             f"**Sagesman:** {sagesman}",
             "",
         ]
+
+        sedan = fields.get("sedan", "").strip()
+        if sedan:
+            body_lines.extend([f"**Sedan:** {sedan}", ""])
 
         content = "\n".join(frontmatter_lines + body_lines)
 

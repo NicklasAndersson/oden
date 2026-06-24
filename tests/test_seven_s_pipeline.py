@@ -8,21 +8,33 @@ from oden import config as cfg
 from oden.pipelines.seven_s import SevenSPipeline, is_7s_message, parse_7s_report
 
 _TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
+_SERVER_RECEIVED_TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 9, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
 
 
 def _make_msg_data(
-    *, sagesman="AQ", stalle="Långkärrsvägen", symbol="Svart", group="7s-test", tnr="221520", stund="221520"
+    *,
+    sagesman="AQ",
+    stalle="Långkärrsvägen",
+    symbol="Svart",
+    group="7s-test",
+    tnr="221520",
+    stund="221520",
+    source_id="dd1bac1d-b955-4ac0-9d53-14053c4fe69f",
+    sedan="Återgår till bas",
 ):
     return {
         "envelope": {
             "sourceName": "Nicklas",
             "sourceNumber": "+46701234567",
+            "sourceUuid": source_id,
             "timestamp": _TIMESTAMP,
+            "serverReceivedTimestamp": _SERVER_RECEIVED_TIMESTAMP,
             "dataMessage": {
                 "message": (
                     f"7S RAPPORT\nTill: TST\nFrån: TS\nTNR: {tnr}\nStund: {stund}\n"
                     f"Ställe: {stalle}\nStyrka: 1\nSlag: Vi\nSysselsättning: Patrull\n"
-                    f"Symbol: {symbol}\nSagesman: {sagesman}\nSedan: Återgår till bas\n"
+                    f"Symbol: {symbol}\nSagesman: {sagesman}\n"
+                    f"{f'Sedan: {sedan}\\n' if sedan is not None else ''}"
                 ),
                 "groupV2": {"name": group, "id": "group123"},
             },
@@ -60,6 +72,26 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
         self.assertEqual(fields["tnr"], "220932")
         self.assertEqual(fields["stund"], "220930")
         self.assertEqual(fields["stalle"], "33VXF 56007 96107")
+        self.assertEqual(fields["sedan"], "Fortsätter spaning")
+
+    def test_parse_7s_report_allows_missing_optional_sedan(self):
+        text = (
+            "7S RAPPORT\n"
+            "Till: TILL_NAMN\n"
+            "Från: FRAN_NAMN\n"
+            "TNR: 220932\n"
+            "Stund: 220930\n"
+            "Ställe: 33VXF 56007 96107\n"
+            "Styrka: 2\n"
+            "Slag: Personbil\n"
+            "Sysselsättning: Spanar\n"
+            "Symbol: Svart\n"
+            "Sagesman: AQ\n"
+        )
+
+        fields = parse_7s_report(text)
+
+        self.assertNotIn("sedan", fields)
 
     def test_parse_7s_report_missing_required_raises(self):
         text = "7S RAPPORT\nTill: A\n"
@@ -96,6 +128,9 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("typ: 7S-rapport", content)
         self.assertIn('tnr: "221520"', content)
         self.assertIn('tidpunkt: "2026-06-22T15:20:00"', content)
+        self.assertIn('signal_tidpunkt: "2026-06-22T19:31:09"', content)
+        self.assertIn('signal_avsandare_nummer: "+46701234567"', content)
+        self.assertIn('signal_avsandare_id: "dd1bac1d-b955-4ac0-9d53-14053c4fe69f"', content)
         self.assertIn('plats: "Långkärrsvägen"', content)
         self.assertIn("lat: 59.49063", content)
         self.assertIn("lon: 17.46740", content)
@@ -105,6 +140,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("**Stund:** 2026-06-22 15:20", content)
         self.assertIn("**Ställe:** Långkärrsvägen", content)
         self.assertIn("**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]", content)
+        self.assertIn("**Sedan:** Återgår till bas", content)
         self.assertNotIn("# 7S RAPPORT", content)
         self.assertNotIn("## Metadata", content)
 
@@ -178,6 +214,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn('tnr: "221035"', content)
         self.assertIn("**TNR:** 221035", content)
         self.assertIn('tidpunkt: "2026-06-22T10:34:00"', content)
+        self.assertIn('signal_tidpunkt: "2026-06-22T19:31:09"', content)
         self.assertIn("**Stund:** 2026-06-22 10:34", content)
 
     @patch("oden.pipelines.seven_s.get_app_state")
@@ -203,3 +240,24 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("non-canonical", "\n".join(captured_logs.output))
         self.assertIn("sagesman: 2A GRUPP", content)
         self.assertIn("**Sagesman:** 2A GRUPP", content)
+
+    @patch("oden.pipelines.seven_s.get_app_state")
+    async def test_run_omits_optional_sedan_when_missing(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+            pipeline = SevenSPipeline()
+            handled = await pipeline.run(
+                msg_data=_make_msg_data(sedan=None),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertNotIn("**Sedan:**", content)

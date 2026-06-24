@@ -72,6 +72,9 @@ id: 7S-004
 typ: 7S-rapport
 tnr: "140755"
 tidpunkt: "2026-02-14T07:55:00"
+signal_tidpunkt: "2026-02-14T08:12:34"
+signal_avsandare_nummer: "+46701234567"
+signal_avsandare_id: "b1f2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
 plats: "Grusparkering vid motionsspåret"
 lat: 59.26608
 lon: 17.70644
@@ -86,6 +89,9 @@ sagesman: AQ
 | `typ`       | sträng   | Konstant `7S-rapport`. Skiljer rapporter från andra noter i grafvyn. |
 | `tnr`       | sträng   | Samma som filnamnets TNR-del, **utan** `TNR`-prefix och **utan** `.md`. Hämtas från inmatningens `TNR` och kan därför skilja sig från observationstiden. Inkludera ev. kollisionssuffix (`140755_2`). Sträng, inte tal (kan ha ledande nollor och `_`). |
 | `tidpunkt`  | sträng   | ISO 8601 lokal tid, `YYYY-MM-DDTHH:MM:SS`. Observationens tidpunkt. Detta är den auktoritativa tidsstämpeln. |
+| `signal_tidpunkt` | sträng | ISO 8601 lokal tid, `YYYY-MM-DDTHH:MM:SS`. Tidpunkten då Signal-meddelandet togs emot. Hämtas från Signals mottagningstidsstämpel när den finns. |
+| `signal_avsandare_nummer` | sträng | Avsändarens nummer i Signal-meddelandet. Citeras som sträng för att behålla exakt värde. |
+| `signal_avsandare_id` | sträng | Avsändarens Signal-id från meddelandet, normalt en UUID. Citeras som sträng för att behålla exakt värde. |
 | `plats`     | sträng   | Fritext-platsnamn. **Citerad** (dubbelfnuttar) eftersom den kan innehålla specialtecken. |
 | `lat`       | tal      | WGS84 decimalgrader, 5 decimaler. Nordlig latitud positiv. |
 | `lon`       | tal      | WGS84 decimalgrader, 5 decimaler. Östlig longitud positiv. |
@@ -103,8 +109,10 @@ Regler:
 
 ## 5. Rapportkropp (7S)
 
-Exakt dessa sju fält, i denna ordning, var och en med **fet** etikett följd av
+Exakt dessa sju kärnfält, i denna ordning, var och en med **fet** etikett följd av
 kolon, och åtskilda av en tom rad. TNR upprepas först i kroppen för läsbarhet.
+Efter `Sagesman` får ett valfritt extra S-fält, `Sedan`, förekomma när
+rapporten anger vad patrullen gör efter observationen.
 
 ```markdown
 **TNR:** 140755
@@ -120,6 +128,8 @@ kolon, och åtskilda av en tom rad. TNR upprepas först i kroppen för läsbarhe
 **Sysselsättning:** Fiskade vid vattnet.
 
 **Sagesman:** AQ
+
+**Sedan:** Återgår till bas.
 ```
 
 Fälten (7S):
@@ -141,6 +151,7 @@ människoläsbart format.
 | `Sysselsättning`  | Vad de gör. Fritext, en mening. |
 | `Symbol`          | Särskiljande kännetecken. **Här placeras länkar** (§6). |
 | `Sagesman`        | Samma uppgift som i frontmatter `sagesman`, återgiven i kroppen för läsbarhet. |
+| `Sedan`           | Valfritt extra S efter `Sagesman`. Beskriver vad patrullen gör efter observationen. Ingen separat frontmatter-nyckel krävs. |
 
 **Konsistenskrav:** fälten måste vara inbördes förenliga. Ett `Slag: Fordon`
 får inte ha `Sysselsättning` eller `Symbol` som beskriver en fotgängare, och
@@ -295,6 +306,9 @@ id: 7S-004
 typ: 7S-rapport
 tnr: "140755"
 tidpunkt: "2026-02-14T07:55:00"
+signal_tidpunkt: "2026-02-14T08:12:34"
+signal_avsandare_nummer: "+46701234567"
+signal_avsandare_id: "b1f2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
 plats: "Vägren E4 avfart söderut"
 lat: 59.25401
 lon: 17.69812
