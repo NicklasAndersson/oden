@@ -22,6 +22,7 @@ def _make_msg_data(
     source_id="dd1bac1d-b955-4ac0-9d53-14053c4fe69f",
     sedan="Återgår till bas",
 ):
+    sedan_line = f"Sedan: {sedan}\n" if sedan is not None else ""
     return {
         "envelope": {
             "sourceName": "Nicklas",
@@ -34,7 +35,7 @@ def _make_msg_data(
                     f"7S RAPPORT\nTill: TST\nFrån: TS\nTNR: {tnr}\nStund: {stund}\n"
                     f"Ställe: {stalle}\nStyrka: 1\nSlag: Vi\nSysselsättning: Patrull\n"
                     f"Symbol: {symbol}\nSagesman: {sagesman}\n"
-                    f"{f'Sedan: {sedan}\\n' if sedan is not None else ''}"
+                    f"{sedan_line}"
                 ),
                 "groupV2": {"name": group, "id": "group123"},
             },

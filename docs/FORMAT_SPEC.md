@@ -27,7 +27,7 @@ Obsidian-plugin) som läser dessa filer. Applikationens uppgift är att producer
 
 ## 2. Filnamn
 
-```
+```text
 TNR<DDHHMM>[_<n>].md
 ```
 
@@ -83,22 +83,23 @@ sagesman: AQ
 ---
 ```
 
-| Nyckel      | Typ      | Regler |
-|-------------|----------|--------|
-| `id`        | sträng   | Stabil unik identifierare. Format `7S-NNN` i exempeldata; valfri stabil sträng i drift (t.ex. UUID). Måste vara unik över hela vaulten. |
-| `typ`       | sträng   | Konstant `7S-rapport`. Skiljer rapporter från andra noter i grafvyn. |
-| `tnr`       | sträng   | Samma som filnamnets TNR-del, **utan** `TNR`-prefix och **utan** `.md`. Hämtas från inmatningens `TNR` och kan därför skilja sig från observationstiden. Inkludera ev. kollisionssuffix (`140755_2`). Sträng, inte tal (kan ha ledande nollor och `_`). |
-| `tidpunkt`  | sträng   | ISO 8601 lokal tid, `YYYY-MM-DDTHH:MM:SS`. Observationens tidpunkt. Detta är den auktoritativa tidsstämpeln. |
-| `signal_tidpunkt` | sträng | ISO 8601 lokal tid, `YYYY-MM-DDTHH:MM:SS`. Tidpunkten då Signal-meddelandet togs emot. Hämtas från Signals mottagningstidsstämpel när den finns. |
-| `signal_avsandare_nummer` | sträng | Avsändarens nummer i Signal-meddelandet. Citeras som sträng för att behålla exakt värde. |
-| `signal_avsandare_id` | sträng | Avsändarens Signal-id från meddelandet, normalt en UUID. Citeras som sträng för att behålla exakt värde. |
-| `plats`     | sträng   | Fritext-platsnamn. **Citerad** (dubbelfnuttar) eftersom den kan innehålla specialtecken. |
-| `lat`       | tal      | WGS84 decimalgrader, 5 decimaler. Nordlig latitud positiv. |
-| `lon`       | tal      | WGS84 decimalgrader, 5 decimaler. Östlig longitud positiv. |
-| `location`  | sträng   | Kombinerad koordinat `"lat,lon"` för kartvy (§8). **Krävs när koordinater finns** och måste spegla `lat`/`lon` exakt. Utelämnas helt om koordinater saknas. |
-| `sagesman`  | sträng   | Anropssignal för rapporterande enhet (§7). |
+Nycklar:
+
+- `id` — sträng. Stabil unik identifierare. Format `7S-NNN` i exempeldata; valfri stabil sträng i drift (t.ex. UUID). Måste vara unik över hela vaulten.
+- `typ` — sträng. Konstant `7S-rapport`. Skiljer rapporter från andra noter i grafvyn.
+- `tnr` — sträng. Samma som filnamnets TNR-del, **utan** `TNR`-prefix och **utan** `.md`. Hämtas från inmatningens `TNR` och kan därför skilja sig från observationstiden. Inkludera ev. kollisionssuffix (`140755_2`). Sträng, inte tal (kan ha ledande nollor och `_`).
+- `tidpunkt` — sträng. ISO 8601 lokal tid, `YYYY-MM-DDTHH:MM:SS`. Observationens tidpunkt. Detta är den auktoritativa tidsstämpeln.
+- `signal_tidpunkt` — sträng. ISO 8601 lokal tid, `YYYY-MM-DDTHH:MM:SS`. Tidpunkten då Signal-meddelandet togs emot. Hämtas från Signals mottagningstidsstämpel när den finns.
+- `signal_avsandare_nummer` — sträng. Avsändarens nummer i Signal-meddelandet. Citeras som sträng för att behålla exakt värde.
+- `signal_avsandare_id` — sträng. Avsändarens Signal-id från meddelandet, normalt en UUID. Citeras som sträng för att behålla exakt värde.
+- `plats` — sträng. Fritext-platsnamn. **Citerad** (dubbelfnuttar) eftersom den kan innehålla specialtecken.
+- `lat` — tal. WGS84 decimalgrader, 5 decimaler. Nordlig latitud positiv.
+- `lon` — tal. WGS84 decimalgrader, 5 decimaler. Östlig longitud positiv.
+- `location` — sträng. Kombinerad koordinat `"lat,lon"` för kartvy (§8). **Krävs när koordinater finns** och måste spegla `lat`/`lon` exakt. Utelämnas helt om koordinater saknas.
+- `sagesman` — sträng. Anropssignal för rapporterande enhet (§7).
 
 Regler:
+
 - Saknas koordinater för en observation: utelämna `lat`, `lon` **och**
   `location` helt (skriv dem inte som `null` eller `0`). `plats` bör ändå anges
   som fritext.
@@ -141,17 +142,17 @@ refererar till frontmatter. Exempel: `TNR` i kroppen hämtas från frontmatter
 `tnr`, medan `Stund` i kroppen återger frontmatter `tidpunkt` i ett annat,
 människoläsbart format.
 
-| Fält              | Innehåll |
-|-------------------|----------|
-| `TNR`             | Samma uppgift som i frontmatter `tnr`, återgiven i kroppen för läsbarhet. |
-| `Stund`           | Samma tidpunkt som i frontmatter `tidpunkt`, men i människoläsbar form `YYYY-MM-DD HH:MM` (utan sekunder). |
-| `Ställe`          | Samma uppgift som i frontmatter `plats`, men utan citationstecken. |
-| `Styrka`          | Antal/styrka. Ex: `1 fordon`, `2 personer`, `1 fordon, 2 personer`, `Familj (3-4)`. |
-| `Slag`            | Typ av observation. Ex: `Person`, `Fordon`, `Fordon + person`, `Person (cykel)`, `Fordon (jordbruk)`. |
-| `Sysselsättning`  | Vad de gör. Fritext, en mening. |
-| `Symbol`          | Särskiljande kännetecken. **Här placeras länkar** (§6). |
-| `Sagesman`        | Samma uppgift som i frontmatter `sagesman`, återgiven i kroppen för läsbarhet. |
-| `Sedan`           | Valfritt extra S efter `Sagesman`. Beskriver vad patrullen gör efter observationen. Ingen separat frontmatter-nyckel krävs. |
+Fält:
+
+- `TNR` — samma uppgift som i frontmatter `tnr`, återgiven i kroppen för läsbarhet.
+- `Stund` — samma tidpunkt som i frontmatter `tidpunkt`, men i människoläsbar form `YYYY-MM-DD HH:MM` (utan sekunder).
+- `Ställe` — samma uppgift som i frontmatter `plats`, men utan citationstecken.
+- `Styrka` — antal/styrka. Ex: `1 fordon`, `2 personer`, `1 fordon, 2 personer`, `Familj (3-4)`.
+- `Slag` — typ av observation. Ex: `Person`, `Fordon`, `Fordon + person`, `Person (cykel)`, `Fordon (jordbruk)`.
+- `Sysselsättning` — vad de gör. Fritext, en mening.
+- `Symbol` — särskiljande kännetecken. **Här placeras länkar** (§6).
+- `Sagesman` — samma uppgift som i frontmatter `sagesman`, återgiven i kroppen för läsbarhet.
+- `Sedan` — valfritt extra S efter `Sagesman`. Beskriver vad patrullen gör efter observationen. Ingen separat frontmatter-nyckel krävs.
 
 **Konsistenskrav:** fälten måste vara inbördes förenliga. Ett `Slag: Fordon`
 får inte ha `Sysselsättning` eller `Symbol` som beskriver en fotgängare, och
@@ -167,11 +168,11 @@ Den centrala applikationen identifierar särskiljande kännetecken i fält
 
 ### 6.1 Vad som ska länkas
 
-| Kategori | Regel | Exempel i text |
-|----------|-------|----------------|
-| Fullständig nummerplåt | Svenskt format (§6.3) | `reg [[RJK241]]` |
-| Partiell nummerplåt | Plåt där tecken saknas; maskera saknade positioner med `.` (§6.4) | `reg [[..G41.]]` |
-| Annat distinkt kännetecken som matchas regelbundet | Kanoniserad etikett (§6.5) | `[[logotyp-fragment DGE]]` |
+Kategorier:
+
+- Fullständig nummerplåt: Svenskt format (§6.3). Exempel i text: `reg [[RJK241]]`.
+- Partiell nummerplåt: Plåt där tecken saknas; maskera saknade positioner med `.` (§6.4). Exempel i text: `reg [[..G41.]]`.
+- Annat distinkt kännetecken som matchas regelbundet: kanoniserad etikett (§6.5). Exempel i text: `[[logotyp-fragment DGE]]`.
 
 ### 6.2 Vad som INTE ska länkas
 
@@ -184,6 +185,7 @@ Den centrala applikationen identifierar särskiljande kännetecken i fält
 ### 6.3 Svenskt nummerplåtsformat (fullständig)
 
 Två giltiga mönster:
+
 - `AAA NNN` — tre bokstäver, tre siffror.
 - `AAA NNL` — tre bokstäver, två siffror, en bokstav.
 
@@ -193,7 +195,8 @@ Tillåtna bokstäver: `A-Z` utom `I O Q V` (svensk konvention, undviker
 förväxling). Använd versaler.
 
 Regex (fullständig plåt):
-```
+
+```regex
 ^[ABCDEFGHJKLMNPRSTUWXYZ]{3}[0-9]{2}[0-9ABCDEFGHJKLMNPRSTUWXYZ]$
 ```
 
@@ -209,7 +212,8 @@ som en regex-wildcard mot den fullständiga plåten.
 - Behåll total längd (6 tecken).
 
 Regex (partiell plåt — minst en punkt, i övrigt giltig struktur):
-```
+
+```regex
 ^[A-Z.]{3}[0-9.]{2}[0-9A-Z.]$   (och innehåller minst ett '.')
 ```
 
@@ -226,6 +230,7 @@ samma kännetecken alltid ger samma länktext (och därmed samma nod). Etiketten
 är kort beskrivande svenska, gemener.
 
 Exempel som används i testdata:
+
 - `[[logotyp-fragment DGE]]`
 - `[[ryggsäck märkning delvis läsbar -TAC]]`
 - `[[keps mörk med ljust emblem]]`
@@ -247,13 +252,13 @@ entitetsnoter är analyssteget (plugin).
 
 Kompani med huvudanropssignal **QO**. Plutoner:
 
-| Signal | Pluton |
-|--------|--------|
-| `AQ`   | 1. skyttepluton (linje) |
-| `BQ`   | 2. skyttepluton (linje) |
-| `CQ`   | 3. skyttepluton (linje) |
-| `DQ`   | 4. skyttepluton (linje) |
-| `EQ`   | stabspluton |
+Plutoner:
+
+- `AQ` — 1. skyttepluton (linje)
+- `BQ` — 2. skyttepluton (linje)
+- `CQ` — 3. skyttepluton (linje)
+- `DQ` — 4. skyttepluton (linje)
+- `EQ` — stabspluton
 
 I drift kan finare signaler förekomma; för detta format räcker plutonsnivå.
 Oden bevarar inkommande `sagesman` även när värdet avviker från `AQ`-`EQ`, men
