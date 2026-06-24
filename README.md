@@ -174,7 +174,7 @@ Noteringar:
 - **System Tray** - Starta/stoppa, öppna GUI och avsluta Oden från systemfältet (macOS/Linux/Windows)
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten *(avstängt per default, aktiveras i config)*
-- **7S RAPPORT** - Specialpipeline för 7S-format med egen parser och rapportmall
+- **7S RAPPORT** - Specialpipeline för 7S-format som skriver specad 7S-utdata med schemaformad frontmatter
 - **Platslänkar** - Google Maps, Apple Maps och OSM-länkar omvandlas automatiskt till geo-koordinater
 - **Anpassningsbara rapportmallar** - Redigera Jinja2-mallar direkt i GUI:ns template-editor
 - **Regex-länkar** - Konfigurera mönster (t.ex. registreringsnummer) som automatiskt blir Obsidian-länkar
@@ -227,10 +227,12 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - **Ignorera grupper** direkt från GUI (klicka "Ignorera")
 - **Whitelist-grupper** direkt från GUI (klicka "Whitelist" – om satt sparas endast dessa grupper)
 - **Pipelines** - Hantera aktiva pipelines, urvalslogik, på/av och körordning
-- **Template-editor** - Redigera rapportmallar med live-förhandsvisning
+- **Template-editor** - Redigera rapportmallar med live-förhandsvisning via pipeline-inställningarna
 - **Stäng av Oden** - Shutdown-knapp i GUI
 
 **Säkerhet:** Som standard lyssnar webbgränssnittet endast på localhost. Ingen autentisering — skyddet bygger på att gränssnittet enbart nås lokalt, så om du ändrar `WEB_HOST`/`web_host` till t.ex. `0.0.0.0` kan det exponeras för andra maskiner i nätverket.
+
+**7S-format:** 7S-inmatning förväntas komma från verktyget `HvSS-Innovation/7s-rapport` och klistras in i Signal. Oden behandlar därför 7S som ett kanoniskt, verktygsgenererat format snarare än fri fritext.
 
 ## Dokumentation
 
@@ -239,6 +241,8 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - [WEB_GUI.md](./docs/WEB_GUI.md) - Web-gränssnitt och API-referens
 - [REPORT_TEMPLATE.md](./docs/REPORT_TEMPLATE.md) - Mallsystem (Jinja2)
 - [PIPELINES.md](./docs/PIPELINES.md) - Pipeline-arkitektur, befintliga pipelines och hur man utvecklar nya
+- [FORMAT_SPEC.md](./docs/FORMAT_SPEC.md) - Normativ 7S-spec för filformat, länkning och koordinatfält
+- [7S_frontmatter.schema.json](./docs/7S_frontmatter.schema.json) - JSON-schema för 7S-frontmatter
 - [PLAN_PIPELINES_MENU.md](./docs/PLAN_PIPELINES_MENU.md) - Implementationsplan för pipeline-administrationsmeny
 - [PLAN_3.0.md](./docs/PLAN_3.0.md) - Overblick över Oden 3.0 och alla implementationsfaser
 - [WINDOWS_NATIVE_PLAN.md](./docs/WINDOWS_NATIVE_PLAN.md) - Native Windows installer: status och implementationsplan

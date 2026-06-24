@@ -45,36 +45,64 @@ Nuvarande default:
 
 **Vad den väljer:** Meddelanden som börjar med `7S RAPPORT` (skiftlägesokänsligt).
 
+**Förväntad indata:** 7S-rapporter skapas av `HvSS-Innovation/7s-rapport` och kopieras därefter in i Signal. Pipelinen är därför optimerad för ett kanoniskt, verktygsgenererat 7S-format.
+
 **Vad den gör:**
 - Parsar strukturerad 7S-rapport (Till, Från, TNR, Stund, Ställe, Styrka, Slag, Sysselsättning, Symbol, Sagesman, Sedan)
-- Validerar alla obligatoriska fält
-- Skriver strukturerad markdown-fil till `vault/{group_name}/` med specifik namngivning
-- Kontaktnamnuppslagning via signal-cli
+- Validerar alla obligatoriska fält och schemakritiska värden som `TNR`, `Stund` och `Sagesman`
+- Skriver strukturerad markdown-fil till `vault/{group_name}/TNR<DDHHMM>[_n].md`
+- Genererar schemaformad YAML-frontmatter enligt [FORMAT_SPEC.md](FORMAT_SPEC.md) och [7S_frontmatter.schema.json](7S_frontmatter.schema.json)
+- Konverterar MGRS i `Ställe` till `lat`, `lon` och `location` när koordinater kan härledas
+- Länkar särskiljande kännetecken i `Symbol` med `[[...]]` enligt specen
 
 **Exempel på inmatning:**
 ```
 7S RAPPORT
-Till: NAMN EFTERNAMN
-Från: NAMN EFTERNAMN
-TNR: 220932
-Stund: 220930
-Ställe: 33VXF 56007 96107
-Styrka: 2
-Slag: Personbil
-Sysselsättning: Spanar
-Symbol: Svart
-Sagesman: 2A GRUPP
-Sedan: Fortsätter spaning
+Till: TST
+Från: TS
+TNR: 221520
+Stund: 221520
+Ställe: 34VCM 79349 26095, Långkärrsvägen
+Styrka: 1
+Slag: Vi
+Sysselsättning: Patrull
+Symbol: ABC123 och logotyp-fragment DGE
+Sagesman: AQ
+Sedan: Återgår till bas
 ```
 
 **Output-struktur:**
 ```
-# 7S RAPPORT — [Till]
-Från: [Namn]
-TNR: [Nummer]
-Stund: [Tidstämpel]
-...
+---
+id: 7S-...
+typ: 7S-rapport
+tnr: "221520"
+tidpunkt: "2026-06-22T15:20:00"
+plats: "Långkärrsvägen"
+lat: 59.49063
+lon: 17.46740
+location: "59.49063,17.46740"
+sagesman: AQ
+---
+
+**TNR:** 221520
+
+**Stund:** 2026-06-22 15:20
+
+**Ställe:** Långkärrsvägen
+
+**Styrka:** 1
+
+**Slag:** Vi
+
+**Sysselsättning:** Patrull
+
+**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]
+
+**Sagesman:** AQ
 ```
+
+Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 **Status i DB:** Om meddelande är en 7S RAPPORT markeras det som *processed* efter första körningen.
 
