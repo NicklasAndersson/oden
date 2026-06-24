@@ -15,16 +15,12 @@ async function loadConfigForm() {
         document.getElementById('cfg-timezone').value = config.timezone || 'Europe/Stockholm';
         document.getElementById('cfg-append-window').value = config.append_window_minutes || 30;
         document.getElementById('cfg-startup-message').value = config.startup_message || 'self';
-        document.getElementById('cfg-filename-format').value = config.filename_format || 'classic';
-        document.getElementById('cfg-plus-plus').checked = config.plus_plus_enabled || false;
 
         // Advanced tab
         document.getElementById('cfg-signal-host').value = config.signal_cli_host || '127.0.0.1';
         document.getElementById('cfg-signal-port').value = config.signal_cli_port || 7583;
         document.getElementById('cfg-signal-path').value = config.signal_cli_path || '';
         document.getElementById('cfg-unmanaged').checked = config.unmanaged_signal_cli || false;
-        document.getElementById('cfg-web-enabled').checked = config.web_enabled !== false;
-        document.getElementById('cfg-web-port').value = config.web_port || 8080;
         document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
         document.getElementById('cfg-raw-retention-days').value = config.raw_message_retention_days || 30;
         document.getElementById('cfg-diagnostic-mode').checked = config.diagnostic_mode || false;

@@ -553,7 +553,6 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
                 {
                     "append_window_minutes": 30,
                     "startup_message": "self",
-                    "plus_plus_enabled": False,
                     "timezone": "Europe/Stockholm",
                     "web_enabled": True,
                     "web_port": 8080,

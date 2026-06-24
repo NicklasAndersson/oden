@@ -28,7 +28,6 @@ DEFAULT_CONFIG = {
     "startup_message": "self",
     "ignored_groups": [],
     "whitelist_groups": [],
-    "plus_plus_enabled": False,
     "filename_format": "classic",
     "log_level": "INFO",
     "log_file": None,  # Default set per-platform in config.py
@@ -68,7 +67,6 @@ TYPE_MAP = {
     "startup_message": "str",
     "ignored_groups": "json",
     "whitelist_groups": "json",
-    "plus_plus_enabled": "bool",
     "filename_format": "str",
     "log_level": "str",
     "log_file": "str",
