@@ -91,20 +91,20 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
 
-        self.assertIn('typ: 7S-rapport', content)
+        self.assertIn("typ: 7S-rapport", content)
         self.assertIn('tnr: "221520"', content)
         self.assertIn('tidpunkt: "2026-06-22T15:20:00"', content)
         self.assertIn('plats: "Långkärrsvägen"', content)
-        self.assertIn('lat: 59.49063', content)
-        self.assertIn('lon: 17.46740', content)
+        self.assertIn("lat: 59.49063", content)
+        self.assertIn("lon: 17.46740", content)
         self.assertIn('location: "59.49063,17.46740"', content)
-        self.assertIn('sagesman: AQ', content)
-        self.assertIn('**TNR:** 221520', content)
-        self.assertIn('**Stund:** 2026-06-22 15:20', content)
-        self.assertIn('**Ställe:** Långkärrsvägen', content)
-        self.assertIn('**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]', content)
-        self.assertNotIn('# 7S RAPPORT', content)
-        self.assertNotIn('## Metadata', content)
+        self.assertIn("sagesman: AQ", content)
+        self.assertIn("**TNR:** 221520", content)
+        self.assertIn("**Stund:** 2026-06-22 15:20", content)
+        self.assertIn("**Ställe:** Långkärrsvägen", content)
+        self.assertIn("**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]", content)
+        self.assertNotIn("# 7S RAPPORT", content)
+        self.assertNotIn("## Metadata", content)
 
     @patch("oden.pipelines.seven_s.get_app_state")
     async def test_run_adds_collision_suffix_to_filename_and_tnr(self, mock_get_app_state):
@@ -130,7 +130,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             content = output_path.read_text(encoding="utf-8")
 
         self.assertIn('tnr: "221520_2"', content)
-        self.assertIn('**TNR:** 221520_2', content)
+        self.assertIn("**TNR:** 221520_2", content)
 
     async def test_run_skips_non_7s(self):
         pipeline = SevenSPipeline()

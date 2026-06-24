@@ -137,7 +137,6 @@ def _link_remaining_plates(text: str) -> str:
     return "".join(linked_segments)
 
 
-
 def _build_7s_filepath(group_title: str, tnr_base: str) -> tuple[str, str]:
     group_dir = get_safe_group_dir_path(group_title)
     os.makedirs(group_dir, exist_ok=True)
