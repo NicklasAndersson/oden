@@ -339,6 +339,7 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             self.assertIn("enabled", data)
             self.assertIn("stats", data)
             self.assertTrue(any(p["name"] == "seven_s" for p in data["available"]))
+            self.assertTrue(any(p["name"] == "fors" for p in data["available"]))
             self.assertTrue(any(p["name"] == "generic_template" for p in data["available"]))
 
     async def test_toggle_pipeline_disable_updates_enabled_list(self):

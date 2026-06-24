@@ -2,6 +2,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from oden.config_db import init_db
 from oden.messages_db import STATUS_FAILED, STATUS_PROCESSED, create_raw_message, get_message_detail
@@ -148,3 +149,13 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(warning_events), 1)
         self.assertEqual(warning_events[0]["details"]["field"], "sagesman")
         self.assertEqual(warning_events[0]["details"]["value"], "2A GRUPP")
+
+    async def test_build_pipelines_defaults_include_fors_after_seven_s(self):
+        orchestrator = PipelineOrchestrator(self.db_path)
+
+        with patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", []):
+            pipelines = orchestrator._build_pipelines()
+
+        self.assertEqual(
+            [pipeline.name for pipeline in pipelines], ["group_filter", "seven_s", "fors", "generic_template"]
+        )

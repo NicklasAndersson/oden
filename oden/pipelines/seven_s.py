@@ -6,21 +6,24 @@ entry. Non-matching messages are skipped so downstream pipelines can process.
 
 from __future__ import annotations
 
-import datetime
-import json
 import logging
-import os
 import re
-import unicodedata
-import uuid
 from typing import Any
 
 import mgrs
 
-from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.formatting import get_safe_group_dir_path
 from oden.link_formatter import apply_regex_links
+from oden.pipelines.structured_report import (
+    StructuredReportContext,
+    StructuredReportPipeline,
+    build_base_frontmatter,
+    is_structured_report_message,
+    iter_nonempty_lines,
+    normalize_label,
+    parse_labeled_fields,
+    resolve_report_datetime,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +66,7 @@ _PARTIAL_PLATE_RE = re.compile(r"\b(?=[A-Z0-9.]*\.)([A-Z.]{3}[0-9.]{2}[0-9A-Z.])
 
 
 def _normalize_label(label: str) -> str:
-    text = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode("ascii")
-    text = text.strip().lower()
-    text = re.sub(r"[^a-z0-9]+", "", text)
-    return _LABEL_ALIASES.get(text, text)
-
-
-def _yaml_quote(value: str) -> str:
-    return json.dumps(value, ensure_ascii=False)
+    return normalize_label(label, _LABEL_ALIASES)
 
 
 def _extract_location(stalle: str) -> tuple[str, float | None, float | None]:
@@ -93,33 +89,6 @@ def _extract_location(stalle: str) -> tuple[str, float | None, float | None]:
     return address or stalle.strip(), lat, lon
 
 
-def _resolve_observation_datetime(stund: str, reference_dt: datetime.datetime) -> datetime.datetime:
-    if not re.fullmatch(r"\d{6}", stund):
-        raise ValueError("7S Stund must be DDHHMM")
-
-    day = int(stund[0:2])
-    hour = int(stund[2:4])
-    minute = int(stund[4:6])
-
-    try:
-        candidate = reference_dt.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
-    except ValueError as exc:
-        raise ValueError("7S Stund is not a valid local date/time") from exc
-
-    if candidate > reference_dt:
-        year = reference_dt.year
-        month = reference_dt.month - 1
-        if month == 0:
-            month = 12
-            year -= 1
-        try:
-            candidate = candidate.replace(year=year, month=month)
-        except ValueError as exc:
-            raise ValueError("7S Stund is not a valid local date/time") from exc
-
-    return candidate
-
-
 def _link_remaining_plates(text: str) -> str:
     def wrap_full(match: re.Match[str]) -> str:
         return f"[[{match.group(1).upper()}]]"
@@ -140,122 +109,49 @@ def _link_remaining_plates(text: str) -> str:
     return "".join(linked_segments)
 
 
-def _build_7s_filepath(group_title: str, tnr_base: str) -> tuple[str, str]:
-    group_dir = get_safe_group_dir_path(group_title)
-    os.makedirs(group_dir, exist_ok=True)
-
-    tnr = tnr_base
-    counter = 2
-    while True:
-        filename = f"TNR{tnr}.md"
-        filepath = os.path.join(group_dir, filename)
-        if not os.path.exists(filepath):
-            return filepath, tnr
-        tnr = f"{tnr_base}_{counter}"
-        counter += 1
-
-
 def is_7s_message(message_text: str | None) -> bool:
-    if not message_text:
-        return False
-    for line in message_text.splitlines():
-        if line.strip():
-            return line.strip().upper().startswith("7S RAPPORT")
-    return False
+    return is_structured_report_message(message_text, ("7S RAPPORT",))
 
 
 def parse_7s_report(message_text: str) -> dict[str, str]:
-    lines = [line.strip() for line in message_text.splitlines() if line.strip()]
+    lines = iter_nonempty_lines(message_text)
     if not lines or not lines[0].upper().startswith("7S RAPPORT"):
         raise ValueError("Not a 7S report")
-
-    fields: dict[str, str] = {}
-    for line in lines[1:]:
-        if ":" not in line:
-            continue
-        label, value = line.split(":", 1)
-        key = _normalize_label(label)
-        if key in _REQUIRED_FIELDS or key in _OPTIONAL_FIELDS:
-            fields[key] = value.strip()
-
-    missing = sorted(_REQUIRED_FIELDS - set(fields.keys()))
-    if missing:
-        raise ValueError(f"7S report missing required fields: {', '.join(missing)}")
-
-    return fields
-
-
-def _extract_message_details(envelope: dict[str, Any]) -> tuple[str | None, str | None, str | None, int]:
-    dm = envelope.get("dataMessage") or {}
-    group_meta = dm.get("groupV2") or dm.get("group") or dm.get("groupInfo") or {}
-    timestamp = envelope.get("timestamp") or 0
-    return (
-        dm.get("message") or dm.get("body"),
-        group_meta.get("name") or group_meta.get("title") or group_meta.get("groupName"),
-        group_meta.get("id") or group_meta.get("groupId"),
-        int(timestamp) if isinstance(timestamp, int | float) else 0,
+    return parse_labeled_fields(
+        lines[1:],
+        required_fields=_REQUIRED_FIELDS,
+        optional_fields=_OPTIONAL_FIELDS,
+        normalize=_normalize_label,
+        error_prefix="7S report",
     )
 
 
-class SevenSPipeline:
+class SevenSPipeline(StructuredReportPipeline):
     """Special pipeline that parses and stores 7S reports."""
 
     name = "seven_s"
     display_name = "7S RAPPORT-pipeline"
     description = "Parserar strukturerade 7S RAPPORT-meddelanden och sparar dem som separat rapportfil."
     selection_criteria = "Körs när första icke-tomma raden i meddelandet börjar med '7S RAPPORT'."
+    header_prefixes = ("7S RAPPORT",)
+    report_id_prefix = "7S"
+    report_type = "7S-rapport"
 
-    async def run(
-        self,
-        *,
-        msg_data: dict[str, Any],
-        reader: Any,
-        writer: Any,
-    ) -> bool:
-        del reader, writer  # Not used by this pipeline currently.
-        self.last_warnings: list[dict[str, str]] = []
+    def _get_app_state(self) -> Any:
+        return get_app_state()
 
-        envelope = msg_data.get("envelope", {})
-        if not envelope:
-            return False
+    def parse_report(self, message_text: str) -> dict[str, str]:
+        return parse_7s_report(message_text)
 
-        if "syncMessage" in envelope and "dataMessage" not in envelope:
-            return False
-
-        message_text, group_title, group_id, timestamp_ms = _extract_message_details(envelope)
-        if not is_7s_message(message_text):
-            return False
-
-        fields = parse_7s_report(message_text or "")
-
-        source_name = envelope.get("sourceName")
-        source_number = envelope.get("sourceNumber") or envelope.get("source")
-        source_name = get_app_state().resolve_contact_name(source_number, source_name)
-
-        dt = (
-            datetime.datetime.fromtimestamp(timestamp_ms / 1000, tz=cfg.TIMEZONE)
-            if timestamp_ms
-            else datetime.datetime.now(cfg.TIMEZONE)
-        )
-        signal_timestamp_ms = envelope.get("serverReceivedTimestamp") or timestamp_ms
-        signal_dt = (
-            datetime.datetime.fromtimestamp(signal_timestamp_ms / 1000, tz=cfg.TIMEZONE) if signal_timestamp_ms else dt
-        )
-        source_id = envelope.get("sourceUuid")
-        if not source_number:
-            raise ValueError("7S Signal sender number is missing")
-        if not source_id:
-            raise ValueError("7S Signal sender id is missing")
-
+    def build_report_datetime(self, *, fields: dict[str, str], reference_dt: Any) -> Any:
         raw_tnr = fields["tnr"].strip()
         raw_stund = fields["stund"].strip()
         if not re.fullmatch(r"\d{6}", raw_tnr):
             raise ValueError("7S TNR must be DDHHMM")
-        # TNR identifies the submitted report, while Stund captures when the
-        # observation happened. They are both DDHHMM but may legitimately differ.
-        if not re.fullmatch(r"\d{6}", raw_stund):
-            raise ValueError("7S Stund must be DDHHMM")
+        return resolve_report_datetime(raw_stund, reference_dt, field_label="7S Stund")
 
+    def render_report(self, context: StructuredReportContext) -> str:
+        fields = context.fields
         sagesman = fields["sagesman"].strip().upper()
         if not re.fullmatch(r"[A-E]Q", sagesman):
             warning = {
@@ -269,44 +165,33 @@ class SevenSPipeline:
                 sagesman,
             )
 
-        observation_dt = _resolve_observation_datetime(raw_stund, dt)
-        resolved_tnr = raw_tnr
-
-        resolved_group_title = group_title or "inbox"
-        filepath, resolved_tnr = _build_7s_filepath(resolved_group_title, resolved_tnr)
-
         plats, lat, lon = _extract_location(fields["stalle"])
-        tidpunkt = observation_dt.strftime("%Y-%m-%dT%H:%M:%S")
-        signal_tidpunkt = signal_dt.strftime("%Y-%m-%dT%H:%M:%S")
-        stund_display = observation_dt.strftime("%Y-%m-%d %H:%M")
+        stund_display = context.report_dt.strftime("%Y-%m-%d %H:%M")
         symbol_raw = fields["symbol"].strip()
         symbol = _link_remaining_plates(apply_regex_links(symbol_raw) or symbol_raw)
 
-        frontmatter_lines = [
-            "---",
-            f"id: 7S-{uuid.uuid4()}",
-            "typ: 7S-rapport",
-            f"tnr: {_yaml_quote(resolved_tnr)}",
-            f"tidpunkt: {_yaml_quote(tidpunkt)}",
-            f"signal_tidpunkt: {_yaml_quote(signal_tidpunkt)}",
-            f"signal_avsandare_nummer: {_yaml_quote(source_number)}",
-            f"signal_avsandare_id: {_yaml_quote(source_id)}",
-            f"plats: {_yaml_quote(plats)}",
-        ]
+        extra_fields = [f"plats: {build_base_frontmatter.__globals__['yaml_quote'](plats)}"]
         if lat is not None and lon is not None:
             lat_str = f"{lat:.5f}"
             lon_str = f"{lon:.5f}"
-            frontmatter_lines.extend(
+            extra_fields.extend(
                 [
                     f"lat: {lat_str}",
                     f"lon: {lon_str}",
-                    f"location: {_yaml_quote(f'{lat_str},{lon_str}')}",
+                    f"location: {build_base_frontmatter.__globals__['yaml_quote'](f'{lat_str},{lon_str}')}",
                 ]
             )
-        frontmatter_lines.extend([f"sagesman: {sagesman}", "---", ""])
+        extra_fields.append(f"sagesman: {sagesman}")
+
+        frontmatter_lines = build_base_frontmatter(
+            report_id_prefix=self.report_id_prefix,
+            report_type=self.report_type,
+            context=context,
+            extra_fields=extra_fields,
+        )
 
         body_lines = [
-            f"**TNR:** {resolved_tnr}",
+            f"**TNR:** {context.resolved_tnr}",
             "",
             f"**Stund:** {stund_display}",
             "",
@@ -328,9 +213,4 @@ class SevenSPipeline:
         if sedan:
             body_lines.extend([f"**Sedan:** {sedan}", ""])
 
-        content = "\n".join(frontmatter_lines + body_lines)
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        return True
+        return "\n".join(frontmatter_lines + body_lines)
