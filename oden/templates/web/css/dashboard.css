@@ -656,13 +656,18 @@ td {
     color: var(--color-text-subtle);
 }
 .pipeline-settings-row select,
-.pipeline-settings-row textarea {
+.pipeline-settings-row textarea,
+.pipeline-settings-row input[type="text"] {
     width: 100%;
     padding: 6px;
     border: 1px solid var(--color-border);
     border-radius: 4px;
     background: var(--color-bg-surface);
     color: #fff;
+}
+.regex-row-inline {
+    display: flex;
+    align-items: center;
 }
 .pipeline-settings-actions {
     display: flex;
