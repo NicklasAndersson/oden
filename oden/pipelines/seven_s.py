@@ -56,7 +56,7 @@ _LABEL_ALIASES = {
 
 _PLATE_ALPHABET = "ABCDEFGHJKLMNPRSTUWXYZ"
 _FULL_PLATE_RE = re.compile(rf"\b([{_PLATE_ALPHABET}]{{3}}[0-9]{{2}}[0-9{_PLATE_ALPHABET}])\b", re.IGNORECASE)
-_PARTIAL_PLATE_RE = re.compile(r"\b([A-Z.]{3}[0-9.]{2}[0-9A-Z.])\b", re.IGNORECASE)
+_PARTIAL_PLATE_RE = re.compile(r"\b(?=[A-Z0-9.]*\.)([A-Z.]{3}[0-9.]{2}[0-9A-Z.])\b", re.IGNORECASE)
 
 
 def _normalize_label(label: str) -> str:
@@ -122,10 +122,7 @@ def _link_remaining_plates(text: str) -> str:
         return f"[[{match.group(1).upper()}]]"
 
     def wrap_partial(match: re.Match[str]) -> str:
-        plate = match.group(1).upper()
-        if "." not in plate:
-            return plate
-        return f"[[{plate}]]"
+        return f"[[{match.group(1).upper()}]]"
 
     linked_segments: list[str] = []
     for segment in re.split(r"(\[\[[^\]]+\]\])", text):
@@ -139,10 +136,6 @@ def _link_remaining_plates(text: str) -> str:
 
     return "".join(linked_segments)
 
-
-def _link_symbol_text(text: str) -> str:
-    linked = apply_regex_links(text) or text
-    return _link_remaining_plates(linked)
 
 
 def _build_7s_filepath(group_title: str, tnr_base: str) -> tuple[str, str]:
@@ -262,7 +255,8 @@ class SevenSPipeline:
         plats, lat, lon = _extract_location(fields["stalle"])
         tidpunkt = observation_dt.strftime("%Y-%m-%dT%H:%M:%S")
         stund_display = observation_dt.strftime("%Y-%m-%d %H:%M")
-        symbol = _link_symbol_text(fields["symbol"].strip())
+        symbol_raw = fields["symbol"].strip()
+        symbol = _link_remaining_plates(apply_regex_links(symbol_raw) or symbol_raw)
 
         frontmatter_lines = [
             "---",

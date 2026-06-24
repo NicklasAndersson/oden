@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 .gemeni/
+.claude/
 
 # Byte-compiled / optimized / DLL files
 *.pyc

@@ -7,6 +7,26 @@ from unittest.mock import AsyncMock, Mock, patch
 from oden import config as cfg
 from oden.pipelines.seven_s import SevenSPipeline, is_7s_message, parse_7s_report
 
+_TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
+
+
+def _make_msg_data(*, sagesman="AQ", stalle="Långkärrsvägen", symbol="Svart", group="7s-test"):
+    return {
+        "envelope": {
+            "sourceName": "Nicklas",
+            "sourceNumber": "+46701234567",
+            "timestamp": _TIMESTAMP,
+            "dataMessage": {
+                "message": (
+                    f"7S RAPPORT\nTill: TST\nFrån: TS\nTNR: 221520\nStund: 221520\n"
+                    f"Ställe: {stalle}\nStyrka: 1\nSlag: Vi\nSysselsättning: Patrull\n"
+                    f"Symbol: {symbol}\nSagesman: {sagesman}\nSedan: Återgår till bas\n"
+                ),
+                "groupV2": {"name": group, "id": "group123"},
+            },
+        }
+    }
+
 
 class TestSevenSPipelineHelpers(unittest.TestCase):
     def test_is_7s_message_true(self):
@@ -55,31 +75,10 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
             pipeline = SevenSPipeline()
-            timestamp = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
-            msg_data = {
-                "envelope": {
-                    "sourceName": "Nicklas",
-                    "sourceNumber": "+46701234567",
-                    "timestamp": timestamp,
-                    "dataMessage": {
-                        "message": (
-                            "7S RAPPORT\n"
-                            "Till: TST\n"
-                            "Från: TS\n"
-                            "TNR: 221520\n"
-                            "Stund: 221520\n"
-                            "Ställe: 34VCM 79349 26095, Långkärrsvägen\n"
-                            "Styrka: 1\n"
-                            "Slag: Vi\n"
-                            "Sysselsättning: Patrull\n"
-                            "Symbol: ABC123 och logotyp-fragment DGE\n"
-                            "Sagesman: AQ\n"
-                            "Sedan: Återgår till bas\n"
-                        ),
-                        "groupV2": {"name": "7s-test", "id": "group123"},
-                    },
-                }
-            }
+            msg_data = _make_msg_data(
+                stalle="34VCM 79349 26095, Långkärrsvägen",
+                symbol="ABC123 och logotyp-fragment DGE",
+            )
 
             handled = await pipeline.run(
                 msg_data=msg_data,
@@ -119,34 +118,8 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             (group_dir / "TNR221520.md").write_text("existing\n", encoding="utf-8")
 
             pipeline = SevenSPipeline()
-            timestamp = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
-            msg_data = {
-                "envelope": {
-                    "sourceName": "Nicklas",
-                    "sourceNumber": "+46701234567",
-                    "timestamp": timestamp,
-                    "dataMessage": {
-                        "message": (
-                            "7S RAPPORT\n"
-                            "Till: TST\n"
-                            "Från: TS\n"
-                            "TNR: 221520\n"
-                            "Stund: 221520\n"
-                            "Ställe: Långkärrsvägen\n"
-                            "Styrka: 1\n"
-                            "Slag: Vi\n"
-                            "Sysselsättning: Patrull\n"
-                            "Symbol: Svart\n"
-                            "Sagesman: AQ\n"
-                            "Sedan: Återgår till bas\n"
-                        ),
-                        "groupV2": {"name": "7s-test", "id": "group123"},
-                    },
-                }
-            }
-
             handled = await pipeline.run(
-                msg_data=msg_data,
+                msg_data=_make_msg_data(),
                 reader=AsyncMock(),
                 writer=AsyncMock(),
             )
@@ -189,35 +162,9 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
             pipeline = SevenSPipeline()
-            timestamp = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
-            msg_data = {
-                "envelope": {
-                    "sourceName": "Nicklas",
-                    "sourceNumber": "+46701234567",
-                    "timestamp": timestamp,
-                    "dataMessage": {
-                        "message": (
-                            "7S RAPPORT\n"
-                            "Till: TST\n"
-                            "Från: TS\n"
-                            "TNR: 221520\n"
-                            "Stund: 221520\n"
-                            "Ställe: Långkärrsvägen\n"
-                            "Styrka: 1\n"
-                            "Slag: Vi\n"
-                            "Sysselsättning: Patrull\n"
-                            "Symbol: Svart\n"
-                            "Sagesman: 2A GRUPP\n"
-                            "Sedan: Återgår till bas\n"
-                        ),
-                        "groupV2": {"name": "7s-test", "id": "group123"},
-                    },
-                }
-            }
-
             with self.assertRaisesRegex(ValueError, "Sagesman"):
                 await pipeline.run(
-                    msg_data=msg_data,
+                    msg_data=_make_msg_data(sagesman="2A GRUPP"),
                     reader=AsyncMock(),
                     writer=AsyncMock(),
                 )
