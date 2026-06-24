@@ -1,6 +1,10 @@
+import datetime
+import tempfile
 import unittest
-from unittest.mock import AsyncMock, Mock, mock_open, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
 
+from oden import config as cfg
 from oden.pipelines.seven_s import SevenSPipeline, is_7s_message, parse_7s_report
 
 
@@ -23,7 +27,7 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
             "Slag: Personbil\n"
             "Sysselsättning: Spanar\n"
             "Symbol: Svart\n"
-            "Sagesman: 2A GRUPP\n"
+            "Sagesman: AQ\n"
             "Sedan: Fortsätter spaning\n"
         )
 
@@ -42,55 +46,120 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
 
 
 class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
-    @patch("oden.pipelines.seven_s.open", new_callable=mock_open)
-    @patch("oden.pipelines.seven_s.os.makedirs")
-    @patch("oden.pipelines.seven_s.get_message_filepath")
     @patch("oden.pipelines.seven_s.get_app_state")
-    async def test_run_handles_7s_and_writes_file(self, mock_get_app_state, mock_get_path, mock_makedirs, mock_file):
-        mock_get_path.return_value = "/tmp/vault/7s/220932-test.md"
-
+    @patch("oden.config.REGEX_PATTERNS", {"custom_feature": r"logotyp-fragment DGE"})
+    async def test_run_handles_7s_and_writes_spec_file(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        pipeline = SevenSPipeline()
-        msg_data = {
-            "envelope": {
-                "sourceName": "Nicklas",
-                "sourceNumber": "+46701234567",
-                "timestamp": 1765890600000,
-                "dataMessage": {
-                    "message": (
-                        "7S RAPPORT\n"
-                        "Till: TILL_NAMN\n"
-                        "Från: FRAN_NAMN\n"
-                        "TNR: 220932\n"
-                        "Stund: 220930\n"
-                        "Ställe: 33VXF 56007 96107\n"
-                        "Styrka: 2\n"
-                        "Slag: Personbil\n"
-                        "Sysselsättning: Spanar\n"
-                        "Symbol: Svart\n"
-                        "Sagesman: 2A GRUPP\n"
-                        "Sedan: Fortsätter spaning\n"
-                    ),
-                    "groupV2": {"name": "7s-test", "id": "group123"},
-                },
+        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+            pipeline = SevenSPipeline()
+            timestamp = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
+            msg_data = {
+                "envelope": {
+                    "sourceName": "Nicklas",
+                    "sourceNumber": "+46701234567",
+                    "timestamp": timestamp,
+                    "dataMessage": {
+                        "message": (
+                            "7S RAPPORT\n"
+                            "Till: TST\n"
+                            "Från: TS\n"
+                            "TNR: 221520\n"
+                            "Stund: 221520\n"
+                            "Ställe: 34VCM 79349 26095, Långkärrsvägen\n"
+                            "Styrka: 1\n"
+                            "Slag: Vi\n"
+                            "Sysselsättning: Patrull\n"
+                            "Symbol: ABC123 och logotyp-fragment DGE\n"
+                            "Sagesman: AQ\n"
+                            "Sedan: Återgår till bas\n"
+                        ),
+                        "groupV2": {"name": "7s-test", "id": "group123"},
+                    },
+                }
             }
-        }
 
-        handled = await pipeline.run(
-            msg_data=msg_data,
-            reader=AsyncMock(),
-            writer=AsyncMock(),
-        )
+            handled = await pipeline.run(
+                msg_data=msg_data,
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
 
-        self.assertTrue(handled)
-        mock_makedirs.assert_called_once()
-        mock_file.assert_called_once_with("/tmp/vault/7s/220932-test.md", "w", encoding="utf-8")
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "7s-test" / "TNR221520.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
 
-    @patch("oden.pipelines.seven_s.open", new_callable=mock_open)
-    async def test_run_skips_non_7s(self, mock_file):
+        self.assertIn('typ: 7S-rapport', content)
+        self.assertIn('tnr: "221520"', content)
+        self.assertIn('tidpunkt: "2026-06-22T15:20:00"', content)
+        self.assertIn('plats: "Långkärrsvägen"', content)
+        self.assertIn('lat: 59.49063', content)
+        self.assertIn('lon: 17.46740', content)
+        self.assertIn('location: "59.49063,17.46740"', content)
+        self.assertIn('sagesman: AQ', content)
+        self.assertIn('**TNR:** 221520', content)
+        self.assertIn('**Stund:** 2026-06-22 15:20', content)
+        self.assertIn('**Ställe:** Långkärrsvägen', content)
+        self.assertIn('**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]', content)
+        self.assertNotIn('# 7S RAPPORT', content)
+        self.assertNotIn('## Metadata', content)
+
+    @patch("oden.pipelines.seven_s.get_app_state")
+    async def test_run_adds_collision_suffix_to_filename_and_tnr(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+            group_dir = Path(tmpdir) / "7s-test"
+            group_dir.mkdir(parents=True, exist_ok=True)
+            (group_dir / "TNR221520.md").write_text("existing\n", encoding="utf-8")
+
+            pipeline = SevenSPipeline()
+            timestamp = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
+            msg_data = {
+                "envelope": {
+                    "sourceName": "Nicklas",
+                    "sourceNumber": "+46701234567",
+                    "timestamp": timestamp,
+                    "dataMessage": {
+                        "message": (
+                            "7S RAPPORT\n"
+                            "Till: TST\n"
+                            "Från: TS\n"
+                            "TNR: 221520\n"
+                            "Stund: 221520\n"
+                            "Ställe: Långkärrsvägen\n"
+                            "Styrka: 1\n"
+                            "Slag: Vi\n"
+                            "Sysselsättning: Patrull\n"
+                            "Symbol: Svart\n"
+                            "Sagesman: AQ\n"
+                            "Sedan: Återgår till bas\n"
+                        ),
+                        "groupV2": {"name": "7s-test", "id": "group123"},
+                    },
+                }
+            }
+
+            handled = await pipeline.run(
+                msg_data=msg_data,
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = group_dir / "TNR221520_2.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn('tnr: "221520_2"', content)
+        self.assertIn('**TNR:** 221520_2', content)
+
+    async def test_run_skips_non_7s(self):
         pipeline = SevenSPipeline()
         msg_data = {
             "envelope": {
@@ -111,4 +180,44 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertFalse(handled)
-        mock_file.assert_not_called()
+
+    @patch("oden.pipelines.seven_s.get_app_state")
+    async def test_run_rejects_invalid_sagesman_for_schema(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+            pipeline = SevenSPipeline()
+            timestamp = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
+            msg_data = {
+                "envelope": {
+                    "sourceName": "Nicklas",
+                    "sourceNumber": "+46701234567",
+                    "timestamp": timestamp,
+                    "dataMessage": {
+                        "message": (
+                            "7S RAPPORT\n"
+                            "Till: TST\n"
+                            "Från: TS\n"
+                            "TNR: 221520\n"
+                            "Stund: 221520\n"
+                            "Ställe: Långkärrsvägen\n"
+                            "Styrka: 1\n"
+                            "Slag: Vi\n"
+                            "Sysselsättning: Patrull\n"
+                            "Symbol: Svart\n"
+                            "Sagesman: 2A GRUPP\n"
+                            "Sedan: Återgår till bas\n"
+                        ),
+                        "groupV2": {"name": "7s-test", "id": "group123"},
+                    },
+                }
+            }
+
+            with self.assertRaisesRegex(ValueError, "Sagesman"):
+                await pipeline.run(
+                    msg_data=msg_data,
+                    reader=AsyncMock(),
+                    writer=AsyncMock(),
+                )

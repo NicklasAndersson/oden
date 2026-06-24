@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvss.example/7S_frontmatter.schema.json",
+  "title": "7S-rapport frontmatter",
+  "description": "Schema for the YAML frontmatter of a 7S report Markdown file produced by the central application. Validates the machine-readable properties only; the Markdown body (the seven 7S fields) is specified in FORMAT_SPEC.md §5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "typ",
+    "tnr",
+    "tidpunkt",
+    "plats",
+    "sagesman"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable unique identifier, unique across the whole vault. Format '7S-NNN' in sample data; any stable string (e.g. UUID) in production.",
+      "examples": [
+        "7S-004",
+        "b1f2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+      ]
+    },
+    "typ": {
+      "const": "7S-rapport",
+      "description": "Constant discriminator separating reports from other notes (e.g. entity stubs created later by the plugin)."
+    },
+    "tnr": {
+      "type": "string",
+      "pattern": "^[0-9]{6}(_[0-9]+)?$",
+      "description": "Tidsnummer DDHHMM, optionally with a collision suffix _n. String (may carry leading zeros and underscore). Matches the filename TNR part without the 'TNR' prefix.",
+      "examples": [
+        "140755",
+        "140755_2"
+      ]
+    },
+    "tidpunkt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+      "description": "ISO 8601 local datetime (no timezone offset). The authoritative timestamp of the observation.",
+      "examples": [
+        "2026-02-14T07:55:00"
+      ]
+    },
+    "plats": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Free-text place name. Always quoted in YAML because it may contain special characters.",
+      "examples": [
+        "Grusparkering vid motionsspåret",
+        "Vägren E4 avfart söderut"
+      ]
+    },
+    "lat": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90,
+      "description": "WGS84 latitude in decimal degrees (~5 decimals). Omit entirely if coordinates unknown — do not use null or 0.",
+      "examples": [
+        59.26608
+      ]
+    },
+    "lon": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180,
+      "description": "WGS84 longitude in decimal degrees (~5 decimals). Omit entirely if coordinates unknown.",
+      "examples": [
+        17.70644
+      ]
+    },
+    "sagesman": {
+      "type": "string",
+      "pattern": "^[A-E]Q$",
+      "description": "Reporting unit call sign. Company QO; line platoons AQ/BQ/CQ/DQ, staff platoon EQ. (Production may use finer signs; widen this pattern then.)",
+      "examples": [
+        "AQ",
+        "CQ",
+        "EQ"
+      ]
+    },
+    "location": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^-?[0-9]+(\\.[0-9]+)?,-?[0-9]+(\\.[0-9]+)?$",
+          "description": "Map View text format 'lat,lon'."
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Map View list format [lat, lon]."
+        }
+      ],
+      "description": "Combined coordinate for the Obsidian Map View plugin (FORMAT_SPEC.md §8). REQUIRED when lat/lon are present and must mirror them exactly; omit only when coordinates are unknown. String form 'lat,lon' is used in this format; the [lat, lon] list form is also accepted by Map View."
+    }
+  },
+  "dependentRequired": {
+    "lat": [
+      "lon",
+      "location"
+    ],
+    "lon": [
+      "lat",
+      "location"
+    ]
+  },
+  "allOf": [
+    {
+      "$comment": "When coordinates are present, 'location' must be the string form 'lat,lon'. (Exact equality with lat/lon is enforced by the application, not expressible in JSON Schema.)",
+      "if": {
+        "required": [
+          "lat",
+          "lon"
+        ]
+      },
+      "then": {
+        "properties": {
+          "location": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?,-?[0-9]+(\\.[0-9]+)?$"
+          }
+        },
+        "required": [
+          "location"
+        ]
+      }
+    }
+  ]
+}

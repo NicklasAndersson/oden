@@ -9,6 +9,8 @@ Oden tar emot Signal-meddelanden via `signal-cli` och sparar dem som Markdown-fi
 | [SETUP_FLOW.md](SETUP_FLOW.md) | Setup-wizardens alla steg (hemkatalog, Signal-länkning, vault-sökväg) |
 | [WEB_GUI.md](WEB_GUI.md) | Web-gränssnittets alla sidor, flikar och komplett API-endpointstabell |
 | [REPORT_TEMPLATE.md](REPORT_TEMPLATE.md) | Jinja2-mallsystem — placeholders, syntax och anpassning |
+| [FORMAT_SPEC.md](FORMAT_SPEC.md) | Normativ specifikation för Oden 7S-utdata |
+| [7S_frontmatter.schema.json](7S_frontmatter.schema.json) | JSON-schema för 7S-frontmatter |
 
 ---
 
@@ -42,7 +44,7 @@ Oden tar emot Signal-meddelanden via `signal-cli` och sparar dem som Markdown-fi
 - **`config.py` / `config_db.py`** — Konfiguration via SQLite-databas (`config.db`). Exponerar konstanter som `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE` och DB-first/pipeline-inställningar.
 - **`app_state.py`** — Singleton med delat tillstånd. Central JSON-RPC-dispatcher: `send_jsonrpc()` registrerar Futures per request-id, `dispatch_line()` dirigerar svar och notifikationer.
 - **`signal_listener.py` / `pipeline_orchestrator.py`** — DB-first ingest: råmeddelanden sparas först i SQLite, därefter körs aktiva pipelines i ordning.
-- **`pipelines/`** — `generic_template.py` kapslar in nuvarande generiska beteende och `seven_s.py` hanterar 7S RAPPORT som specialfall.
+- **`pipelines/`** — `generic_template` kapslar in nuvarande generiska beteende och `seven_s.py` hanterar 7S RAPPORT som specialfall enligt separat format-spec.
 - **`messages_db.py` / `pipelines_db.py`** — Lagrar råmeddelanden, pipeline-runs och pipeline-events för revision och reprocess.
 - **`web_server.py` / `web_handlers/`** — aiohttp-baserat webbgränssnitt med setup-wizard och dashboard. Kontohantering via `account_handlers.py`.
 - **`template_loader.py`** — Jinja2-mallmotor med LRU-cache och sandboxed rendering.
@@ -135,6 +137,8 @@ Från och med Oden 3.0 lagras varje inkommande envelope först i SQLite som ett 
 #### Pipeline-ordning
 
 1. `SevenSPipeline` försöker matcha och validera 7S RAPPORT-format.
+  7S-inmatning förväntas komma från `HvSS-Innovation/7s-rapport` och därefter klistras in i Signal.
+  Pipeline-utdata följer [FORMAT_SPEC.md](FORMAT_SPEC.md) och frontmatter ska stämma med [7S_frontmatter.schema.json](7S_frontmatter.schema.json).
 2. Om meddelandet inte matchar eller om 7S-pipelinen är avstängd går det vidare till `GenericTemplatePipeline`.
 3. Varje körning loggas i `pipeline_runs` och detaljerade steg loggas i `pipeline_events`.
 4. Reprocess kan köras från Web GUI på en enskild meddelanderad.
