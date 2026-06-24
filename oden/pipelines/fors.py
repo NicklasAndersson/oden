@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from oden.pipelines.structured_report import (
     StructuredReportContext,
     StructuredReportPipeline,

@@ -56,6 +56,7 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
         "config_schema": {
             "type": "object",
             "properties": {
+                "vault_subdir_enabled": {"type": "boolean"},
                 "vault_subdir": {"type": "string"},
             },
         },
@@ -69,6 +70,7 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
         "config_schema": {
             "type": "object",
             "properties": {
+                "vault_subdir_enabled": {"type": "boolean"},
                 "vault_subdir": {"type": "string"},
             },
         },
@@ -82,6 +84,7 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
         "config_schema": {
             "type": "object",
             "properties": {
+                "vault_subdir_enabled": {"type": "boolean"},
                 "vault_subdir": {"type": "string"},
             },
         },

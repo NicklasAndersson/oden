@@ -455,6 +455,28 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             self.assertEqual(data["config"]["mode"], "blacklist")
             self.assertEqual(data["config"]["groups"], ["Alpha", "Bravo"])
 
+    async def test_update_pipeline_config_seven_s_subdir_toggle(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "config.db"
+
+            with (
+                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
+                unittest.mock.patch(
+                    "oden.web_handlers.pipeline_handlers.cfg.PIPELINE_SETTINGS",
+                    {},
+                ),
+            ):
+                resp = await self.client.patch(
+                    "/api/pipelines/seven_s/config",
+                    json={"config": {"vault_subdir_enabled": True, "vault_subdir": "spaningsrapporter"}},
+                )
+
+            self.assertEqual(resp.status, 200)
+            data = await resp.json()
+            self.assertTrue(data["success"])
+            self.assertTrue(data["config"]["vault_subdir_enabled"])
+            self.assertEqual(data["config"]["vault_subdir"], "spaningsrapporter")
+
 
 class TestMessageObservabilityAPI(AioHTTPTestCase):
     """Tests for /api/messages endpoints."""

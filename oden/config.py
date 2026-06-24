@@ -261,15 +261,17 @@ def _migrate_settings_to_pipelines(app_config: dict) -> None:
         old_auto_reaction = app_config.get("auto_reaction_enabled", False)
         old_auto_reaction_emoji = app_config.get("auto_reaction_emoji", "✅")
         old_auto_read_receipt = app_config.get("auto_read_receipt_enabled", False)
+        old_filename_format = app_config.get("filename_format", "classic")
 
         # Only migrate if any of these have non-default values
-        if old_regex or old_auto_reaction or old_auto_read_receipt:
+        if old_regex or old_auto_reaction or old_auto_read_receipt or old_filename_format != "classic":
             generic_config = {
                 "templates": {"report_md": "", "append_md": ""},
                 "regex_patterns": old_regex,
                 "auto_reaction_enabled": old_auto_reaction,
                 "auto_reaction_emoji": old_auto_reaction_emoji,
                 "auto_read_receipt_enabled": old_auto_read_receipt,
+                "filename_format": old_filename_format,
             }
             pipeline_settings["generic_template"] = generic_config
             app_config["pipeline_settings"] = pipeline_settings
@@ -358,7 +360,7 @@ def reload_config() -> dict:
     WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
     STARTUP_MESSAGE = app_config.get("startup_message", "self")
     PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
-    FILENAME_FORMAT = app_config.get("filename_format", "classic")
+    FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
     LOG_LEVEL = app_config["log_level"]
@@ -531,7 +533,9 @@ try:
     WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
     STARTUP_MESSAGE = app_config.get("startup_message", "self")
     PLUS_PLUS_ENABLED = app_config.get("plus_plus_enabled", False)
-    FILENAME_FORMAT = app_config.get("filename_format", "classic")
+    pipeline_settings = app_config.get("pipeline_settings", {})
+    generic_config = pipeline_settings.get("generic_template", {})
+    FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
     LOG_LEVEL = app_config.get("log_level", logging.INFO)

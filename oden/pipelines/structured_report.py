@@ -303,7 +303,11 @@ class StructuredReportPipeline:
 
         # vault_subdir: per-pipeline settings win over class-level default
         pipeline_settings = cfg.PIPELINE_SETTINGS.get(self.name, {}) if isinstance(cfg.PIPELINE_SETTINGS, dict) else {}
-        effective_vault_subdir = pipeline_settings.get("vault_subdir", self.vault_subdir)
+        configured_subdir = pipeline_settings.get("vault_subdir", self.vault_subdir)
+        enabled_override = pipeline_settings.get("vault_subdir_enabled")
+        use_subdir = enabled_override if isinstance(enabled_override, bool) else bool(configured_subdir)
+
+        effective_vault_subdir = configured_subdir if use_subdir else None
 
         filepath, resolved_tnr = build_report_filepath(effective_vault_subdir, raw_tnr, prefix=self.file_prefix)
 

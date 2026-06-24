@@ -19,6 +19,12 @@ DEFAULT_GENERIC_TEMPLATE_SETTINGS: dict[str, Any] = {
     "auto_reaction_enabled": False,
     "auto_reaction_emoji": "✅",
     "auto_read_receipt_enabled": False,
+    "filename_format": "classic",
+}
+
+DEFAULT_STRUCTURED_REPORT_SETTINGS: dict[str, Any] = {
+    "vault_subdir_enabled": False,
+    "vault_subdir": "",
 }
 
 
@@ -53,7 +59,29 @@ def normalize_pipeline_settings(value: Any) -> dict[str, Any]:
     return {
         "group_filter": normalize_group_filter_settings(value.get("group_filter")),
         "generic_template": normalize_generic_template_settings(value.get("generic_template")),
+        "seven_s": normalize_structured_report_settings(value.get("seven_s")),
+        "fors": normalize_structured_report_settings(value.get("fors")),
+        "pedars": normalize_structured_report_settings(value.get("pedars")),
     }
+
+
+def normalize_structured_report_settings(value: Any) -> dict[str, Any]:
+    """Normalize settings for structured report pipelines (7S/FORS/PEDARS)."""
+    settings = dict(DEFAULT_STRUCTURED_REPORT_SETTINGS)
+    if not isinstance(value, dict):
+        return settings
+
+    raw_subdir = value.get("vault_subdir", "")
+    if isinstance(raw_subdir, str):
+        settings["vault_subdir"] = raw_subdir.strip()
+
+    if isinstance(value.get("vault_subdir_enabled"), bool):
+        settings["vault_subdir_enabled"] = value["vault_subdir_enabled"]
+    else:
+        # Backward compatibility: if older configs only had vault_subdir, infer enabled.
+        settings["vault_subdir_enabled"] = bool(settings["vault_subdir"])
+
+    return settings
 
 
 def normalize_generic_template_settings(value: Any) -> dict[str, Any]:
@@ -100,6 +128,13 @@ def normalize_generic_template_settings(value: Any) -> dict[str, Any]:
     # Normalize auto_read_receipt
     if "auto_read_receipt_enabled" in value and isinstance(value["auto_read_receipt_enabled"], bool):
         settings["auto_read_receipt_enabled"] = value["auto_read_receipt_enabled"]
+
+    # Normalize filename_format
+    filename_format = value.get("filename_format")
+    if isinstance(filename_format, str):
+        filename_format = filename_format.strip()
+        if filename_format in {"classic", "tnr", "tnr-name"}:
+            settings["filename_format"] = filename_format
 
     return settings
 
