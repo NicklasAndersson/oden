@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from oden.dependency_diagnostics import (
     _classify_native_load_error,
@@ -18,7 +18,7 @@ class TestDependencyDiagnostics(unittest.TestCase):
         reason, hint = _classify_native_load_error(Exception("DLL load failed: VCRUNTIME140.dll"))
 
         self.assertEqual(reason, "missing_vc_runtime")
-        self.assertIn("visual", hint.lower())
+        self.assertIn("visual", hint)
 
     @patch("oden.dependency_diagnostics.platform.machine", return_value="x86_64")
     @patch("oden.dependency_diagnostics.platform.system", return_value="Windows")
