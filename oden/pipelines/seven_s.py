@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Any
 
 from oden.dependency_diagnostics import _get_mgrs_converter
 from oden.link_formatter import apply_regex_links
