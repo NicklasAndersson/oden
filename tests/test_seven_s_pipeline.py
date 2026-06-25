@@ -5,7 +5,13 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 from oden import config as cfg
-from oden.pipelines.seven_s import SevenSPipeline, _extract_location, is_7s_message, parse_7s_report
+from oden.pipelines.seven_s import (
+    SevenSPipeline,
+    _classify_mgrs_load_error,
+    _extract_location,
+    is_7s_message,
+    parse_7s_report,
+)
 
 _TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
 _SERVER_RECEIVED_TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 9, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
@@ -107,6 +113,29 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
         self.assertEqual(plats, stalle)
         self.assertIsNone(lat)
         self.assertIsNone(lon)
+
+    def test_classify_mgrs_load_error_missing_file(self):
+        reason, hint = _classify_mgrs_load_error(Exception("Unable to load libmgrs.cp312-win_amd64.pyd"))
+
+        self.assertEqual(reason, "missing_file")
+        self.assertIn("missing", hint.lower())
+
+    def test_classify_mgrs_load_error_missing_vc_runtime(self):
+        reason, hint = _classify_mgrs_load_error(Exception("DLL load failed while importing core: VCRUNTIME140.dll"))
+
+        self.assertEqual(reason, "missing_vc_runtime")
+        self.assertIn("visual c++", hint.lower())
+
+    def test_classify_mgrs_load_error_wrong_arch(self):
+        reason, hint = _classify_mgrs_load_error(Exception("%1 is not a valid Win32 application"))
+
+        self.assertEqual(reason, "wrong_arch")
+        self.assertIn("architecture", hint.lower())
+
+    @patch("oden.pipelines.seven_s._get_mgrs_converter")
+    def test_pipeline_init_runs_mgrs_self_check(self, mock_get_mgrs_converter):
+        SevenSPipeline()
+        mock_get_mgrs_converter.assert_called_once_with()
 
 
 class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):

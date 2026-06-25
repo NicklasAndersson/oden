@@ -63,6 +63,45 @@ _FULL_PLATE_RE = re.compile(rf"\b([{_PLATE_ALPHABET}]{{3}}[0-9]{{2}}[0-9{_PLATE_
 _PARTIAL_PLATE_RE = re.compile(r"\b(?=[A-Z0-9.]*\.)([A-Z.]{3}[0-9.]{2}[0-9A-Z.])\b", re.IGNORECASE)
 
 
+def _classify_mgrs_load_error(exc: Exception) -> tuple[str, str]:
+    """Classify likely root cause when mgrs native loading fails."""
+    text = str(exc).lower()
+
+    if (
+        "%1 is not a valid win32 application" in text
+        or "not a valid win32 application" in text
+        or "wrong architecture" in text
+        or "bad cpu type" in text
+    ):
+        return (
+            "wrong_arch",
+            "Binary architecture mismatch between Oden, Python runtime, and libmgrs.",
+        )
+
+    if "vcruntime" in text or "msvcp" in text or "api-ms-win-crt" in text:
+        return (
+            "missing_vc_runtime",
+            "Microsoft Visual C++ Redistributable (2015-2022) is likely missing.",
+        )
+
+    if (
+        "unable to load libmgrs" in text
+        or "no such file or directory" in text
+        or "cannot open shared object file" in text
+        or "image not found" in text
+        or "the specified module could not be found" in text
+    ):
+        return (
+            "missing_file",
+            "libmgrs native files are missing, blocked, or not bundled in the app image.",
+        )
+
+    return (
+        "unknown",
+        "Unknown native-load issue; verify bundled files, VC runtime, and architecture alignment.",
+    )
+
+
 @lru_cache(maxsize=1)
 def _get_mgrs_converter() -> Any | None:
     """Return an MGRS->LatLon converter or None when mgrs is unavailable."""
@@ -71,7 +110,13 @@ def _get_mgrs_converter() -> Any | None:
 
         return mgrs_module.MGRS().toLatLon
     except Exception as exc:
-        logger.warning("MGRS conversion unavailable; continuing without coordinates (%s)", exc)
+        reason, hint = _classify_mgrs_load_error(exc)
+        logger.warning(
+            "MGRS conversion unavailable (%s); %s Original error: %s",
+            reason,
+            hint,
+            exc,
+        )
         return None
 
 
@@ -156,6 +201,11 @@ class SevenSPipeline(StructuredReportPipeline):
     header_prefixes = ("7S RAPPORT",)
     report_id_prefix = "7S"
     report_type = "7S-rapport"
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Run one early self-check so startup logs contain actionable diagnostics.
+        _get_mgrs_converter()
 
     def parse_report(self, message_text: str) -> dict[str, str]:
         return parse_7s_report(message_text)
