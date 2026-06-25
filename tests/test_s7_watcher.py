@@ -12,6 +12,7 @@ from oden.signal_manager import SignalManager, build_signal_cli_command, is_sign
 
 
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
+    @patch("oden.s7_watcher.run_startup_dependency_diagnostics")
     @patch("oden.s7_watcher._create_tray", return_value=None)
     @patch("oden.s7_watcher.is_configured", return_value=(True, None))
     @patch("oden.config.validate_signal_number", return_value=(True, None, []))
@@ -23,7 +24,13 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
     @patch("oden.s7_watcher.SIGNAL_CLI_HOST", "1.2.3.4")
     @patch("oden.s7_watcher.SIGNAL_CLI_PORT", 1234)
     def test_main_managed_success(
-        self, mock_subscribe, mock_signal_manager_class, mock_validate, mock_is_configured, mock_tray
+        self,
+        mock_subscribe,
+        mock_signal_manager_class,
+        mock_validate,
+        mock_is_configured,
+        mock_tray,
+        mock_dependency_diagnostics,
     ):
         """Tests main in managed mode with successful execution."""
         mock_manager_instance = mock_signal_manager_class.return_value
@@ -32,6 +39,7 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
             s7_main()
 
         self.assertEqual(cm.exception.code, 0)
+        mock_dependency_diagnostics.assert_called_once_with()
         mock_signal_manager_class.assert_called_once_with("1.2.3.4", 1234)
         mock_manager_instance.start.assert_called_once()
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)

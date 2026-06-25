@@ -29,6 +29,7 @@ from oden.config import (
     is_configured,
     reload_config,
 )
+from oden.dependency_diagnostics import run_startup_dependency_diagnostics
 from oden.log_utils import apply_log_level, configure_logging, write_log_level
 from oden.signal_listener import subscribe_and_listen
 from oden.signal_manager import SignalManager, is_signal_cli_running
@@ -234,6 +235,7 @@ def main() -> None:
     configure_logging()
 
     logger.info(f"Starting Oden v{__version__}...")
+    run_startup_dependency_diagnostics()
 
     # Auto-recover pointer file if missing but config.db exists at default location
     _is_configured, _config_error = is_configured()
