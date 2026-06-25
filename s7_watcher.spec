@@ -61,8 +61,9 @@ _mgrs_binaries = []
 _mgrs_spec = importlib.util.find_spec('mgrs')
 if _mgrs_spec and _mgrs_spec.origin:
     _site_pkgs = os.path.dirname(os.path.dirname(_mgrs_spec.origin))
-    for _lib in glob.glob(os.path.join(_site_pkgs, 'libmgrs*.so')):
-        _mgrs_binaries.append((_lib, '.'))
+    for _pattern in ('libmgrs*.so', 'libmgrs*.dylib', 'libmgrs*.pyd', 'libmgrs*.dll'):
+        for _lib in glob.glob(os.path.join(_site_pkgs, _pattern)):
+            _mgrs_binaries.append((_lib, '.'))
 
 a = Analysis(
     ['oden/s7_watcher.py'],
