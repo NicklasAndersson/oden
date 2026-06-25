@@ -100,12 +100,12 @@ begin
 	begin
 		OdenHome := GetOdenHomeFromPointer();
 		if OdenHome = '' then
-			OdenHome := ExpandConstant('{userprofile}\.oden');
+			OdenHome := ExpandConstant('{%USERPROFILE}\.oden');
 
 		DeleteDirectoryIfSafe(OdenHome);
 		DeleteDirectoryIfSafe(ExpandConstant('{userappdata}\Oden'));
 		DeleteDirectoryIfSafe(ExpandConstant('{localappdata}\Oden'));
 		DeleteDirectoryIfSafe(ExpandConstant('{localappdata}\signal-cli'));
-		DeleteDirectoryIfSafe(ExpandConstant('{userprofile}\.local\share\signal-cli'));
+		DeleteDirectoryIfSafe(ExpandConstant('{%USERPROFILE}\.local\share\signal-cli'));
 	end;
 end;
