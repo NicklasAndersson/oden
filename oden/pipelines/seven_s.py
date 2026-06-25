@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import logging
 import re
+from functools import lru_cache
 from typing import Any
-
-import mgrs
 
 from oden.link_formatter import apply_regex_links
 from oden.pipelines.structured_report import (
@@ -64,6 +63,31 @@ _FULL_PLATE_RE = re.compile(rf"\b([{_PLATE_ALPHABET}]{{3}}[0-9]{{2}}[0-9{_PLATE_
 _PARTIAL_PLATE_RE = re.compile(r"\b(?=[A-Z0-9.]*\.)([A-Z.]{3}[0-9.]{2}[0-9A-Z.])\b", re.IGNORECASE)
 
 
+@lru_cache(maxsize=1)
+def _get_mgrs_converter() -> Any | None:
+    """Return an MGRS->LatLon converter or None when mgrs is unavailable."""
+    try:
+        import mgrs as mgrs_module
+
+        return mgrs_module.MGRS().toLatLon
+    except Exception as exc:
+        logger.warning("MGRS conversion unavailable; continuing without coordinates (%s)", exc)
+        return None
+
+
+def _mgrs_to_latlon(mgrs_str: str) -> tuple[float, float] | None:
+    converter = _get_mgrs_converter()
+    if converter is None:
+        return None
+
+    try:
+        lat, lon = converter(mgrs_str)
+        return float(lat), float(lon)
+    except Exception as exc:
+        logger.debug("Failed to convert MGRS %r to coordinates: %s", mgrs_str, exc)
+        return None
+
+
 def _normalize_label(label: str) -> str:
     return normalize_label(label, _LABEL_ALIASES)
 
@@ -77,14 +101,11 @@ def _extract_location(stalle: str) -> tuple[str, float | None, float | None]:
     mgrs_str = parts[0].strip()
     address = parts[1].strip() if len(parts) > 1 else ""
 
-    lat = None
-    lon = None
-    try:
-        m = mgrs.MGRS()
-        lat, lon = m.toLatLon(mgrs_str)
-    except Exception as e:
-        logging.getLogger(__name__).debug(f"Failed to convert MGRS '{mgrs_str}' to coordinates: {e}")
+    coords = _mgrs_to_latlon(mgrs_str)
+    if coords is None:
+        return stalle.strip(), None, None
 
+    lat, lon = coords
     return address or stalle.strip(), lat, lon
 
 

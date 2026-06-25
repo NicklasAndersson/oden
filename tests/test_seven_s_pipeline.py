@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 from oden import config as cfg
-from oden.pipelines.seven_s import SevenSPipeline, is_7s_message, parse_7s_report
+from oden.pipelines.seven_s import SevenSPipeline, _extract_location, is_7s_message, parse_7s_report
 
 _TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 5, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
 _SERVER_RECEIVED_TIMESTAMP = int(datetime.datetime(2026, 6, 22, 19, 31, 9, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
@@ -99,6 +99,15 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_7s_report(text)
 
+    @patch("oden.pipelines.seven_s._mgrs_to_latlon", return_value=None)
+    def test_extract_location_keeps_full_stalle_when_mgrs_unavailable(self, _mock_mgrs_to_latlon):
+        stalle = "34VCM 79349 26095, Långkärrsvägen"
+        plats, lat, lon = _extract_location(stalle)
+
+        self.assertEqual(plats, stalle)
+        self.assertIsNone(lat)
+        self.assertIsNone(lon)
+
 
 class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
     @patch("oden.pipelines.structured_report.get_app_state")
@@ -144,6 +153,37 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("**Sedan:** Återgår till bas", content)
         self.assertNotIn("# 7S RAPPORT", content)
         self.assertNotIn("## Metadata", content)
+
+    @patch("oden.pipelines.structured_report.get_app_state")
+    @patch("oden.pipelines.seven_s._mgrs_to_latlon", return_value=None)
+    async def test_run_keeps_full_stalle_and_omits_coordinates_when_mgrs_unavailable(
+        self,
+        _mock_mgrs_to_latlon,
+        mock_get_app_state,
+    ):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+            pipeline = SevenSPipeline()
+            msg_data = _make_msg_data(stalle="34VCM 79349 26095, Långkärrsvägen")
+
+            handled = await pipeline.run(
+                msg_data=msg_data,
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "TNR221520.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn('plats: "34VCM 79349 26095, Långkärrsvägen"', content)
+        self.assertNotIn("lat:", content)
+        self.assertNotIn("lon:", content)
+        self.assertNotIn("location:", content)
 
     @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_adds_collision_suffix_to_filename_and_tnr(self, mock_get_app_state):
