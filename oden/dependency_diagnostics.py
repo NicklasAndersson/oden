@@ -10,6 +10,7 @@ import shutil
 import sys
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from oden.bundle_utils import get_bundled_java_path, is_bundled
 from oden.signal_manager import find_signal_cli_executable
@@ -40,6 +41,24 @@ def _classify_native_load_error(exc: Exception) -> tuple[str, str]:
         return "missing_file", "native file missing, blocked, or not bundled"
 
     return "unknown", "unknown native loader failure"
+
+
+@lru_cache(maxsize=1)
+def _get_mgrs_converter() -> Any | None:
+    """Return an MGRS->LatLon converter, or None if mgrs is unavailable."""
+    try:
+        import mgrs as mgrs_module
+
+        return mgrs_module.MGRS().toLatLon
+    except Exception as exc:
+        reason, hint = _classify_native_load_error(exc)
+        logger.warning(
+            "Dependency check: mgrs unavailable (%s: %s). Original error: %s",
+            reason,
+            hint,
+            exc,
+        )
+        return None
 
 
 def _diagnose_java() -> None:
@@ -91,18 +110,8 @@ def _diagnose_signal_cli() -> None:
 
 
 def _diagnose_mgrs() -> None:
-    try:
-        mgrs_module = importlib.import_module("mgrs")
-        _ = mgrs_module.MGRS().toLatLon
+    if _get_mgrs_converter() is not None:
         logger.info("Dependency check: mgrs native module loaded")
-    except Exception as exc:
-        reason, hint = _classify_native_load_error(exc)
-        logger.warning(
-            "Dependency check: mgrs unavailable (%s: %s). Original error: %s",
-            reason,
-            hint,
-            exc,
-        )
 
 
 def _diagnose_optional_ui_deps() -> None:
