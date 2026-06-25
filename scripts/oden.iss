@@ -42,7 +42,7 @@ var
 function GetOdenHomeFromPointer(): string;
 var
 	PointerPath: string;
-	Content: string;
+	Content: AnsiString;
 begin
 	Result := '';
 	PointerPath := ExpandConstant('{userappdata}\Oden\oden_home.txt');
