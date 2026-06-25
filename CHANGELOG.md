@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-06-25
+
+### Fixed
+
+- **Windows MGRS-fallback**: Förhindrar krasch på Windows när native MGRS-bibliotek saknas genom att använda säker fallback-path i 7S-flödet
+
+### Changed
+
+- **Beroenden**: Uppdaterade flera beroenden och dev-beroenden (`mgrs`, `aiohttp`, `pytest`, `ruff`, `playwright`) samt GitHub Actions (`actions/cache`, `actions/checkout`)
+
 ## [3.1.0] - 2026-06-24
 
 ### Added
