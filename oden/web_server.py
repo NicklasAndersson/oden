@@ -8,6 +8,7 @@ and initial setup wizard for first-run configuration.
 import asyncio
 import base64
 import logging
+from pathlib import Path
 
 import aiohttp_jinja2
 import jinja2
@@ -98,6 +99,22 @@ from oden.web_handlers.template_handlers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_logo_path(bundle_path: Path) -> Path | None:
+    """Resolve the preferred web GUI logo path.
+
+    Prefer the current logo asset first, then legacy fallbacks.
+    """
+    candidates = [
+        bundle_path / "images" / "logo.png",
+        bundle_path / "images" / "oden_1024.png",
+        bundle_path / "images" / "logo_small.jpg",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 async def index_handler(request: web.Request) -> web.Response:
@@ -212,9 +229,10 @@ def create_app(setup_mode: bool = False) -> web.Application:
         loader=jinja2.PackageLoader("oden", "templates/web"),
         autoescape=jinja2.select_autoescape(["html"]),
     )
-    logo_path = get_bundle_path() / "images" / "oden_1024.png"
-    if logo_path.exists():
-        env.globals["oden_logo_uri"] = "data:image/png;base64," + base64.b64encode(logo_path.read_bytes()).decode()
+    logo_path = _resolve_logo_path(get_bundle_path())
+    if logo_path is not None:
+        mime_type = "image/jpeg" if logo_path.suffix.lower() in {".jpg", ".jpeg"} else "image/png"
+        env.globals["oden_logo_uri"] = f"data:{mime_type};base64," + base64.b64encode(logo_path.read_bytes()).decode()
 
     # Setup routes (always available)
     app.router.add_get("/setup", setup_handler)

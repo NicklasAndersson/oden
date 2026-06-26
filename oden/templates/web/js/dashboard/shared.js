@@ -19,7 +19,7 @@ function showConfigMessage(message, type) {
         msgDiv.classList.add('success');
         msgDiv.querySelector('.icon').textContent = '✓';
     } else {
-        msgDiv.querySelector('.icon').textContent = '⚠️';
+        msgDiv.querySelector('.icon').textContent = '⚠';
     }
     msgDiv.classList.add('show');
     setTimeout(() => msgDiv.classList.remove('show'), 5000);
