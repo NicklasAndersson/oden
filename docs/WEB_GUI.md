@@ -202,6 +202,8 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 | GET | `/api/config` | Hämta all konfiguration (JSON) |
 | POST | `/api/config-save` | Spara konfiguration (formulärdata) |
 | DELETE | `/api/config/reset` | Återställ konfiguration |
+| GET | `/api/signal-cli/status` | Hämta signal-cli-status |
+| POST | `/api/signal-cli/restart` | Starta om signal-cli-processen |
 | POST | `/api/shutdown` | Stäng ner Oden |
 
 #### Signal-konton
@@ -260,6 +262,7 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 |-------|--------|-------------|
 | GET | `/api/pipelines` | Lista tillgängliga pipelines, aktiva pipelines och körningsstatistik |
 | PATCH | `/api/pipelines/{name}/enabled` | Aktivera/inaktivera en pipeline |
+| PATCH | `/api/pipelines/{name}/config` | Uppdatera pipeline-specifik konfiguration |
 | POST | `/api/pipelines/reorder` | Uppdatera körordning för aktiva pipelines |
 
 #### Mallar

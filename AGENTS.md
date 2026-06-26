@@ -10,22 +10,23 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 │ (pystray)   │     │ (entry point)│     │ TCP:7583     │
 └─────────────┘     └──────┬───────┘     │ (daemon mode)│
                            │             └──────────────┘
-              ┌────────────┼────────────┐
-              │            │            │
-     ┌────────▼──┐  ┌──────▼─────┐ ┌────▼────────┐
-     │processing │  │ web_server │ │ config.py   │
-     │(messages) │  │ (GUI/API)  │ │ config_db   │
-     └────────┬──┘  └──────┬─────┘ │ (SQLite)    │
-              │            │       └─────────────┘
-     ┌────────▼──┐  ┌──────▼─────────────────────┐
-     │template_  │  │ web_handlers/              │
-     │loader     │  │  setup / config / groups   │
-     │(Jinja2)   │  │  templates / accounts      │
-     └───────────┘  └───────────────────────────-┘
+                ┌────────────┼────────────────┬────────────┐
+                │            │                │            │
+          ┌────────▼──────┐ ┌───▼──────────┐ ┌───▼────────┐ ┌─▼───────────┐
+          │signal_listener│ │ web_server   │ │ config.py  │ │messages_db/ │
+          │ + orchestrator│ │ (GUI/API)    │ │ config_db  │ │pipelines_db │
+          └───────┬───────┘ └──────┬───────┘ │ (SQLite)   │ │ (SQLite)    │
+               │                │         └────────────┘ └─────────────┘
+          ┌───────▼───────┐  ┌─────▼────────────────────────┐
+          │processing +   │  │ web_handlers/                │
+          │template_loader│  │ setup/config/groups/messages │
+          │(fallback flow)│  │ pipelines/templates/accounts │
+          └───────────────┘  └──────────────────────────────┘
 ```
 
-- **s7_watcher.py**: Entry point. Manages signal-cli subprocess, TCP connection, startup tasks, web GUI, tray icon. Reader loop runs as background task (`_reader_loop`) to avoid deadlocking startup RPC calls
-- **processing.py**: Core logic. Parses messages, handles commands (`#help`), append mode (`++`), file I/O
+- **s7_watcher.py**: Entry point. Manages signal-cli subprocess, TCP connection, startup tasks, web GUI, tray icon. Starts `subscribe_and_listen()` as a background task in the lifecycle loop
+- **signal_listener.py**: Owns the TCP reader loop (`_reader_loop`) and receive-notification processing; persists raw messages first when DB-first is enabled
+- **processing.py**: Core fallback logic. Parses messages, handles commands (`#help`), reply-append, file I/O
 - **config.py**: Loads config from `config_db`, exports constants like `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE`
 - **config_db.py**: SQLite config database (`config.db`). Key-value store with type-aware serialization, integrity checking
 - **app_state.py**: Singleton application state — holds references to writer, signal-cli process, web runner, tray icon. Central JSON-RPC dispatcher: `send_jsonrpc()` registers Futures by request id, `dispatch_line()` routes incoming lines (RPC responses → Futures, notifications → queue)
@@ -76,8 +77,9 @@ from oden.config_db import get_config_value, set_config_value
 1. Messages arrive via `receive` method notifications
 2. `process_message()` extracts envelope, checks ignore rules
 3. Commands (`#help`) → look up keyword in `responses` table in config_db
-4. Append mode: `++` prefix or reply within 30 min → append to existing file
-5. New messages → create timestamped markdown file in `vault/{group_name}/`
+4. Reply append: quoted replies within 30 min can append to existing file
+5. Messages prefixed with `++` are treated as normal messages (legacy `++` append removed)
+6. New messages → create timestamped markdown file in `vault/{group_name}/`
 
 ## Development
 
@@ -119,6 +121,8 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 - Live logs (polls every 3 seconds)
 - Groups list with ignore/whitelist toggle
 - Join group via Signal invite link, accept/decline pending invitations
+- Message management tab (raw messages, detail view, reprocess)
+- Pipelines tab (enable/disable, reorder, per-pipeline config)
 - Template editor with split-screen preview
 - Signal accounts tab (list, link via QR, activate, delete, force-delete)
 - Shutdown button

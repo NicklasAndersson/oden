@@ -135,7 +135,7 @@ Aktivera eller inaktivera en pipeline.
 ```json
 {
   "success": true,
-  "updated_list": ["seven_s", "generic_template"]
+  "updated_list": ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
 }
 ```
 
@@ -154,7 +154,7 @@ Aktivera eller inaktivera en pipeline.
 ```json
 {
   "success": true,
-  "updated_list": ["generic_template", "seven_s"]
+  "updated_list": ["group_filter", "pedars", "seven_s", "fors", "generic_template"]
 }
 ```
 
@@ -240,7 +240,7 @@ Inga nya databastabeller krävs för v1. Vi använder befintlig `config`-tabell:
 -- Sparad i config-tabellen
 {
   "key": "enabled_pipelines",
-  "value": "["seven_s", "generic_template"]",
+  "value": "[\"group_filter\", \"seven_s\", \"fors\", \"pedars\", \"generic_template\"]",
   "type": "json"
 }
 ```

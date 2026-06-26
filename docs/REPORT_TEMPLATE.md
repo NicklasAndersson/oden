@@ -9,7 +9,7 @@ Templates are located in the `templates/` directory:
 | File | Purpose |
 |------|---------|
 | `report.md.j2` | Template for new reports |
-| `append.md.j2` | Template for appended messages (reply/++) |
+| `append.md.j2` | Mall för append via reply/quote |
 
 ## Placeholders
 

@@ -39,8 +39,8 @@ Oden tar emot Signal-meddelanden via `signal-cli` och sparar dem som Markdown-fi
 
 **Komponenter:**
 
-- **`s7_watcher.py`** — Startpunkt. Hanterar signal-cli-processen, TCP-anslutning, Web GUI och tray-ikon. Reader-loop körs som bakgrundstask (`_reader_loop`).
-- **`processing.py`** — Kärnlogik. Parsar meddelanden, hanterar kommandon, append-läge och fil-I/O.
+- **`s7_watcher.py`** — Startpunkt. Hanterar signal-cli-processen, TCP-anslutning, Web GUI och tray-ikon. Startar lyssnaren som bakgrundstask via `subscribe_and_listen()`.
+- **`processing.py`** — Kärnlogik för generisk rapportskrivning. Parsar meddelanden, hanterar kommandon, reply-append och fil-I/O.
 - **`config.py` / `config_db.py`** — Konfiguration via SQLite-databas (`config.db`). Exponerar konstanter som `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE` och DB-first/pipeline-inställningar.
 - **`app_state.py`** — Singleton med delat tillstånd. Central JSON-RPC-dispatcher: `send_jsonrpc()` registrerar Futures per request-id, `dispatch_line()` dirigerar svar och notifikationer.
 - **`signal_listener.py` / `pipeline_orchestrator.py`** — DB-first ingest: råmeddelanden sparas först i SQLite, därefter körs aktiva pipelines i ordning.
@@ -74,7 +74,7 @@ sequenceDiagram
     alt Meddelande börjar med --
         Processor-->>Watcher: Ignorerar meddelandet
 
-    else Meddelande är ett svar eller börjar med ++
+    else Meddelande är ett svar (reply/quote)
         Processor->>Vault: Finns en nylig fil från avsändaren?
 
         alt Ja (filen är inom append-fönstret)
@@ -120,7 +120,7 @@ När ett meddelande tas emot via JSON-RPC bearbetas det i följande ordning:
 2. **Whitelist-kontroll** — Om `whitelist_groups` är satt, tillåts *enbart* de grupperna (har prioritet över `ignored_groups`).
 3. **Ignore-kontroll** — Om gruppen finns i `ignored_groups`, avbryts bearbetningen.
 4. **Separator `--`** — Om meddelandet börjar med `--` ignoreras det tyst. Inget sparas.
-5. **Append-logik** — Se avsnitt nedan.
+5. **Reply-append** — Om meddelandet är ett svar (quote), försök append inom tidsfönstret.
 6. **Kommando `#`** — Se avsnitt [Kommandon & autosvar](#kommandon--autosvar).
 7. **Nytt meddelande** — Skapar en ny Markdown-fil i valvet.
 
@@ -131,17 +131,18 @@ Från och med Oden 3.0 lagras varje inkommande envelope först i SQLite som ett 
 | Nyckel | Typ | Standard | Beskrivning |
 |--------|-----|----------|-------------|
 | `db_first_enabled` | boolean | `True` | Om `False` körs det gamla direkta flödet utan persist-first |
-| `enabled_pipelines` | JSON-lista | `['seven_s', 'generic_template']` | Lista över aktiva pipelines i körordning |
+| `enabled_pipelines` | JSON-lista | `['group_filter', 'seven_s', 'fors', 'pedars', 'generic_template']` | Lista över aktiva pipelines i körordning |
 | `raw_message_retention_days` | integer | `30` | Rensar råmeddelanden och pipeline-events äldre än angivet antal dagar |
 
 #### Pipeline-ordning
 
-1. `SevenSPipeline` försöker matcha och validera 7S RAPPORT-format.
-  7S-inmatning förväntas komma från `HvSS-Innovation/7s-rapport` och därefter klistras in i Signal.
-  Pipeline-utdata följer [FORMAT_SPEC.md](FORMAT_SPEC.md) och frontmatter ska stämma med [7S_frontmatter.schema.json](7S_frontmatter.schema.json).
-2. Om meddelandet inte matchar eller om 7S-pipelinen är avstängd går det vidare till `GenericTemplatePipeline`.
-3. Varje körning loggas i `pipeline_runs` och detaljerade steg loggas i `pipeline_events`.
-4. Reprocess kan köras från Web GUI på en enskild meddelanderad.
+1. `group_filter` körs först och kan markera meddelandet som ignorerat enligt pipeline-inställningarna.
+2. `seven_s` försöker matcha och validera 7S RAPPORT-format.
+3. `fors` försöker matcha FORS-RAPPORT-format.
+4. `pedars` försöker matcha PEDARS-underhållsrapport.
+5. `generic_template` är fallback och hanterar resterande meddelanden.
+6. Varje körning loggas i `pipeline_runs` och detaljerade steg loggas i `pipeline_events`.
+7. Reprocess kan köras från Web GUI på en enskild meddelanderad.
 
 #### Meddelandehantering i GUI
 
@@ -164,18 +165,11 @@ När ett meddelande inte matchar något specialfall skapas en ny `.md`-fil:
 6. **Jinja2-mall renderas** — `report.md.j2`-mallen renderas med alla variabler.
 7. **Fil skrivs** — till `vault/{gruppnamn}/DDHHMM-telefon-namn.md` (beroende på `filename_format`).
 
-### Append-läge (`++`)
+### Legacy: `++`-prefix
 
-Append-läget gör det möjligt att lägga till innehåll i en befintlig rapport istället för att skapa en ny fil.
+`++`-prefixet används inte längre för append-flödet. Meddelanden som börjar med `++` behandlas som vanliga nya meddelanden.
 
-| Egenskap | Beskrivning |
-|----------|-------------|
-| **Aktivering** | `plus_plus_enabled` måste vara `True` (standard: `False`) |
-| **Prefix** | Meddelandet måste börja med `++` |
-| **Tidsfönster** | Avsändarens senaste fil måste vara skapad inom `append_window_minutes` (standard: 30 minuter) |
-| **Fillokalisering** | Söker efter `fileid` i frontmatter, med filnamns-fallback för bakåtkompatibilitet |
-| **Mall** | Använder `append.md.j2` istället för `report.md.j2` |
-| **Fallback** | Om ingen nylig fil hittas, behandlas meddelandet som nytt (utan `++`-prefixet) |
+Append sker i stället via reply/quote-logiken nedan.
 
 ### Reply-append
 
@@ -371,7 +365,7 @@ Filnamnet för sparade rapporter konfigureras via `filename_format`.
 |----------|-------------|
 | **Filid** | Varje rapport har ett `fileid`-fält i frontmatter (YAML). Format: `DDHHMM-telefon-namn` — konsekvent oavsett filnamnsformat. |
 | **Deduplicering** | Om en fil med samma namn redan finns, läggs `-1`, `-2`, etc. till som suffix. |
-| **Append-sökning** | Append-läget söker efter `fileid` i frontmatter för att hitta rätt fil, med filnamns-fallback för bakåtkompatibilitet. |
+| **Append-sökning** | Reply-append söker efter `fileid` i frontmatter för att hitta rätt fil, med filnamns-fallback för bakåtkompatibilitet. |
 
 ### Mappsökväg
 
@@ -470,9 +464,9 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 
 | Nyckel | Typ | Standard | Beskrivning |
 |--------|-----|----------|-------------|
-| `vault_path` | string | `~/vault` | Sökväg till Obsidian-valvet |
+| `vault_path` | string | `~/oden-vault` | Sökväg till Obsidian-valvet |
 | `signal_number` | string | `+46XXXXXXXXX` | Signal-telefonnummer |
-| `display_name` | string | *(tomt)* | Signal-visningsnamn |
+| `display_name` | string | `oden` | Signal-visningsnamn |
 | `timezone` | string | `Europe/Stockholm` | Tidszon för tidsstämplar |
 | `filename_format` | string | `classic` | Filnamnsformat: `classic`, `tnr`, `tnr-name` |
 | `log_level` | string | `INFO` | Loggnivå: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
@@ -492,13 +486,12 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 
 | Nyckel | Typ | Standard | Beskrivning |
 |--------|-----|----------|-------------|
-| `plus_plus_enabled` | boolean | `False` | Aktivera `++` append-prefix |
 | `append_window_minutes` | integer | `30` | Tidsfönster för append-läge (minuter) |
 | `group_split_enabled` | boolean | `True` | Om `True` sparas rapporter under `vault/gruppnamn/` |
 | `ignored_groups` | JSON-lista | `[]` | Gruppnamn att ignorera |
 | `whitelist_groups` | JSON-lista | `[]` | Om satt, enbart dessa grupper behandlas |
 | `regex_patterns` | JSON-objekt | *(3 standardmönster)* | Namngivna regex-mönster för autolänkning |
-| `startup_message` | string | `first` | Startmeddelande: `first`, `all`, `off` |
+| `startup_message` | string | `self` | Startmeddelande: `self`, `all`, `off` |
 
 #### Webb & loggning
 

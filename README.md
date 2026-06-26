@@ -48,6 +48,8 @@ Sista steget behövs eftersom vi saknar Apple-certifikat. Alternativt kan du hö
 
 ### Windows (inbyggd installationsfil)
 
+Om en Windows-installerare finns bifogad till releasen:
+
 **Manuell installation:**
 
 1. Ladda ner `.exe` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
@@ -238,7 +240,7 @@ Viktigt:
 - **Multi-account** - Hantera flera Signal-konton via *Signal-konton*-fliken (länka, aktivera, radera)
 - **System Tray** - Starta/stoppa, öppna GUI och avsluta Oden från systemfältet (macOS/Linux/Windows)
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
-- **`++` kommando** - Meddelanden som börjar med `++` läggs till i senaste rapporten *(avstängt per default, aktiveras i config)*
+- **`++` prefix** - Behandlas som vanligt meddelande (legacy append-prefix är borttaget)
 - **7S RAPPORT** - Specialpipeline för 7S-format som skriver specad 7S-utdata med schemaformad frontmatter
 - **Platslänkar** - Google Maps, Apple Maps och OSM-länkar omvandlas automatiskt till geo-koordinater
 - **Anpassningsbara rapportmallar** - Redigera Jinja2-mallar direkt i GUI:ns template-editor
@@ -284,6 +286,7 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 ![Web GUI - Dashboard](images/dashboard.png)
 
 **Funktioner:**
+
 - Visa och redigera konfiguration
 - Live-loggar (uppdateras var 3:e sekund)
 - Gå med i grupper via inbjudningslänk
@@ -318,7 +321,7 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 Oden fungerar bäst tillsammans med:
 
 | Programvara | Beskrivning | Länk |
-|-------------|-------------|------|
+| --- | --- | --- |
 | **Signal Desktop** | För att administrera grupper och se meddelanden | [signal.org/download](https://signal.org/download/) |
 | **Obsidian** | Markdown-editor för att läsa och organisera rapporter | [obsidian.md/download](https://obsidian.md/download) |
 | **Obsidian Map View** | Visa positioner från rapporter på en karta i Obsidian | [GitHub](https://github.com/esm7/obsidian-map-view) |

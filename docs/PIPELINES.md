@@ -14,13 +14,16 @@ Inkommande meddelande
          ▼
 [PipelineOrchestrator]
          │
-    ┌────┴────┬─────────┬─────────┐
-    │ 7S      │ Generic │ Framtida│
-    │ RAPPORT │ Template│ Pipeline│
-    ▼         ▼         ▼         ▼
- [Hanterat?] [Hanterat?] [...]   
-    │         │
-    └─────────┘
+     ┌────┴────┬──────┬───────┬─────────┐
+     │ Group   │ 7S   │ FORS  │ PEDARS  │
+     │ Filter  │      │       │         │
+     ▼         ▼      ▼       ▼
+   [Hanterat?] [Hanterat?] [Hanterat?] [Hanterat?]
+     │         │      │       │
+     └─────────┴──────┴───────┘
+            │
+            ▼
+        [Generic Template]
 ```
 
 ## Konfiguration
@@ -29,14 +32,17 @@ Pipelines aktiveras/deaktiveras via config-nyckeln `enabled_pipelines` (JSON-lis
 
 ```json
 {
-  "enabled_pipelines": ["seven_s", "generic_template"]
+  "enabled_pipelines": ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
 }
 ```
 
 **Ordning är viktig:** Pipelines körs i den ordning de anges. Primera pipeline som hanterar meddelandet stoppar kedjan.
 
 Nuvarande default:
-- `seven_s` — kör först och söker 7S RAPPORT:er
+- `group_filter` — kör först och kan stoppa/ignorera enligt filterregler
+- `seven_s` — söker och hanterar 7S RAPPORT
+- `fors` — söker och hanterar FORS-RAPPORT
+- `pedars` — söker och hanterar PEDARS-underhållsrapport
 - `generic_template` — fallback; hanterar resterande meddelanden
 
 ## Befintliga Pipelines
@@ -111,6 +117,43 @@ Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 ---
 
+### Gruppfilter-pipeline (`group_filter`)
+
+**Vad den väljer:** Meddelanden vars grupptitel matchar pipeline-regeln.
+
+**Vad den gör:**
+- Läser pipeline-inställningarna (`mode` + `groups`)
+- Om gruppen matchar regeln stoppas kedjan direkt
+- Meddelandet markeras som `ignored`
+
+**Inställningar:**
+- `mode`: `blacklist` eller `whitelist`
+- `groups`: lista med gruppnamn
+
+---
+
+### FORS-pipeline (`fors`)
+
+**Vad den väljer:** Meddelanden som börjar med `FORS-RAPPORT`.
+
+**Vad den gör:**
+- Parsar strukturerade FORS-fält
+- Validerar obligatoriska sektioner
+- Skriver separat rapportfil med FORS-frontmatter
+
+---
+
+### PEDARS-pipeline (`pedars`)
+
+**Vad den väljer:** Meddelanden som börjar med `PEDARS` / `PEDARS - UNDERHÅLLSRAPPORT`.
+
+**Vad den gör:**
+- Parsar strukturerade underhållsfält (personal, drivmedel, ammunition, reparationer)
+- Validerar obligatoriska delar
+- Skriver separat PEDARS-rapport
+
+---
+
 ### Generic Template-pipeline (`generic_template`)
 
 **Vad den väljer:** *Alla* meddelanden som inte redan hanterats.
@@ -118,7 +161,7 @@ Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 **Vad den gör:**
 - Använder legacy-logik från Oden 2.x (`process_message`)
 - Stöder Jinja2-mallar för rapportgenerering
-- Hanterar append-läge (`++`-prefix eller svar inom 30 min)
+- Hanterar reply-append (svar/quote inom `append_window_minutes`)
 - Är övergripande fallback för att ingen meddelande-data går förlorad
 
 **Meddelandeflöde:**
@@ -138,7 +181,7 @@ Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 ## Administrering
 
-### I Web-gränssnitt (kommande)
+### I Web-gränssnitt
 
 En ny flik **"Pipelines"** visar:
 - Aktiverade pipelines i körordning
@@ -151,11 +194,11 @@ En ny flik **"Pipelines"** visar:
 ```sql
 -- Visa aktiva pipelines
 SELECT value FROM config WHERE key = 'enabled_pipelines';
--- Resultat: ["seven_s", "generic_template"]
+-- Resultat: ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
 
 -- Ändra ordning eller aktivering
 UPDATE config 
-SET value = '["generic_template"]' 
+SET value = '["generic_template"]'
 WHERE key = 'enabled_pipelines';
 ```
 
