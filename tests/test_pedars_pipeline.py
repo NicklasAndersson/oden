@@ -118,7 +118,11 @@ class TestPedarsPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = PedarsPipeline()
 
             handled = await pipeline.run(

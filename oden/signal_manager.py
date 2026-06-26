@@ -7,6 +7,7 @@ Supports bundled JRE and signal-cli for macOS .app distribution.
 
 import logging
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -20,6 +21,65 @@ from oden.bundle_utils import get_bundle_path, get_bundled_java_path, is_bundled
 logger = logging.getLogger(__name__)
 
 _SIGNAL_CLI_MAIN_CLASS = "org.asamk.signal.Main"
+EXPECTED_SIGNAL_CLI_VERSION = "0.14.5"
+_VERSION_PATTERN = re.compile(r"(\d+\.\d+\.\d+(?:\.\d+)?)")
+
+
+def _parse_signal_cli_version(output: str) -> str | None:
+    """Extract semantic-ish version from signal-cli command output."""
+    if not output:
+        return None
+
+    match = _VERSION_PATTERN.search(output)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def _normalize_version(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def is_signal_cli_version_older(detected: str, expected: str) -> bool:
+    """Return True if detected version is lower than expected version."""
+    detected_parts = _normalize_version(detected)
+    expected_parts = _normalize_version(expected)
+    max_len = max(len(detected_parts), len(expected_parts))
+    padded_detected = detected_parts + (0,) * (max_len - len(detected_parts))
+    padded_expected = expected_parts + (0,) * (max_len - len(expected_parts))
+    return padded_detected < padded_expected
+
+
+def get_signal_cli_version(executable: str | None = None) -> str | None:
+    """Resolve signal-cli version from the configured executable without network calls."""
+    exe = executable
+    if not exe:
+        try:
+            exe = find_signal_cli_executable()
+        except FileNotFoundError:
+            return None
+
+    for args in (["--version"], ["-v"], ["version"]):
+        command = build_signal_cli_command(exe, list(args))
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=8,
+                env=get_signal_cli_env(),
+                creationflags=get_process_creationflags(),
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+
+        output = (result.stdout or "") + "\n" + (result.stderr or "")
+        parsed = _parse_signal_cli_version(output)
+        if parsed:
+            return parsed
+
+    return None
 
 
 def get_bundled_signal_cli_path() -> str | None:

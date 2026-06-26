@@ -316,7 +316,7 @@ def reload_config() -> dict:
     """Reload configuration from database and update module-level variables."""
     global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT, REGEX_PATTERNS
-    global TIMEZONE, APPEND_WINDOW_MINUTES, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
+    global TIMEZONE, APPEND_WINDOW_MINUTES, GROUP_SPLIT_ENABLED, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
     global FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, DIAGNOSTIC_MODE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
     global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
@@ -356,12 +356,13 @@ def reload_config() -> dict:
 
     TIMEZONE = app_config["timezone"]
     APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
+    GROUP_SPLIT_ENABLED = app_config.get("group_split_enabled", True)
     IGNORED_GROUPS = app_config.get("ignored_groups", [])
     WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
     STARTUP_MESSAGE = app_config.get("startup_message", "self")
     FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
-    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
+    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", True)
     LOG_LEVEL = app_config["log_level"]
     LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
@@ -528,6 +529,7 @@ try:
     REGEX_PATTERNS = app_config.get("regex_patterns", {})
     TIMEZONE = app_config.get("timezone")
     APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
+    GROUP_SPLIT_ENABLED = app_config.get("group_split_enabled", True)
     IGNORED_GROUPS = app_config.get("ignored_groups", [])
     WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
     STARTUP_MESSAGE = app_config.get("startup_message", "self")
@@ -535,7 +537,7 @@ try:
     generic_config = pipeline_settings.get("generic_template", {})
     FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
-    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", False)
+    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", True)
     LOG_LEVEL = app_config.get("log_level", logging.INFO)
     LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
@@ -566,12 +568,13 @@ except Exception as e:
     REGEX_PATTERNS = {}
     TIMEZONE = datetime.timezone.utc
     APPEND_WINDOW_MINUTES = 30
+    GROUP_SPLIT_ENABLED = True
     IGNORED_GROUPS = []
     WHITELIST_GROUPS = []
     STARTUP_MESSAGE = "self"
     FILENAME_FORMAT = "classic"
     SIGNAL_CLI_LOG_FILE = None
-    DIAGNOSTIC_MODE = False
+    DIAGNOSTIC_MODE = True
     LOG_LEVEL = logging.INFO
     LOG_FILE = str(get_default_log_path())
     WEB_ENABLED = True

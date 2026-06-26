@@ -14,6 +14,7 @@ from typing import Any
 
 from oden import config as cfg
 from oden.app_state import get_app_state
+from oden.formatting import resolve_output_dir
 
 _SHORT_REPORT_TIME_RE = re.compile(r"^\d{6}$")
 _LONG_REPORT_TIME_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([A-Z])([A-Z]{3})(\d{4})$")
@@ -138,21 +139,19 @@ def resolve_report_datetime(
         raise ValueError(f"{field_label} is not a valid local date/time") from exc
 
 
-def build_report_filepath(vault_subdir: str | None, tnr_base: str, *, prefix: str = "TNR") -> tuple[str, str]:
+def build_report_filepath(
+    group_title: str | None,
+    vault_subdir: str | None,
+    tnr_base: str,
+    *,
+    prefix: str = "TNR",
+) -> tuple[str, str]:
     """Resolve a collision-free filepath inside the vault.
 
-    If *vault_subdir* is a non-empty string the file is written to
-    ``VAULT_PATH/<vault_subdir>/``.  When it is ``None`` or an empty string
-    the file lands directly in the root of the vault.
+    If group split is enabled, files are written under ``VAULT_PATH/<group>/``.
+    If *vault_subdir* is set, it is appended beneath that base directory.
     """
-    if vault_subdir:
-        # Sanitise: strip leading separator, reject traversal
-        safe = os.path.normpath(vault_subdir).lstrip(os.sep)
-        if ".." in safe.split(os.sep):
-            raise ValueError(f"vault_subdir must not contain '..': {vault_subdir!r}")
-        target_dir = os.path.join(cfg.VAULT_PATH, safe)
-    else:
-        target_dir = cfg.VAULT_PATH
+    target_dir = resolve_output_dir(group_title, vault_subdir)
     os.makedirs(target_dir, exist_ok=True)
 
     tnr = tnr_base
@@ -309,7 +308,12 @@ class StructuredReportPipeline:
 
         effective_vault_subdir = configured_subdir if use_subdir else None
 
-        filepath, resolved_tnr = build_report_filepath(effective_vault_subdir, raw_tnr, prefix=self.file_prefix)
+        filepath, resolved_tnr = build_report_filepath(
+            resolved_group_title,
+            effective_vault_subdir,
+            raw_tnr,
+            prefix=self.file_prefix,
+        )
 
         content = self.render_report(
             StructuredReportContext(

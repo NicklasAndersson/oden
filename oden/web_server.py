@@ -17,6 +17,13 @@ from oden import __version__
 from oden import config as cfg
 from oden.bundle_utils import get_bundle_path
 from oden.log_buffer import get_log_buffer
+from oden.signal_log_monitor import get_signal_log_status
+from oden.signal_manager import (
+    EXPECTED_SIGNAL_CLI_VERSION,
+    find_signal_cli_executable,
+    get_signal_cli_version,
+    is_signal_cli_version_older,
+)
 from oden.web_handlers.account_handlers import (
     accounts_activate_handler,
     accounts_delete_handler,
@@ -95,7 +102,14 @@ logger = logging.getLogger(__name__)
 
 async def index_handler(request: web.Request) -> web.Response:
     """Serve the main HTML page."""
-    return aiohttp_jinja2.render_template("dashboard.html", request, {"version": __version__})
+    return aiohttp_jinja2.render_template(
+        "dashboard.html",
+        request,
+        {
+            "version": __version__,
+            "expected_signal_cli_version": EXPECTED_SIGNAL_CLI_VERSION,
+        },
+    )
 
 
 async def logs_handler(request: web.Request) -> web.Response:
@@ -123,6 +137,65 @@ async def shutdown_handler(request: web.Request) -> web.Response:
     asyncio.create_task(delayed_shutdown())
 
     return response
+
+
+async def restart_signal_cli_handler(request: web.Request) -> web.Response:
+    """Restart managed signal-cli without shutting down Oden."""
+    logger.info("signal-cli restart requested via web GUI")
+
+    from oden.app_state import get_app_state
+
+    app_state = get_app_state()
+    if app_state.signal_manager is None:
+        return web.json_response(
+            {
+                "success": False,
+                "error": "signal-cli hanteras inte av Oden (ohanterad/external mode)",
+            },
+            status=400,
+        )
+
+    # Stop now and schedule start shortly after to ensure a clean restart.
+    app_state.request_stop()
+    loop = asyncio.get_running_loop()
+    loop.call_later(1.0, app_state.request_start)
+
+    return web.json_response({"success": True, "message": "Startar om signal-cli..."})
+
+
+async def signal_cli_status_handler(request: web.Request) -> web.Response:
+    """Return local signal-cli runtime status without external lookups."""
+    try:
+        executable = find_signal_cli_executable()
+    except FileNotFoundError:
+        executable = None
+
+    detected_version = get_signal_cli_version(executable)
+    version_status = "unknown"
+    version_message = "Kunde inte läsa signal-cli-version."
+
+    if detected_version:
+        if is_signal_cli_version_older(detected_version, EXPECTED_SIGNAL_CLI_VERSION):
+            version_status = "mismatch"
+            version_message = (
+                f"Installerad signal-cli ({detected_version}) är äldre än Oden-förväntan "
+                f"({EXPECTED_SIGNAL_CLI_VERSION})."
+            )
+        else:
+            version_status = "ok"
+            version_message = f"signal-cli {detected_version} matchar Oden-förväntan."
+
+    return web.json_response(
+        {
+            "success": True,
+            "expected_version": EXPECTED_SIGNAL_CLI_VERSION,
+            "detected_version": detected_version,
+            "version_status": version_status,
+            "version_message": version_message,
+            "executable": executable,
+            "log_monitor": get_signal_log_status(),
+        }
+    )
 
 
 def create_app(setup_mode: bool = False) -> web.Application:
@@ -175,6 +248,8 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/groups/update", update_group_handler)
         app.router.add_post("/api/config-save", config_save_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)
+        app.router.add_post("/api/signal-cli/restart", restart_signal_cli_handler)
+        app.router.add_get("/api/signal-cli/status", signal_cli_status_handler)
         app.router.add_post("/api/shutdown", shutdown_handler)
 
         # Message observability routes

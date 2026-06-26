@@ -318,6 +318,19 @@ td {
     color: #fff;
     font-size: 0.95em;
 }
+.runtime-status {
+    padding: 10px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    font-size: 0.9em;
+}
+.runtime-status.warning {
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+    background: rgba(255, 183, 77, 0.12);
+}
 .config-field input:focus,
 .config-field select:focus {
     outline: none;

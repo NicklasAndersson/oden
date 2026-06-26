@@ -49,6 +49,7 @@ async def _run_lifecycle(
     asyncio events stored on AppState.  The web server persists
     across stop/start cycles so the GUI is always reachable.
     """
+    from oden.signal_log_monitor import monitor_signal_cli_log
     from oden.web_server import start_web_server
 
     app_state = get_app_state()
@@ -72,6 +73,7 @@ async def _run_lifecycle(
         logger.info(f"Web GUI enabled on port {WEB_PORT}")
 
     listener_task: asyncio.Task | None = None
+    log_monitor_task = asyncio.create_task(monitor_signal_cli_log(quit_event))
 
     try:
         while not quit_event.is_set():
@@ -145,6 +147,11 @@ async def _run_lifecycle(
     except asyncio.CancelledError:
         logger.info("Lifecycle cancelled.")
     finally:
+        if log_monitor_task is not None and not log_monitor_task.done():
+            log_monitor_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await log_monitor_task
+
         # Cancel listener if still running
         if listener_task is not None and not listener_task.done():
             listener_task.cancel()

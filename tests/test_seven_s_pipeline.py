@@ -122,7 +122,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             msg_data = _make_msg_data(
                 stalle="34VCM 79349 26095, Långkärrsvägen",
@@ -170,7 +174,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             msg_data = _make_msg_data(stalle="34VCM 79349 26095, Långkärrsvägen")
 
@@ -196,7 +204,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             group_dir = Path(tmpdir)
             (group_dir / "TNR221520.md").write_text("existing\n", encoding="utf-8")
 
@@ -224,6 +236,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         with (
             tempfile.TemporaryDirectory() as tmpdir,
             patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", True),
             patch("oden.config.PIPELINE_SETTINGS", {"seven_s": {"vault_subdir": "spaningsrapporter"}}),
         ):
             pipeline = SevenSPipeline()
@@ -234,7 +247,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "spaningsrapporter" / "TNR221520.md"
+            output_path = Path(tmpdir) / "7s-test" / "spaningsrapporter" / "TNR221520.md"
             self.assertTrue(output_path.exists())
 
     async def test_run_skips_non_7s(self):
@@ -265,7 +278,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             handled = await pipeline.run(
                 msg_data=_make_msg_data(tnr="221035", stund="221034"),
@@ -290,7 +307,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             with self.assertLogs("oden.pipelines.seven_s", level="WARNING") as captured_logs:
                 handled = await pipeline.run(
@@ -314,7 +335,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             handled = await pipeline.run(
                 msg_data=_make_msg_data(sedan=None),
