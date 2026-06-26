@@ -231,12 +231,12 @@ class SevenSPipeline(StructuredReportPipeline):
         else:
             body_lines.extend(
                 [
-                f"**Styrka:** {fields['styrka'].strip()}",
-                "",
-                f"**Slag:** {fields['slag'].strip()}",
-                "",
-                f"**Sysselsättning:** {fields['sysselsattning'].strip()}",
-                "",
+                    f"**Styrka:** {fields['styrka'].strip()}",
+                    "",
+                    f"**Slag:** {fields['slag'].strip()}",
+                    "",
+                    f"**Sysselsättning:** {fields['sysselsattning'].strip()}",
+                    "",
                 ]
             )
 

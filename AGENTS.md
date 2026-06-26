@@ -105,6 +105,7 @@ python -m oden                  # Run application
 ```
 
 **IMPORTANT:** Always run `ruff check . && ruff format .` before committing to fix lint errors.
+Before push, run `scripts/pre_push_checks.sh` (or enable repo hook with `git config core.hooksPath .githooks`).
 
 ### Web GUI
 A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, or `0.0.0.0:8080` in Docker via `WEB_HOST` env var).

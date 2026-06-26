@@ -143,6 +143,12 @@ ruff check .
 
 # Manuell formattering
 ruff format .
+
+# Full pre-push kontroll (samma script som hooken använder)
+scripts/pre_push_checks.sh
+
+# Aktivera versionshanterad git pre-push hook (kör en gång per klon)
+git config core.hooksPath .githooks
 ```
 
 ### Optional PR snapshot release
