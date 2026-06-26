@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.2] - 2026-06-26
+
+### Added
+
+- **Signal-cli status i GUI**: Dashboard visar tydligare signal-cli-status och övervakning för snabbare felsökning
+- **Alternativt 7S-format**: Stöd för variant med fältet `Handelse`
+- **Pre-push-kontroller**: Återanvändbart skript och git-hook för lokala kvalitetskontroller innan push
+
+### Changed
+
+- **Pipeline-resiliens**: Förbättrad robusthet i pipeline-körningar för att minska avbrott vid fel
+- **Grupp-split routing**: Stabilare routing när gruppuppdelning är aktiverad
+- **Python-version**: Lokal utvecklingsversion linjerad med CI via `.python-version`
+
+### Fixed
+
+- **Python-kompatibilitet**: Korrigerad UTC-import för bättre versionskompatibilitet
+- **Repository hygiene**: `coverage.xml` ignoreras nu i git
+
 ## [3.1.1] - 2026-06-25
 
 ### Fixed
