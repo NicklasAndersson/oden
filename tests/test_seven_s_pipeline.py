@@ -26,8 +26,17 @@ def _make_msg_data(
     stund="221520",
     source_id="dd1bac1d-b955-4ac0-9d53-14053c4fe69f",
     sedan="Återgår till bas",
+    attachments=None,
+    quote=None,
+    message_override=None,
 ):
     sedan_line = f"Sedan: {sedan}\n" if sedan is not None else ""
+    message = message_override or (
+        f"7S RAPPORT\nTill: TST\nFrån: TS\nTNR: {tnr}\nStund: {stund}\n"
+        f"Ställe: {stalle}\nStyrka: 1\nSlag: Vi\nSysselsättning: Patrull\n"
+        f"Symbol: {symbol}\nSagesman: {sagesman}\n"
+        f"{sedan_line}"
+    )
     return {
         "envelope": {
             "sourceName": "Nicklas",
@@ -36,13 +45,10 @@ def _make_msg_data(
             "timestamp": _TIMESTAMP,
             "serverReceivedTimestamp": _SERVER_RECEIVED_TIMESTAMP,
             "dataMessage": {
-                "message": (
-                    f"7S RAPPORT\nTill: TST\nFrån: TS\nTNR: {tnr}\nStund: {stund}\n"
-                    f"Ställe: {stalle}\nStyrka: 1\nSlag: Vi\nSysselsättning: Patrull\n"
-                    f"Symbol: {symbol}\nSagesman: {sagesman}\n"
-                    f"{sedan_line}"
-                ),
+                "message": message,
                 "groupV2": {"name": group, "id": "group123"},
+                "attachments": attachments or [],
+                "quote": quote,
             },
         }
     }
@@ -446,6 +452,71 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("non-canonical", "\n".join(captured_logs.output))
         self.assertIn("sagesman: 2A GRUPP", content)
         self.assertIn("**Sagesman:** 2A GRUPP", content)
+
+    @patch("oden.pipelines.structured_report.save_attachments", new_callable=AsyncMock)
+    @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_includes_attachment_links_for_7s_message(self, mock_get_app_state, mock_save_attachments):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+        mock_save_attachments.return_value = ["![[attachments/bild-1.jpg]]"]
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
+            pipeline = SevenSPipeline()
+            handled = await pipeline.run(
+                msg_data=_make_msg_data(attachments=[{"id": "att-1", "filename": "bild-1.jpg"}]),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "TNR221520.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn("## Bilagor", content)
+        self.assertIn("![[attachments/bild-1.jpg]]", content)
+
+    @patch("oden.pipelines.structured_report.save_attachments", new_callable=AsyncMock)
+    @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_appends_reply_attachments_to_quoted_report(self, mock_get_app_state, mock_save_attachments):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+        mock_save_attachments.return_value = ["![[attachments/svar-bild.jpg]]"]
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
+            target_path = Path(tmpdir) / "TNR221520.md"
+            target_path.write_text(
+                '---\ntyp: 7S-rapport\nsignal_tidpunkt: "2026-06-22T19:31:05"\n---\n\nBefintlig rapport\n',
+                encoding="utf-8",
+            )
+
+            pipeline = SevenSPipeline()
+            handled = await pipeline.run(
+                msg_data=_make_msg_data(
+                    attachments=[{"id": "att-2", "filename": "svar-bild.jpg"}],
+                    quote={"id": _TIMESTAMP},
+                    message_override="Bildbevis från platsen",
+                ),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            content = target_path.read_text(encoding="utf-8")
+
+        self.assertIn("## Svarsbilagor", content)
+        self.assertIn("**Meddelande:** Bildbevis från platsen", content)
+        self.assertIn("![[attachments/svar-bild.jpg]]", content)
 
     @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_omits_optional_sedan_when_missing(self, mock_get_app_state):

@@ -14,7 +14,9 @@ from typing import Any
 
 from oden import config as cfg
 from oden.app_state import get_app_state
-from oden.formatting import resolve_output_dir
+from oden.attachment_handler import save_attachments
+from oden.formatting import format_sender_display, resolve_output_dir
+from oden.link_formatter import apply_regex_links
 
 _SHORT_REPORT_TIME_RE = re.compile(r"^\d{6}$")
 _LONG_REPORT_TIME_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([A-Z])([A-Z]{3})(\d{4})$")
@@ -174,7 +176,36 @@ def extract_message_details(envelope: dict[str, Any]) -> tuple[str | None, str |
         group_meta.get("name") or group_meta.get("title") or group_meta.get("groupName"),
         group_meta.get("id") or group_meta.get("groupId"),
         int(timestamp) if isinstance(timestamp, int | float) else 0,
+        dm.get("attachments") or [],
+        dm.get("quote") if isinstance(dm.get("quote"), dict) else None,
     )
+
+
+def _read_frontmatter(filepath: str) -> dict[str, str]:
+    try:
+        with open(filepath, encoding="utf-8") as handle:
+            content = handle.read(4096)
+    except OSError:
+        return {}
+
+    if not content.startswith("---\n"):
+        return {}
+
+    end = content.find("\n---", 4)
+    if end == -1:
+        return {}
+
+    values: dict[str, str] = {}
+    for raw in content[4:end].splitlines():
+        if ":" not in raw:
+            continue
+        key, value = raw.split(":", 1)
+        values[key.strip()] = value.strip().strip('"')
+    return values
+
+
+def _append_section(content: str, lines: Sequence[str]) -> str:
+    return f"{content.rstrip()}\n\n" + "\n".join(lines) + "\n"
 
 
 @dataclass(frozen=True)
@@ -253,6 +284,95 @@ class StructuredReportPipeline:
     def render_report(self, context: StructuredReportContext) -> str:
         raise NotImplementedError
 
+    def _resolve_effective_subdir(self) -> str | None:
+        pipeline_settings = cfg.PIPELINE_SETTINGS.get(self.name, {}) if isinstance(cfg.PIPELINE_SETTINGS, dict) else {}
+        configured_subdir = pipeline_settings.get("vault_subdir", self.vault_subdir)
+        enabled_override = pipeline_settings.get("vault_subdir_enabled")
+        use_subdir = enabled_override if isinstance(enabled_override, bool) else bool(configured_subdir)
+        return configured_subdir if use_subdir else None
+
+    def _find_quoted_report_file(
+        self,
+        *,
+        group_title: str,
+        quote_timestamp_ms: int,
+        effective_vault_subdir: str | None,
+    ) -> str | None:
+        signal_dt = datetime.datetime.fromtimestamp(quote_timestamp_ms / 1000, tz=cfg.TIMEZONE).strftime(
+            "%Y-%m-%dT%H:%M:%S"
+        )
+        target_dir = resolve_output_dir(group_title, effective_vault_subdir)
+        if not os.path.isdir(target_dir):
+            return None
+
+        for name in os.listdir(target_dir):
+            if not name.endswith(".md"):
+                continue
+            path = os.path.join(target_dir, name)
+            frontmatter = _read_frontmatter(path)
+            if frontmatter.get("typ") != self.report_type:
+                continue
+            if frontmatter.get("signal_tidpunkt") == signal_dt:
+                return path
+        return None
+
+    async def _try_append_reply_attachments(
+        self,
+        *,
+        attachments: list[dict[str, Any]],
+        quote: dict[str, Any] | None,
+        group_title: str,
+        effective_vault_subdir: str | None,
+        signal_dt: datetime.datetime,
+        source_name: str | None,
+        source_number: str | None,
+        message_text: str | None,
+    ) -> bool:
+        if not quote or not attachments:
+            return False
+
+        quote_id = quote.get("id")
+        if not isinstance(quote_id, int | float) or quote_id <= 0:
+            return False
+
+        target_file = self._find_quoted_report_file(
+            group_title=group_title,
+            quote_timestamp_ms=int(quote_id),
+            effective_vault_subdir=effective_vault_subdir,
+        )
+        if not target_file:
+            return False
+
+        attachment_links = await save_attachments(
+            attachments,
+            os.path.dirname(target_file),
+            signal_dt,
+            source_name,
+            source_number,
+        )
+        if not attachment_links:
+            return False
+
+        sender_display = format_sender_display(source_name, source_number)
+        caption = apply_regex_links(message_text.strip()) if message_text and message_text.strip() else None
+
+        lines = [
+            "## Svarsbilagor",
+            "",
+            f"**Tid:** {signal_dt.strftime('%Y-%m-%dT%H:%M:%S')}",
+            "",
+            f"**Avsändare:** {sender_display}",
+            "",
+        ]
+        if caption:
+            lines.extend([f"**Meddelande:** {caption}", ""])
+        lines.extend(attachment_links)
+
+        with open(target_file, "a", encoding="utf-8") as handle:
+            handle.write("\n\n" + "\n".join(lines) + "\n")
+
+        return True
+
     async def run(
         self,
         *,
@@ -270,11 +390,7 @@ class StructuredReportPipeline:
         if "syncMessage" in envelope and "dataMessage" not in envelope:
             return False
 
-        message_text, group_title, group_id, timestamp_ms = extract_message_details(envelope)
-        if not self.matches_message(message_text):
-            return False
-
-        fields = self.parse_report(message_text or "")
+        message_text, group_title, group_id, timestamp_ms, attachments, quote = extract_message_details(envelope)
 
         source_name = envelope.get("sourceName")
         source_number = envelope.get("sourceNumber") or envelope.get("source")
@@ -289,6 +405,27 @@ class StructuredReportPipeline:
         signal_dt = (
             datetime.datetime.fromtimestamp(signal_timestamp_ms / 1000, tz=cfg.TIMEZONE) if signal_timestamp_ms else dt
         )
+
+        resolved_group_title = group_title or "inbox"
+        effective_vault_subdir = self._resolve_effective_subdir()
+
+        if await self._try_append_reply_attachments(
+            attachments=attachments,
+            quote=quote,
+            group_title=resolved_group_title,
+            effective_vault_subdir=effective_vault_subdir,
+            signal_dt=signal_dt,
+            source_name=source_name,
+            source_number=source_number,
+            message_text=message_text,
+        ):
+            return True
+
+        if not self.matches_message(message_text):
+            return False
+
+        fields = self.parse_report(message_text or "")
+
         source_id = envelope.get("sourceUuid")
         if not source_number:
             raise ValueError(f"{self.report_id_prefix} Signal sender number is missing")
@@ -297,16 +434,6 @@ class StructuredReportPipeline:
 
         raw_tnr = fields[self.tnr_field_name].strip()
         report_dt = self.build_report_datetime(fields=fields, reference_dt=dt)
-
-        resolved_group_title = group_title or "inbox"
-
-        # vault_subdir: per-pipeline settings win over class-level default
-        pipeline_settings = cfg.PIPELINE_SETTINGS.get(self.name, {}) if isinstance(cfg.PIPELINE_SETTINGS, dict) else {}
-        configured_subdir = pipeline_settings.get("vault_subdir", self.vault_subdir)
-        enabled_override = pipeline_settings.get("vault_subdir_enabled")
-        use_subdir = enabled_override if isinstance(enabled_override, bool) else bool(configured_subdir)
-
-        effective_vault_subdir = configured_subdir if use_subdir else None
 
         filepath, resolved_tnr = build_report_filepath(
             resolved_group_title,
@@ -330,6 +457,17 @@ class StructuredReportPipeline:
                 envelope=envelope,
             )
         )
+
+        if attachments:
+            attachment_links = await save_attachments(
+                attachments,
+                os.path.dirname(filepath),
+                signal_dt,
+                source_name,
+                source_number,
+            )
+            if attachment_links:
+                content = _append_section(content, ["## Bilagor", "", *attachment_links])
 
         with open(filepath, "w", encoding="utf-8") as handle:
             handle.write(content)

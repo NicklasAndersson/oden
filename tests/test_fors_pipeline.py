@@ -15,6 +15,7 @@ def _make_msg_data(
     *,
     group="7s-test",
     tnr="241330",
+    attachments=None,
 ):
     return {
         "envelope": {
@@ -36,6 +37,7 @@ def _make_msg_data(
                     "SLUT!\n"
                 ),
                 "groupV2": {"name": group, "id": "group123"},
+                "attachments": attachments or [],
             },
         }
     }
@@ -184,3 +186,32 @@ class TestForsPipelineRun(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertFalse(handled)
+
+    @patch("oden.pipelines.structured_report.save_attachments", new_callable=AsyncMock)
+    @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_includes_attachment_links_for_fors_message(self, mock_get_app_state, mock_save_attachments):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+        mock_save_attachments.return_value = ["![[attachments/fors-bild.jpg]]"]
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
+            pipeline = ForsPipeline()
+
+            handled = await pipeline.run(
+                msg_data=_make_msg_data(attachments=[{"id": "att-1", "filename": "fors-bild.jpg"}]),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "TNR241330.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn("## Bilagor", content)
+        self.assertIn("![[attachments/fors-bild.jpg]]", content)
