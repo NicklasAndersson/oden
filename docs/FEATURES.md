@@ -485,7 +485,7 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 | `signal_cli_host` | string | `127.0.0.1` | signal-cli TCP-värd |
 | `signal_cli_port` | integer | `7583` | signal-cli TCP-port |
 | `signal_cli_log_file` | string | *(ingen)* | Fil för signal-cli stdout/stderr |
-| `diagnostic_mode` | boolean | `False` | Om `True` är signal-cli fil-loggning alltid aktiv (fallback: `~/.oden/signal-cli.log`) |
+| `diagnostic_mode` | boolean | `True` | Om `True` är signal-cli fil-loggning alltid aktiv (fallback: `~/.oden/signal-cli.log`) |
 | `unmanaged_signal_cli` | boolean | `False` | Om `True`, startar/stoppar Oden inte signal-cli (extern hantering) |
 
 #### Meddelandehantering
@@ -494,6 +494,7 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 |--------|-----|----------|-------------|
 | `plus_plus_enabled` | boolean | `False` | Aktivera `++` append-prefix |
 | `append_window_minutes` | integer | `30` | Tidsfönster för append-läge (minuter) |
+| `group_split_enabled` | boolean | `True` | Om `True` sparas rapporter under `vault/gruppnamn/` |
 | `ignored_groups` | JSON-lista | `[]` | Gruppnamn att ignorera |
 | `whitelist_groups` | JSON-lista | `[]` | Om satt, enbart dessa grupper behandlas |
 | `regex_patterns` | JSON-objekt | *(3 standardmönster)* | Namngivna regex-mönster för autolänkning |

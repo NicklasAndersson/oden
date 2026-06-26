@@ -91,6 +91,7 @@ class PipelineOrchestrator:
         - Updates raw message status to processed/failed
         """
         update_message_status(self._db_path, message_id, STATUS_PROCESSING)
+        had_pipeline_failure = False
         for pipeline in self._build_pipelines():
             run_id = start_pipeline_run(self._db_path, message_id, pipeline.name)
             append_pipeline_event(
@@ -140,6 +141,7 @@ class PipelineOrchestrator:
                     {"pipeline": pipeline.name},
                 )
             except Exception as exc:
+                had_pipeline_failure = True
                 fail_pipeline_run(
                     self._db_path,
                     run_id,
@@ -155,10 +157,20 @@ class PipelineOrchestrator:
                         "error": repr(exc),
                     },
                 )
-                update_message_status(self._db_path, message_id, STATUS_FAILED)
-                raise
+                logger.warning(
+                    "Pipeline %s failed for message %s; continuing with next pipeline. Error: %r",
+                    pipeline.name,
+                    message_id,
+                    exc,
+                )
+                continue
 
-        # Defensive fallback if all configured pipelines skipped unexpectedly.
+        # If no pipeline handled the message, mark failed if any pipeline crashed,
+        # otherwise keep the legacy processed fallback for all-skipped chains.
+        if had_pipeline_failure:
+            update_message_status(self._db_path, message_id, STATUS_FAILED)
+            return
+
         update_message_status(self._db_path, message_id, STATUS_PROCESSED)
 
     async def reprocess(

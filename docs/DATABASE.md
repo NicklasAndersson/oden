@@ -46,10 +46,11 @@ Reads fall back to `DEFAULT_CONFIG` in [config_db.py](../oden/config_db.py) when
 | `signal_cli_host` | str | `127.0.0.1` | |
 | `signal_cli_port` | int | `7583` | |
 | `signal_cli_log_file` | str | — | |
-| `diagnostic_mode` | bool | `false` | |
+| `diagnostic_mode` | bool | `true` | |
 | `unmanaged_signal_cli` | bool | `false` | Don't start/stop signal-cli |
 | `timezone` | str | `Europe/Stockholm` | |
 | `append_window_minutes` | int | `30` | Reply window for appending to existing report |
+| `group_split_enabled` | bool | `true` | Store outputs under `vault/<group>/` when enabled |
 | `startup_message` | str | `self` | Who gets the startup notification |
 | `ignored_groups` | json | `[]` | Group IDs to silently drop |
 | `whitelist_groups` | json | `[]` | If non-empty, only process these groups |

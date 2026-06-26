@@ -12,6 +12,7 @@ async function loadConfigForm() {
         document.getElementById('cfg-signal-number').value = config.signal_number || '';
         document.getElementById('cfg-display-name').value = config.display_name || '';
         document.getElementById('cfg-vault-path').value = config.vault_path || '';
+        document.getElementById('cfg-group-split-enabled').checked = config.group_split_enabled !== false;
         document.getElementById('cfg-timezone').value = config.timezone || 'Europe/Stockholm';
         document.getElementById('cfg-append-window').value = config.append_window_minutes || 30;
         document.getElementById('cfg-startup-message').value = config.startup_message || 'self';
@@ -26,6 +27,51 @@ async function loadConfigForm() {
         document.getElementById('cfg-diagnostic-mode').checked = config.diagnostic_mode || false;
     } catch (error) {
         console.error('Error loading config:', error);
+    }
+}
+
+let versionMismatchWarned = false;
+
+async function loadSignalCliStatus() {
+    const versionNode = document.getElementById('signal-cli-version-status');
+    const logNode = document.getElementById('signal-cli-log-monitor-status');
+    if (!versionNode || !logNode) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/signal-cli/status');
+        const data = await response.json();
+
+        const expected = data.expected_version || 'okänd';
+        const detected = data.detected_version || 'okänd';
+        const versionStatus = data.version_status || 'unknown';
+
+        versionNode.classList.remove('warning');
+        if (versionStatus === 'mismatch') {
+            versionNode.classList.add('warning');
+            versionNode.textContent = `Installerad: ${detected}. Förväntad: ${expected}.`;
+            if (!versionMismatchWarned) {
+                showConfigMessage(`signal-cli-version avviker: installerad ${detected}, förväntad ${expected}.`, 'error');
+                versionMismatchWarned = true;
+            }
+        } else if (versionStatus === 'ok') {
+            versionNode.textContent = `Installerad: ${detected}. Förväntad: ${expected}.`; 
+        } else {
+            versionNode.textContent = `Kunde inte avgöra installerad version. Förväntad: ${expected}.`;
+        }
+
+        const monitor = data.log_monitor || {};
+        logNode.classList.remove('warning');
+        if (monitor.severity === 'warning') {
+            logNode.classList.add('warning');
+        }
+        logNode.textContent = monitor.message || 'Ingen loggstatus tillgänglig.';
+    } catch (error) {
+        versionNode.classList.remove('warning');
+        logNode.classList.remove('warning');
+        versionNode.textContent = 'Kunde inte läsa signal-cli-status.';
+        logNode.textContent = 'Kunde inte läsa loggövervakningsstatus.';
     }
 }
 
@@ -97,13 +143,37 @@ async function shutdownApp() {
         });
         const data = await response.json();
         if (data.success) {
-            showMessage('Stänger av Oden...', true);
+            showConfigMessage('Stänger av Oden...', 'success');
             document.querySelector('.status-dot').style.background = '#888';
             document.querySelector('.status span').textContent = 'Stänger av...';
         } else {
-            showMessage('Kunde inte stänga av: ' + data.error, false);
+            showConfigMessage('Kunde inte stänga av: ' + data.error, 'error');
         }
     } catch (error) {
-        showMessage('Fel vid avstängning: ' + error.message, false);
+        showConfigMessage('Fel vid avstängning: ' + error.message, 'error');
+    }
+}
+
+async function restartSignalCli() {
+    if (!confirm('Är du säker på att du vill starta om signal-cli?')) {
+        return;
+    }
+    try {
+        const response = await fetch('/api/signal-cli/restart', {
+            method: 'POST',
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+            showConfigMessage('Startar om signal-cli...', 'success');
+            document.querySelector('.status span').textContent = 'Startar om...';
+            setTimeout(() => {
+                document.querySelector('.status span').textContent = 'Lyssnar';
+                loadSignalCliStatus();
+            }, 4000);
+        } else {
+            showConfigMessage(data.error || 'Kunde inte starta om signal-cli', 'error');
+        }
+    } catch (error) {
+        showConfigMessage('Fel vid omstart: ' + error.message, 'error');
     }
 }

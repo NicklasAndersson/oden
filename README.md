@@ -112,8 +112,9 @@ oden/
 git clone https://github.com/NicklasAndersson/oden.git
 cd oden
 
-# Skapa virtuell miljö
-python -m venv .venv
+# Välj samma Python-version som CI (se .python-version, nu 3.14)
+# Exempel:
+python3.14 -m venv .venv
 source .venv/bin/activate  # På Windows: .venv\Scripts\activate
 
 # Installera paketet i utvecklingsläge (med system tray-stöd)
@@ -143,6 +144,12 @@ ruff check .
 
 # Manuell formattering
 ruff format .
+
+# Full pre-push kontroll (samma script som hooken använder)
+scripts/pre_push_checks.sh
+
+# Aktivera versionshanterad git pre-push hook (kör en gång per klon)
+git config core.hooksPath .githooks
 ```
 
 ### Optional PR snapshot release

@@ -48,6 +48,39 @@ def _make_msg_data(
     }
 
 
+def _make_event_msg_data(
+    *,
+    handelse="Kajak paddlade till Åland",
+    stalle="34VDM 37561 82883",
+    symbol=None,
+    group="7s-test",
+    tnr="260916",
+    stund="260915",
+    source_id="dd1bac1d-b955-4ac0-9d53-14053c4fe69f",
+    sedan="-",
+):
+    symbol_line = f"Symbol: {symbol}\n" if symbol is not None else ""
+    sedan_line = f"Sedan: {sedan}\n" if sedan is not None else ""
+    return {
+        "envelope": {
+            "sourceName": "Nicklas",
+            "sourceNumber": "+46701234567",
+            "sourceUuid": source_id,
+            "timestamp": _TIMESTAMP,
+            "serverReceivedTimestamp": _SERVER_RECEIVED_TIMESTAMP,
+            "dataMessage": {
+                "message": (
+                    f"7S RAPPORT\nTill: ASD\nFrån: DRT\nTNR: {tnr}\nStund: {stund}\n"
+                    f"Ställe: {stalle}\nHändelse: {handelse}\n"
+                    f"{symbol_line}Sagesman: IUW 678\n"
+                    f"{sedan_line}"
+                ),
+                "groupV2": {"name": group, "id": "group123"},
+            },
+        }
+    }
+
+
 class TestSevenSPipelineHelpers(unittest.TestCase):
     def test_is_7s_message_true(self):
         self.assertTrue(is_7s_message("7S RAPPORT\nTill: A"))
@@ -99,6 +132,26 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
 
         self.assertNotIn("sedan", fields)
 
+    def test_parse_7s_report_supports_event_format(self):
+        text = (
+            "7S RAPPORT\n"
+            "Till: ASD\n"
+            "Från: DRT\n"
+            "TNR: 260916\n"
+            "Stund: 260915\n"
+            "Ställe: 34VDM 37561 82883\n"
+            "Händelse: Kajak paddlade till Åland\n"
+            "Sagesman: IUW 678\n"
+            "Sedan: -\n"
+        )
+
+        fields = parse_7s_report(text)
+
+        self.assertEqual(fields["tnr"], "260916")
+        self.assertEqual(fields["stund"], "260915")
+        self.assertEqual(fields["handelse"], "Kajak paddlade till Åland")
+        self.assertEqual(fields["sagesman"], "IUW 678")
+
     def test_parse_7s_report_missing_required_raises(self):
         text = "7S RAPPORT\nTill: A\n"
         with self.assertRaises(ValueError):
@@ -122,7 +175,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             msg_data = _make_msg_data(
                 stalle="34VCM 79349 26095, Långkärrsvägen",
@@ -160,6 +217,71 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("## Metadata", content)
 
     @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_supports_event_format_with_optional_symbol(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
+            pipeline = SevenSPipeline()
+            handled = await pipeline.run(
+                msg_data=_make_event_msg_data(symbol="Regnbågsfärgad"),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "TNR260916.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn("**Händelse:** Kajak paddlade till Åland", content)
+        self.assertIn("**Symbol:** Regnbågsfärgad", content)
+        self.assertNotIn("**Styrka:**", content)
+        self.assertNotIn("**Slag:**", content)
+        self.assertNotIn("**Sysselsättning:**", content)
+
+    @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_supports_event_format_without_symbol(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
+            pipeline = SevenSPipeline()
+            handled = await pipeline.run(
+                msg_data=_make_event_msg_data(
+                    symbol=None,
+                    handelse=(
+                        "Såg en fyrmanna ribbåt kör in i en liten vik två personer på båten "
+                        "mörkt klädda inga lampor tända på båten tyst motor"
+                    ),
+                    stalle="33VXF 66651 79308, Strandbacken, Höglandet, Stockholm",
+                    tnr="260838",
+                    stund="260836",
+                ),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+
+            self.assertTrue(handled)
+            output_path = Path(tmpdir) / "TNR260838.md"
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn("**Händelse:** Såg en fyrmanna ribbåt kör in i en liten vik två personer på båten", content)
+        self.assertIn("**Ställe:** 33VXF 66651 79308, Strandbacken, Höglandet, Stockholm", content)
+        self.assertNotIn("**Symbol:**", content)
+
+    @patch("oden.pipelines.structured_report.get_app_state")
     @patch("oden.pipelines.seven_s._mgrs_to_latlon", return_value=None)
     async def test_run_keeps_full_stalle_and_omits_coordinates_when_mgrs_unavailable(
         self,
@@ -170,7 +292,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             msg_data = _make_msg_data(stalle="34VCM 79349 26095, Långkärrsvägen")
 
@@ -196,7 +322,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             group_dir = Path(tmpdir)
             (group_dir / "TNR221520.md").write_text("existing\n", encoding="utf-8")
 
@@ -224,6 +354,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         with (
             tempfile.TemporaryDirectory() as tmpdir,
             patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", True),
             patch("oden.config.PIPELINE_SETTINGS", {"seven_s": {"vault_subdir": "spaningsrapporter"}}),
         ):
             pipeline = SevenSPipeline()
@@ -234,7 +365,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(handled)
-            output_path = Path(tmpdir) / "spaningsrapporter" / "TNR221520.md"
+            output_path = Path(tmpdir) / "7s-test" / "spaningsrapporter" / "TNR221520.md"
             self.assertTrue(output_path.exists())
 
     async def test_run_skips_non_7s(self):
@@ -265,7 +396,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             handled = await pipeline.run(
                 msg_data=_make_msg_data(tnr="221035", stund="221034"),
@@ -290,7 +425,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             with self.assertLogs("oden.pipelines.seven_s", level="WARNING") as captured_logs:
                 handled = await pipeline.run(
@@ -314,7 +453,11 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         app_state.resolve_contact_name.return_value = "Nicklas"
         mock_get_app_state.return_value = app_state
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("oden.config.VAULT_PATH", tmpdir):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+        ):
             pipeline = SevenSPipeline()
             handled = await pipeline.run(
                 msg_data=_make_msg_data(sedan=None),

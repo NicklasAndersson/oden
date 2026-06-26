@@ -25,20 +25,25 @@ from oden.pipelines.structured_report import (
 
 logger = logging.getLogger(__name__)
 
-_REQUIRED_FIELDS = {
+_CORE_REQUIRED_FIELDS = {
     "till",
     "fran",
     "tnr",
     "stund",
     "stalle",
+    "sagesman",
+}
+
+_LEGACY_REQUIRED_FIELDS = {
     "styrka",
     "slag",
     "sysselsattning",
     "symbol",
-    "sagesman",
 }
 
-_OPTIONAL_FIELDS = {"sedan"}
+_EVENT_REQUIRED_FIELDS = {"handelse"}
+
+_OPTIONAL_FIELDS = {"sedan", "symbol", "styrka", "slag", "sysselsattning", "handelse"}
 
 _LABEL_ALIASES = {
     "till": "till",
@@ -53,6 +58,8 @@ _LABEL_ALIASES = {
     "sysselsattning": "sysselsattning",
     "sysselsättning": "sysselsattning",
     "symbol": "symbol",
+    "handelse": "handelse",
+    "händelse": "handelse",
     "sagesman": "sagesman",
     "sagesmän": "sagesman",
     "sedan": "sedan",
@@ -125,13 +132,27 @@ def parse_7s_report(message_text: str) -> dict[str, str]:
     lines = iter_nonempty_lines(message_text)
     if not lines or not lines[0].upper().startswith("7S RAPPORT"):
         raise ValueError("Not a 7S report")
-    return parse_labeled_fields(
+
+    fields = parse_labeled_fields(
         lines[1:],
-        required_fields=_REQUIRED_FIELDS,
+        required_fields=_CORE_REQUIRED_FIELDS,
         optional_fields=_OPTIONAL_FIELDS,
         normalize=_normalize_label,
         error_prefix="7S report",
     )
+
+    # Legacy format requires styrka/slag/sysselsättning/symbol.
+    # New format is selected by presence of Händelse and only requires that field.
+    if "handelse" in fields:
+        missing = sorted(_EVENT_REQUIRED_FIELDS - set(fields.keys()))
+        if missing:
+            raise ValueError(f"7S report missing required fields: {', '.join(missing)}")
+        return fields
+
+    missing_legacy = sorted(_LEGACY_REQUIRED_FIELDS - set(fields.keys()))
+    if missing_legacy:
+        raise ValueError(f"7S report missing required fields: {', '.join(missing_legacy)}")
+    return fields
 
 
 class SevenSPipeline(StructuredReportPipeline):
@@ -172,8 +193,8 @@ class SevenSPipeline(StructuredReportPipeline):
 
         plats, lat, lon = _extract_location(fields["stalle"])
         stund_display = fields["stund"].strip()
-        symbol_raw = fields["symbol"].strip()
-        symbol = _link_remaining_plates(apply_regex_links(symbol_raw) or symbol_raw)
+        symbol_raw = fields.get("symbol", "").strip()
+        symbol = _link_remaining_plates(apply_regex_links(symbol_raw) or symbol_raw) if symbol_raw else ""
 
         extra_fields = [f"plats: {build_base_frontmatter.__globals__['yaml_quote'](plats)}"]
         if lat is not None and lon is not None:
@@ -202,17 +223,27 @@ class SevenSPipeline(StructuredReportPipeline):
             "",
             f"**Ställe:** {fields['stalle'].strip()}",
             "",
-            f"**Styrka:** {fields['styrka'].strip()}",
-            "",
-            f"**Slag:** {fields['slag'].strip()}",
-            "",
-            f"**Sysselsättning:** {fields['sysselsattning'].strip()}",
-            "",
-            f"**Symbol:** {symbol}",
-            "",
-            f"**Sagesman:** {sagesman}",
-            "",
         ]
+
+        handelse = fields.get("handelse", "").strip()
+        if handelse:
+            body_lines.extend([f"**Händelse:** {handelse}", ""])
+        else:
+            body_lines.extend(
+                [
+                    f"**Styrka:** {fields['styrka'].strip()}",
+                    "",
+                    f"**Slag:** {fields['slag'].strip()}",
+                    "",
+                    f"**Sysselsättning:** {fields['sysselsattning'].strip()}",
+                    "",
+                ]
+            )
+
+        if symbol:
+            body_lines.extend([f"**Symbol:** {symbol}", ""])
+
+        body_lines.extend([f"**Sagesman:** {sagesman}", ""])
 
         sedan = fields.get("sedan", "").strip()
         if sedan:

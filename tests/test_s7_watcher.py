@@ -203,6 +203,21 @@ class TestSignalManager(unittest.TestCase):
             ],
         )
 
+    def test_is_signal_cli_version_older_handles_patch_levels(self, mock_find_executable):
+        from oden.signal_manager import is_signal_cli_version_older
+
+        self.assertTrue(is_signal_cli_version_older("0.14.4.1", "0.14.5"))
+        self.assertFalse(is_signal_cli_version_older("0.14.5", "0.14.5"))
+        self.assertFalse(is_signal_cli_version_older("0.15.0", "0.14.5"))
+
+    @patch("oden.signal_manager.subprocess.run")
+    def test_get_signal_cli_version_parses_output(self, mock_run, mock_find_executable):
+        from oden.signal_manager import get_signal_cli_version
+
+        mock_run.return_value = MagicMock(stdout="signal-cli 0.14.5", stderr="", returncode=0)
+        version = get_signal_cli_version()
+        self.assertEqual(version, "0.14.5")
+
 
 class TestIsSignalCliRunning(unittest.TestCase):
     @patch("socket.socket")

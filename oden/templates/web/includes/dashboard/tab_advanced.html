@@ -19,6 +19,11 @@
                     <input type="text" id="cfg-signal-path" name="signal_cli_path" placeholder="Lämna tomt för auto">
                     <span class="help-text">Absolut sökväg till signal-cli-binären. Lämna tomt för automatisk sökning</span>
                 </div>
+                <div class="config-field full-width">
+                    <label>signal-cli version</label>
+                    <div id="signal-cli-version-status" class="runtime-status">Laddar versionsstatus...</div>
+                    <span class="help-text">Oden förväntar sig signal-cli {{ expected_signal_cli_version }}</span>
+                </div>
                 <div class="config-field">
                     <label>Extern signal-cli</label>
                     <div class="checkbox-wrapper">
@@ -55,6 +60,11 @@
                         <label for="cfg-diagnostic-mode">Alltid signal-cli fil-loggning</label>
                     </div>
                     <span class="help-text">När aktiv loggar signal-cli alltid till fil (default: ~/.oden/signal-cli.log om ingen sökväg är satt)</span>
+                </div>
+                <div class="config-field full-width">
+                    <label>signal-cli loggövervakning</label>
+                    <div id="signal-cli-log-monitor-status" class="runtime-status">Laddar loggstatus...</div>
+                    <span class="help-text">När loggning är avstängd visas endast information, ingen varning</span>
                 </div>
             </div>
         </div>

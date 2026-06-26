@@ -14,9 +14,33 @@ logger = logging.getLogger(__name__)
 
 
 def get_safe_group_dir_path(group_title: str) -> str:
-    """Sanitizes a group title and returns the full path for the group's directory."""
+    """Return output directory for a group, honoring global group split setting."""
     safe_title = re.sub(r"[^\w\-_\. ]", "_", group_title)
-    return os.path.join(cfg.VAULT_PATH, safe_title)
+    if cfg.GROUP_SPLIT_ENABLED:
+        return os.path.join(cfg.VAULT_PATH, safe_title)
+    return cfg.VAULT_PATH
+
+
+def resolve_output_dir(group_title: str | None, vault_subdir: str | None = None) -> str:
+    """Resolve output directory from group and optional pipeline subdirectory.
+
+    Behavior:
+    - If GROUP_SPLIT_ENABLED is true and group_title exists -> root/group[/vault_subdir]
+    - If GROUP_SPLIT_ENABLED is false -> root[/vault_subdir]
+    """
+    base_dir = cfg.VAULT_PATH
+
+    if cfg.GROUP_SPLIT_ENABLED and group_title:
+        safe_title = re.sub(r"[^\w\-_\. ]", "_", group_title)
+        base_dir = os.path.join(base_dir, safe_title)
+
+    if vault_subdir:
+        safe = os.path.normpath(vault_subdir).lstrip(os.sep)
+        if ".." in safe.split(os.sep):
+            raise ValueError(f"vault_subdir must not contain '..': {vault_subdir!r}")
+        return os.path.join(base_dir, safe)
+
+    return base_dir
 
 
 def _format_phone_number(number_str: str | None) -> str | None:
@@ -287,7 +311,7 @@ def get_message_filepath(
     Returns:
         Full path to the message file
     """
-    group_dir = get_safe_group_dir_path(group_title)
+    group_dir = resolve_output_dir(group_title)
     filename = create_message_filename(dt, source_name, source_number)
     if unique:
         filename = get_unique_filename(group_dir, filename)

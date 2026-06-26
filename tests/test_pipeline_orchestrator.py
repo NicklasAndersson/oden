@@ -26,6 +26,14 @@ class _HandlingPipeline:
         return True
 
 
+class _SkippingPipeline:
+    name = "skipping"
+
+    async def run(self, *, msg_data, reader, writer):
+        del msg_data, reader, writer
+        return False
+
+
 class _WarningPipeline:
     name = "warning"
 
@@ -64,13 +72,12 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
         orchestrator = PipelineOrchestrator(self.db_path)
         orchestrator._build_pipelines = lambda: [_FailingPipeline()]  # type: ignore[method-assign]
 
-        with self.assertRaises(RuntimeError):
-            await orchestrator.run_message(
-                message_id=message_id,
-                msg_data={"envelope": {"dataMessage": {"message": "hej"}}},
-                reader=None,
-                writer=None,
-            )
+        await orchestrator.run_message(
+            message_id=message_id,
+            msg_data={"envelope": {"dataMessage": {"message": "hej"}}},
+            reader=None,
+            writer=None,
+        )
 
         detail = get_message_detail(self.db_path, message_id)
         self.assertIsNotNone(detail)
@@ -86,6 +93,25 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
         event_types = [event["event_type"] for event in events]
         self.assertIn("pipeline_started", event_types)
         self.assertIn("pipeline_failed", event_types)
+
+    async def test_run_message_continues_after_pipeline_failure(self):
+        message_id = self._create_sample_message()
+        orchestrator = PipelineOrchestrator(self.db_path)
+        orchestrator._build_pipelines = lambda: [_FailingPipeline(), _SkippingPipeline(), _HandlingPipeline()]  # type: ignore[method-assign]
+
+        await orchestrator.run_message(
+            message_id=message_id,
+            msg_data={"envelope": {"dataMessage": {"message": "hej"}}},
+            reader=None,
+            writer=None,
+        )
+
+        detail = get_message_detail(self.db_path, message_id)
+        self.assertEqual(detail["status"], STATUS_PROCESSED)
+
+        runs = get_runs_for_message(self.db_path, message_id)
+        self.assertEqual(len(runs), 3)
+        self.assertEqual([run["status"] for run in runs], ["failed", "skipped", "done"])
 
     async def test_reprocess_twice_keeps_single_raw_message(self):
         message_id = self._create_sample_message()

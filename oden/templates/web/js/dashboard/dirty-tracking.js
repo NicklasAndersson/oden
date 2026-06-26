@@ -24,6 +24,7 @@ async function _doAutoSave() {
         signal_number: document.getElementById('cfg-signal-number').value,
         display_name: document.getElementById('cfg-display-name').value,
         vault_path: document.getElementById('cfg-vault-path').value,
+        group_split_enabled: document.getElementById('cfg-group-split-enabled').checked,
         timezone: document.getElementById('cfg-timezone').value,
         append_window_minutes: parseInt(document.getElementById('cfg-append-window').value) || 30,
         startup_message: document.getElementById('cfg-startup-message').value,
