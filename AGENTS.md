@@ -87,10 +87,12 @@ Never run scripts, migrations, or commands that modify the user's local environm
 ### Environment Setup
 macOS uses externally-managed Python (PEP 668), so use a virtual environment:
 ```bash
-python3 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[tray]"
 ```
+
+Use the same major.minor version as CI from `.python-version` (currently `3.14`).
 
 The `.venv/` directory is gitignored.
 
