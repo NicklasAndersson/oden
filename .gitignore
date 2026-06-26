@@ -29,6 +29,7 @@ wheels/
 # Tests
 .pytest_cache/
 .coverage
+coverage.xml
 .mypy_cache/
 screenshots/
 
