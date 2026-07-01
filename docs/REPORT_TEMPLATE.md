@@ -37,7 +37,7 @@ These placeholders may be empty/null. Use Jinja2 conditionals to handle them:
 | `{{ lat }}` | string\|null | Latitude coordinate | Present if message contains Google Maps URL |
 | `{{ lon }}` | string\|null | Longitude coordinate | Present if message contains Google Maps URL |
 | `{{ quote_formatted }}` | string\|null | Pre-formatted quote block | Present when replying to a message |
-| `{{ message }}` | string\|null | Message text (with regex links applied) | Present if message has text content |
+| `{{ message }}` | string\|null | Message text | Present if message has text content |
 | `{{ attachments }}` | list[string] | List of Obsidian embed links | Present if message has attachments |
 
 ## Jinja2 Syntax

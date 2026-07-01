@@ -45,11 +45,6 @@ DEFAULT_CONFIG = {
     "signal_typing_indicators": False,
     "signal_link_previews": False,
     "signal_unidentified_delivery_indicators": False,
-    "regex_patterns": {
-        "registration_number": r"[A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}",
-        "phone_number": r"(\+46|0)[1-9][0-9]{7,8}",
-        "personal_number": r"[0-9]{6}[-]?[0-9]{4}",
-    },
 }
 
 # Type mapping for serialization
@@ -75,7 +70,6 @@ TYPE_MAP = {
     "web_enabled": "bool",
     "web_port": "int",
     "web_access_log": "str",
-    "regex_patterns": "json",
     "report_template": "str",
     "append_template": "str",
     "auto_reaction_enabled": "bool",

@@ -222,31 +222,6 @@ Utöver standardkommandona kan egna kommandon skapas, redigeras och tas bort via
 
 ---
 
-## Regex-länkning
-
-Oden kan automatiskt omvandla textmönster i meddelanden till Obsidian-länkar (`[[…]]`). Matchande text konverteras till `[[matchad text]]` vilket skapar klickbara länkar i Obsidian.
-
-### Standardmönster
-
-| Namn | Regex | Beskrivning | Exempel |
-|------|-------|-------------|---------|
-| `registration_number` | `[A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}` | Svenska registreringsnummer | `ABC123` → `[[ABC123]]` |
-| `phone_number` | `(\+46\|0)[1-9][0-9]{7,8}` | Svenska telefonnummer | `+46701234567` → `[[+46701234567]]` |
-| `personal_number` | `[0-9]{6}[-]?[0-9]{4}` | Svenska personnummer | `900101-1234` → `[[900101-1234]]` |
-
-### Konfiguration
-
-- Mönstren konfigureras via `regex_patterns` (JSON-objekt i config_db).
-- Varje mönster har ett namn (nyckel) och ett regex-uttryck (värde).
-- Mönster kan läggas till, redigeras och tas bort via Web GUI:ns regex-editor.
-- Regex-editorn har inbyggd testfunktion — skriv in testtext och se vilka mönster som matchar.
-
-### Dubbellänkning undviks
-
-Text som redan befinner sig inuti en `[[…]]`-länk matchas inte igen. Detta förhindrar att exempelvis ett telefonnummer som redan är en Obsidian-länk länkas dubbelt.
-
----
-
 ## Grupphantering
 
 ### Ignorera grupper
@@ -490,7 +465,6 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 | `group_split_enabled` | boolean | `True` | Om `True` sparas rapporter under `vault/gruppnamn/` |
 | `ignored_groups` | JSON-lista | `[]` | Gruppnamn att ignorera |
 | `whitelist_groups` | JSON-lista | `[]` | Om satt, enbart dessa grupper behandlas |
-| `regex_patterns` | JSON-objekt | *(3 standardmönster)* | Namngivna regex-mönster för autolänkning |
 | `startup_message` | string | `self` | Startmeddelande: `self`, `all`, `off` |
 
 #### Webb & loggning
@@ -607,7 +581,7 @@ Vid första start (eller om konfigurationen saknas) aktiveras en setup-wizard so
 
 ## Web-gränssnitt
 
-Oden har ett inbyggt webbgränssnitt (aiohttp) som startar automatiskt på `http://127.0.0.1:8080`. Det har två lägen: **setup-mode** (första start) och **dashboard-mode** (normal drift). Dashboarden ger tillgång till konfiguration, live-loggar, grupphantering, template-editor, autosvar-editor och regex-editor.
+Oden har ett inbyggt webbgränssnitt (aiohttp) som startar automatiskt på `http://127.0.0.1:8080`. Det har två lägen: **setup-mode** (första start) och **dashboard-mode** (normal drift). Dashboarden ger tillgång till konfiguration, live-loggar, grupphantering, template-editor och autosvar-editor.
 
 → Se [WEB_GUI.md](WEB_GUI.md) för fullständig beskrivning av alla sidor, flikar och API-endpoints.
 

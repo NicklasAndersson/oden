@@ -12,11 +12,7 @@
     "whitelist_groups": [],
     "web_enabled": true,
     "web_port": 8080,
-    "log_level": "INFO",
-    "regex_patterns": {
-      "registration_number": "[A-Z,a-z]{3}[0-9]{2}[A-Z,a-z,0-9]{1}",
-      "phone_number": "(\\+46|0)[1-9][0-9]{7,8}"
-    }
+    "log_level": "INFO"
   },
   "logs": [
     {

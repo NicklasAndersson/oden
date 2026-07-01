@@ -72,7 +72,6 @@ Läsningar faller tillbaka till `DEFAULT_CONFIG` i [config_db.py](../oden/config
 | `signal_typing_indicators` | bool | `false` | |
 | `signal_link_previews` | bool | `false` | |
 | `signal_unidentified_delivery_indicators` | bool | `false` | |
-| `regex_patterns` | json | se källa | Namngivna regex-mönster som används av pipelines |
 | `report_template` | str | — | Jinja2-mall för nya rapporter |
 | `append_template` | str | — | Jinja2-mall för appendposter |
 

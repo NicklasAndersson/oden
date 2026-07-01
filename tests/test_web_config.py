@@ -1,4 +1,4 @@
-"""Web GUI config and setup tests — setup wizard, regex patterns.
+"""Web GUI config and setup tests — setup wizard, config save/load.
 
 Tests use aiohttp's built-in test client (no browser needed).
 """
@@ -109,79 +109,11 @@ class TestSetupRecoveryFlow(AioHTTPTestCase):
         self.assertIsNone(data["recovery_candidate"])
 
 
-class TestRegexPatternsConfigSave(AioHTTPTestCase):
-    """Test that regex_patterns can be saved via the config-save endpoint."""
+class TestConfigSave(AioHTTPTestCase):
+    """Test misc config values via the config-save/config endpoints."""
 
     async def get_application(self):
         return create_app(setup_mode=False)
-
-    async def test_save_valid_regex_patterns(self):
-        resp = await self.client.post(
-            "/api/config-save",
-            json={
-                "signal_number": "+46700000000",
-                "regex_patterns": {
-                    "plate": r"[A-Z]{3}[0-9]{2}[A-Z0-9]",
-                    "pnr": r"[0-9]{6}-?[0-9]{4}",
-                },
-            },
-        )
-        data = await resp.json()
-        self.assertTrue(data["success"])
-
-    async def test_save_invalid_regex_pattern_rejected(self):
-        resp = await self.client.post(
-            "/api/config-save",
-            json={
-                "signal_number": "+46700000000",
-                "regex_patterns": {"bad": "[invalid("},
-            },
-        )
-        self.assertEqual(resp.status, 400)
-        data = await resp.json()
-        self.assertFalse(data["success"])
-        self.assertIn("Ogiltigt regex-mönster", data["error"])
-
-    async def test_save_empty_pattern_name_rejected(self):
-        resp = await self.client.post(
-            "/api/config-save",
-            json={
-                "signal_number": "+46700000000",
-                "regex_patterns": {"": r"[A-Z]+"},
-            },
-        )
-        self.assertEqual(resp.status, 400)
-        data = await resp.json()
-        self.assertFalse(data["success"])
-        self.assertIn("namn", data["error"].lower())
-
-    async def test_save_empty_pattern_value_rejected(self):
-        resp = await self.client.post(
-            "/api/config-save",
-            json={
-                "signal_number": "+46700000000",
-                "regex_patterns": {"test": ""},
-            },
-        )
-        self.assertEqual(resp.status, 400)
-        data = await resp.json()
-        self.assertFalse(data["success"])
-
-    async def test_save_without_regex_preserves_existing(self):
-        """When regex_patterns is not in the request, existing patterns are preserved."""
-        resp = await self.client.post(
-            "/api/config-save",
-            json={"signal_number": "+46700000000"},
-        )
-        data = await resp.json()
-        self.assertTrue(data["success"])
-
-    async def test_config_returns_regex_patterns(self):
-        """Verify the /api/config endpoint includes regex_patterns."""
-        resp = await self.client.get("/api/config")
-        data = await resp.json()
-        self.assertIn("regex_patterns", data)
-        self.assertIsInstance(data["regex_patterns"], dict)
 
     async def test_config_returns_retention_days(self):
         """Verify /api/config includes retention setting for DB-first cleanup."""
@@ -217,30 +149,6 @@ class TestRegexPatternsConfigSave(AioHTTPTestCase):
         data = await resp.json()
         self.assertFalse(data["success"])
         self.assertIn("raw_message_retention_days", data["error"])
-
-    async def test_save_regex_not_dict_rejected(self):
-        resp = await self.client.post(
-            "/api/config-save",
-            json={
-                "signal_number": "+46700000000",
-                "regex_patterns": "not-a-dict",
-            },
-        )
-        self.assertEqual(resp.status, 400)
-        data = await resp.json()
-        self.assertFalse(data["success"])
-
-    async def test_save_empty_regex_patterns_accepted(self):
-        """Saving an empty dict should be valid (removes all patterns)."""
-        resp = await self.client.post(
-            "/api/config-save",
-            json={
-                "signal_number": "+46700000000",
-                "regex_patterns": {},
-            },
-        )
-        data = await resp.json()
-        self.assertTrue(data["success"])
 
     async def test_save_diagnostic_mode(self):
         """Verify diagnostic mode can be persisted via /api/config-save."""

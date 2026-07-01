@@ -3,7 +3,6 @@ Configuration-related handlers for Oden web GUI.
 """
 
 import logging
-import re
 
 from aiohttp import web
 
@@ -64,7 +63,6 @@ async def config_handler(request: web.Request) -> web.Response:
         "group_split_enabled": _as_bool(config.get("group_split_enabled", True), True),
         "startup_message": config.get("startup_message", "self"),
         "filename_format": config.get("filename_format", "classic"),
-        "regex_patterns": config.get("regex_patterns", {}),
         "log_level": logging.getLevelName(config["log_level"]),
         "web_enabled": config.get("web_enabled", True),
         "web_port": config.get("web_port", 8080),
@@ -121,36 +119,6 @@ async def config_save_handler(request: web.Request) -> web.Response:
             {"success": False, "error": "raw_message_retention_days måste vara ett heltal mellan 1 och 3650"},
             status=400,
         )
-
-    # Handle regex_patterns if provided (for backwards compatibility / testing)
-    # They are now moved to pipeline configuration but still accepted here for migration
-    if "regex_patterns" in data:
-        patterns = data["regex_patterns"]
-        if not isinstance(patterns, dict):
-            return web.json_response(
-                {"success": False, "error": "regex_patterns måste vara ett objekt"},
-                status=400,
-            )
-        # Validate each pattern is a valid regex
-        for name, pattern in patterns.items():
-            if not isinstance(name, str) or not name.strip():
-                return web.json_response(
-                    {"success": False, "error": "Regex-mönsternamn får inte vara tomt"},
-                    status=400,
-                )
-            if not isinstance(pattern, str) or not pattern.strip():
-                return web.json_response(
-                    {"success": False, "error": f"Regex-mönster för '{name}' får inte vara tomt"},
-                    status=400,
-                )
-            try:
-                re.compile(pattern)
-            except re.error as e:
-                return web.json_response(
-                    {"success": False, "error": f"Ogiltigt regex-mönster '{name}': {e}"},
-                    status=400,
-                )
-        form_updates["regex_patterns"] = patterns
 
     # Validate required fields
     if not form_updates["signal_number"] or form_updates["signal_number"] == "+46XXXXXXXXX":

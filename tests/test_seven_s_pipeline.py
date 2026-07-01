@@ -175,7 +175,6 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
 
 class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
     @patch("oden.pipelines.structured_report.get_app_state")
-    @patch("oden.config.REGEX_PATTERNS", {"custom_feature": r"logotyp-fragment DGE"})
     async def test_run_handles_7s_and_writes_spec_file(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"
@@ -217,7 +216,7 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn("**TNR:** 221520", content)
         self.assertIn("**Stund:** 221520", content)
         self.assertIn("**Ställe:** 34VCM 79349 26095, Långkärrsvägen", content)
-        self.assertIn("**Symbol:** [[ABC123]] och [[logotyp-fragment DGE]]", content)
+        self.assertIn("**Symbol:** [[ABC123]] och logotyp-fragment DGE", content)
         self.assertIn("**Sedan:** Återgår till bas", content)
         self.assertNotIn("# 7S RAPPORT", content)
         self.assertNotIn("## Metadata", content)

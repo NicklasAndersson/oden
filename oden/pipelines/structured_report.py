@@ -16,7 +16,6 @@ from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.attachment_handler import save_attachments
 from oden.formatting import format_sender_display, resolve_output_dir
-from oden.link_formatter import apply_regex_links
 
 _SHORT_REPORT_TIME_RE = re.compile(r"^\d{6}$")
 _LONG_REPORT_TIME_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([A-Z])([A-Z]{3})(\d{4})$")
@@ -354,7 +353,7 @@ class StructuredReportPipeline:
             return False
 
         sender_display = format_sender_display(source_name, source_number)
-        caption = apply_regex_links(message_text.strip()) if message_text and message_text.strip() else None
+        caption = message_text.strip() if message_text and message_text.strip() else None
 
         lines = [
             "## Svarsbilagor",

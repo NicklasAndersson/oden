@@ -98,16 +98,6 @@ Listar alla kontakter från signal-cli med namn, nummer och profilnamn.
 
 Nyckelord anges som kommaseparerad lista. Varje nyckelord triggar samma svar när en användare skickar `#nyckelord` i en Signal-grupp.
 
-#### Regex-editor
-
-| Funktion | Beskrivning |
-|----------|-------------|
-| **Lista** | Visar alla konfigurerade regex-mönster med namn och uttryck |
-| **Redigera** | Ändra namn eller regex-uttryck |
-| **Lägg till / ta bort** | Skapa nya mönster eller ta bort befintliga |
-| **Testfunktion** | Skriv in testtext och se vilka mönster som matchar i realtid |
-| **Validering** | Regex-uttryck valideras innan sparning |
-
 #### Signal-konton
 
 Hantera signal-cli-konton (multi-account daemon-läge).

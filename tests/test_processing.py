@@ -64,14 +64,6 @@ class TestProcessing(unittest.IsolatedAsyncioTestCase):
         mock_open_file.assert_not_called()
         mock_render.assert_not_called()
 
-    @patch("oden.config.REGEX_PATTERNS", {"reg": r"\bREG\d{3}\b"})
-    def test_apply_regex_links(self):
-        from oden.link_formatter import apply_regex_links
-
-        text = "This is a test for REG123 and also REG456. This should not be linked: [[REG789]]."
-        expected = "This is a test for [[REG123]] and also [[REG456]]. This should not be linked: [[REG789]]."
-        self.assertEqual(apply_regex_links(text), expected)
-
     @patch("oden.processing.render_report")
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")

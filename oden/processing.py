@@ -18,7 +18,6 @@ from oden.formatting import (
     get_safe_group_dir_path,
 )
 from oden.groups_db import upsert_group
-from oden.link_formatter import apply_regex_links
 from oden.responses_db import get_response_by_keyword
 from oden.template_loader import render_append, render_report
 
@@ -93,14 +92,6 @@ def _find_latest_file_for_sender(group_dir: str, source_name: str | None, source
     This is a wrapper around find_latest_file_by_fileid from formatting.py.
     """
     return find_latest_file_by_fileid(group_dir, source_name, source_number)
-
-
-def _apply_regex_links(text: str | None) -> str | None:
-    """
-    Wrapper function for backward compatibility.
-    Use apply_regex_links from link_formatter module instead.
-    """
-    return apply_regex_links(text)
 
 
 # Coordinate pattern: optional minus, digits, dot, digits (e.g. 59.514828 or -33.8688)
@@ -296,7 +287,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
             # Only append if there's actual content (text or attachments)
             if new_text or attachment_links:
                 sender_display = format_sender_display(source_name, source_number)
-                linked_text = _apply_regex_links(new_text) if new_text else None
+                linked_text = new_text or None
 
                 # Extract location coordinates from the message
                 append_lat, append_lon = None, None
@@ -398,8 +389,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         quote_lines = _format_quote(quote)
         quote_formatted = "\n".join(quote_lines)
 
-    # Apply regex links to message
-    linked_msg = _apply_regex_links(msg.strip()) if msg else None
+    linked_msg = msg.strip() if msg else None
 
     content = render_report(
         fileid=fileid,

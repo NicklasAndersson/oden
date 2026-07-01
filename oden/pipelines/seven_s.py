@@ -11,7 +11,6 @@ import re
 from typing import Any
 
 from oden.dependency_diagnostics import _get_mgrs_converter
-from oden.link_formatter import apply_regex_links
 from oden.pipelines.structured_report import (
     StructuredReportContext,
     StructuredReportPipeline,
@@ -194,7 +193,7 @@ class SevenSPipeline(StructuredReportPipeline):
         plats, lat, lon = _extract_location(fields["stalle"])
         stund_display = fields["stund"].strip()
         symbol_raw = fields.get("symbol", "").strip()
-        symbol = _link_remaining_plates(apply_regex_links(symbol_raw) or symbol_raw) if symbol_raw else ""
+        symbol = _link_remaining_plates(symbol_raw) if symbol_raw else ""
 
         extra_fields = [f"plats: {build_base_frontmatter.__globals__['yaml_quote'](plats)}"]
         if lat is not None and lon is not None:

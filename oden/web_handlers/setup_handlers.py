@@ -521,7 +521,7 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
             )
 
         # Read existing config from the (possibly surviving) database
-        # so we preserve customized values like regex_patterns, templates, etc.
+        # so we preserve customized values like templates, etc.
         # Use the live config path (not the import-time binding which may be stale).
         from oden.config_db import get_all_config
 

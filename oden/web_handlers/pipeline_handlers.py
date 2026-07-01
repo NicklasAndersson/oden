@@ -105,7 +105,6 @@ _AVAILABLE_PIPELINES: dict[str, dict[str, Any]] = {
                         "append_md": {"type": "string"},
                     },
                 },
-                "regex_patterns": {"type": "object", "additionalProperties": {"type": "string"}},
                 "auto_reaction_enabled": {"type": "boolean"},
                 "auto_reaction_emoji": {"type": "string"},
                 "auto_read_receipt_enabled": {"type": "boolean"},
