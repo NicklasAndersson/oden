@@ -54,7 +54,9 @@ async def groups_handler(request: web.Request) -> web.Response:
                 is_admin = False
                 for m in members_raw:
                     if isinstance(m, dict):
-                        num = m.get("number", "")
+                        # Some members (e.g. username-only contacts) have no phone
+                        # number — fall back to their Signal UUID so the row isn't blank.
+                        num = m.get("number") or m.get("uuid", "")
                         role = m.get("role", "DEFAULT")
                     elif isinstance(m, str):
                         num = m

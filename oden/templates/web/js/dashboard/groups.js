@@ -46,7 +46,7 @@ function _renderGroupMemberTree(group) {
     }
     const rows = members.map(m => {
         const name = escapeHtml(m.name && m.name !== 'Okänd' ? m.name : '');
-        const number = escapeHtml(m.number || '');
+        const number = escapeHtml(m.number || 'Okänd medlem');
         const adminBadge = m.role === 'ADMINISTRATOR' ? '<span class="admin-badge">Admin</span>' : '';
         const blockedBadge = m.isBlocked ? '<span class="blocked-badge">Blockerad</span>' : '';
         const note = m.note ? `<div class="member-note">${escapeHtml(m.note)}</div>` : '';
@@ -104,7 +104,7 @@ function _renderGroupMembers(members) {
     }
     container.innerHTML = members.map(m => {
         const name = escapeHtml(m.name && m.name !== 'Okänd' ? m.name : '');
-        const number = escapeHtml(m.number || '');
+        const number = escapeHtml(m.number || 'Okänd medlem');
         const isAdmin = m.role === 'ADMINISTRATOR';
         const badge = isAdmin ? '<span style="color: #4caf50; font-size: 0.85em; margin-left: 4px;">Admin</span>' : '';
         const adminBtn = isAdmin
