@@ -47,8 +47,10 @@ function _renderGroupMemberTree(group) {
     const rows = members.map(m => {
         const name = escapeHtml(m.name && m.name !== 'Okänd' ? m.name : '');
         const number = escapeHtml(m.number || '');
-        const badge = m.role === 'ADMINISTRATOR' ? '<span class="admin-badge">Admin</span>' : '';
-        return `<li><span class="mono">${number}</span>${name ? ' — ' + name : ''}${badge}</li>`;
+        const adminBadge = m.role === 'ADMINISTRATOR' ? '<span class="admin-badge">Admin</span>' : '';
+        const blockedBadge = m.isBlocked ? '<span class="blocked-badge">Blockerad</span>' : '';
+        const note = m.note ? `<div class="member-note">${escapeHtml(m.note)}</div>` : '';
+        return `<li><span class="mono">${number}</span>${name ? ' — ' + name : ''}${adminBadge}${blockedBadge}${note}</li>`;
     }).join('');
     return `
         <details class="group-members">

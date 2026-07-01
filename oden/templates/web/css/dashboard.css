@@ -224,6 +224,17 @@ td {
     font-size: 0.85em;
     margin-left: 4px;
 }
+.blocked-badge {
+    color: #ff5252;
+    font-size: 0.85em;
+    margin-left: 4px;
+}
+.member-note {
+    color: var(--color-text-muted);
+    font-size: 0.9em;
+    font-style: italic;
+    margin-left: 20px;
+}
 .group-item.ignored {
     opacity: 0.6;
     background: #1a1520;
