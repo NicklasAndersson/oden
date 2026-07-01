@@ -66,9 +66,7 @@ async def groups_handler(request: web.Request) -> web.Response:
                         # No saved contact name — fall back to the Signal profile
                         # name (givenName/familyName), same as the Contacts tab.
                         profile = (app_state.contacts.get(num) or {}).get("profile") or {}
-                        profile_name = " ".join(
-                            p for p in (profile.get("givenName"), profile.get("familyName")) if p
-                        )
+                        profile_name = " ".join(p for p in (profile.get("givenName"), profile.get("familyName")) if p)
                         display = profile_name or display
                     members.append({"number": num, "name": display, "role": role})
                     if num == cfg.SIGNAL_NUMBER and role == "ADMINISTRATOR":
