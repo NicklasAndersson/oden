@@ -25,7 +25,7 @@ oden = "oden.s7_watcher:main"
 [project.optional-dependencies]
 tray = [
     "pystray>=0.19.5",
-    "Pillow>=12.2.0",
+    "Pillow>=12.3.0",
 ]
 dev = [
     "pytest>=9.1.1",
