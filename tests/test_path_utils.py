@@ -96,8 +96,9 @@ class TestValidatePathWithinHome:
         assert error is None
         assert result == test_path
 
-    def test_path_outside_home_rejected(self):
-        """Test that paths outside home are rejected."""
+    def test_path_outside_home_rejected(self, monkeypatch):
+        """Test that paths outside home are rejected (non-Docker: ODEN_HOME unset)."""
+        monkeypatch.delenv("ODEN_HOME", raising=False)
         result, error = validate_path_within_home("/etc/passwd")
         assert result is None
         assert "måste vara under" in error
