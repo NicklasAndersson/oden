@@ -310,6 +310,51 @@ async def update_group_handler(request: web.Request) -> web.Response:
     return web.json_response({"success": True})
 
 
+@handle_errors("create group")
+@parse_json_body
+async def create_group_handler(request: web.Request) -> web.Response:
+    """Create a new group via signal-cli createGroup RPC."""
+    data = request["json_body"]
+    name = data.get("name", "").strip()
+
+    if not name:
+        return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
+
+    # Check writer after validation so a missing name returns 400, not 503
+    app_state = get_app_state()
+    if not app_state.writer:
+        return web.json_response(
+            {"success": False, "error": "Inte ansluten till signal-cli"},
+            status=503,
+        )
+
+    params: dict = {"account": cfg.SIGNAL_NUMBER, "name": name}
+    members = data.get("member") or []
+    if members:
+        params["member"] = members
+
+    result = await app_state.send_jsonrpc("createGroup", params=params)
+
+    if result is None:
+        return web.json_response(
+            {"success": False, "error": "Inget svar från signal-cli"},
+            status=502,
+        )
+
+    # Refresh groups cache after creation
+    refresh = await app_state.send_jsonrpc(
+        "listGroups",
+        params={"account": cfg.SIGNAL_NUMBER},
+        timeout=10.0,
+    )
+    if refresh and "result" in refresh:
+        app_state.update_groups(refresh["result"])
+        upsert_groups_bulk(cfg.CONFIG_DB, refresh["result"], account=cfg.SIGNAL_NUMBER)
+
+    logger.info("Group '%s' created", name)
+    return web.json_response({"success": True})
+
+
 @handle_errors("refresh groups")
 @require_writer
 async def refresh_groups_handler(request: web.Request) -> web.Response:

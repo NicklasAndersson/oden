@@ -311,3 +311,79 @@ async function handleJoinGroupSubmit(e) {
         submitBtn.textContent = 'Gå med i grupp';
     }
 }
+
+// ========== Create group ==========
+
+async function loadCreateGroupContacts() {
+    const container = document.getElementById('create-group-contacts');
+    try {
+        const response = await fetch('/api/contacts');
+        const data = await response.json();
+        const contacts = data.contacts || [];
+
+        if (contacts.length === 0) {
+            container.innerHTML = '<div class="empty-state">Inga kontakter hittades</div>';
+            return;
+        }
+
+        container.innerHTML = contacts.map(c => {
+            const number = escapeHtml(c.number || '');
+            const name = escapeHtml(c.name || c.nickName || number);
+            return `<label style="display: block; padding: 3px 0;"><input type="checkbox" value="${number}"> ${name}</label>`;
+        }).join('');
+    } catch (error) {
+        container.innerHTML = '<div class="empty-state">Kunde inte ladda kontakter</div>';
+    }
+}
+
+async function handleCreateGroupSubmit(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('create-group-name');
+    const submitBtn = document.getElementById('create-group-btn');
+    const messageDiv = document.getElementById('create-group-message');
+    const name = nameInput.value.trim();
+
+    if (!name) return;
+
+    const checked = Array.from(
+        document.querySelectorAll('#create-group-contacts input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+
+    const manualInput = document.getElementById('create-group-add-number');
+    const manualNumbers = manualInput.value.split(',').map(s => s.trim()).filter(Boolean);
+
+    const member = [...new Set([...checked, ...manualNumbers])];
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Skapar...';
+    messageDiv.className = 'message';
+    messageDiv.textContent = '';
+
+    try {
+        const response = await fetch('/api/groups/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, member }),
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            messageDiv.className = 'message success';
+            messageDiv.textContent = 'Grupp skapad!';
+            nameInput.value = '';
+            manualInput.value = '';
+            document.querySelectorAll('#create-group-contacts input[type="checkbox"]:checked')
+                .forEach(cb => { cb.checked = false; });
+            await fetchGroups();
+        } else {
+            messageDiv.className = 'message error';
+            messageDiv.textContent = result.error || 'Kunde inte skapa grupp';
+        }
+    } catch (error) {
+        messageDiv.className = 'message error';
+        messageDiv.textContent = 'Nätverksfel: ' + error.message;
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Skapa grupp';
+    }
+}

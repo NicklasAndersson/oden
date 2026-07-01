@@ -7,6 +7,7 @@
 fetchLogs();
 fetchInvitations();
 fetchGroups();
+loadCreateGroupContacts();
 loadConfigForm();
 loadSignalConfig();
 loadSignalCliStatus();
@@ -21,6 +22,7 @@ setInterval(loadSignalCliStatus, 30000); // signal-cli status: every 30 seconds
 
 // ========== Form Handlers ==========
 document.getElementById('join-group-form').addEventListener('submit', handleJoinGroupSubmit);
+document.getElementById('create-group-form').addEventListener('submit', handleCreateGroupSubmit);
 
 // Prevent form submission on Enter (auto-save handles saving)
 ['config-form', 'config-form-advanced'].forEach(formId => {
