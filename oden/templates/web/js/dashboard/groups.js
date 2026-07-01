@@ -23,19 +23,39 @@ async function fetchGroups() {
                 : '';
             return `
                 <div class="group-item" data-group-name="${escapeHtml(group.name)}">
-                    <div class="group-info">
+                    <div class="group-header">
                         <div class="group-name">${escapeHtml(group.name)}</div>
-                        <div class="group-meta">${group.memberCount} medlemmar</div>
+                        <div class="group-buttons">${editBtn}</div>
                     </div>
-                    <div class="group-buttons">
-                        ${editBtn}
-                    </div>
+                    ${_renderGroupMemberTree(group)}
                 </div>
             `;
         }).join('');
     } catch (error) {
         console.error('Error fetching groups:', error);
     }
+}
+
+function _renderGroupMemberTree(group) {
+    if (!group.memberCount) {
+        return '<div class="group-meta">0 medlemmar</div>';
+    }
+    const members = group.members || [];
+    if (!members.length) {
+        return `<div class="group-meta">${group.memberCount} medlemmar (uppdatera för att se namn)</div>`;
+    }
+    const rows = members.map(m => {
+        const name = escapeHtml(m.name && m.name !== 'Okänd' ? m.name : '');
+        const number = escapeHtml(m.number || '');
+        const badge = m.role === 'ADMINISTRATOR' ? '<span class="admin-badge">Admin</span>' : '';
+        return `<li><span class="mono">${number}</span>${name ? ' — ' + name : ''}${badge}</li>`;
+    }).join('');
+    return `
+        <details class="group-members">
+            <summary>${group.memberCount} medlemmar</summary>
+            <ul class="group-member-list">${rows}</ul>
+        </details>
+    `;
 }
 
 // ========== Group edit modal ==========
