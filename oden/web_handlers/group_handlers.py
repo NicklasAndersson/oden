@@ -292,11 +292,11 @@ async def update_group_handler(request: web.Request) -> web.Response:
 
     result = await app_state.send_jsonrpc("updateGroup", params=params)
 
-    if result is None:
-        return web.json_response(
-            {"success": False, "error": "Inget svar från signal-cli"},
-            status=502,
-        )
+    if not result or "result" not in result:
+        error_msg = "Inget svar från signal-cli"
+        if result and "error" in result:
+            error_msg = result["error"].get("message", error_msg)
+        return web.json_response({"success": False, "error": error_msg}, status=502)
 
     # Refresh groups cache after update
     refresh = await app_state.send_jsonrpc(
@@ -337,11 +337,11 @@ async def create_group_handler(request: web.Request) -> web.Response:
 
     result = await app_state.send_jsonrpc("createGroup", params=params)
 
-    if result is None:
-        return web.json_response(
-            {"success": False, "error": "Inget svar från signal-cli"},
-            status=502,
-        )
+    if not result or "result" not in result:
+        error_msg = "Inget svar från signal-cli"
+        if result and "error" in result:
+            error_msg = result["error"].get("message", error_msg)
+        return web.json_response({"success": False, "error": error_msg}, status=502)
 
     # Refresh groups cache after creation
     refresh = await app_state.send_jsonrpc(
