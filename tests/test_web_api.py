@@ -455,6 +455,29 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
             self.assertEqual(data["config"]["mode"], "blacklist")
             self.assertEqual(data["config"]["groups"], ["Alpha", "Bravo"])
 
+    async def test_update_pipeline_config_generic_template_applies_auto_reaction_live(self):
+        """Toggling auto_reaction_enabled must take effect immediately (cfg.AUTO_REACTION_ENABLED),
+        not just update cfg.PIPELINE_SETTINGS — otherwise the change requires an app restart."""
+        import oden.config as cfg
+
+        resp = await self.client.patch(
+            "/api/pipelines/generic_template/config",
+            json={"config": {"auto_reaction_enabled": True, "auto_reaction_emoji": "👍"}},
+        )
+
+        self.assertEqual(resp.status, 200)
+        data = await resp.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["config"]["auto_reaction_enabled"])
+        self.assertTrue(cfg.AUTO_REACTION_ENABLED)
+        self.assertEqual(cfg.AUTO_REACTION_EMOJI, "👍")
+
+        # Clean up so this doesn't leak into other tests sharing the test config DB.
+        await self.client.patch(
+            "/api/pipelines/generic_template/config",
+            json={"config": {"auto_reaction_enabled": False, "auto_reaction_emoji": "✅"}},
+        )
+
     async def test_update_pipeline_config_seven_s_subdir_toggle(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "config.db"
