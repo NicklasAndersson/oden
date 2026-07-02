@@ -7,6 +7,7 @@ from pathlib import Path
 from oden.config_db import (
     init_db,
 )
+from oden.contacts_db import get_all_contacts, upsert_contacts_bulk
 from oden.groups_db import (
     delete_group,
     get_all_groups,
@@ -151,9 +152,9 @@ class TestResponsesCRUD(unittest.TestCase):
 
 
 class TestSchemaVersion(unittest.TestCase):
-    """Test that schema migration bumps version to 5."""
+    """Test that schema migration bumps version to 6."""
 
-    def test_schema_version_is_5(self):
+    def test_schema_version_is_6(self):
         import sqlite3
 
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -168,7 +169,7 @@ class TestSchemaVersion(unittest.TestCase):
         conn.close()
         db_path.unlink(missing_ok=True)
 
-        self.assertEqual(row[0], "5")
+        self.assertEqual(row[0], "6")
 
     def test_raw_messages_table_exists(self):
         import sqlite3
@@ -218,6 +219,23 @@ class TestSchemaVersion(unittest.TestCase):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='groups'")
+        row = cursor.fetchone()
+        conn.close()
+        db_path.unlink(missing_ok=True)
+
+        self.assertIsNotNone(row)
+
+    def test_contacts_table_exists(self):
+        import sqlite3
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = Path(f.name)
+        db_path.unlink(missing_ok=True)
+        init_db(db_path)
+
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='contacts'")
         row = cursor.fetchone()
         conn.close()
         db_path.unlink(missing_ok=True)
@@ -286,7 +304,7 @@ class TestSchemaVersion(unittest.TestCase):
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM metadata WHERE key = 'schema_version'")
-            self.assertEqual(cursor.fetchone()[0], "5")
+            self.assertEqual(cursor.fetchone()[0], "6")
 
             cursor.execute("SELECT value FROM config WHERE key = 'append_window_minutes'")
             self.assertEqual(cursor.fetchone()[0], "45")
@@ -414,6 +432,60 @@ class TestGroupsCRUD(unittest.TestCase):
         groups = get_all_groups(self.db_path, account="+111")
         self.assertEqual(len(groups), 2)
         self.assertEqual(get_all_groups(self.db_path, account="+222"), [])
+
+
+class TestContactsCRUD(unittest.TestCase):
+    """Test CRUD operations for the contacts table."""
+
+    def setUp(self):
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            self.db_path = Path(tmp.name)
+        self.db_path.unlink(missing_ok=True)
+        init_db(self.db_path)
+
+    def tearDown(self):
+        self.db_path.unlink(missing_ok=True)
+
+    def test_bulk_upsert_and_get_all(self):
+        contacts = [
+            {"number": "+461", "name": "Alice", "profile": {"givenName": "Alice"}},
+            {"number": "+462", "nickName": "Bob"},
+        ]
+        count = upsert_contacts_bulk(self.db_path, contacts, account="+460000")
+        self.assertEqual(count, 2)
+
+        stored = get_all_contacts(self.db_path, account="+460000")
+        self.assertEqual(len(stored), 2)
+        numbers = {c["number"] for c in stored}
+        self.assertEqual(numbers, {"+461", "+462"})
+        alice = next(c for c in stored if c["number"] == "+461")
+        self.assertEqual(alice["profile"]["givenName"], "Alice")
+
+    def test_bulk_upsert_updates_existing(self):
+        upsert_contacts_bulk(self.db_path, [{"number": "+461", "name": "Old"}], account="+460000")
+        upsert_contacts_bulk(self.db_path, [{"number": "+461", "name": "New"}], account="+460000")
+        stored = get_all_contacts(self.db_path, account="+460000")
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[0]["name"], "New")
+
+    def test_bulk_upsert_skips_missing_number(self):
+        count = upsert_contacts_bulk(self.db_path, [{"name": "No number"}], account="+460000")
+        self.assertEqual(count, 0)
+
+    def test_get_all_contacts_empty_db(self):
+        self.assertEqual(get_all_contacts(self.db_path), [])
+
+    def test_get_all_contacts_no_db(self):
+        self.db_path.unlink(missing_ok=True)
+        self.assertEqual(get_all_contacts(self.db_path), [])
+
+    def test_contacts_scoped_by_account(self):
+        upsert_contacts_bulk(self.db_path, [{"number": "+461", "name": "A"}], account="+111")
+        upsert_contacts_bulk(self.db_path, [{"number": "+461", "name": "B"}], account="+222")
+
+        self.assertEqual(len(get_all_contacts(self.db_path, account="+111")), 1)
+        self.assertEqual(get_all_contacts(self.db_path, account="+111")[0]["name"], "A")
+        self.assertEqual(len(get_all_contacts(self.db_path)), 2)
 
 
 if __name__ == "__main__":
