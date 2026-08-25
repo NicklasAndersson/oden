@@ -75,7 +75,7 @@ def _mgrs_to_latlon(mgrs_str: str) -> tuple[float, float] | None:
         return None
 
     try:
-        lat, lon = converter(mgrs_str)
+        lat, lon = converter(mgrs_str.replace(" ", ""))
         return float(lat), float(lon)
     except Exception as exc:
         logger.debug("Failed to convert MGRS %r to coordinates: %s", mgrs_str, exc)
