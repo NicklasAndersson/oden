@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-08-26
+
+### Added
+
+- **Bilder i strukturerade pipelines**: Stöd för bildhantering i 7S/FORS/PEDARS-flödena
+
+### Changed
+
+- **Regex auto-linking borttaget**: Konfigurerbar auto-länkning (tel, regnr, personnummer) tas bort till förmån för Obsidians egen länkning; 7S hårdkodade skyltlänkning påverkas inte
+
+### Fixed
+
+- **Live-uppdatering av pipeline-inställningar**: Auto-reaktion och läskvitto i Pipelines-fliken slår igenom direkt istället för att kräva omstart
+- **7S MGRS-koordinater**: Mellanslag i Ställe-fältet stripades inte bort före MGRS-till-latlon-konvertering, vilket gav felaktiga koordinater
+
 ## [3.1.2] - 2026-06-26
 
 ### Added
