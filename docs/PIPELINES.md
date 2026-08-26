@@ -267,11 +267,12 @@ En ny pipeline måste:
 from typing import Any
 import asyncio
 
+
 class MyCustomPipeline:
     """Describe pipeline purpose."""
-    
+
     name = "my_custom"  # Unique identifier for config
-    
+
     async def run(
         self,
         *,
@@ -280,24 +281,24 @@ class MyCustomPipeline:
         writer: asyncio.StreamWriter,
     ) -> bool:
         """Process one message.
-        
+
         Returns True if handled, False to pass to next pipeline.
         """
         # msg_data innehåller rå signal-cli-envelope och metadata
-        
+
         # Välj om denna pipeline ska hantera meddelandet
         if not self._should_handle(msg_data):
             return False
-        
+
         # Gör något (skriva fil, API-anrop, etc.)
         await self._do_work(msg_data)
-        
+
         return True  # Meddelandet hanterat
-    
+
     def _should_handle(self, msg_data: dict[str, Any]) -> bool:
         # Din logik här
         pass
-    
+
     async def _do_work(self, msg_data: dict[str, Any]) -> None:
         # Din logik här
         pass
