@@ -15,6 +15,7 @@ from typing import Any
 from aiohttp import web
 
 from oden import config as cfg
+from oden.config import reload_config
 from oden.config_db import set_config_value
 from oden.pipeline_orchestrator import _GenericPipeline
 from oden.pipeline_settings import (
@@ -124,7 +125,10 @@ def _get_pipeline_settings() -> dict[str, Any]:
 
 def _save_pipeline_settings(settings: dict[str, Any]) -> None:
     set_config_value(cfg.CONFIG_DB, "pipeline_settings", settings)
-    cfg.PIPELINE_SETTINGS = settings
+    # reload_config() re-derives cfg.AUTO_REACTION_ENABLED/EMOJI, cfg.AUTO_READ_RECEIPT_ENABLED
+    # and cfg.FILENAME_FORMAT from the generic_template settings — a plain assignment to
+    # cfg.PIPELINE_SETTINGS leaves those stale until the next full reload.
+    reload_config()
 
 
 @handle_errors("listing pipelines")
