@@ -203,6 +203,36 @@ gh pr list --state open                   # List open PRs
 gh pr checks                              # View CI check status for current branch
 ```
 
+## Coding Style
+
+- **Be concise in human-facing text.** Comments, commit messages, replies: fewest words that convey the point. No filler.
+- **No superlatives or praise.** Don't tell the user they're right. State facts.
+- **No magic numbers/strings.** Extract recurring or meaningful values into named constants or enums. One-off, self-explanatory values can stay inline. Values from a spec (e.g. HTTP 200) always get a constant.
+- **Reduce indentation.** Avoid the arrow anti-pattern; prefer early return/continue over nested conditionals.
+- **Short function names.** Under 30 characters.
+- **Enums over booleans** for function parameters.
+- **Blank lines between logical blocks** of code, for readability.
+- **Comments explain what and why**, briefly. Use examples or ASCII diagrams for non-obvious systems.
+- **Default to private.** Keep fields/functions private unless external access is strictly required. Changing an access modifier from private to internal/public is a breaking design shift — ask before doing it.
+- **Program to levels of abstraction.** Low-level mechanics (raw I/O, socket streams, parsing) live in a dedicated driver/abstraction layer; the rest of the app uses clean, high-level domain APIs.
+- **Respect layer boundaries.** Each layer talks only to the layer directly below it — no punching through (e.g. handlers must not touch signal-cli sockets or the DB directly; go through the intermediate layer).
+- **Minimize diff footprint.** Don't touch code unrelated to the feature at hand. Don't add comments to blocks you didn't write or modify.
+- **Always use `{}`**, even for single-line `if` statements.
+
+## Commit Messages
+
+1. Blank line between subject and body.
+2. Subject line ≤ 50 chars (72 hard limit).
+3. Capitalize first letter of subject.
+4. No period at end of subject.
+5. Imperative mood in subject ("Fix bug", not "Fixed"/"Adds"). Test: "If applied, this commit will [subject]."
+6. Wrap body manually at 72 chars.
+7. Body explains what and why, not how — the code is the how.
+
+## Bug Fixes
+
+When fixing a bug: write the failing test first, confirm it fails, then write the fix, then confirm the test passes.
+
 ## File Naming Convention
 Markdown files: `DDHHMM-{phone}-{name}.md` (e.g., `161430-46701234567-Nicklas.md`)
 
