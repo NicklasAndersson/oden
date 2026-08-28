@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-08-28
+
+### Fixed
+
+- **Gruppfilter i Pipelines-fliken**: Whitelist/Blacklist-dropdownen och grupp-rutan nollställdes av den automatiska uppdateringen var 3:e sekund medan man redigerade; ändringar behålls nu tills de sparas
+
 ## [3.2.0] - 2026-08-26
 
 ### Added
