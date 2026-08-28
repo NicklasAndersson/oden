@@ -24,6 +24,11 @@ const genericTemplateMeta = {
     },
 };
 
+// ponytail: set true while the user is editing a pipeline's settings so the 3s
+// auto-refresh poll doesn't re-render the list and wipe unsaved dropdown/textarea
+// input. Reset on every full render (tab switch / post-save).
+let _pipelineSettingsDirty = false;
+
 function getEnabledNames() {
     return pipelinesState.enabled.map(item => item.name);
 }
@@ -509,6 +514,14 @@ function renderEnabledPipelines() {
             </div>
         `;
     }).join('');
+
+    _pipelineSettingsDirty = false;
+    if (!container.dataset.dirtyWired) {
+        const markDirty = () => { _pipelineSettingsDirty = true; };
+        container.addEventListener('input', markDirty);
+        container.addEventListener('change', markDirty);
+        container.dataset.dirtyWired = '1';
+    }
 }
 
 function renderAvailablePipelines() {
@@ -673,7 +686,7 @@ async function saveGroupFilterSettings() {
 
 function fetchPipelinesIfVisible() {
     const tab = document.getElementById('tab-pipelines');
-    if (tab && tab.classList.contains('active')) {
+    if (tab && tab.classList.contains('active') && !_pipelineSettingsDirty) {
         loadPipelinesDashboard();
     }
 }
