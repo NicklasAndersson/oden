@@ -1,0 +1,245 @@
+"""CoT (Cursor on Target) XML <-> Oden report mapping.
+
+Pure functions, stdlib only (plus the ``mgrs`` lib already used elsewhere for the
+one reverse-geocode helper). No network here — the bridge/listener use this.
+
+Outbound:  ``report_to_cot`` turns a normalized report dict into a CoT ``<event>``.
+Inbound:   ``cot_to_inbound`` parses a received ``<event>`` into ``InboundCot``.
+
+Design notes (see docs/PLAN_TAK.md):
+- UID is stable and derived from report type + TNR, so an updated/appended report
+  replaces its marker instead of duplicating it.
+- ``how="h-g-i-g-o"`` — human, entered manually (not machine/GPS).
+- Affiliation defaults to "unknown"; only narrow it when the caller is sure.
+- Inbound text (callsign/uid/remarks) is untrusted: sanitize before it touches
+  filenames, clamp coordinates, truncate remarks.
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+import logging
+import re
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+
+UID_PREFIX = "ODEN"
+_UNKNOWN_VAL = "9999999.0"  # CoT sentinel for unknown hae/ce/le
+_COT_TIME_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
+_MAX_REMARKS = 4096
+
+# Affiliation -> CoT 2525 atom type (ground). Air/sea not needed for reports.
+AFFIL_TO_TYPE = {
+    "friendly": "a-f-G",
+    "hostile": "a-h-G",
+    "neutral": "a-n-G",
+    "unknown": "a-u-G",
+}
+_TYPE_TO_AFFIL = {v[:4]: k for k, v in AFFIL_TO_TYPE.items()}  # "a-f-" -> "friendly"
+
+_TOKEN_OK = re.compile(r"[^A-Za-z0-9 ._-]+")
+
+
+def sanitize_token(value: str, *, max_len: int = 64) -> str:
+    """Make a callsign/uid safe for filenames and logs. Never returns ``..``."""
+    cleaned = _TOKEN_OK.sub("_", (value or "").strip())
+    cleaned = cleaned.replace("..", "_").strip(" ._-")
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned[:max_len] or "okänd"
+
+
+def make_uid(report_type: str, tnr: str) -> str:
+    return f"{UID_PREFIX}.{sanitize_token(report_type, max_len=16)}.{sanitize_token(tnr, max_len=32)}".replace(" ", "")
+
+
+def _fmt_time(value: _dt.datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=_dt.timezone.utc)
+    return value.astimezone(_dt.timezone.utc).strftime(_COT_TIME_FMT)[:-4] + "Z"
+
+
+def _parse_time(value: str | None) -> _dt.datetime | None:
+    if not value:
+        return None
+    text = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = _dt.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_dt.timezone.utc)
+    return parsed.astimezone(_dt.timezone.utc)
+
+
+def _valid_latlon(lat: float, lon: float) -> bool:
+    return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0 and not (lat == 0.0 and lon == 0.0)
+
+
+@dataclass(frozen=True)
+class Report:
+    """Normalized input for :func:`report_to_cot`. Pipelines adapt to this."""
+
+    report_type: str  # "7S", "FORS", "PEDARS"
+    tnr: str
+    lat: float
+    lon: float
+    event_time: _dt.datetime  # when Oden received/processed it
+    start_time: _dt.datetime  # the report's own timestamp (Stund)
+    remarks: str  # full human-readable report text
+    affiliation: str = "unknown"  # key of AFFIL_TO_TYPE
+    hae: float | None = None
+
+
+def report_to_cot(
+    report: Report,
+    *,
+    stale_seconds: int = 3600,
+    archive: bool = True,
+) -> bytes:
+    """Build a CoT ``<event>`` for a positioned report. Returns UTF-8 XML bytes."""
+    if not _valid_latlon(report.lat, report.lon):
+        raise ValueError(f"report_to_cot: invalid lat/lon {report.lat},{report.lon}")
+
+    cot_type = AFFIL_TO_TYPE.get(report.affiliation, AFFIL_TO_TYPE["unknown"])
+    uid = make_uid(report.report_type, report.tnr)
+    stale = report.event_time + _dt.timedelta(seconds=max(1, stale_seconds))
+
+    event = ET.Element(
+        "event",
+        {
+            "version": "2.0",
+            "uid": uid,
+            "type": cot_type,
+            "how": "h-g-i-g-o",
+            "time": _fmt_time(report.event_time),
+            "start": _fmt_time(report.start_time),
+            "stale": _fmt_time(stale),
+        },
+    )
+    ET.SubElement(
+        event,
+        "point",
+        {
+            "lat": f"{report.lat:.7f}",
+            "lon": f"{report.lon:.7f}",
+            "hae": f"{report.hae:.1f}" if report.hae is not None else _UNKNOWN_VAL,
+            "ce": _UNKNOWN_VAL,
+            "le": _UNKNOWN_VAL,
+        },
+    )
+    detail = ET.SubElement(event, "detail")
+    ET.SubElement(detail, "contact", {"callsign": f"{report.report_type} {report.tnr}".strip()})
+    remarks = ET.SubElement(detail, "remarks")
+    remarks.text = (report.remarks or "")[:_MAX_REMARKS]
+    ET.SubElement(detail, "link", {"uid": uid, "type": cot_type, "relation": "p-p"})
+    if archive:
+        ET.SubElement(detail, "archive")
+
+    return ET.tostring(event, encoding="utf-8", xml_declaration=False)
+
+
+@dataclass(frozen=True)
+class InboundCot:
+    uid: str
+    cot_type: str
+    how: str
+    lat: float
+    lon: float
+    hae: float | None
+    callsign: str
+    remarks: str
+    event_time: _dt.datetime
+    stale: _dt.datetime | None
+    is_chat: bool
+
+    @property
+    def affiliation(self) -> str:
+        return _TYPE_TO_AFFIL.get(self.cot_type[:4], "unknown")
+
+
+def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
+    """Parse a received CoT ``<event>``.
+
+    Returns ``None`` for anything without a usable position (pings, malformed,
+    (0,0), out-of-range). Text fields are sanitized/truncated here.
+    """
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as exc:
+        logger.debug("cot_to_inbound: parse error: %s", exc)
+        return None
+    if root.tag != "event":
+        return None
+
+    point = root.find("point")
+    if point is None:
+        return None
+    try:
+        lat = float(point.get("lat", ""))
+        lon = float(point.get("lon", ""))
+    except ValueError:
+        return None
+    if not _valid_latlon(lat, lon):
+        return None
+
+    try:
+        hae_raw = float(point.get("hae", _UNKNOWN_VAL))
+        hae = None if hae_raw >= 9_999_999.0 else hae_raw
+    except ValueError:
+        hae = None
+
+    detail = root.find("detail")
+    callsign = ""
+    remarks = ""
+    is_chat = False
+    if detail is not None:
+        contact = detail.find("contact")
+        if contact is not None:
+            callsign = contact.get("callsign", "")
+        remarks_el = detail.find("remarks")
+        if remarks_el is not None and remarks_el.text:
+            remarks = remarks_el.text
+        is_chat = detail.find("__chat") is not None or root.get("type", "").startswith("b-t-f")
+
+    event_time = _parse_time(root.get("time")) or _dt.datetime.now(_dt.timezone.utc)
+
+    return InboundCot(
+        uid=sanitize_token(root.get("uid", ""), max_len=128),
+        cot_type=root.get("type", ""),
+        how=root.get("how", ""),
+        lat=lat,
+        lon=lon,
+        hae=hae,
+        callsign=sanitize_token(callsign or root.get("uid", ""), max_len=64),
+        remarks=remarks[:_MAX_REMARKS],
+        event_time=event_time,
+        stale=_parse_time(root.get("stale")),
+        is_chat=is_chat,
+    )
+
+
+def cot_type_matches(cot_type: str, patterns: list[str]) -> bool:
+    """Match a CoT type against patterns like ``a-h-*`` (prefix) or exact ``a-h-G``."""
+    for pattern in patterns:
+        pattern = pattern.strip()
+        if not pattern:
+            continue
+        if pattern.endswith("*"):
+            if cot_type.startswith(pattern[:-1]):
+                return True
+        elif cot_type == pattern:
+            return True
+    return False
+
+
+def latlon_to_mgrs(lat: float, lon: float) -> str:
+    """Best-effort lat/lon -> MGRS for display. Empty string if mgrs is missing."""
+    try:
+        import mgrs
+
+        return str(mgrs.MGRS().toMGRS(lat, lon))
+    except Exception as exc:  # pragma: no cover - depends on optional native lib
+        logger.debug("latlon_to_mgrs failed: %s", exc)
+        return ""
