@@ -1,7 +1,10 @@
+import importlib.util
 import unittest
 from unittest.mock import patch
 
 from oden.tak.bridge import _DEFAULTS, TakBridge
+
+_HAS_PYTAK = importlib.util.find_spec("pytak") is not None
 
 
 class BuildConfigTest(unittest.TestCase):
@@ -36,6 +39,7 @@ class BuildConfigTest(unittest.TestCase):
         cfg_on = self._config({"cot_url": "tls://x:8089", "tls_check_hostname": True})
         self.assertNotIn("PYTAK_TLS_DONT_CHECK_HOSTNAME", cfg_on)
 
+    @unittest.skipUnless(_HAS_PYTAK, "pytak not installed (oden[tak])")
     def test_pref_package_fills_url_and_certs(self):
         fake = {
             "COT_URL": "ssl://tak.example:8089",

@@ -35,7 +35,7 @@ jobs:
         python-version-file: ".python-version"
     - name: Install package with test dependencies
       run: |
-        pip install -e .
+        pip install -e ".[tak]"
         pip install pytest pytest-cov
     - name: Run tests with coverage
       run: |
