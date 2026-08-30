@@ -24,7 +24,15 @@ Fråga din TAK-admin om **ett av** följande (i fallande ordning av bekvämlighe
 2. **Klientcertifikat `.p12`** + lösenord, plus serverns **CA-cert** (PEM) och
    `host:port`.
 3. **Enrollment-konto** (användarnamn/lösenord) om servern kör
-   certifikat-enrollment. `pytak` kan hämta certet självt.
+   certifikat-enrollment (port 8446). Sätt `enroll_username` i TAK-fliken och
+   lägg lösenordet i miljövariabeln `ODEN_TAK_ENROLL_PASSWORD` — Oden hämtar då
+   ett klientcert från servern vid start. Du behöver fortfarande serverns CA
+   (se nästa stycke) eller `tls_verify = false`.
+
+**Server-CA:** en TAK Server signerar sina egna certifikat, så `tls_verify = true`
+utan `tls_ca_cert` ger `self-signed certificate in certificate chain`. Exportera
+CA:t (`truststore-root.pem` e.d.) från TAK-admin/CloudTAK och peka `tls_ca_cert`
+på den, eller sätt `tls_verify = false` i labb.
 
 Lägg filerna någonstans läsbart bara för Oden-användaren:
 
