@@ -28,6 +28,11 @@ CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
   `js/dashboard/tak.js`) + `oden/web_handlers/tak_handlers.py`: status, räknare,
   cert-utgång med 30-dygnsvarning, konfigformulär och testmarkör-knapp.
   Certlösenordet exponeras aldrig — bara namnet på miljövariabeln.
+- **Verifierat mot skarp server** (`tak.hv-sog.se`, TAK Server 5.7-RELEASE-8):
+  mTLS via data package (`pref_package`), CoT-markör levererad klient → server →
+  annan klient, inkommande CoT parsad. Krävde `tls_check_hostname = false`
+  (serverns cert-namn ≠ DNS-namn) — nu default av. `read_pref_package` gör
+  `.p12` → PEM + fyller i URL/cert/CA.
 - **Fas 5 – klar.** `s7_watcher.spec` plockar upp `pytak` + `cryptography`
   automatiskt om de finns i byggmiljön (annars byggs appen utan TAK).
   `tak_publish` dokumenterad i `PIPELINES.md` och `FEATURES.md`. NTP- och

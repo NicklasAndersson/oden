@@ -35,6 +35,9 @@ _DEFAULTS: dict[str, Any] = {
     "tls_client_password": "",
     "tls_ca_cert": "",
     "tls_verify": True,
+    # Many TAK Servers present a cert whose CN/SAN is not the DNS name you dial.
+    # Turning this off keeps CA verification but skips the hostname check.
+    "tls_check_hostname": False,
     # Certificate enrollment (username/password against the server, port 8446).
     # The password is read from the env var named here, never stored.
     "enroll_username": "",
@@ -118,16 +121,23 @@ class TakBridge:
         def _path(key: str) -> None:
             if s.get(key):
                 section_key = {
-                    "pref_package": "PREF_PACKAGE",
                     "tls_client_cert": "PYTAK_TLS_CLIENT_CERT",
                     "tls_client_key": "PYTAK_TLS_CLIENT_KEY",
                     "tls_ca_cert": "PYTAK_TLS_CLIENT_CAFILE",
                 }[key]
                 section[section_key] = os.path.expanduser(str(s[key]))
 
+        pref_package = os.path.expanduser(str(s.get("pref_package") or "").strip())
+        if pref_package:
+            # Unzips the data package, converts the .p12s to PEM and fills in
+            # COT_URL + PYTAK_TLS_CLIENT_CERT/KEY/CAFILE from the .pref inside.
+            import pytak
+
+            section.update({k: str(v) for k, v in pytak.read_pref_package(pref_package).items() if v})
+
         if str(s.get("cot_url") or "").strip():
             section["COT_URL"] = str(s["cot_url"]).strip()
-        for key in ("pref_package", "tls_client_cert", "tls_client_key", "tls_ca_cert"):
+        for key in ("tls_client_cert", "tls_client_key", "tls_ca_cert"):
             _path(key)
 
         pw_env = str(s.get("tls_client_password_env") or "").strip()
@@ -136,6 +146,8 @@ class TakBridge:
             section["PYTAK_TLS_CLIENT_PASSWORD"] = password
         if not bool(s.get("tls_verify", True)):
             section["PYTAK_TLS_DONT_VERIFY"] = "1"
+        if not bool(s.get("tls_check_hostname", False)):
+            section["PYTAK_TLS_DONT_CHECK_HOSTNAME"] = "1"
 
         enroll_user = str(s.get("enroll_username") or "").strip()
         if enroll_user:
@@ -155,8 +167,8 @@ class TakBridge:
         import pytak  # optional dependency, imported only when TAK is enabled
 
         config = self._build_config()
-        if "COT_URL" not in config and "PREF_PACKAGE" not in config:
-            raise ValueError("TAK: varken cot_url eller pref_package är angivet")
+        if not config.get("COT_URL"):
+            raise ValueError("TAK: ingen server angiven (sätt cot_url eller pref_package)")
 
         self._clitool = pytak.CLITool(config)
         await self._clitool.setup()

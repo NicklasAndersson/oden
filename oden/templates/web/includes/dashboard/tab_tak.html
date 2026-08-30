@@ -104,6 +104,13 @@
                     </div>
                     <span class="help-text">Stäng bara av i labbmiljö — aldrig mot skarp server</span>
                 </div>
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-check-hostname" name="tls_check_hostname">
+                        <label for="tak-check-hostname">Kräv att serverns certifikatnamn matchar adressen</label>
+                    </div>
+                    <span class="help-text">Många TAK-servrar har ett cert-namn som inte är DNS-namnet — lämna av om anslutningen faller på "Hostname mismatch"</span>
+                </div>
             </div>
         </div>
 

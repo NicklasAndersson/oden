@@ -29,10 +29,14 @@ Fråga din TAK-admin om **ett av** följande (i fallande ordning av bekvämlighe
    ett klientcert från servern vid start. Du behöver fortfarande serverns CA
    (se nästa stycke) eller `tls_verify = false`.
 
-**Server-CA:** en TAK Server signerar sina egna certifikat, så `tls_verify = true`
-utan `tls_ca_cert` ger `self-signed certificate in certificate chain`. Exportera
-CA:t (`truststore-root.pem` e.d.) från TAK-admin/CloudTAK och peka `tls_ca_cert`
-på den, eller sätt `tls_verify = false` i labb.
+**Server-CA:** en TAK Server signerar sina egna certifikat. Data package-`.zip`:en
+innehåller serverns `truststore-root.p12`, så med `pref_package` behöver du inget
+extra. Har du bara lösa filer: exportera CA:t (`truststore-root.pem` e.d.) från
+TAK-admin/CloudTAK och peka `tls_ca_cert` på den, eller `tls_verify = false` i labb.
+
+**Cert-namn ≠ adress:** TAK-serverns cert har ofta ett CN/SAN som inte är DNS-namnet
+du ansluter till (`Hostname mismatch, certificate is not valid for ...`). Lämna
+`tls_check_hostname` **av** (default) — CA-verifieringen är fortfarande på.
 
 Lägg filerna någonstans läsbart bara för Oden-användaren:
 
@@ -176,7 +180,8 @@ slumpfördröjning som FTS vill ha).
 
 | Symptom | Trolig orsak |
 |---|---|
-| `TLS handshake failed` / `certificate verify failed` | Fel `tls_ca_cert`, eller servern använder annan CA än du fått. Verifiera med `openssl s_client -connect host:8089`. |
+| `self-signed certificate in certificate chain` | `tls_ca_cert` saknas/fel. Använd `pref_package` (CA:t ingår) eller peka på serverns `truststore-root.pem`. |
+| `Hostname mismatch, certificate is not valid for ...` | Serverns cert-namn ≠ DNS-namnet. Stäng av `tls_check_hostname` (CA-koll kvar på). |
 | Ansluter men inget syns i ATAK | Fel affiliering/typ, eller markören redan "stale". Kolla `cot_stale_seconds` och Oden-värdens klocka (NTP). |
 | Markör försvinner efter en stund | `cot_archive = false` och Oden tappade anslutningen. Sätt `cot_archive = true`. |
 | Markör hamnar på fel plats / i havet (0,0) | MGRS-strängen i rapporten gick inte att tolka → ingen lat/lon. Kolla `Ställe`-fältet. |
