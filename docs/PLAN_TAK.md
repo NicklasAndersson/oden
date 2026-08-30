@@ -28,7 +28,15 @@ CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
   `js/dashboard/tak.js`) + `oden/web_handlers/tak_handlers.py`: status, räknare,
   cert-utgång med 30-dygnsvarning, konfigformulär och testmarkör-knapp.
   Certlösenordet exponeras aldrig — bara namnet på miljövariabeln.
-- **Fas 5 – ej påbörjad.**
+- **Fas 5 – klar.** `s7_watcher.spec` plockar upp `pytak` + `cryptography`
+  automatiskt om de finns i byggmiljön (annars byggs appen utan TAK).
+  `tak_publish` dokumenterad i `PIPELINES.md` och `FEATURES.md`. NTP- och
+  certrotationskrav i `TAK_SETUP.md`.
+  **Kvar som medvetet val:** release-workflowen bygger `.[tray]`, inte
+  `.[tray,tak]` — de nedladdningsbara DMG/Windows-apparna har alltså inte TAK.
+  Vill man ha det: ändra `pip install -e ".[tray]"` → `".[tray,tak]"` i
+  `.github/workflows/release.yml` (3 ställen). Ökar bundle-storlek och
+  signeringsyta (native `cryptography`).
 
 ## Utvärdering av första utkastet
 
@@ -82,7 +90,7 @@ CoT-byggaren sätta rätt attribut, annars kan servern tysta våra events.
 
 ## Biblioteksval
 
-**Använd `pytak`** (`pip install "pytak[with_crypto]"`). De-facto Python-biblioteket
+**Använd `pytak`** (`pip install "pytak[with-crypto]"`). De-facto Python-biblioteket
 för TAK: asyncio, mТLS med `.p12`/PEM/data-package, exponentiell reconnect,
 bounded TX/RX-köer (`MAX_OUT_QUEUE=100`, `MAX_IN_QUEUE=500`), TCP/TLS/UDP/Marti.
 Att skriva mTLS-klient + reconnect + CoT-serialisering för hand är långt mer än
@@ -225,11 +233,11 @@ Rapporter utan position kan skickas som CoT GeoChat (`type="b-t-f"`,
 3. **Landa via syntetiskt kuvert** → `create_raw_message(db, account, envelope)`:
    ```python
    envelope = {
-       "sourceName": safe_callsign,               # sanerad
+       "sourceName": safe_callsign,  # sanerad
        "sourceNumber": f"tak:{safe_uid}",
        "timestamp": cot_epoch_ms,
        "dataMessage": {
-           "message": render_observation(cot),    # rubrik: "TAK-OBSERVATION", ej "… RAPPORT"
+           "message": render_observation(cot),  # rubrik: "TAK-OBSERVATION", ej "… RAPPORT"
            "groupV2": {"id": tak_group_id, "name": cfg.inbound_group_name},
        },
        "_source": "tak",
@@ -266,7 +274,7 @@ TAK-panel (flik eller under Konfiguration), mönster från
 ## Fas 5 – Paketering, drift & dokumentation
 
 - `pyproject.toml`: `[project.optional-dependencies]`
-  `tak = ["pytak[with_crypto]>=7"]`.
+  `tak = ["pytak[with-crypto]>=7"]`.
 - PyInstaller (`s7_watcher.spec`): verifiera att `pytak`, `cryptography`,
   `lxml` följer med när tak-extran byggs in (hidden imports / binaries).
 - **NTP** på Oden-värden – dokumentera som krav (CoT-tider i UTC).

@@ -50,7 +50,7 @@ def load_tak_settings() -> dict[str, Any]:
 def cert_expiry(settings: dict[str, Any]) -> datetime | None:
     """Best-effort expiry date of the configured client cert.
 
-    Needs ``cryptography`` (ships with ``pytak[with_crypto]``). Returns None when
+    Needs ``cryptography`` (ships with ``pytak[with-crypto]``). Returns None when
     it is unavailable, no cert is configured, or the file cannot be read — this
     is a GUI convenience, never a gate on connecting.
     """

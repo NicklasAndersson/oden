@@ -34,7 +34,7 @@ cp ~/Downloads/oden-tak.zip ~/.config/oden/tak/     # eller .p12 + ca.pem
 chmod 600 ~/.config/oden/tak/*
 ```
 
-## Steg 2 – Konfigurera `config.ini`
+## Steg 2 – Konfigurera TAK
 
 Enklast: öppna web-GUI:t och gå till fliken **TAK**. Där finns statusvy,
 konfigformulär och en knapp för att skicka en testmarkör. Efter att du sparat
@@ -51,16 +51,20 @@ from pathlib import Path
 from oden.config_db import set_config_value
 from oden import config as cfg
 
-set_config_value(cfg.CONFIG_DB, "tak_settings", {
-    "enabled": True,
-    "cot_url": "tls://tak.example.mil:8089",
-    "tls_client_cert": str(Path.home() / ".config/oden/tak/oden.p12"),
-    "tls_client_password_env": "ODEN_TAK_CERT_PASSWORD",
-    "tls_ca_cert": str(Path.home() / ".config/oden/tak/ca.pem"),
-    "callsign": "ODEN",
-    "cot_stale_seconds": 3600,
-    "cot_archive": True,
-})
+set_config_value(
+    cfg.CONFIG_DB,
+    "tak_settings",
+    {
+        "enabled": True,
+        "cot_url": "tls://tak.example.mil:8089",
+        "tls_client_cert": str(Path.home() / ".config/oden/tak/oden.p12"),
+        "tls_client_password_env": "ODEN_TAK_CERT_PASSWORD",
+        "tls_ca_cert": str(Path.home() / ".config/oden/tak/ca.pem"),
+        "callsign": "ODEN",
+        "cot_stale_seconds": 3600,
+        "cot_archive": True,
+    },
+)
 ```
 
 Fälten nedan visas som `[TAK]`-sektion för läsbarhet; nyckelnamnen är desamma i
@@ -75,8 +79,6 @@ pref_package = /Users/<du>/.config/oden/tak/oden-tak.zip
 callsign = ODEN
 cot_stale_seconds = 3600
 cot_archive = true
-publish_report_types = 7S, FORS, PEDARS
-publish_require_coords = true
 ```
 
 ### B) Losa cert-filer
@@ -92,8 +94,6 @@ tls_verify = true
 callsign = ODEN
 cot_stale_seconds = 3600
 cot_archive = true
-publish_report_types = 7S, FORS, PEDARS
-publish_require_coords = true
 ```
 
 Sätt lösenordet som miljövariabel (inte i filen):

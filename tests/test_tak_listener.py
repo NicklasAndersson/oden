@@ -142,9 +142,7 @@ class InboundRoundTripTest(unittest.IsolatedAsyncioTestCase):
         ):
             message_id = create_raw_message(self.db_path, "+46700000000", msg_data)
             orchestrator = PipelineOrchestrator(self.db_path)
-            await orchestrator.run_message(
-                message_id=message_id, msg_data=msg_data, reader=None, writer=None
-            )
+            await orchestrator.run_message(message_id=message_id, msg_data=msg_data, reader=None, writer=None)
 
         self.assertEqual(published, [])  # echo guard held
         self.assertEqual(get_message_detail(self.db_path, message_id)["status"], STATUS_PROCESSED)

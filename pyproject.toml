@@ -28,7 +28,8 @@ tray = [
     "Pillow>=12.2.0",
 ]
 tak = [
-    "pytak[with_crypto]>=7",
+    # with-crypto -> cryptography (mTLS with .p12 / PEM); aiohttp is already a core dep
+    "pytak[with-crypto]>=7",
 ]
 dev = [
     "pytest>=9.1.1",

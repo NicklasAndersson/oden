@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **TAK-integration** (tillval, `pip install "oden[tak]"`): 7S-rapporter med position skickas till en TAK Server som CoT-markörer, och inkommande CoT kan landa i valvet som `TAK-OBSERVATION`-noter. Ny **TAK**-flik i web-GUI med status, certutgångsvarning, filter för inkommande och en testmarkör-knapp. Se [docs/TAK_SETUP.md](docs/TAK_SETUP.md).
+
 ## [3.2.1] - 2026-08-28
 
 ### Fixed

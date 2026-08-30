@@ -55,6 +55,22 @@ if sys.platform == 'darwin':
 elif sys.platform == 'win32':
     hiddenimports.extend(['pystray._win32', 'PIL.ImageWin'])
 
+# Optional TAK support (oden[tak]): bundle pytak + its deps only when the
+# build environment has them installed. Without this block the app builds
+# fine, it just won't have TAK integration.
+_tak_datas = []
+_tak_binaries = []
+if importlib.util.find_spec('pytak'):
+    from PyInstaller.utils.hooks import collect_all
+
+    hiddenimports += ['oden.tak.bridge', 'oden.tak.listener', 'oden.tak.cot']
+    for _pkg in ('pytak', 'cryptography', 'takproto'):
+        if importlib.util.find_spec(_pkg):
+            _pkg_datas, _pkg_binaries, _pkg_hidden = collect_all(_pkg)
+            _tak_datas += _pkg_datas
+            _tak_binaries += _pkg_binaries
+            hiddenimports += _pkg_hidden
+
 # mgrs loads its native extension via ctypes at runtime — PyInstaller
 # can't detect this statically, so we collect it explicitly.
 _mgrs_binaries = []
@@ -68,8 +84,8 @@ if _mgrs_spec and _mgrs_spec.origin:
 a = Analysis(
     ['oden/s7_watcher.py'],
     pathex=[],
-    binaries=_mgrs_binaries,
-    datas=datas,
+    binaries=_mgrs_binaries + _tak_binaries,
+    datas=datas + _tak_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

@@ -31,7 +31,9 @@ class TakPublishPipeline:
     name = "tak_publish"
     display_name = "TAK-publicering"
     description = "Skickar positionsförsedda rapporter till TAK Server som CoT-markörer. Konsumerar inte meddelandet."
-    selection_criteria = "Sidoeffekt: körs alltid först. Publicerar 7S-rapporter med koordinater när [TAK] är aktiverat."
+    selection_criteria = (
+        "Sidoeffekt: körs alltid först. Publicerar 7S-rapporter med koordinater när [TAK] är aktiverat."
+    )
 
     async def run(self, *, msg_data: dict[str, Any], reader: Any, writer: Any) -> bool:
         del reader, writer
@@ -63,7 +65,11 @@ class TakPublishPipeline:
         coords = _coords_from_stalle(fields["stalle"])
         if coords is None:
             self.last_warnings.append(
-                {"field": "stalle", "value": fields["stalle"], "message": "Ingen koordinat i Ställe — hoppar TAK-markör"}
+                {
+                    "field": "stalle",
+                    "value": fields["stalle"],
+                    "message": "Ingen koordinat i Ställe — hoppar TAK-markör",
+                }
             )
             return
 
