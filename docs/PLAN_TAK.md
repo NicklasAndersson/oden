@@ -13,6 +13,15 @@
 **Mål:** rapporter med position ska kunna pushas till TAK som CoT-markörer, och
 CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
 
+## Status
+
+- **Fas 1 – klar.** `oden/tak/cot.py` + `tests/test_tak_cot.py`.
+- **Fas 2 – klar (7S).** `oden/tak/bridge.py` (`TakBridge`, pytak), `oden/pipelines/tak_publish.py`,
+  wiring i `pipeline_orchestrator.py` + `s7_watcher.py`, `oden[tak]`-extra,
+  `tak_settings`-nyckel i config-db. FORS/PEDARS saknar position → ingen markör
+  (GeoChat är kvar som valfri utökning). Konfig sätts via DB tills fas 4.
+- **Fas 3–5 – ej påbörjade.**
+
 ## Utvärdering av första utkastet
 
 Rättat/skärpt i den här versionen:

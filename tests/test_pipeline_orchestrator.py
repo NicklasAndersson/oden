@@ -186,3 +186,17 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
             [pipeline.name for pipeline in pipelines],
             ["group_filter", "seven_s", "fors", "pedars", "generic_template"],
         )
+
+    async def test_build_pipelines_prepends_tak_publish_when_bridge_active(self):
+        orchestrator = PipelineOrchestrator(self.db_path)
+
+        with (
+            patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", ["seven_s"]),
+            patch("oden.pipeline_orchestrator.get_tak_bridge", return_value=object()),
+        ):
+            pipelines = orchestrator._build_pipelines()
+
+        self.assertEqual(
+            [pipeline.name for pipeline in pipelines],
+            ["tak_publish", "seven_s", "generic_template"],
+        )

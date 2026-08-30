@@ -27,6 +27,9 @@ tray = [
     "pystray>=0.19.5",
     "Pillow>=12.2.0",
 ]
+tak = [
+    "pytak[with_crypto]>=7",
+]
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",

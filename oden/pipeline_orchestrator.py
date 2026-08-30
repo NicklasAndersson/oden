@@ -24,6 +24,7 @@ from oden.pipelines.fors import ForsPipeline
 from oden.pipelines.group_filter import GroupFilterPipeline
 from oden.pipelines.pedars import PedarsPipeline
 from oden.pipelines.seven_s import SevenSPipeline
+from oden.pipelines.tak_publish import TakPublishPipeline
 from oden.pipelines_db import (
     append_pipeline_event,
     complete_pipeline_run,
@@ -32,6 +33,7 @@ from oden.pipelines_db import (
     start_pipeline_run,
 )
 from oden.processing import process_message
+from oden.tak.bridge import get_tak_bridge
 
 logger = logging.getLogger(__name__)
 
@@ -53,25 +55,34 @@ class PipelineOrchestrator:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
         self._pipeline_map: dict[str, Any] = {
+            "tak_publish": TakPublishPipeline(),
             "group_filter": GroupFilterPipeline(),
             "seven_s": SevenSPipeline(),
             "fors": ForsPipeline(),
             "pedars": PedarsPipeline(),
             "generic_template": _GenericPipeline(),
         }
-        self._cached_config: list | None = None
+        self._cached_config: tuple[list, bool] | None = None
         self._cached_pipelines: list[Any] = []
 
     def _build_pipelines(self) -> list[Any]:
         config: list = cfg.ENABLED_PIPELINES or ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
-        # ponytail: identity check detects cfg.ENABLED_PIPELINES = new_list reassignments
-        if config is not self._cached_config:
+        # ponytail: rebuilds on ENABLED_PIPELINES reassignment or TAK bridge coming
+        # up/down. Toggling TAK mid-run needs a listener restart to take effect.
+        tak_active = get_tak_bridge() is not None
+        cache_key = (config, tak_active)
+        if cache_key != self._cached_config:
             names = list(config)
+            # tak_publish is a non-consuming side-effect pipeline; run it first
+            # when the TAK bridge is up. generic_template is the fallback at the end.
+            names = [n for n in names if n != "tak_publish"]
+            if tak_active:
+                names.insert(0, "tak_publish")
             if "generic_template" not in names:
                 names.append("generic_template")
             selected = [self._pipeline_map[n] for n in names if n in self._pipeline_map]
             self._cached_pipelines = selected or [self._pipeline_map["generic_template"]]
-            self._cached_config = config
+            self._cached_config = cache_key
         return self._cached_pipelines
 
     async def run_message(
