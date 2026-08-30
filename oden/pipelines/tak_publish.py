@@ -75,7 +75,8 @@ class TakPublishPipeline:
 
         lat, lon = coords
         now = dt.datetime.now(dt.timezone.utc)
-        start = dt.datetime.fromtimestamp(ts_ms / 1000, tz=dt.timezone.utc) if ts_ms else now
+        # start = the report's own time, but never in the future (sender clock skew)
+        start = min(dt.datetime.fromtimestamp(ts_ms / 1000, tz=dt.timezone.utc), now) if ts_ms else now
 
         cot = report_to_cot(
             Report(

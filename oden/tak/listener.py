@@ -45,6 +45,18 @@ _INBOUND_DEFAULTS: dict[str, Any] = {
     "inbound_group_name": "TAK Inkommande",
 }
 
+# ponytail: crude cap so the dedup cache can't grow without bound on a busy
+# server. On overflow we forget everything and re-learn — a handful of static
+# markers get re-imported once, no worse.
+_SEEN_CAP = 5000
+
+
+def _num(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
 
 def _as_list(value: Any) -> list[str]:
     if isinstance(value, str):
@@ -80,8 +92,8 @@ class InboundFilter:
         self.types = _as_list(merged["inbound_types"])
         self.allow = [c.lower() for c in _as_list(merged["inbound_callsign_allow"])]
         self.deny = [c.lower() for c in _as_list(merged["inbound_callsign_deny"])]
-        self.min_move_m = float(merged["inbound_min_move_m"] or 0)
-        self.max_per_minute = int(merged["inbound_max_per_minute"] or 0)
+        self.min_move_m = _num(merged["inbound_min_move_m"], 100.0)
+        self.max_per_minute = int(_num(merged["inbound_max_per_minute"], 60.0))
         self._seen: dict[str, _Seen] = {}
         self._window_start = 0.0
         self._window_count = 0
@@ -118,11 +130,14 @@ class InboundFilter:
             if unchanged:
                 return False
 
+        if len(self._seen) >= _SEEN_CAP:
+            self._seen.clear()
+        self._seen[cot.uid] = current  # record content even if rate-limiting drops this instance
+
         if self._rate_limited(time.monotonic() if now is None else now):
             logger.warning("TAK: fler än %s inkommande CoT/minut — släpper resten", self.max_per_minute)
             return False
 
-        self._seen[cot.uid] = current
         return True
 
 
@@ -130,10 +145,11 @@ def render_observation(cot: InboundCot) -> str:
     """Human-readable note body. Must not look like a structured report header."""
     mgrs = latlon_to_mgrs(cot.lat, cot.lon)
     position = f"{mgrs} ({cot.lat:.5f}, {cot.lon:.5f})" if mgrs else f"{cot.lat:.5f}, {cot.lon:.5f}"
+    local_time = cot.event_time.astimezone(cfg.TIMEZONE)
     lines = [
         OBSERVATION_HEADER,
         f"Källa: {cot.callsign}",
-        f"Tid: {cot.event_time.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+        f"Tid: {local_time.strftime('%Y-%m-%dT%H:%M:%S')}",
         f"Position: {position}",
         f"Typ: {cot.cot_type} ({cot.affiliation})",
         f"UID: {cot.uid}",
@@ -167,7 +183,7 @@ async def run_tak_listener(bridge: Any) -> None:
     from oden.pipeline_orchestrator import PipelineOrchestrator
 
     settings = {**_INBOUND_DEFAULTS, **bridge.settings}
-    group_name = str(settings["inbound_group_name"])
+    group_name = str(settings["inbound_group_name"]).strip() or "TAK Inkommande"
     filt = InboundFilter(settings)
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
     received = 0

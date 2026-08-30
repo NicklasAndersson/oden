@@ -76,6 +76,26 @@ class InboundFilterTest(unittest.TestCase):
         self.assertEqual(sum(f.accept(_cot(uid=f"A{i}"), now=1000.0) for i in range(5)), 2)
         self.assertEqual(sum(f.accept(_cot(uid=f"B{i}"), now=1100.0) for i in range(5)), 2)
 
+    def test_rate_limited_item_keeps_dedup_state(self):
+        f = self._filter(inbound_max_per_minute=1, inbound_min_move_m=100)
+        self.assertTrue(f.accept(_cot(uid="X"), now=1.0))  # uses the one slot
+        self.assertFalse(f.accept(_cot(uid="Y"), now=1.0))  # rate-limited, but recorded
+        # next window: Y unchanged -> dedup drops it, not treated as new
+        self.assertFalse(f.accept(_cot(uid="Y"), now=100.0))
+
+    def test_seen_cache_is_bounded(self):
+        from oden.tak.listener import _SEEN_CAP
+
+        f = self._filter(inbound_min_move_m=0)
+        for i in range(_SEEN_CAP + 50):
+            f.accept(_cot(uid=f"U{i}"), now=1.0)
+        self.assertLessEqual(len(f._seen), _SEEN_CAP)
+
+    def test_bad_numeric_settings_fall_back_to_defaults(self):
+        f = InboundFilter({"inbound_min_move_m": "abc", "inbound_max_per_minute": ""})
+        self.assertEqual(f.min_move_m, 100.0)
+        self.assertEqual(f.max_per_minute, 60)
+
 
 class RenderAndEnvelopeTest(unittest.TestCase):
     def test_observation_does_not_reparse_as_7s(self):

@@ -90,15 +90,37 @@ async def tak_settings_save_handler(request: web.Request) -> web.Response:
 
     set_config_value(cfg.CONFIG_DB, "tak_settings", merged)
     logger.info("TAK-inställningar sparade via web-GUI")
-    return web.json_response(
-        {
-            "success": True,
-            "message": "TAK-inställningar sparade. Starta om Oden för att ansluta med de nya värdena.",
-            "restart_required": True,
-        }
-    )
+
+    from oden.app_state import get_app_state
+
+    # Reconnect with the new settings so the operator doesn't have to restart —
+    # but only when Oden's main lifecycle is actually running (not under tests).
+    if get_app_state().loop is None:
+        return web.json_response(
+            {"success": True, "message": "TAK-inställningar sparade. Starta om Oden för att tillämpa dem."}
+        )
+
+    from oden.tak.bridge import get_tak_bridge, start_tak_bridge, stop_tak_bridge
+
+    try:
+        await stop_tak_bridge()
+        await start_tak_bridge()
+    except Exception as exc:  # pragma: no cover - network path
+        logger.warning("TAK: kunde inte återansluta efter sparande: %r", exc)
+
+    bridge = get_tak_bridge()
+    if not merged.get("enabled"):
+        message = "TAK-inställningar sparade. TAK är avstängt."
+    elif bridge is not None and bridge.is_running:
+        message = "TAK-inställningar sparade och ansluten."
+    else:
+        err = getattr(bridge, "last_error", None)
+        message = f"Sparat, men anslutningen misslyckades: {err}" if err else "Sparat, men kunde inte ansluta."
+
+    return web.json_response({"success": True, "message": message})
 
 
+@handle_errors("tak status")
 async def tak_status_handler(request: web.Request) -> web.Response:
     settings = load_tak_settings()
     bridge = get_tak_bridge()

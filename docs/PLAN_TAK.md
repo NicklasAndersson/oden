@@ -34,7 +34,8 @@ CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
 - **Fas 4 – klar.** TAK-flik i web-GUI (`includes/dashboard/tab_tak.html`,
   `js/dashboard/tak.js`) + `oden/web_handlers/tak_handlers.py`: status, räknare,
   cert-utgång med 30-dygnsvarning, konfigformulär och testmarkör-knapp.
-  Certlösenordet exponeras aldrig — bara namnet på miljövariabeln.
+  Certlösenordet exponeras aldrig — bara namnet på miljövariabeln. Att spara
+  återansluter bryggan direkt (ingen omstart) när Odens livscykel kör.
 - **Verifierat mot skarp server** (`tak.hv-sog.se`, TAK Server 5.7-RELEASE-8):
   mTLS via data package (`pref_package`), CoT-markör levererad klient → server →
   annan klient, inkommande CoT parsad. Krävde `tls_check_hostname = false`

@@ -52,6 +52,28 @@ class TestTakEndpoints(AioHTTPTestCase):
         self.assertEqual(stored["cot_url"], "tls://tak.example.mil:8089")
         self.assertEqual(stored["cot_stale_seconds"], 600)
         self.assertEqual(stored["inbound_types"], ["a-h-*", "a-u-*"])
+        # no lifecycle loop under the test client -> no reconnect attempt
+        self.assertIn("Starta om Oden", (await resp.json())["message"])
+
+    async def test_save_hot_reloads_when_lifecycle_is_running(self):
+        calls = []
+
+        async def fake_stop():
+            calls.append("stop")
+
+        async def fake_start():
+            calls.append("start")
+
+        with (
+            unittest.mock.patch("oden.app_state.get_app_state", return_value=unittest.mock.Mock(loop=object())),
+            unittest.mock.patch("oden.tak.bridge.stop_tak_bridge", fake_stop),
+            unittest.mock.patch("oden.tak.bridge.start_tak_bridge", fake_start),
+            unittest.mock.patch("oden.tak.bridge.get_tak_bridge", return_value=None),
+        ):
+            resp = await self.client.post("/api/tak/settings", json={"enabled": False, "cot_url": "tls://x:8089"})
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(calls, ["stop", "start"])
+        self.assertIn("avstängt", (await resp.json())["message"])
 
     async def test_enabling_without_a_target_is_rejected(self):
         resp = await self.client.post("/api/tak/settings", json={"enabled": True, "cot_url": ""})

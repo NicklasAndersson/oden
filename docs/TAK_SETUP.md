@@ -39,8 +39,8 @@ chmod 600 ~/.config/oden/tak/*
 
 ## Steg 2 – Konfigurera
 
-Öppna web-GUI:t → fliken **TAK**. Fyll i formuläret och spara. **Starta om Oden**
-för att ansluta med de nya värdena.
+Öppna web-GUI:t → fliken **TAK**. Fyll i formuläret och spara — Oden återansluter
+direkt med de nya värdena och statusraden visar om det gick.
 
 Alternativt från skript (inställningarna lagras som `tak_settings` i config-db):
 

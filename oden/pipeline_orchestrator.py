@@ -67,8 +67,8 @@ class PipelineOrchestrator:
 
     def _build_pipelines(self) -> list[Any]:
         config: list = cfg.ENABLED_PIPELINES or ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
-        # ponytail: rebuilds on ENABLED_PIPELINES reassignment or TAK bridge coming
-        # up/down. Toggling TAK mid-run needs a listener restart to take effect.
+        # ponytail: rebuilds on ENABLED_PIPELINES reassignment or the TAK bridge
+        # appearing/disappearing (the TAK tab reconnects it live).
         tak_active = get_tak_bridge() is not None
         cache_key = (config, tak_active)
         if cache_key != self._cached_config:

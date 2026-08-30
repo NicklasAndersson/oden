@@ -13,7 +13,7 @@ async function loadTakStatus() {
 
         const rows = [];
         if (!s.enabled) {
-            rows.push(['Läge', 'Avstängd — aktivera nedan och starta om Oden']);
+            rows.push(['Läge', 'Avstängd — aktivera i formuläret nedan']);
         } else {
             rows.push(['Anslutning', s.connected ? '🟢 Ansluten' : '🔴 Frånkopplad']);
             rows.push(['Server', escapeHtml(s.cot_url || '—')]);

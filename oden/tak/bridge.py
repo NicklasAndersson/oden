@@ -75,7 +75,11 @@ def cert_expiry(settings: dict[str, Any]) -> datetime | None:
             _key, cert, _chain = pkcs12.load_key_and_certificates(blob, password.encode() or None)
         else:
             cert = load_pem_x509_certificate(blob)
-        return cert.not_valid_after_utc if cert is not None else None
+        if cert is None:
+            return None
+        # not_valid_after_utc (aware) on cryptography >= 42, else the naive value.
+        expiry = getattr(cert, "not_valid_after_utc", None) or cert.not_valid_after
+        return expiry if expiry.tzinfo else expiry.replace(tzinfo=timezone.utc)
     except Exception as exc:
         logger.debug("Kunde inte läsa certifikatets utgångsdatum: %s", exc)
         return None
