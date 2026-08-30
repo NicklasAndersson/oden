@@ -24,7 +24,11 @@ CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
   per-uid-dedup (haversine), tak per minut, `TAK-OBSERVATION`-rendering och
   syntetiskt Signal-kuvert genom hela pipelinekedjan. Startas/stoppas av
   `TakBridge`. Reaktioner/kvittenser hoppas över för `tak:`-avsändare.
-- **Fas 4–5 – ej påbörjade.**
+- **Fas 4 – klar.** TAK-flik i web-GUI (`includes/dashboard/tab_tak.html`,
+  `js/dashboard/tak.js`) + `oden/web_handlers/tak_handlers.py`: status, räknare,
+  cert-utgång med 30-dygnsvarning, konfigformulär och testmarkör-knapp.
+  Certlösenordet exponeras aldrig — bara namnet på miljövariabeln.
+- **Fas 5 – ej påbörjad.**
 
 ## Utvärdering av första utkastet
 

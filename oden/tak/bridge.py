@@ -17,6 +17,7 @@ import logging
 import os
 from configparser import ConfigParser
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from oden import config as cfg
@@ -44,6 +45,33 @@ _DEFAULTS: dict[str, Any] = {
 def load_tak_settings() -> dict[str, Any]:
     raw = get_config_value(cfg.CONFIG_DB, "tak_settings") or {}
     return {**_DEFAULTS, **raw}
+
+
+def cert_expiry(settings: dict[str, Any]) -> datetime | None:
+    """Best-effort expiry date of the configured client cert.
+
+    Needs ``cryptography`` (ships with ``pytak[with_crypto]``). Returns None when
+    it is unavailable, no cert is configured, or the file cannot be read — this
+    is a GUI convenience, never a gate on connecting.
+    """
+    path = str(settings.get("tls_client_cert") or "").strip()
+    if not path:
+        return None
+    try:
+        from cryptography.hazmat.primitives.serialization import pkcs12
+        from cryptography.x509 import load_pem_x509_certificate
+
+        blob = Path(os.path.expanduser(path)).read_bytes()
+        if path.lower().endswith((".p12", ".pfx")):
+            pw_env = str(settings.get("tls_client_password_env") or "").strip()
+            password = os.environ.get(pw_env, "") if pw_env else str(settings.get("tls_client_password") or "")
+            _key, cert, _chain = pkcs12.load_key_and_certificates(blob, password.encode() or None)
+        else:
+            cert = load_pem_x509_certificate(blob)
+        return cert.not_valid_after_utc if cert is not None else None
+    except Exception as exc:
+        logger.debug("Kunde inte läsa certifikatets utgångsdatum: %s", exc)
+        return None
 
 
 class TakBridge:

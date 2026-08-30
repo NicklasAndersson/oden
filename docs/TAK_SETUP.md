@@ -36,9 +36,15 @@ chmod 600 ~/.config/oden/tak/*
 
 ## Steg 2 – Konfigurera `config.ini`
 
-TAK-inställningarna lagras i Odens config-databas som nyckeln `tak_settings`
-(en JSON-dict). Web-GUI-formuläret kommer i fas 4 — tills dess sätts de med en
-engångssnutt:
+Enklast: öppna web-GUI:t och gå till fliken **TAK**. Där finns statusvy,
+konfigformulär och en knapp för att skicka en testmarkör. Efter att du sparat
+måste Oden startas om för att ansluta med de nya värdena.
+
+Certlösenordet sätts **inte** i formuläret — där anger du bara namnet på
+miljövariabeln som lösenordet läses ur (default `ODEN_TAK_CERT_PASSWORD`).
+
+Inställningarna lagras i Odens config-databas som nyckeln `tak_settings` (en
+JSON-dict). Vill du sätta dem från skript i stället:
 
 ```python
 from pathlib import Path
@@ -147,9 +153,11 @@ slumpfördröjning som FTS vill ha).
 ## Steg 4 – Starta och verifiera
 
 1. Starta Oden. Loggen ska visa `TAK: ansluten till tls://…:8089`.
-2. Web-GUI → TAK-panelen: status **Ansluten**, certets utgångsdatum syns.
-3. Klicka **Skicka test-CoT** (ange en MGRS). Markören ska dyka upp i ATAK/iTAK
-   inom någon sekund.
+2. Web-GUI → fliken **TAK**: status 🟢 **Ansluten**, certets utgångsdatum syns
+   (varning om mindre än 30 dagar kvar).
+3. Ange en MGRS och klicka **Skicka testmarkör**. Markören `ODEN.TEST.DDHHMM`
+   ska dyka upp i ATAK/iTAK inom någon sekund. (Samma sak från terminalen:
+   `python scripts/tak_send_test.py 34VCM7934926095`.)
 4. Skicka en riktig `7S RAPPORT` i din Signal-grupp. Kontrollera att:
    - markdown-noten skapas i valvet som vanligt, **och**
    - en markör med callsign `7S <TNR>` dyker upp på TAK-kartan på rätt plats.

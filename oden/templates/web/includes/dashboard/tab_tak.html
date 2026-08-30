@@ -1,0 +1,148 @@
+{#- Tab: TAK-integration (status, inställningar, testmarkör) -#}
+<div id="tab-tak" class="tab-content">
+    <div class="config-section">
+        <div class="flex-header-mb">
+            <h3>🗺️ TAK-status</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="loadTakStatus()">Uppdatera</button>
+        </div>
+        <div id="tak-status">
+            <div class="empty-state">Laddar status...</div>
+        </div>
+    </div>
+
+    <div class="config-section">
+        <h3>📡 Skicka testmarkör</h3>
+        <p class="help-paragraph">
+            Skickar en CoT-markör direkt till TAK-servern så du kan verifiera anslutning och certifikat
+            utan att gå via Signal.
+        </p>
+        <div class="config-grid">
+            <div class="config-field">
+                <label for="tak-test-mgrs">MGRS-position</label>
+                <input type="text" id="tak-test-mgrs" placeholder="34VCM 79349 26095">
+                <span class="help-text">Markören dyker upp som ODEN.TEST.DDHHMM i ATAK/iTAK</span>
+            </div>
+        </div>
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" onclick="sendTakTest()">Skicka testmarkör</button>
+        </div>
+    </div>
+
+    <form id="tak-form" class="config-form">
+        <div class="config-section">
+            <h3>🔌 Anslutning</h3>
+            <div class="config-grid">
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-enabled" name="enabled">
+                        <label for="tak-enabled">Aktivera TAK-integration</label>
+                    </div>
+                    <span class="help-text">Kräver att Oden är installerad med TAK-stöd (pip install 'oden[tak]')</span>
+                </div>
+                <div class="config-field full-width">
+                    <label for="tak-cot-url">CoT-URL</label>
+                    <input type="text" id="tak-cot-url" name="cot_url" placeholder="tls://tak.example.mil:8089">
+                    <span class="help-text">tls:// för mTLS (normalt port 8089), tcp:// för plain på betrott nät</span>
+                </div>
+                <div class="config-field full-width">
+                    <label for="tak-pref-package">Data package (.zip)</label>
+                    <input type="text" id="tak-pref-package" name="pref_package" placeholder="~/.config/oden/tak/oden-tak.zip">
+                    <span class="help-text">Alternativ till CoT-URL + certfält: samma zip som laddas in i ATAK</span>
+                </div>
+                <div class="config-field">
+                    <label for="tak-callsign">Callsign</label>
+                    <input type="text" id="tak-callsign" name="callsign" placeholder="ODEN">
+                </div>
+                <div class="config-field">
+                    <label for="tak-stale">Stale (sekunder)</label>
+                    <input type="number" id="tak-stale" name="cot_stale_seconds" min="1" max="86400">
+                    <span class="help-text">Hur länge en markör är giltig innan TAK gråar ut den</span>
+                </div>
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-archive" name="cot_archive">
+                        <label for="tak-archive">Arkivera markörer på servern</label>
+                    </div>
+                    <span class="help-text">Sätter &lt;archive/&gt; så markören överlever att Oden kopplar ner</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🔐 Certifikat</h3>
+            <div class="config-grid">
+                <div class="config-field full-width">
+                    <label for="tak-client-cert">Klientcertifikat (.p12 eller .pem)</label>
+                    <input type="text" id="tak-client-cert" name="tls_client_cert" placeholder="~/.config/oden/tak/oden.p12">
+                </div>
+                <div class="config-field">
+                    <label for="tak-client-key">Separat nyckelfil (PEM)</label>
+                    <input type="text" id="tak-client-key" name="tls_client_key" placeholder="lämna tom om certet innehåller nyckeln">
+                </div>
+                <div class="config-field">
+                    <label for="tak-ca-cert">Server-CA (PEM)</label>
+                    <input type="text" id="tak-ca-cert" name="tls_ca_cert" placeholder="~/.config/oden/tak/ca.pem">
+                </div>
+                <div class="config-field full-width">
+                    <label for="tak-password-env">Miljövariabel för certlösenord</label>
+                    <input type="text" id="tak-password-env" name="tls_client_password_env" placeholder="ODEN_TAK_CERT_PASSWORD">
+                    <span class="help-text">Lösenordet läses ur miljön och sparas aldrig i Oden — sätt variabeln innan start</span>
+                </div>
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-verify" name="tls_verify">
+                        <label for="tak-verify">Verifiera serverns certifikat</label>
+                    </div>
+                    <span class="help-text">Stäng bara av i labbmiljö — aldrig mot skarp server</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>📥 Inkommande CoT</h3>
+            <p class="help-paragraph">
+                En TAK-server skickar hela lägesbilden till varje ansluten klient. Filtren nedan avgör
+                vad som blir en not i valvet — börja snävt och vidga vid behov.
+            </p>
+            <div class="config-grid">
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-inbound-enabled" name="inbound_enabled">
+                        <label for="tak-inbound-enabled">Ta emot CoT från TAK</label>
+                    </div>
+                </div>
+                <div class="config-field full-width">
+                    <label for="tak-inbound-types">CoT-typer</label>
+                    <input type="text" id="tak-inbound-types" name="inbound_types" placeholder="a-h-*, a-u-*, b-a-*">
+                    <span class="help-text">Kommaseparerat, * som suffix. Utelämna a-f-* för att slippa egen lägesrapportering</span>
+                </div>
+                <div class="config-field">
+                    <label for="tak-inbound-allow">Tillåtna callsign</label>
+                    <input type="text" id="tak-inbound-allow" name="inbound_callsign_allow" placeholder="tom = alla">
+                </div>
+                <div class="config-field">
+                    <label for="tak-inbound-deny">Blockerade callsign</label>
+                    <input type="text" id="tak-inbound-deny" name="inbound_callsign_deny">
+                </div>
+                <div class="config-field">
+                    <label for="tak-inbound-move">Minsta rörelse (meter)</label>
+                    <input type="number" id="tak-inbound-move" name="inbound_min_move_m" min="0" max="100000">
+                    <span class="help-text">Samma enhet som rört sig mindre ger ingen ny not</span>
+                </div>
+                <div class="config-field">
+                    <label for="tak-inbound-rate">Max per minut</label>
+                    <input type="number" id="tak-inbound-rate" name="inbound_max_per_minute" min="0" max="10000">
+                </div>
+                <div class="config-field full-width">
+                    <label for="tak-inbound-group">Gruppnamn för inkommande</label>
+                    <input type="text" id="tak-inbound-group" name="inbound_group_name" placeholder="TAK Inkommande">
+                    <span class="help-text">Kör du whitelist-läge i gruppfiltret måste detta namn finnas i listan</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" onclick="saveTakSettings()">Spara TAK-inställningar</button>
+        </div>
+    </form>
+</div>

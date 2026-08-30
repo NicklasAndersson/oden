@@ -88,6 +88,12 @@ from oden.web_handlers.setup_handlers import (
     setup_validate_path_handler,
     setup_verify_code_handler,
 )
+from oden.web_handlers.tak_handlers import (
+    tak_settings_handler,
+    tak_settings_save_handler,
+    tak_status_handler,
+    tak_test_handler,
+)
 from oden.web_handlers.template_handlers import (
     template_export_handler,
     template_get_handler,
@@ -316,6 +322,12 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/templates/{name}/preview", template_preview_handler)
         app.router.add_post("/api/templates/{name}/reset", template_reset_handler)
         app.router.add_get("/api/templates/{name}/export", template_export_handler)
+
+        # TAK integration routes
+        app.router.add_get("/api/tak/status", tak_status_handler)
+        app.router.add_get("/api/tak/settings", tak_settings_handler)
+        app.router.add_post("/api/tak/settings", tak_settings_save_handler)
+        app.router.add_post("/api/tak/test", tak_test_handler)
 
     return app
 
