@@ -1,202 +1,170 @@
 # TAK-integration – operatörsguide
 
-Hur du kopplar Oden till en befintlig TAK Server så att rapporter blir
-CoT-markörer och (valfritt) inkommande CoT blir noter i valvet.
+Kopplar Oden till en befintlig TAK Server så att 7S-rapporter med position blir
+CoT-markörer, och (valfritt) inkommande CoT blir `TAK-OBSERVATION`-noter i valvet.
 
-Se `docs/PLAN_TAK.md` för designen. Den här guiden är för den som ska driftsätta.
+Designen finns i [PLAN_TAK.md](PLAN_TAK.md). Den här guiden är för driftsättning.
+Verifierad mot TAK Server 5.7-RELEASE-8.
 
 ## Förutsättningar
 
 - En TAK Server som körs någon annanstans, och en **TAK-admin** som kan ge dig
   klientåtkomst.
-- Oden byggd med TAK-stödet: `pip install "oden[tak]"` (drar in `pytak`).
-- Utgående nätåtkomst från Oden-värden till serverns streaming-port
-  (normalt TCP **8089**). Inga inkommande portar behövs – Oden ansluter ut.
+- Oden installerad med TAK-stödet: `pip install "oden[tak]"` (drar in `pytak` +
+  `cryptography`). De nedladdningsbara DMG/Windows-apparna innehåller **inte** TAK
+  som standard – se PLAN_TAK "Fas 5".
+- Utgående nätåtkomst från Oden-värden till serverns CoT-port (normalt TCP
+  **8089**). Inga inkommande portar behövs.
 - **NTP aktiverat** på Oden-värden. CoT-tider är i UTC; fel klocka ger markörer
-  som är "stale" direkt eller ligger i framtiden.
+  som blir "stale" direkt eller hamnar i framtiden.
 
 ## Steg 1 – Skaffa klientidentitet
 
-Fråga din TAK-admin om **ett av** följande (i fallande ordning av bekvämlighet):
+Fråga TAK-admin om **ett av** följande (enklast först):
 
 1. **Data package (`.zip`)** – samma fil som laddas in i ATAK/WinTAK. Innehåller
-   serveradress, server-CA och ett klientcert. Enklast: peka Oden på zip-filen.
-2. **Klientcertifikat `.p12`** + lösenord, plus serverns **CA-cert** (PEM) och
-   `host:port`.
-3. **Enrollment-konto** (användarnamn/lösenord) om servern kör
-   certifikat-enrollment (port 8446). Sätt `enroll_username` i TAK-fliken och
-   lägg lösenordet i miljövariabeln `ODEN_TAK_ENROLL_PASSWORD` — Oden hämtar då
-   ett klientcert från servern vid start. Du behöver fortfarande serverns CA
-   (se nästa stycke) eller `tls_verify = false`.
+   serveradress, server-CA och klientcert. Oden packar upp den själv.
+2. **Enrollment-konto** – användarnamn + lösenord. Oden hämtar ett klientcert
+   från servern (port 8446) vid start.
+3. **Lösa filer** – klientcertifikat (`.p12` eller PEM) + lösenord + serverns
+   CA-cert (PEM).
 
-**Server-CA:** en TAK Server signerar sina egna certifikat. Data package-`.zip`:en
-innehåller serverns `truststore-root.p12`, så med `pref_package` behöver du inget
-extra. Har du bara lösa filer: exportera CA:t (`truststore-root.pem` e.d.) från
-TAK-admin/CloudTAK och peka `tls_ca_cert` på den, eller `tls_verify = false` i labb.
-
-**Cert-namn ≠ adress:** TAK-serverns cert har ofta ett CN/SAN som inte är DNS-namnet
-du ansluter till (`Hostname mismatch, certificate is not valid for ...`). Lämna
-`tls_check_hostname` **av** (default) — CA-verifieringen är fortfarande på.
-
-Lägg filerna någonstans läsbart bara för Oden-användaren:
+Lägg filerna där bara Oden-användaren kan läsa dem:
 
 ```bash
 mkdir -p ~/.config/oden/tak && chmod 700 ~/.config/oden/tak
-cp ~/Downloads/oden-tak.zip ~/.config/oden/tak/     # eller .p12 + ca.pem
+cp ~/Downloads/mitt-tak-paket.zip ~/.config/oden/tak/
 chmod 600 ~/.config/oden/tak/*
 ```
 
-## Steg 2 – Konfigurera TAK
+## Steg 2 – Konfigurera
 
-Enklast: öppna web-GUI:t och gå till fliken **TAK**. Där finns statusvy,
-konfigformulär och en knapp för att skicka en testmarkör. Efter att du sparat
-måste Oden startas om för att ansluta med de nya värdena.
+Öppna web-GUI:t → fliken **TAK**. Fyll i formuläret och spara. **Starta om Oden**
+för att ansluta med de nya värdena.
 
-Certlösenordet sätts **inte** i formuläret — där anger du bara namnet på
-miljövariabeln som lösenordet läses ur (default `ODEN_TAK_CERT_PASSWORD`).
-
-Inställningarna lagras i Odens config-databas som nyckeln `tak_settings` (en
-JSON-dict). Vill du sätta dem från skript i stället:
+Alternativt från skript (inställningarna lagras som `tak_settings` i config-db):
 
 ```python
 from pathlib import Path
-from oden.config_db import set_config_value
 from oden import config as cfg
+from oden.config_db import set_config_value
 
 set_config_value(
     cfg.CONFIG_DB,
     "tak_settings",
     {
         "enabled": True,
-        "cot_url": "tls://tak.example.mil:8089",
-        "tls_client_cert": str(Path.home() / ".config/oden/tak/oden.p12"),
-        "tls_client_password_env": "ODEN_TAK_CERT_PASSWORD",
-        "tls_ca_cert": str(Path.home() / ".config/oden/tak/ca.pem"),
+        "pref_package": str(Path.home() / ".config/oden/tak/mitt-tak-paket.zip"),
         "callsign": "ODEN",
-        "cot_stale_seconds": 3600,
-        "cot_archive": True,
     },
 )
 ```
 
-Fälten nedan visas som `[TAK]`-sektion för läsbarhet; nyckelnamnen är desamma i
-JSON-dicten. Välj **A**, **B** eller **C**.
+### Inställningar
 
-### A) Data package (rekommenderas)
+| Nyckel | Default | Betydelse |
+|---|---|---|
+| `enabled` | `false` | Slår på TAK-integrationen |
+| **Anslutning – välj EN väg** | | |
+| `pref_package` | – | Sökväg till data-package-`.zip`. Fyller själv i URL, cert, nyckel och CA |
+| `cot_url` | – | `tls://host:8089` (mTLS) eller `tcp://host:8087` (plain, betrott nät) |
+| `enroll_username` | – | Enrollment: användarnamn. Lösenord läses ur env-var enligt `enroll_password_env` |
+| `tls_client_cert` | – | `.p12` eller PEM (lösa filer). Lösenord ur env-var enligt `tls_client_password_env` |
+| `tls_client_key` | – | Separat PEM-nyckel om certet saknar den |
+| `tls_ca_cert` | – | Serverns CA (PEM). Behövs inte med `pref_package` |
+| **TLS** | | |
+| `tls_client_password_env` | `ODEN_TAK_CERT_PASSWORD` | Env-var som certlösenordet läses ur |
+| `enroll_password_env` | `ODEN_TAK_ENROLL_PASSWORD` | Env-var som enrollment-lösenordet läses ur |
+| `tls_verify` | `true` | CA-verifiering av servern. `false` bara i labb |
+| `tls_check_hostname` | `false` | Kräv att cert-namnet matchar adressen. TAK-cert matchar sällan DNS-namnet – lämna av |
+| **Utgående markörer** | | |
+| `callsign` | `ODEN` | Vår identitet på servern |
+| `cot_stale_seconds` | `3600` | Hur länge en markör är giltig |
+| `cot_archive` | `true` | Sätter `<archive/>` så markören överlever att Oden kopplar ner |
+| **Inkommande CoT** | | |
+| `inbound_enabled` | `false` | Ta emot CoT och skapa `TAK-OBSERVATION`-noter |
+| `inbound_types` | `a-h-*, a-u-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Inte `a-f-*` = ingen egen lägesrapportering |
+| `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på callsign |
+| `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
+| `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
+| `inbound_group_name` | `TAK Inkommande` | Gruppnamn noterna hamnar under |
 
-```ini
-[TAK]
-enabled = true
-pref_package = /Users/<du>/.config/oden/tak/oden-tak.zip
-callsign = ODEN
-cot_stale_seconds = 3600
-cot_archive = true
-```
-
-### B) Losa cert-filer
-
-```ini
-[TAK]
-enabled = true
-cot_url = tls://tak.example.mil:8089
-tls_client_cert = /Users/<du>/.config/oden/tak/oden.p12
-tls_client_password_env = ODEN_TAK_CERT_PASSWORD
-tls_ca_cert = /Users/<du>/.config/oden/tak/ca.pem
-tls_verify = true
-callsign = ODEN
-cot_stale_seconds = 3600
-cot_archive = true
-```
-
-Sätt lösenordet som miljövariabel (inte i filen):
-
-```bash
-export ODEN_TAK_CERT_PASSWORD='...'
-```
-
-macOS-app / tjänst: lägg den i din launchd/env-uppsättning, inte i `config.ini`.
-
-### C) Inkommande CoT också
-
-Lägg till (default: av). Inkommande lägesbild från en TAK Server kan vara
-**mycket** trafik – filtren nedan är till för att bara släppa in det intressanta.
-
-```ini
-inbound_enabled = true
-inbound_types = a-h-*, a-u-*, b-a-*     ; fiende, okänd, larm – inte egen PLI
-inbound_callsign_allow =                ; tom = alla; annars kommaseparerad vitlista
-inbound_callsign_deny =
-inbound_min_move_m = 100                ; samma enhet som rört sig mindre → ignoreras
-inbound_max_per_minute = 60             ; hårt tak; resten loggas och släpps
-inbound_group_name = TAK Inkommande
-```
-
-Inkommande CoT blir en not med rubriken `TAK-OBSERVATION` i gruppen
-`TAK Inkommande`. Noterna passerar **gruppfiltret** som allt annat — kör du
-whitelist-läge måste `TAK Inkommande` finnas i listan, annars filtreras de bort.
-
-Filtren är staplade i den ordning de är billigast: typ → callsign → eko-vakt
-(vårt eget `ODEN.*`-uid) → dedup per uid (samma plats + samma text = ingen ny
-not) → tak per minut. Börja snävt och vidga; en TAK Server pushar hela
-lägesbilden till varje ansluten klient.
-
-### Konvertera `.p12` → PEM (bara om `pytak` klagar på din `.p12`)
+Lösenord sätts som miljövariabel, aldrig i config-db eller GUI:
 
 ```bash
-openssl pkcs12 -in oden.p12 -nodes -out oden.pem      # cert + nyckel i en fil
-# peka tls_client_cert på oden.pem, ta bort lösenordet
+export ODEN_TAK_CERT_PASSWORD='...'      # eller ODEN_TAK_ENROLL_PASSWORD
 ```
 
-## Steg 3 – Testa mot en lokal server (valfritt men rekommenderat)
+macOS-app / systemd: lägg variabeln i launchd/unit-miljön.
 
-Innan du pekar mot skarp server, kör [`taky`](https://pypi.org/project/taky/)
-(ren Python) eller FreeTAKServer lokalt:
+### Server-CA och cert-namn
+
+En TAK Server signerar sina egna certifikat:
+
+- `pref_package` innehåller serverns `truststore-root` – inget mer behövs.
+- Lösa filer utan `tls_ca_cert` → `self-signed certificate in certificate chain`.
+  Exportera CA:t från TAK-admin/CloudTAK, eller `tls_verify = false` i labb.
+- Serverns cert-namn är ofta inte DNS-namnet du ringer →
+  `Hostname mismatch`. `tls_check_hostname` är av som standard; CA-koll kvar på.
+
+### Inkommande CoT – noter i valvet
+
+En not får rubriken `TAK-OBSERVATION` (medvetet *inte* `… RAPPORT`, så den inte
+studsar tillbaka till TAK) i gruppen `TAK Inkommande`. Noterna passerar
+**gruppfiltret** som allt annat – kör du whitelist-läge måste `TAK Inkommande`
+finnas med i listan.
+
+Filtren är staplade billigast först: typ → callsign → eko-vakt (`ODEN.*`) → dedup
+per uid → tak per minut. Börja snävt och vidga; servern pushar hela lägesbilden
+till varje ansluten klient.
+
+## Steg 3 – Testa lokalt (valfritt)
+
+Innan skarp server, kör [`taky`](https://pypi.org/project/taky/) (ren Python):
 
 ```bash
 pipx install taky
-taky_setup            # genererar självsignerad CA + servercert
+taky_setup            # genererar CA + servercert
 takyd                 # lyssnar på :8089
-./takd_client_cert    # (taky) generera ett klientcert.p12 att peka Oden på
 ```
 
-Kör FreeTAKServer istället? Sätt även `FTS_COMPAT=1` i miljön (pytak lägger då in
-slumpfördröjning som FTS vill ha).
+FreeTAKServer istället? Sätt `FTS_COMPAT=1` i miljön.
 
 ## Steg 4 – Starta och verifiera
 
-1. Starta Oden. Loggen ska visa `TAK: ansluten till tls://…:8089`.
-2. Web-GUI → fliken **TAK**: status 🟢 **Ansluten**, certets utgångsdatum syns
-   (varning om mindre än 30 dagar kvar).
-3. Ange en MGRS och klicka **Skicka testmarkör**. Markören `ODEN.TEST.DDHHMM`
-   ska dyka upp i ATAK/iTAK inom någon sekund. (Samma sak från terminalen:
-   `python scripts/tak_send_test.py 34VCM7934926095`.)
-4. Skicka en riktig `7S RAPPORT` i din Signal-grupp. Kontrollera att:
+1. Starta Oden. Loggen visar `TAK-bryggan startad (...)`.
+2. Web-GUI → **TAK**: status 🟢 **Ansluten**. Med `pref_package` visas ingen
+   cert-utgång (certet ligger i zip:en); med `tls_client_cert` visas den med
+   varning < 30 dygn.
+3. Ange en MGRS, klicka **Skicka testmarkör** → `ODEN.TEST.DDHHMM` ska synas i
+   CloudTAK/ATAK. Terminalvariant: `python scripts/tak_send_test.py 34VCM7934926095`.
+4. Skicka en riktig `7S RAPPORT` med MGRS i `Ställe` i din Signal-grupp:
    - markdown-noten skapas i valvet som vanligt, **och**
-   - en markör med callsign `7S <TNR>` dyker upp på TAK-kartan på rätt plats.
-5. (Om inbound på) Skapa en markör i ATAK → en `TAK-OBSERVATION`-not ska dyka upp
-   i Odens meddelandevy under gruppen "TAK Inkommande".
+   - en markör `7S <TNR>` dyker upp på TAK-kartan.
+5. (Om `inbound_enabled`) Skapa en markör i ATAK → en `TAK-OBSERVATION`-not ska
+   dyka upp i Odens meddelandevy under `TAK Inkommande`.
 
 ## Felsökning
 
 | Symptom | Trolig orsak |
 |---|---|
-| `self-signed certificate in certificate chain` | `tls_ca_cert` saknas/fel. Använd `pref_package` (CA:t ingår) eller peka på serverns `truststore-root.pem`. |
-| `Hostname mismatch, certificate is not valid for ...` | Serverns cert-namn ≠ DNS-namnet. Stäng av `tls_check_hostname` (CA-koll kvar på). |
-| Ansluter men inget syns i ATAK | Fel affiliering/typ, eller markören redan "stale". Kolla `cot_stale_seconds` och Oden-värdens klocka (NTP). |
-| Markör försvinner efter en stund | `cot_archive = false` och Oden tappade anslutningen. Sätt `cot_archive = true`. |
-| Markör hamnar på fel plats / i havet (0,0) | MGRS-strängen i rapporten gick inte att tolka → ingen lat/lon. Kolla `Ställe`-fältet. |
-| Dubbla markörer för samma rapport | `uid`-härledningen matchar inte mellan original och `++`-påfyllning. Buggrapport. |
-| Översvämmas av inkommande noter | `inbound_types` för brett – ta bort `a-f-*`, snäva in, höj `inbound_min_move_m`. |
-| `password is required` vid start | `ODEN_TAK_CERT_PASSWORD` inte satt i Odens miljö. |
-| Markörer syns för dig men inte för andra på servern | Servern kräver data marking / mission-medlemskap. Prata med TAK-admin (se PLAN_TAK "Kolla med TAK-admin"). |
+| `self-signed certificate in certificate chain` | `tls_ca_cert` saknas/fel. Använd `pref_package` eller serverns `truststore-root.pem` |
+| `Hostname mismatch, certificate is not valid for ...` | Serverns cert-namn ≠ adressen. `tls_check_hostname` ska vara av |
+| `pytak saknas` i loggen | `pip install "oden[tak]"` |
+| Ansluter men inget syns i ATAK | Markören redan stale, eller fel klocka. Kolla `cot_stale_seconds` + NTP |
+| Markör försvinner efter en stund | `cot_archive = false` och Oden tappade anslutningen |
+| Markör i havet (0,0) | MGRS i `Ställe` gick inte att tolka |
+| Dubbla markörer för samma rapport | uid-härledning matchar inte mellan original och `++` – buggrapport |
+| Översvämmas av inkommande noter | `inbound_types` för brett, eller höj `inbound_min_move_m` |
+| Markörer syns för dig men inte andra | Servern kräver data marking / mission – prata med TAK-admin |
 
 ## Säkerhet
 
 - Cert-filer och data package: `chmod 600`, ägs av Oden-användaren.
-- Cert-lösenord i miljövariabel eller OS-nyckelring, **aldrig** i `config.ini`
-  (den visas i web-GUI:t).
-- `tls_verify = false` bara i labb – aldrig mot skarp server.
+- Cert-/enrollment-lösenord i miljövariabel eller OS-nyckelring – aldrig i
+  config-db (den visas i GUI:t).
+- `tls_verify = false` bara i labb.
 - Inkommande CoT behandlas som osäker indata (callsign/uid saneras, koordinater
-  klampas, remarks trunkeras). Aktivera `inbound_enabled` bara om du litar på
-  nätet du ansluter till.
-- Klientcert går ut. Web-GUI:t varnar < 30 dygn innan – beställ nytt i tid.
+  klampas, remarks trunkeras). Slå på `inbound_enabled` bara på ett nät du litar på.
+- Klientcert går ut – GUI:t varnar < 30 dygn innan (gäller `tls_client_cert`;
+  med `pref_package` håll koll via TAK-admin).

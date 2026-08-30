@@ -46,6 +46,12 @@ Varje fält har en hjälptext som förklarar vad inställningen gör.
 
 **Osparade ändringar:** Om ändringar har gjorts utan att spara visas en amber-färgad banner högst upp och en punkt på fliken.
 
+#### TAK
+
+Finns bara om Oden är installerad med `oden[tak]`. Visar anslutningsstatus,
+antal skickade/mottagna CoT-händelser, cert-utgångsvarning, ett konfigformulär
+och en knapp för att skicka en testmarkör. Detaljer i [TAK_SETUP.md](TAK_SETUP.md).
+
 #### Live-loggar
 
 | Egenskap | Beskrivning |
@@ -266,6 +272,17 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 | POST | `/api/templates/{name}/reset` | Återställ mall till standard |
 | GET | `/api/templates/{name}/export` | Exportera enskild mall |
 | GET | `/api/templates/export` | Exportera alla mallar som ZIP |
+
+#### TAK
+
+Kräver att Oden är installerad med `oden[tak]`. Se [TAK_SETUP.md](TAK_SETUP.md).
+
+| Metod | Sökväg | Beskrivning |
+|-------|--------|-------------|
+| GET | `/api/tak/status` | Anslutningsstatus, räknare, senaste fel, cert-utgång |
+| GET | `/api/tak/settings` | Aktuella TAK-inställningar (aldrig lösenord) |
+| POST | `/api/tak/settings` | Spara TAK-inställningar (kräver omstart för att ta effekt) |
+| POST | `/api/tak/test` | Skicka en testmarkör från en MGRS-position |
 
 #### Autosvar
 

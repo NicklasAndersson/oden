@@ -15,6 +15,13 @@ CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
 
 ## Status
 
+> Alla faser klara och verifierade mot skarp server. Avsnitten längre ner är den
+> **ursprungliga planen** och stämmer i stort men inte i varje detalj — den
+> gällande operatörsdokumentationen är [TAK_SETUP.md](TAK_SETUP.md). Config
+> lagras som `tak_settings` i config-db (ingen `config.ini`); `[TAK]`-blocken
+> nedan är bara läsbar pseudo-notation. `publish_report_types` blev aldrig av —
+> bara 7S har position.
+
 - **Fas 1 – klar.** `oden/tak/cot.py` + `tests/test_tak_cot.py`.
 - **Fas 2 – klar (7S).** `oden/tak/bridge.py` (`TakBridge`, pytak), `oden/pipelines/tak_publish.py`,
   wiring i `pipeline_orchestrator.py` + `s7_watcher.py`, `oden[tak]`-extra,
