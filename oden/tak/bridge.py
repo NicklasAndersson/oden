@@ -37,6 +37,7 @@ _DEFAULTS: dict[str, Any] = {
     "callsign": "ODEN",
     "cot_stale_seconds": 3600,
     "cot_archive": True,
+    # inbound defaults live in oden.tak.listener._INBOUND_DEFAULTS
 }
 
 
@@ -52,14 +53,20 @@ class TakBridge:
         self.settings = settings
         self._clitool: Any = None
         self._run_task: asyncio.Task[Any] | None = None
+        self._listener_task: asyncio.Task[None] | None = None
         self.connected = False
         self.last_error: str | None = None
         self.last_tx_at: datetime | None = None
         self.sent_count = 0
+        self.received_count = 0
 
     @property
     def is_running(self) -> bool:
         return self._run_task is not None and not self._run_task.done()
+
+    @property
+    def rx_queue(self) -> Any:
+        return getattr(self._clitool, "rx_queue", None)
 
     @property
     def stale_seconds(self) -> int:
@@ -116,6 +123,10 @@ class TakBridge:
         self._run_task = asyncio.create_task(self._run())
         self.connected = True
         self.last_error = None
+
+        from oden.tak.listener import start_tak_listener
+
+        self._listener_task = start_tak_listener(self)
         logger.info("TAK-bryggan startad (%s)", config.get("COT_URL", "pref_package"))
 
     async def _run(self) -> None:
@@ -142,6 +153,10 @@ class TakBridge:
         return True
 
     async def stop(self) -> None:
+        from oden.tak.listener import stop_tak_listener
+
+        await stop_tak_listener(self._listener_task)
+        self._listener_task = None
         if self._run_task is not None:
             self._run_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):

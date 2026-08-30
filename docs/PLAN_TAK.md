@@ -20,7 +20,11 @@ CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
   wiring i `pipeline_orchestrator.py` + `s7_watcher.py`, `oden[tak]`-extra,
   `tak_settings`-nyckel i config-db. FORS/PEDARS saknar position → ingen markör
   (GeoChat är kvar som valfri utökning). Konfig sätts via DB tills fas 4.
-- **Fas 3–5 – ej påbörjade.**
+- **Fas 3 – klar.** `oden/tak/listener.py`: typ-/callsign-filter, eko-vakt,
+  per-uid-dedup (haversine), tak per minut, `TAK-OBSERVATION`-rendering och
+  syntetiskt Signal-kuvert genom hela pipelinekedjan. Startas/stoppas av
+  `TakBridge`. Reaktioner/kvittenser hoppas över för `tak:`-avsändare.
+- **Fas 4–5 – ej påbörjade.**
 
 ## Utvärdering av första utkastet
 

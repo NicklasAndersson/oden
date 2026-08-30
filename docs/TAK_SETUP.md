@@ -109,8 +109,18 @@ inbound_types = a-h-*, a-u-*, b-a-*     ; fiende, okänd, larm – inte egen PLI
 inbound_callsign_allow =                ; tom = alla; annars kommaseparerad vitlista
 inbound_callsign_deny =
 inbound_min_move_m = 100                ; samma enhet som rört sig mindre → ignoreras
+inbound_max_per_minute = 60             ; hårt tak; resten loggas och släpps
 inbound_group_name = TAK Inkommande
 ```
+
+Inkommande CoT blir en not med rubriken `TAK-OBSERVATION` i gruppen
+`TAK Inkommande`. Noterna passerar **gruppfiltret** som allt annat — kör du
+whitelist-läge måste `TAK Inkommande` finnas i listan, annars filtreras de bort.
+
+Filtren är staplade i den ordning de är billigast: typ → callsign → eko-vakt
+(vårt eget `ODEN.*`-uid) → dedup per uid (samma plats + samma text = ingen ny
+not) → tak per minut. Börja snävt och vidga; en TAK Server pushar hela
+lägesbilden till varje ansluten klient.
 
 ### Konvertera `.p12` → PEM (bara om `pytak` klagar på din `.p12`)
 
