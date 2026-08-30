@@ -43,6 +43,10 @@ class ReportToCot(unittest.TestCase):
         self.assertEqual(root.find("detail/contact").get("callsign"), "7S 281430")
         self.assertIn("infanteri", root.find("detail/remarks").text)
 
+    def test_callsign_prefixes_marker(self):
+        root = ET.fromstring(report_to_cot(_report(), callsign="ODEN"))
+        self.assertEqual(root.find("detail/contact").get("callsign"), "ODEN 7S 281430")
+
     def test_stale_after_event_time(self):
         root = ET.fromstring(report_to_cot(_report(), stale_seconds=600))
         time = dt.datetime.fromisoformat(root.get("time").replace("Z", "+00:00"))

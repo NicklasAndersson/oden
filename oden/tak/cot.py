@@ -97,8 +97,13 @@ def report_to_cot(
     *,
     stale_seconds: int = 3600,
     archive: bool = True,
+    callsign: str = "",
 ) -> bytes:
-    """Build a CoT ``<event>`` for a positioned report. Returns UTF-8 XML bytes."""
+    """Build a CoT ``<event>`` for a positioned report. Returns UTF-8 XML bytes.
+
+    ``callsign`` (the ``[TAK]`` identity) is prefixed onto the marker's contact
+    callsign so operators can tell which Oden instance a marker came from.
+    """
     if not _valid_latlon(report.lat, report.lon):
         raise ValueError(f"report_to_cot: invalid lat/lon {report.lat},{report.lon}")
 
@@ -130,7 +135,8 @@ def report_to_cot(
         },
     )
     detail = ET.SubElement(event, "detail")
-    ET.SubElement(detail, "contact", {"callsign": f"{report.report_type} {report.tnr}".strip()})
+    marker_callsign = f"{callsign} {report.report_type} {report.tnr}".strip()
+    ET.SubElement(detail, "contact", {"callsign": marker_callsign})
     remarks = ET.SubElement(detail, "remarks")
     remarks.text = (report.remarks or "")[:_MAX_REMARKS]
     ET.SubElement(detail, "link", {"uid": uid, "type": cot_type, "relation": "p-p"})

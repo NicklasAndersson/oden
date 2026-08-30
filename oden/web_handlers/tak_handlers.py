@@ -159,6 +159,7 @@ async def tak_test_handler(request: web.Request) -> web.Response:
         ),
         stale_seconds=bridge.stale_seconds,
         archive=bridge.archive,
+        callsign=str(getattr(bridge, "settings", {}).get("callsign") or ""),
     )
 
     if not await bridge.publish(cot):

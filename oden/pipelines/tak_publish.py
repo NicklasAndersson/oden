@@ -89,6 +89,7 @@ class TakPublishPipeline:
             ),
             stale_seconds=bridge.stale_seconds,
             archive=bridge.archive,
+            callsign=str(bridge.settings.get("callsign") or ""),
         )
         published = await bridge.publish(cot)
         if published:

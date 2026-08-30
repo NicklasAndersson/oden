@@ -59,6 +59,7 @@ async def _main() -> None:
             ),
             stale_seconds=bridge.stale_seconds,
             archive=bridge.archive,
+            callsign=str(settings.get("callsign") or ""),
         )
         ok = await bridge.publish(cot)
         print(f"publicerad: {ok}  ({lat:.5f}, {lon:.5f})  uid=ODEN.TEST.{args.tnr}")

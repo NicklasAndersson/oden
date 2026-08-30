@@ -17,6 +17,7 @@ class FakeBridge:
         self.is_running = running
         self.stale_seconds = 3600
         self.archive = True
+        self.settings = {"callsign": "ODEN"}
         self.published: list[bytes] = []
 
     async def publish(self, cot: bytes) -> bool:
