@@ -35,6 +35,10 @@ _DEFAULTS: dict[str, Any] = {
     "tls_client_password": "",
     "tls_ca_cert": "",
     "tls_verify": True,
+    # Certificate enrollment (username/password against the server, port 8446).
+    # The password is read from the env var named here, never stored.
+    "enroll_username": "",
+    "enroll_password_env": "ODEN_TAK_ENROLL_PASSWORD",
     "callsign": "ODEN",
     "cot_stale_seconds": 3600,
     "cot_archive": True,
@@ -132,6 +136,14 @@ class TakBridge:
             section["PYTAK_TLS_CLIENT_PASSWORD"] = password
         if not bool(s.get("tls_verify", True)):
             section["PYTAK_TLS_DONT_VERIFY"] = "1"
+
+        enroll_user = str(s.get("enroll_username") or "").strip()
+        if enroll_user:
+            enroll_pw_env = str(s.get("enroll_password_env") or "").strip()
+            enroll_pw = os.environ.get(enroll_pw_env, "") if enroll_pw_env else ""
+            section["PYTAK_TLS_CERT_ENROLLMENT_USERNAME"] = enroll_user
+            if enroll_pw:
+                section["PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"] = enroll_pw
 
         parser = ConfigParser()
         parser["oden_tak"] = section

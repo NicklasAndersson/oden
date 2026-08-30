@@ -34,6 +34,8 @@ _EDITABLE_KEYS = {
     "tls_client_password_env": str,
     "tls_ca_cert": str,
     "tls_verify": bool,
+    "enroll_username": str,
+    "enroll_password_env": str,
     "callsign": str,
     "cot_stale_seconds": int,
     "cot_archive": bool,

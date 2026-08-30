@@ -88,6 +88,15 @@
                     <input type="text" id="tak-password-env" name="tls_client_password_env" placeholder="ODEN_TAK_CERT_PASSWORD">
                     <span class="help-text">Lösenordet läses ur miljön och sparas aldrig i Oden — sätt variabeln innan start</span>
                 </div>
+                <div class="config-field">
+                    <label for="tak-enroll-user">Enrollment-användarnamn</label>
+                    <input type="text" id="tak-enroll-user" name="enroll_username" placeholder="lämna tom om du har egen cert-fil">
+                    <span class="help-text">Alternativ till egen certfil: Oden hämtar ett cert från servern (port 8446)</span>
+                </div>
+                <div class="config-field">
+                    <label for="tak-enroll-pw-env">Miljövariabel för enrollment-lösenord</label>
+                    <input type="text" id="tak-enroll-pw-env" name="enroll_password_env" placeholder="ODEN_TAK_ENROLL_PASSWORD">
+                </div>
                 <div class="config-field full-width">
                     <div class="checkbox-wrapper">
                         <input type="checkbox" id="tak-verify" name="tls_verify">
