@@ -113,6 +113,44 @@ class CotToInbound(unittest.TestCase):
         )
         self.assertTrue(cot_to_inbound(xml).is_chat)
 
+    def test_parses_custom_report_fields(self):
+        xml = (
+            "<event uid='Report-8S-Alpha-01' type='b-r-i-c-o'><point lat='1' lon='1'/>"
+            "<detail><contact callsign='RECON_TEAM_1'/>"
+            "<custom_report name='8-Line Spot Report'>"
+            "<line1_size>3x Personnel</line1_size>"
+            "<line3_location>11S YT 1234 5678</line3_location>"
+            "</custom_report></detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report_name, "8-Line Spot Report")
+        self.assertEqual(inbound.custom_report["line1_size"], "3x Personnel")
+        self.assertEqual(inbound.custom_report["line3_location"], "11S YT 1234 5678")
+
+    def test_no_custom_report_is_empty_dict(self):
+        xml = "<event uid='a' type='a-u-G'><point lat='1' lon='1'/><detail/></event>"
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report, {})
+        self.assertEqual(inbound.custom_report_name, "")
+
+    def test_custom_report_skips_empty_fields_and_caps_length(self):
+        xml = (
+            "<event uid='a' type='a-u-G'><point lat='1' lon='1'/>"
+            "<detail><custom_report>"
+            "<empty_line></empty_line>"
+            f"<long_line>{'x' * 900}</long_line>"
+            "</custom_report></detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertNotIn("empty_line", inbound.custom_report)
+        self.assertEqual(len(inbound.custom_report["long_line"]), 512)
+
+    def test_custom_report_field_count_is_capped(self):
+        fields = "".join(f"<f{i}>v</f{i}>" for i in range(100))
+        xml = f"<event uid='a' type='a-u-G'><point lat='1' lon='1'/><detail><custom_report>{fields}</custom_report></detail></event>"
+        inbound = cot_to_inbound(xml)
+        self.assertLessEqual(len(inbound.custom_report), 64)
+
 
 class Helpers(unittest.TestCase):
     def test_sanitize_token_never_dotdot(self):

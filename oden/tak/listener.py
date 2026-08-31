@@ -76,11 +76,16 @@ def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * radius * math.asin(math.sqrt(a))
 
 
+def _content_signature(cot: InboundCot) -> str:
+    """Text used to detect an unchanged repeat — remarks plus any custom_report fields."""
+    return cot.remarks + "|" + str(sorted(cot.custom_report.items()))
+
+
 @dataclass
 class _Seen:
     lat: float
     lon: float
-    remarks: str
+    signature: str  # remarks + custom_report fields, used to detect an unchanged repeat
     cot_type: str
 
 
@@ -120,11 +125,11 @@ class InboundFilter:
             return False
 
         previous = self._seen.get(cot.uid)
-        current = _Seen(cot.lat, cot.lon, cot.remarks, cot.cot_type)
+        current = _Seen(cot.lat, cot.lon, _content_signature(cot), cot.cot_type)
         if previous is not None:
             unchanged = (
                 previous.cot_type == current.cot_type
-                and previous.remarks == current.remarks
+                and previous.signature == current.signature
                 and _distance_m(previous.lat, previous.lon, current.lat, current.lon) < self.min_move_m
             )
             if unchanged:
@@ -154,6 +159,10 @@ def render_observation(cot: InboundCot) -> str:
         f"Typ: {cot.cot_type} ({cot.affiliation})",
         f"UID: {cot.uid}",
     ]
+    if cot.custom_report:
+        lines.append("")
+        lines.append(f"Bifogad rapport: {cot.custom_report_name}" if cot.custom_report_name else "Bifogad rapport:")
+        lines.extend(f"{key}: {value}" for key, value in cot.custom_report.items())
     if cot.remarks.strip():
         lines.extend(["", cot.remarks.strip()])
     return "\n".join(lines)

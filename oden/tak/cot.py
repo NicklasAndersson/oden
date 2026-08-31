@@ -21,7 +21,7 @@ import datetime as _dt
 import logging
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,8 @@ UID_PREFIX = "ODEN"
 _UNKNOWN_VAL = "9999999.0"  # CoT sentinel for unknown hae/ce/le
 _COT_TIME_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _MAX_REMARKS = 4096
+_MAX_CUSTOM_FIELDS = 64  # e.g. ATAK Reports-plugin <custom_report> blocks (8-line etc.)
+_MAX_CUSTOM_FIELD_LEN = 512
 
 # Affiliation -> CoT 2525 atom type (ground). Air/sea not needed for reports.
 AFFIL_TO_TYPE = {
@@ -159,10 +161,33 @@ class InboundCot:
     event_time: _dt.datetime
     stale: _dt.datetime | None
     is_chat: bool
+    custom_report_name: str = ""
+    custom_report: dict[str, str] = field(default_factory=dict)
 
     @property
     def affiliation(self) -> str:
         return _TYPE_TO_AFFIL.get(self.cot_type[:4], "unknown")
+
+
+def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
+    """Pull an ATAK Reports-plugin ``<custom_report>`` block out of ``<detail>``.
+
+    Some report forms (e.g. the stock 8-Line spot report) put their fields as
+    individual child elements of a ``<custom_report name="...">`` tag rather than
+    flattening them into ``<remarks>`` text. Untrusted input: cap field count and
+    length, keep original document order, skip empty values.
+    """
+    node = detail.find("custom_report")
+    if node is None:
+        return "", {}
+    name = sanitize_token(node.get("name", ""), max_len=64)
+    fields: dict[str, str] = {}
+    for child in list(node)[:_MAX_CUSTOM_FIELDS]:
+        text = (child.text or "").strip()
+        if not text:
+            continue
+        fields[child.tag] = text[:_MAX_CUSTOM_FIELD_LEN]
+    return name, fields
 
 
 def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
@@ -200,6 +225,8 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
     callsign = ""
     remarks = ""
     is_chat = False
+    custom_report_name = ""
+    custom_report: dict[str, str] = {}
     if detail is not None:
         contact = detail.find("contact")
         if contact is not None:
@@ -208,6 +235,7 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
         if remarks_el is not None and remarks_el.text:
             remarks = remarks_el.text
         is_chat = detail.find("__chat") is not None or root.get("type", "").startswith("b-t-f")
+        custom_report_name, custom_report = _parse_custom_report(detail)
 
     event_time = _parse_time(root.get("time")) or _dt.datetime.now(_dt.timezone.utc)
 
@@ -223,6 +251,8 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
         event_time=event_time,
         stale=_parse_time(root.get("stale")),
         is_chat=is_chat,
+        custom_report_name=custom_report_name,
+        custom_report=custom_report,
     )
 
 

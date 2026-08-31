@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **TAK-integration**: 7S-rapporter med position skickas till en TAK Server som CoT-markörer, och inkommande CoT kan landa i valvet som `TAK-OBSERVATION`-noter. Ny **TAK**-flik i web-GUI med status, certutgångsvarning, filter för inkommande, testmarkör-knapp och live-återanslutning när inställningar sparas. Anslutning via data package, enrollment (användarnamn/lösenord) eller lösa cert-filer. Verifierad mot TAK Server 5.7. Se [docs/TAK_SETUP.md](docs/TAK_SETUP.md).
+- **Strukturerade rapportplugin-fält i inkommande CoT**: inkommande händelser som bär fälten i ett ATAK Reports-plugin `<custom_report>`-block (t.ex. 8-Line spot report) parsas nu ut och visas i `TAK-OBSERVATION`-noten istället för att tappas bort tyst.
 
 ## [4.0.0] - 2026-08-31
 
