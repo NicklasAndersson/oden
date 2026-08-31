@@ -296,8 +296,33 @@ RELEASE_JSON=$(curl -fsSL "${API_URL}/tags/${SNAPSHOT_TAG}") || {
     exit 1
 }
 
-# Extract DMG download URL (pattern: Oden-*-macOS.dmg)
-DMG_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*macOS\.dmg"' | head -1 | sed 's/.*"browser_download_url": *"//;s/"$//')
+# Newer snapshots ship an Apple Silicon DMG (Oden-*-macOS-arm64.dmg);
+# older snapshots only have an Intel DMG (Oden-*-macOS.dmg).
+ARCH="$(uname -m)"
+ARM64_DMG_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*macOS-arm64\.dmg"' | head -1 | sed 's/.*"browser_download_url": *"//;s/"$//')
+INTEL_DMG_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*macOS\.dmg"' | head -1 | sed 's/.*"browser_download_url": *"//;s/"$//')
+
+DMG_URL=""
+if [[ "$ARCH" == "arm64" ]]; then
+    if [[ -n "$ARM64_DMG_URL" ]]; then
+        DMG_URL="$ARM64_DMG_URL"
+    elif [[ -n "$INTEL_DMG_URL" ]]; then
+        # Older snapshot with only an Intel DMG — runs via Rosetta 2
+        DMG_URL="$INTEL_DMG_URL"
+        print_warning "Denna snapshot har endast en Intel-DMG. Rosetta 2 krävs:"
+        print_info "softwareupdate --install-rosetta"
+    fi
+else
+    if [[ -n "$INTEL_DMG_URL" ]]; then
+        DMG_URL="$INTEL_DMG_URL"
+        print_warning "Du kör en Intel-Mac. Nyare snapshots byggs endast för Apple Silicon."
+    elif [[ -n "$ARM64_DMG_URL" ]]; then
+        print_error "Denna snapshot har ingen Intel-version — DMG:n är endast för Apple Silicon."
+        print_info "Intel-Mackar kan köra Oden via Docker, se README:"
+        print_info "https://github.com/${REPO}#readme"
+        exit 1
+    fi
+fi
 
 if [[ -z "$DMG_URL" ]]; then
     print_error "Kunde inte hitta en DMG i snapshot-releasen."
