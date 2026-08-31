@@ -197,8 +197,30 @@ _KNOWN_DETAIL_TAGS = {
     "fillColor",
     "strokeColor",
     "labels_on",
+    "creator",
+    "hideLabel",
+    "_flow-tags_",
+    "_medevac_status_",
+    "modelInfo",
 }
 _MAX_FIELD_DEPTH = 6
+# Attribute names that are structure/plumbing, never a report field value.
+_STRUCTURAL_ATTRS = {
+    "value",
+    "name",
+    "label",
+    "uid",
+    "type",
+    "relation",
+    "time",
+    "how",
+    "version",
+    "parent_callsign",
+    "production_time",
+    "geopointsrc",
+    "altsrc",
+}
+_ATTR_NAME_JUNK = re.compile(r"[0-9a-f]{8}|^TAK-Server-|^_")
 
 
 def _humanize_tag(tag: str) -> str:
@@ -218,6 +240,16 @@ def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: i
     if attr_value:
         key = elem.get("label") or elem.get("name") or elem.tag
         fields.setdefault(key, attr_value[:_MAX_CUSTOM_FIELD_LEN])
+
+    # Many templates (e.g. the 8S form) flatten every field into attributes on
+    # one wrapper element: <_8S_ POSITION="..." STRENGTH_TYPE="..." .../>
+    for attr_name, attr_val in elem.attrib.items():
+        if len(fields) >= _MAX_CUSTOM_FIELDS:
+            break
+        val = (attr_val or "").strip()
+        if not val or attr_name in _STRUCTURAL_ATTRS or _ATTR_NAME_JUNK.search(attr_name):
+            continue
+        fields.setdefault(_humanize_tag(attr_name), val[:_MAX_CUSTOM_FIELD_LEN])
 
     children = list(elem)
     if not children:

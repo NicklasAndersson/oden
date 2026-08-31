@@ -1,0 +1,9 @@
+<event version="2.0" uid="8S.2d308e39-5c5d-4c0b-bb85-55695da6ac93" type="a-h-G" how="h-g-i-g-o" time="2026-08-31T19:44:16Z" start="2026-08-31T19:44:04Z" stale="2026-08-31T19:49:04Z" access="Undefined">
+  <point lat="59.3442335" lon="18.1756791" hae="9999999.0" ce="9999999.0" le="9999999.0"/>
+  <detail>
+    <contact callsign="8S-LarsNo-312132"/>
+    <usericon iconsetpath="f7f71666-8b28-4b57-9fbb-e38e61d33b79/Google/red-pushpin.png"/>
+    <_8S_ POSITION="34V CL 3939 8179" STRENGTH_TYPE="En" SYMBOL="Rekyl T-shirt" INFORMANT="LarsNo" OCCUPATION="medelålders man" TIME="2026/08/31 21:32" THEN="Somnar om"/>
+    <_flow-tags_ TAK-Server-7e3cba2a3cd544e7bbed2c667731cadc="2026-08-31T19:44:16Z"/>
+  </detail>
+</event>

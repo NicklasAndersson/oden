@@ -176,6 +176,38 @@ class CotToInbound(unittest.TestCase):
         self.assertEqual(inbound.custom_report["Size"], "3x Personnel")
         self.assertEqual(inbound.custom_report["Activity"], "Staging equipment")
 
+    def test_fields_flattened_into_wrapper_attributes(self):
+        # The 8S report form: every field is an attribute on one <_8S_> element.
+        xml = (
+            "<event uid='8S.x' type='a-h-G'><point lat='59.34' lon='18.17'/>"
+            "<detail><contact callsign='8S-LarsNo-1'/>"
+            "<usericon iconsetpath='x/red-pushpin.png'/>"
+            "<_8S_ POSITION='34V CL 3939 8179' STRENGTH_TYPE='En' SYMBOL='Rekyl T-shirt' "
+            "INFORMANT='LarsNo' THEN='Somnar om'/>"
+            "<_flow-tags_ TAK-Server-7e3cba2a3cd544e7bbed2c667731cadc='2026-08-31T19:42:06Z'/>"
+            "</detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report_name, "8S")
+        self.assertEqual(inbound.custom_report["Position"], "34V CL 3939 8179")
+        self.assertEqual(inbound.custom_report["Symbol"], "Rekyl T-shirt")
+        self.assertNotIn("Type", inbound.custom_report)  # structural attr excluded
+        # _flow-tags_ (server plumbing) contributes nothing
+        self.assertNotIn("TAK-Server-7e3cba2a3cd544e7bbed2c667731cadc", str(inbound.custom_report))
+
+    def test_spi_pointer_has_no_report_fields(self):
+        # ATAK digital-pointer (SPI): contact/link/hideLabel/creator/_flow-tags_ only.
+        xml = (
+            "<event uid='A.SPI1' type='b-m-p-s-p-i'><point lat='59.34' lon='18.17'/>"
+            "<detail><contact callsign='DOWNY.DP1'/>"
+            "<link uid='A' type='a-f-G-U-C' relation='p-p'/>"
+            "<hideLabel/><creator uid='A' type='a-f-G-U-C'/>"
+            "<_flow-tags_ TAK-Server-abc='t'/></detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report, {})
+        self.assertEqual(inbound.custom_report_name, "")
+
     def test_ignores_standard_cot_metadata(self):
         # Every ATAK client attaches these regardless of report content; must never
         # be mistaken for report fields.
