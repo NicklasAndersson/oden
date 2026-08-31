@@ -21,7 +21,7 @@ import datetime as _dt
 import logging
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,8 @@ UID_PREFIX = "ODEN"
 _UNKNOWN_VAL = "9999999.0"  # CoT sentinel for unknown hae/ce/le
 _COT_TIME_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _MAX_REMARKS = 4096
+_MAX_CUSTOM_FIELDS = 64  # e.g. ATAK Reports-plugin <custom_report> blocks (8-line etc.)
+_MAX_CUSTOM_FIELD_LEN = 512
 
 # Affiliation -> CoT 2525 atom type (ground). Air/sea not needed for reports.
 AFFIL_TO_TYPE = {
@@ -159,10 +161,97 @@ class InboundCot:
     event_time: _dt.datetime
     stale: _dt.datetime | None
     is_chat: bool
+    custom_report_name: str = ""
+    custom_report: dict[str, str] = field(default_factory=dict)
 
     @property
     def affiliation(self) -> str:
         return _TYPE_TO_AFFIL.get(self.cot_type[:4], "unknown")
+
+
+# Standard CoT/ATAK <detail> children that every client attaches (device status,
+# group membership, rendering hints, ...). Never treat these as report fields.
+_KNOWN_DETAIL_TAGS = {
+    "contact",
+    "remarks",
+    "link",
+    "archive",
+    "precisionlocation",
+    "status",
+    "uid",
+    "takv",
+    "track",
+    "color",
+    "usericon",
+    "height",
+    "marti",
+    "attachment_list",
+    "video",
+    "chatgrp",
+    "geofence",
+    "environment",
+    "emergency",
+    "bloodhound",
+    "routeinfo",
+    "shape",
+    "fillColor",
+    "strokeColor",
+    "labels_on",
+}
+_MAX_FIELD_DEPTH = 6
+
+
+def _humanize_tag(tag: str) -> str:
+    return tag.replace("_", " ").replace("-", " ").strip().title() or tag
+
+
+def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: int = 0) -> None:
+    """Walk one report block and collect its fields, whatever shape it turns out to be.
+
+    Handles both conventions seen across ATAK report-form templates: a value in the
+    element's text (``<line1_size>3x Personnel</line1_size>``), or in a ``value``
+    attribute keyed by ``name``/``label`` (``<field name="Size" value="..."/>``).
+    """
+    if depth > _MAX_FIELD_DEPTH or len(fields) >= _MAX_CUSTOM_FIELDS:
+        return
+    attr_value = (elem.get("value") or "").strip()
+    if attr_value:
+        key = elem.get("label") or elem.get("name") or elem.tag
+        fields.setdefault(key, attr_value[:_MAX_CUSTOM_FIELD_LEN])
+
+    children = list(elem)
+    if not children:
+        text = (elem.text or "").strip()
+        if text and not attr_value:
+            fields.setdefault(elem.tag, text[:_MAX_CUSTOM_FIELD_LEN])
+        return
+    for child in children:
+        if len(fields) >= _MAX_CUSTOM_FIELDS:
+            break
+        _extract_report_fields(child, fields, depth=depth + 1)
+
+
+def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
+    """Pull operator-defined report fields out of ``<detail>``.
+
+    ATAK report forms are built from a custom XML template and shipped as a Data
+    Package, so there is no one fixed schema: the wrapper tag name, the field tag
+    names, and whether a value lives in element text or an attribute all vary by
+    template. So instead of matching one exact shape, treat any ``<detail>`` child
+    that isn't a standard CoT element as a report block and walk it generically.
+    Untrusted input: cap depth, field count and length; skip empty values.
+    """
+    name = ""
+    fields: dict[str, str] = {}
+    for child in detail:
+        if child.tag.startswith("__") or child.tag in _KNOWN_DETAIL_TAGS:
+            continue
+        if not name:
+            name = sanitize_token(child.get("name", "") or _humanize_tag(child.tag), max_len=64)
+        _extract_report_fields(child, fields)
+        if len(fields) >= _MAX_CUSTOM_FIELDS:
+            break
+    return name, fields
 
 
 def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
@@ -200,6 +289,8 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
     callsign = ""
     remarks = ""
     is_chat = False
+    custom_report_name = ""
+    custom_report: dict[str, str] = {}
     if detail is not None:
         contact = detail.find("contact")
         if contact is not None:
@@ -208,6 +299,7 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
         if remarks_el is not None and remarks_el.text:
             remarks = remarks_el.text
         is_chat = detail.find("__chat") is not None or root.get("type", "").startswith("b-t-f")
+        custom_report_name, custom_report = _parse_custom_report(detail)
 
     event_time = _parse_time(root.get("time")) or _dt.datetime.now(_dt.timezone.utc)
 
@@ -223,6 +315,8 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
         event_time=event_time,
         stale=_parse_time(root.get("stale")),
         is_chat=is_chat,
+        custom_report_name=custom_report_name,
+        custom_report=custom_report,
     )
 
 

@@ -18,12 +18,14 @@ from oden.tak.listener import (
 )
 
 
-def _cot(uid="ENEMY.1", cot_type="a-h-G", lat=59.33, lon=18.07, callsign="Alpha", remarks="Två fordon"):
+def _cot(
+    uid="ENEMY.1", cot_type="a-h-G", lat=59.33, lon=18.07, callsign="Alpha", remarks="Två fordon", custom_report=""
+):
     xml = (
         f"<event version='2.0' uid='{uid}' type='{cot_type}' how='m-g' "
         f"time='2026-08-28T14:30:00.00Z'>"
         f"<point lat='{lat}' lon='{lon}' hae='9999999.0' ce='9999999.0' le='9999999.0'/>"
-        f"<detail><contact callsign='{callsign}'/><remarks>{remarks}</remarks></detail></event>"
+        f"<detail><contact callsign='{callsign}'/><remarks>{remarks}</remarks>{custom_report}</detail></event>"
     )
     return cot_to_inbound(xml)
 
@@ -65,6 +67,14 @@ class InboundFilterTest(unittest.TestCase):
         f = self._filter()
         self.assertTrue(f.accept(_cot()))
         self.assertTrue(f.accept(_cot(remarks="Nu tre fordon")))
+
+    def test_dedup_lets_through_changed_custom_report(self):
+        f = self._filter()
+        report_a = "<custom_report><line1_size>3x Personnel</line1_size></custom_report>"
+        report_b = "<custom_report><line1_size>5x Personnel</line1_size></custom_report>"
+        self.assertTrue(f.accept(_cot(custom_report=report_a)))
+        self.assertTrue(f.accept(_cot(custom_report=report_b)))
+        self.assertFalse(f.accept(_cot(custom_report=report_b)))  # now unchanged
 
     def test_rate_limit_caps_burst(self):
         f = self._filter(inbound_max_per_minute=3, inbound_min_move_m=0)
@@ -109,6 +119,18 @@ class RenderAndEnvelopeTest(unittest.TestCase):
         self.assertIn("Alpha", text)
         self.assertIn("59.33000", text)
         self.assertIn("a-h-G", text)
+
+    def test_observation_renders_custom_report_fields(self):
+        report = (
+            "<custom_report name='8-Line Spot Report'>"
+            "<line1_size>3x Personnel</line1_size>"
+            "<line3_location>11S YT 1234 5678</line3_location>"
+            "</custom_report>"
+        )
+        text = render_observation(_cot(custom_report=report))
+        self.assertIn("8-Line Spot Report", text)
+        self.assertIn("line1_size: 3x Personnel", text)
+        self.assertIn("line3_location: 11S YT 1234 5678", text)
 
     def test_envelope_is_signal_shaped_and_marked(self):
         env = build_envelope(_cot(), "TAK Inkommande")["envelope"]
