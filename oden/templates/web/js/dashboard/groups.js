@@ -23,19 +23,41 @@ async function fetchGroups() {
                 : '';
             return `
                 <div class="group-item" data-group-name="${escapeHtml(group.name)}">
-                    <div class="group-info">
+                    <div class="group-header">
                         <div class="group-name">${escapeHtml(group.name)}</div>
-                        <div class="group-meta">${group.memberCount} medlemmar</div>
+                        <div class="group-buttons">${editBtn}</div>
                     </div>
-                    <div class="group-buttons">
-                        ${editBtn}
-                    </div>
+                    ${_renderGroupMemberTree(group)}
                 </div>
             `;
         }).join('');
     } catch (error) {
         console.error('Error fetching groups:', error);
     }
+}
+
+function _renderGroupMemberTree(group) {
+    if (!group.memberCount) {
+        return '<div class="group-meta">0 medlemmar</div>';
+    }
+    const members = group.members || [];
+    if (!members.length) {
+        return `<div class="group-meta">${group.memberCount} medlemmar (uppdatera för att se namn)</div>`;
+    }
+    const rows = members.map(m => {
+        const name = escapeHtml(m.name && m.name !== 'Okänd' ? m.name : '');
+        const number = escapeHtml(m.number || 'Okänd medlem');
+        const adminBadge = m.role === 'ADMINISTRATOR' ? '<span class="admin-badge">Admin</span>' : '';
+        const blockedBadge = m.isBlocked ? '<span class="blocked-badge">Blockerad</span>' : '';
+        const note = m.note ? `<div class="member-note">${escapeHtml(m.note)}</div>` : '';
+        return `<li><span class="mono">${number}</span>${name ? ' — ' + name : ''}${adminBadge}${blockedBadge}${note}</li>`;
+    }).join('');
+    return `
+        <details class="group-members">
+            <summary>${group.memberCount} medlemmar</summary>
+            <ul class="group-member-list">${rows}</ul>
+        </details>
+    `;
 }
 
 // ========== Group edit modal ==========
@@ -82,7 +104,7 @@ function _renderGroupMembers(members) {
     }
     container.innerHTML = members.map(m => {
         const name = escapeHtml(m.name && m.name !== 'Okänd' ? m.name : '');
-        const number = escapeHtml(m.number || '');
+        const number = escapeHtml(m.number || 'Okänd medlem');
         const isAdmin = m.role === 'ADMINISTRATOR';
         const badge = isAdmin ? '<span style="color: #4caf50; font-size: 0.85em; margin-left: 4px;">Admin</span>' : '';
         const adminBtn = isAdmin
@@ -287,5 +309,81 @@ async function handleJoinGroupSubmit(e) {
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Gå med i grupp';
+    }
+}
+
+// ========== Create group ==========
+
+async function loadCreateGroupContacts() {
+    const container = document.getElementById('create-group-contacts');
+    try {
+        const response = await fetch('/api/contacts');
+        const data = await response.json();
+        const contacts = data.contacts || [];
+
+        if (contacts.length === 0) {
+            container.innerHTML = '<div class="empty-state">Inga kontakter hittades</div>';
+            return;
+        }
+
+        container.innerHTML = contacts.map(c => {
+            const number = escapeHtml(c.number || '');
+            const name = escapeHtml(c.name || c.nickName || number);
+            return `<label style="display: block; padding: 3px 0;"><input type="checkbox" value="${number}"> ${name}</label>`;
+        }).join('');
+    } catch (error) {
+        container.innerHTML = '<div class="empty-state">Kunde inte ladda kontakter</div>';
+    }
+}
+
+async function handleCreateGroupSubmit(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('create-group-name');
+    const submitBtn = document.getElementById('create-group-btn');
+    const messageDiv = document.getElementById('create-group-message');
+    const name = nameInput.value.trim();
+
+    if (!name) return;
+
+    const checked = Array.from(
+        document.querySelectorAll('#create-group-contacts input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+
+    const manualInput = document.getElementById('create-group-add-number');
+    const manualNumbers = manualInput.value.split(',').map(s => s.trim()).filter(Boolean);
+
+    const member = [...new Set([...checked, ...manualNumbers])];
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Skapar...';
+    messageDiv.className = 'message';
+    messageDiv.textContent = '';
+
+    try {
+        const response = await fetch('/api/groups/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, member }),
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            messageDiv.className = 'message success';
+            messageDiv.textContent = 'Grupp skapad!';
+            nameInput.value = '';
+            manualInput.value = '';
+            document.querySelectorAll('#create-group-contacts input[type="checkbox"]:checked')
+                .forEach(cb => { cb.checked = false; });
+            await fetchGroups();
+        } else {
+            messageDiv.className = 'message error';
+            messageDiv.textContent = result.error || 'Kunde inte skapa grupp';
+        }
+    } catch (error) {
+        messageDiv.className = 'message error';
+        messageDiv.textContent = 'Nätverksfel: ' + error.message;
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Skapa grupp';
     }
 }

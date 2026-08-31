@@ -446,3 +446,93 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
         self.assertEqual(len(data["groups"]), 2)
 
         app_state.update_groups([])
+
+
+class TestCreateGroupHandler(AioHTTPTestCase):
+    """Test POST /api/groups/create."""
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    async def test_create_group_requires_name(self):
+        """Missing name returns 400 without touching signal-cli."""
+        resp = await self.client.post("/api/groups/create", json={"name": ""})
+        self.assertEqual(resp.status, 400)
+        data = await resp.json()
+        self.assertFalse(data["success"])
+
+    @unittest.mock.patch("oden.web_handlers.group_handlers.get_app_state")
+    @unittest.mock.patch("oden.web_handlers._helpers.get_app_state")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.upsert_groups_bulk")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
+    async def test_create_group_sends_create_group_rpc(
+        self,
+        mock_cfg,
+        _mock_upsert,
+        mock_helpers_state,
+        mock_handler_state,
+    ):
+        """A valid name + members sends createGroup then refreshes the cache."""
+        mock_cfg.SIGNAL_NUMBER = "+460000"
+
+        state = unittest.mock.Mock()
+        state.writer = object()
+        state.send_jsonrpc = unittest.mock.AsyncMock(
+            side_effect=[
+                {"result": {"groupId": "abc"}},
+                {"result": []},
+            ]
+        )
+        mock_helpers_state.return_value = state
+        mock_handler_state.return_value = state
+
+        resp = await self.client.post(
+            "/api/groups/create",
+            json={"name": "Ny grupp", "member": ["+461"]},
+        )
+
+        self.assertEqual(resp.status, 200)
+        data = await resp.json()
+        self.assertTrue(data["success"])
+
+        first_call = state.send_jsonrpc.call_args_list[0]
+        self.assertEqual(first_call.args[0], "createGroup")
+        self.assertEqual(
+            first_call.kwargs["params"],
+            {"account": "+460000", "name": "Ny grupp", "member": ["+461"]},
+        )
+
+    @unittest.mock.patch("oden.web_handlers.group_handlers.get_app_state")
+    @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
+    async def test_create_group_reports_signal_cli_error_instead_of_success(
+        self,
+        mock_cfg,
+        mock_handler_state,
+    ):
+        """A JSON-RPC error response must surface as a failure, not a false 'success'.
+
+        signal-cli responds with a non-None dict containing an "error" key (no
+        "result") when createGroup fails server-side — e.g. permission or
+        rate-limit issues. Previously the handler only checked `result is None`,
+        so this case was reported as success even though no group was created.
+        """
+        mock_cfg.SIGNAL_NUMBER = "+460000"
+
+        state = unittest.mock.Mock()
+        state.writer = object()
+        state.send_jsonrpc = unittest.mock.AsyncMock(
+            return_value={"error": {"code": -1, "message": "Group creation failed"}}
+        )
+        mock_handler_state.return_value = state
+
+        resp = await self.client.post(
+            "/api/groups/create",
+            json={"name": "Ny grupp"},
+        )
+
+        self.assertEqual(resp.status, 502)
+        data = await resp.json()
+        self.assertFalse(data["success"])
+        self.assertEqual(data["error"], "Group creation failed")
+        # Must not have gone on to refresh/persist a group that was never created.
+        self.assertEqual(state.send_jsonrpc.call_count, 1)

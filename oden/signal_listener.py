@@ -25,6 +25,7 @@ from oden.retention_db import cleanup_old_data
 logger = logging.getLogger(__name__)
 
 RETENTION_CLEANUP_INTERVAL_SECONDS = 3600
+GROUPS_CONTACTS_REFRESH_INTERVAL_SECONDS = 900
 
 
 async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] | None = None) -> None:
@@ -183,8 +184,11 @@ async def log_contacts() -> None:
     """Fetches contacts from signal-cli and caches them in app_state.
 
     Used for name resolution (fallback when envelope sourceName is empty).
+    Persists to the database so contacts survive restarts, and falls back
+    to the database if the RPC call fails (same pattern as log_groups).
     """
     from oden import config as cfg
+    from oden.contacts_db import get_all_contacts, upsert_contacts_bulk
 
     app_state = get_app_state()
 
@@ -197,10 +201,18 @@ async def log_contacts() -> None:
         if response and "result" in response:
             contacts = response["result"]
             app_state.update_contacts(contacts)
-        else:
-            logger.debug("listContacts returned no result")
+            count = upsert_contacts_bulk(cfg.CONFIG_DB, contacts, account=cfg.SIGNAL_NUMBER)
+            if count:
+                logger.debug("Persisted %d contacts to database", count)
+            return
+        logger.debug("listContacts returned no result, loading from database")
     except Exception as e:
-        logger.warning("Could not fetch contacts via RPC: %s", e)
+        logger.warning("Could not fetch contacts via RPC: %s — loading from database", e)
+
+    db_contacts = get_all_contacts(cfg.CONFIG_DB, account=cfg.SIGNAL_NUMBER)
+    if db_contacts:
+        logger.info("Loaded %d contact(s) from database (offline cache)", len(db_contacts))
+        app_state.update_contacts(db_contacts)
 
 
 async def update_profile(writer: asyncio.StreamWriter, display_name: str | None) -> None:
@@ -254,6 +266,18 @@ async def _reader_loop(reader: asyncio.StreamReader, app_state: object) -> None:
         app_state.dispatch_line(data)
 
 
+async def _periodic_groups_contacts_refresh(writer: asyncio.StreamWriter) -> None:
+    """Periodically re-fetch groups and contacts so the web GUI stays current
+    without requiring a manual "Uppdatera" click."""
+    while True:
+        await asyncio.sleep(GROUPS_CONTACTS_REFRESH_INTERVAL_SECONDS)
+        try:
+            await log_groups(writer)
+            await log_contacts()
+        except Exception as e:
+            logger.warning("Periodic groups/contacts refresh failed: %s", e)
+
+
 async def subscribe_and_listen(host: str, port: int) -> None:
     """Connects to signal-cli via TCP socket, subscribes to messages, and processes them.
 
@@ -284,6 +308,7 @@ async def subscribe_and_listen(host: str, port: int) -> None:
         # Start the reader/dispatcher loop as a background task so that
         # RPC responses are consumed while we issue startup calls.
         reader_task = asyncio.create_task(_reader_loop(reader, app_state))
+        refresh_task = asyncio.create_task(_periodic_groups_contacts_refresh(writer))
 
         await update_profile(writer, DISPLAY_NAME)
         groups = await log_groups(writer)
@@ -381,6 +406,9 @@ async def subscribe_and_listen(host: str, port: int) -> None:
             reader_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reader_task
+            refresh_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await refresh_task
 
     except ConnectionRefusedError as e:
         logger.error(f"Connection to signal-cli daemon failed: {e}")

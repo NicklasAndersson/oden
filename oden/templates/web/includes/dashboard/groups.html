@@ -11,6 +11,28 @@
 </div>
 
 <div class="card full-width">
+    <h2>➕ Skapa grupp</h2>
+    <form id="create-group-form">
+        <div class="form-group">
+            <label for="create-group-name">Gruppnamn</label>
+            <input type="text" id="create-group-name" required>
+        </div>
+        <div class="form-group">
+            <label>Bjud in kontakter</label>
+            <div id="create-group-contacts" class="group-member-list" style="max-height: 200px; overflow-y: auto;">
+                <div class="empty-state">Laddar kontakter...</div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="create-group-add-number">Lägg till nummer manuellt</label>
+            <input type="text" id="create-group-add-number" placeholder="+46...">
+        </div>
+        <button type="submit" class="btn btn-primary" id="create-group-btn">Skapa grupp</button>
+    </form>
+    <div id="create-group-message" class="message"></div>
+</div>
+
+<div class="card full-width">
     <h2>🔗 Gå med i grupp</h2>
     <form id="join-group-form">
         <div class="form-group">
