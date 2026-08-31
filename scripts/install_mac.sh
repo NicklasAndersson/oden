@@ -108,8 +108,8 @@ RELEASE_JSON=$(curl -fsSL "$API_URL") || {
 # Newer releases ship an Apple Silicon DMG (Oden-*-macOS-arm64.dmg);
 # older releases only have an Intel DMG (Oden-*-macOS.dmg).
 ARCH="$(uname -m)"
-ARM64_DMG_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*macOS-arm64\.dmg"' | head -1 | sed 's/.*"browser_download_url": *"//;s/"$//')
-INTEL_DMG_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*macOS\.dmg"' | head -1 | sed 's/.*"browser_download_url": *"//;s/"$//')
+ARM64_DMG_URL=$( (echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*macOS-arm64\.dmg"' | head -1 | sed 's/.*"browser_download_url": *"//;s/"$//') || true)
+INTEL_DMG_URL=$( (echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*macOS\.dmg"' | head -1 | sed 's/.*"browser_download_url": *"//;s/"$//') || true)
 
 DMG_URL=""
 if [[ "$ARCH" == "arm64" ]]; then
