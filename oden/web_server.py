@@ -49,6 +49,7 @@ from oden.web_handlers.contact_handlers import (
 )
 from oden.web_handlers.group_handlers import (
     accept_invitation_handler,
+    create_group_handler,
     decline_invitation_handler,
     groups_handler,
     invitations_handler,
@@ -271,6 +272,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/groups", groups_handler)
         app.router.add_post("/api/groups/refresh", refresh_groups_handler)
         app.router.add_post("/api/groups/update", update_group_handler)
+        app.router.add_post("/api/groups/create", create_group_handler)
         app.router.add_post("/api/config-save", config_save_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)
         app.router.add_post("/api/signal-cli/restart", restart_signal_cli_handler)

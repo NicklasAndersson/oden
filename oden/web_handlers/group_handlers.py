@@ -54,15 +54,32 @@ async def groups_handler(request: web.Request) -> web.Response:
                 is_admin = False
                 for m in members_raw:
                     if isinstance(m, dict):
-                        num = m.get("number", "")
+                        # Some members (e.g. username-only contacts) have no phone
+                        # number — fall back to their Signal UUID so the row isn't blank.
+                        num = m.get("number") or m.get("uuid", "")
                         role = m.get("role", "DEFAULT")
                     elif isinstance(m, str):
                         num = m
                         role = "DEFAULT"
                     else:
                         continue
+                    contact = app_state.contacts.get(num) or {}
                     display = app_state.resolve_contact_name(num, None)
-                    members.append({"number": num, "name": display, "role": role})
+                    if display == "Okänd":
+                        # No saved contact name — fall back to the Signal profile
+                        # name (givenName/familyName), same as the Contacts tab.
+                        profile = contact.get("profile") or {}
+                        profile_name = " ".join(p for p in (profile.get("givenName"), profile.get("familyName")) if p)
+                        display = profile_name or display
+                    members.append(
+                        {
+                            "number": num,
+                            "name": display,
+                            "role": role,
+                            "note": contact.get("note", ""),
+                            "isBlocked": bool(contact.get("isBlocked", False)),
+                        }
+                    )
                     if num == cfg.SIGNAL_NUMBER and role == "ADMINISTRATOR":
                         is_admin = True
                 merged[gid] = {
@@ -275,11 +292,11 @@ async def update_group_handler(request: web.Request) -> web.Response:
 
     result = await app_state.send_jsonrpc("updateGroup", params=params)
 
-    if result is None:
-        return web.json_response(
-            {"success": False, "error": "Inget svar från signal-cli"},
-            status=502,
-        )
+    if not result or "result" not in result:
+        error_msg = "Inget svar från signal-cli"
+        if result and "error" in result:
+            error_msg = result["error"].get("message", error_msg)
+        return web.json_response({"success": False, "error": error_msg}, status=502)
 
     # Refresh groups cache after update
     refresh = await app_state.send_jsonrpc(
@@ -292,6 +309,51 @@ async def update_group_handler(request: web.Request) -> web.Response:
         upsert_groups_bulk(cfg.CONFIG_DB, refresh["result"], account=cfg.SIGNAL_NUMBER)
 
     logger.info("Group %s updated", group_id)
+    return web.json_response({"success": True})
+
+
+@handle_errors("create group")
+@parse_json_body
+async def create_group_handler(request: web.Request) -> web.Response:
+    """Create a new group via signal-cli createGroup RPC."""
+    data = request["json_body"]
+    name = data.get("name", "").strip()
+
+    if not name:
+        return web.json_response({"success": False, "error": "Inget gruppnamn angivet"}, status=400)
+
+    # Check writer after validation so a missing name returns 400, not 503
+    app_state = get_app_state()
+    if not app_state.writer:
+        return web.json_response(
+            {"success": False, "error": "Inte ansluten till signal-cli"},
+            status=503,
+        )
+
+    params: dict = {"account": cfg.SIGNAL_NUMBER, "name": name}
+    members = data.get("member") or []
+    if members:
+        params["member"] = members
+
+    result = await app_state.send_jsonrpc("createGroup", params=params)
+
+    if not result or "result" not in result:
+        error_msg = "Inget svar från signal-cli"
+        if result and "error" in result:
+            error_msg = result["error"].get("message", error_msg)
+        return web.json_response({"success": False, "error": error_msg}, status=502)
+
+    # Refresh groups cache after creation
+    refresh = await app_state.send_jsonrpc(
+        "listGroups",
+        params={"account": cfg.SIGNAL_NUMBER},
+        timeout=10.0,
+    )
+    if refresh and "result" in refresh:
+        app_state.update_groups(refresh["result"])
+        upsert_groups_bulk(cfg.CONFIG_DB, refresh["result"], account=cfg.SIGNAL_NUMBER)
+
+    logger.info("Group '%s' created", name)
     return web.json_response({"success": True})
 
 
