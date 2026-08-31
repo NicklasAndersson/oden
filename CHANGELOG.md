@@ -11,10 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **TAK-integration**: 7S-rapporter med position skickas till en TAK Server som CoT-markörer, och inkommande CoT kan landa i valvet som `TAK-OBSERVATION`-noter. Ny **TAK**-flik i web-GUI med status, certutgångsvarning, filter för inkommande, testmarkör-knapp och live-återanslutning när inställningar sparas. Anslutning via data package, enrollment (användarnamn/lösenord) eller lösa cert-filer. Verifierad mot TAK Server 5.7. Se [docs/TAK_SETUP.md](docs/TAK_SETUP.md).
 
+## [4.0.0] - 2026-08-31
+
+### ⚠️ Breaking
+
+- **Intel-Mac-stödet för den nativa appen är borttaget**: Intel-Mackar kör Oden via Docker-imagen (`linux/amd64`), precis som Linux; installationsskripten upptäcker arkitekturen och visar rätt alternativ
+
 ### Changed
 
 - **macOS-appen byggs nu nativt för Apple Silicon (arm64)**: DMG:n heter `Oden-<version>-macOS-arm64.dmg`, kräver inte längre Rosetta 2 på M-serie-Mackar och startar direkt på Mackar utan Rosetta installerat ([#261](https://github.com/NicklasAndersson/oden/issues/261))
-- **Intel-Mac-stödet för den nativa appen är borttaget**: Intel-Mackar kör Oden via Docker-imagen (`linux/amd64`), precis som Linux; installationsskripten upptäcker arkitekturen och visar rätt alternativ
 
 ## [3.2.1] - 2026-08-28
 
