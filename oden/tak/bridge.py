@@ -96,8 +96,11 @@ class TakBridge:
         self.connected = False
         self.last_error: str | None = None
         self.last_tx_at: datetime | None = None
+        self.last_rx_at: datetime | None = None
         self.sent_count = 0
-        self.received_count = 0
+        self.received_count = 0  # notes actually created
+        self.rx_total = 0  # CoT events pulled off the wire, before any filter
+        self.rx_filtered = 0  # dropped by type/callsign/echo/dedup/rate
 
     @property
     def is_running(self) -> bool:

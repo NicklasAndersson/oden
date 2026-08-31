@@ -19,6 +19,11 @@ Verifierad mot TAK Server 5.7-RELEASE-8.
 
 ## Steg 1 – Skaffa klientidentitet
 
+**Ge Oden ett eget konto/cert** — inte samma som du själv loggar in i ATAK/CloudTAK
+med. En TAK Server skickar normalt inte tillbaka en klients egna events till samma
+klients andra anslutningar, så använder Oden ditt konto ser den inte punkterna du
+placerar. Be TAK-admin om ett dedikerat cert (t.ex. `oden`).
+
 Fråga TAK-admin om **ett av** följande (enklast först):
 
 1. **Data package (`.zip`)** – samma fil som laddas in i ATAK/WinTAK. Innehåller
@@ -86,7 +91,7 @@ set_config_value(
 | `cot_archive` | `true` | Sätter `<archive/>` så markören överlever att Oden kopplar ner |
 | **Inkommande CoT** | | |
 | `inbound_enabled` | `false` | Ta emot CoT och skapa `TAK-OBSERVATION`-noter |
-| `inbound_types` | `a-h-*, a-u-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Inte `a-f-*` = ingen egen lägesrapportering |
+| `inbound_types` | `a-f-G, a-h-*, a-n-G, a-u-*, b-m-p-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Fångar manuellt placerade markörer/punkter, inte den automatiska lägesrapporteringen (`a-f-*` med undertyper) |
 | `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på callsign |
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
@@ -159,6 +164,7 @@ FreeTAKServer istället? Sätt `FTS_COMPAT=1` i miljön.
 | Markör i havet (0,0) | MGRS i `Ställe` gick inte att tolka |
 | Dubbla markörer för samma rapport | uid-härledning matchar inte mellan original och `++` – buggrapport |
 | Översvämmas av inkommande noter | `inbound_types` för brett, eller höj `inbound_min_move_m` |
+| Inget loggas när du placerar punkter i TAK | (1) `inbound_enabled` av? (2) **Oden och du använder samma TAK-konto** — servern skickar inte tillbaka dina egna events till din andra anslutning; ge Oden ett eget cert/konto. (3) Punkttypen matchar inte `inbound_types`. Statusraden i TAK-fliken visar `N mottagna / M filtrerade`; sätt loggnivå `DEBUG` för att se varje filtrerad CoT |
 | Markörer syns för dig men inte andra | Servern kräver data marking / mission – prata med TAK-admin |
 
 ## Säkerhet

@@ -18,7 +18,15 @@ async function loadTakStatus() {
             rows.push(['Anslutning', s.connected ? '🟢 Ansluten' : '🔴 Frånkopplad']);
             rows.push(['Server', escapeHtml(s.cot_url || '—')]);
             rows.push(['Skickade markörer', String(s.sent_count)]);
-            rows.push(['Inkommande', s.inbound_enabled ? String(s.received_count) : 'Avstängt']);
+            if (s.inbound_enabled) {
+                rows.push(['Inkommande CoT', s.rx_total + ' mottagna · ' + s.rx_filtered + ' filtrerade · ' + s.received_count + ' noter']);
+                if (s.last_rx_at) rows.push(['Senast mottagen', escapeHtml(s.last_rx_at)]);
+                if (s.rx_total > 0 && s.received_count === 0) {
+                    rows.push(['', '<span style="color:#e0a800;">CoT kommer in men allt filtreras bort — se inbound_types, eller att Oden och du använder olika TAK-konton</span>']);
+                }
+            } else {
+                rows.push(['Inkommande', 'Avstängt']);
+            }
             if (s.last_tx_at) rows.push(['Senast skickad', escapeHtml(s.last_tx_at)]);
             if (s.last_error) rows.push(['Senaste fel', '<span style="color:#e57373;">' + escapeHtml(s.last_error) + '</span>']);
         }

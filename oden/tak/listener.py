@@ -37,7 +37,9 @@ OBSERVATION_HEADER = "TAK-OBSERVATION"  # deliberately not "... RAPPORT": must n
 
 _INBOUND_DEFAULTS: dict[str, Any] = {
     "inbound_enabled": False,
-    "inbound_types": ["a-h-*", "a-u-*", "b-a-*"],
+    # Manually placed markers/points (a-{f,h,u,n}-G, b-m-p-*) and alerts (b-a-*).
+    # Deliberately NOT bare a-f-* — that catches the flood of friendly PLI/tracks.
+    "inbound_types": ["a-f-G", "a-h-*", "a-n-G", "a-u-*", "b-m-p-*", "b-a-*"],
     "inbound_callsign_allow": [],
     "inbound_callsign_deny": [],
     "inbound_min_move_m": 100.0,
@@ -102,6 +104,7 @@ class InboundFilter:
         self._seen: dict[str, _Seen] = {}
         self._window_start = 0.0
         self._window_count = 0
+        self.last_reject: str = ""  # why the most recent accept() returned False
 
     def _rate_limited(self, now: float) -> bool:
         if self.max_per_minute <= 0:
@@ -114,14 +117,18 @@ class InboundFilter:
 
     def accept(self, cot: InboundCot, *, now: float | None = None) -> bool:
         if cot.uid.startswith(UID_PREFIX):
-            return False  # our own marker echoed back
+            self.last_reject = "egen markör (eko)"
+            return False
         if self.types and not cot_type_matches(cot.cot_type, self.types):
+            self.last_reject = f"typ {cot.cot_type} matchar inte inbound_types"
             return False
 
         callsign = cot.callsign.lower()
         if self.deny and any(d in callsign for d in self.deny):
+            self.last_reject = f"callsign {cot.callsign} på deny-listan"
             return False
         if self.allow and not any(a in callsign for a in self.allow):
+            self.last_reject = f"callsign {cot.callsign} inte på allow-listan"
             return False
 
         previous = self._seen.get(cot.uid)
@@ -133,6 +140,7 @@ class InboundFilter:
                 and _distance_m(previous.lat, previous.lon, current.lat, current.lon) < self.min_move_m
             )
             if unchanged:
+                self.last_reject = "oförändrad sedan tidigare (dedup)"
                 return False
 
         if len(self._seen) >= _SEEN_CAP:
@@ -140,9 +148,11 @@ class InboundFilter:
         self._seen[cot.uid] = current  # record content even if rate-limiting drops this instance
 
         if self._rate_limited(time.monotonic() if now is None else now):
+            self.last_reject = f"över {self.max_per_minute} CoT/minut"
             logger.warning("TAK: fler än %s inkommande CoT/minut — släpper resten", self.max_per_minute)
             return False
 
+        self.last_reject = ""
         return True
 
 
@@ -186,8 +196,13 @@ def build_envelope(cot: InboundCot, group_name: str) -> dict[str, Any]:
     }
 
 
+_SUMMARY_EVERY_SECONDS = 30.0
+
+
 async def run_tak_listener(bridge: Any) -> None:
     """Consume the bridge's rx queue until cancelled."""
+    from datetime import datetime, timezone
+
     from oden.messages_db import STATUS_QUEUED, create_raw_message, update_message_status
     from oden.pipeline_orchestrator import PipelineOrchestrator
 
@@ -195,24 +210,41 @@ async def run_tak_listener(bridge: Any) -> None:
     group_name = str(settings["inbound_group_name"]).strip() or "TAK Inkommande"
     filt = InboundFilter(settings)
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
-    received = 0
+    last_summary = time.monotonic()
 
     logger.info("TAK: lyssnar på inkommande CoT (typer: %s)", ", ".join(filt.types) or "alla")
     while True:
         data = await bridge.rx_queue.get()
         try:
+            bridge.rx_total += 1
+            bridge.last_rx_at = datetime.now(timezone.utc)
             cot = cot_to_inbound(data)
-            if cot is None or not filt.accept(cot):
-                continue
 
-            received += 1
-            bridge.received_count = received
-            msg_data = build_envelope(cot, group_name)
-            message_id = create_raw_message(cfg.CONFIG_DB, cfg.SIGNAL_NUMBER, msg_data)
-            update_message_status(cfg.CONFIG_DB, message_id, STATUS_QUEUED)
-            # ponytail: no Signal reader/writer for TAK-sourced messages — they carry
-            # no attachments and no quote, the only things the pipelines use them for.
-            await orchestrator.run_message(message_id=message_id, msg_data=msg_data, reader=None, writer=None)
+            if cot is None:
+                bridge.rx_filtered += 1
+                logger.debug("TAK: CoT utan användbar position, ignoreras")
+            elif not filt.accept(cot):
+                bridge.rx_filtered += 1
+                logger.debug("TAK: filtrerade CoT %s (%s) — %s", cot.uid, cot.cot_type, filt.last_reject)
+            else:
+                bridge.received_count += 1
+                msg_data = build_envelope(cot, group_name)
+                message_id = create_raw_message(cfg.CONFIG_DB, cfg.SIGNAL_NUMBER, msg_data)
+                update_message_status(cfg.CONFIG_DB, message_id, STATUS_QUEUED)
+                logger.info("TAK: inkommande CoT %s (%s) → not i '%s'", cot.uid, cot.cot_type, group_name)
+                # ponytail: no Signal reader/writer for TAK-sourced messages — they carry
+                # no attachments and no quote, the only things the pipelines use them for.
+                await orchestrator.run_message(message_id=message_id, msg_data=msg_data, reader=None, writer=None)
+
+            now = time.monotonic()
+            if now - last_summary >= _SUMMARY_EVERY_SECONDS and bridge.rx_total:
+                logger.info(
+                    "TAK inkommande hittills: %d mottagna, %d filtrerade, %d noter skapade",
+                    bridge.rx_total,
+                    bridge.rx_filtered,
+                    bridge.received_count,
+                )
+                last_summary = now
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -223,6 +255,7 @@ def start_tak_listener(bridge: Any) -> asyncio.Task[None] | None:
     """Start the listener task if inbound is enabled. Returns the task, or None."""
     settings = {**_INBOUND_DEFAULTS, **bridge.settings}
     if not settings.get("inbound_enabled"):
+        logger.info("TAK: inkommande CoT är avstängt (inbound_enabled = false) — inga noter skapas")
         return None
     if bridge.rx_queue is None:
         logger.error("TAK: inkommande är aktiverat men bryggan har ingen rx-kö")

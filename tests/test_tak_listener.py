@@ -40,6 +40,21 @@ class InboundFilterTest(unittest.TestCase):
     def test_rejects_friendly_pli_by_default(self):
         self.assertFalse(self._filter().accept(_cot(cot_type="a-f-G-U-C")))
 
+    def test_default_types_accept_manual_markers_and_points(self):
+        # No inbound_types override -> the shipped defaults.
+        f = InboundFilter({})
+        self.assertTrue(f.accept(_cot(uid="m1", cot_type="a-f-G")))  # manually placed friendly marker
+        self.assertTrue(f.accept(_cot(uid="m2", cot_type="a-u-G")))
+        self.assertTrue(f.accept(_cot(uid="m3", cot_type="b-m-p-s-m")))  # dropped point
+        self.assertFalse(f.accept(_cot(uid="p1", cot_type="a-f-G-U-C")))  # friendly PLI still filtered
+
+    def test_reject_reason_is_recorded(self):
+        f = self._filter()
+        f.accept(_cot(cot_type="b-m-p-w"))
+        self.assertIn("inbound_types", f.last_reject)
+        f.accept(_cot(uid="ODEN.x"))
+        self.assertIn("eko", f.last_reject)
+
     def test_rejects_own_echo(self):
         self.assertFalse(self._filter().accept(_cot(uid="ODEN.7S.281430")))
 
