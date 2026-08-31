@@ -281,8 +281,9 @@ Kräver att Oden är installerad med `oden[tak]`. Se [TAK_SETUP.md](TAK_SETUP.md
 |-------|--------|-------------|
 | GET | `/api/tak/status` | Anslutningsstatus, räknare, senaste fel, cert-utgång |
 | GET | `/api/tak/settings` | Aktuella TAK-inställningar (aldrig lösenord) |
-| POST | `/api/tak/settings` | Spara TAK-inställningar (kräver omstart för att ta effekt) |
+| POST | `/api/tak/settings` | Spara TAK-inställningar (återansluter bryggan direkt) |
 | POST | `/api/tak/test` | Skicka en testmarkör från en MGRS-position |
+| POST | `/api/tak/upload-package` | Ladda upp en ATAK-data-package-`.zip` till `ODEN_HOME/tak/` |
 
 #### Autosvar
 

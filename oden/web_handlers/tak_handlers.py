@@ -6,7 +6,10 @@ Status, settings and a one-shot test marker. See docs/PLAN_TAK.md phase 4.
 from __future__ import annotations
 
 import datetime as dt
+import io
 import logging
+import zipfile
+from pathlib import Path
 from typing import Any
 
 from aiohttp import web
@@ -14,13 +17,14 @@ from aiohttp import web
 from oden import config as cfg
 from oden.config_db import set_config_value
 from oden.tak.bridge import cert_expiry, get_tak_bridge, load_tak_settings
-from oden.tak.cot import Report, latlon_to_mgrs, report_to_cot
+from oden.tak.cot import Report, latlon_to_mgrs, report_to_cot, sanitize_token
 from oden.tak.listener import _INBOUND_DEFAULTS
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
 logger = logging.getLogger(__name__)
 
 CERT_WARN_DAYS = 30
+MAX_PACKAGE_BYTES = 5 * 1024 * 1024  # data packages are ~30 KB; 5 MB is generous
 
 # Settings the form may write. tls_client_password is deliberately absent — the
 # password comes from the environment variable named by tls_client_password_env,
@@ -193,3 +197,47 @@ async def tak_test_handler(request: web.Request) -> web.Response:
             "message": f"Testmarkör ODEN.TEST.{tnr} skickad ({lat:.5f}, {lon:.5f})",
         }
     )
+
+
+@handle_errors("upload tak package")
+async def tak_upload_package_handler(request: web.Request) -> web.Response:
+    """Store an uploaded ATAK data package under ODEN_HOME/tak and return its path.
+
+    Lets the GUI file picker deliver a .zip when the browser can't hand over the
+    real filesystem path. Contains private keys, so the file lands 0600 in a 0700
+    directory alongside config.db.
+    """
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "file":
+        return web.json_response({"success": False, "error": "Ingen fil skickades"}, status=400)
+
+    filename = Path(field.filename or "").name
+    if not filename.lower().endswith(".zip"):
+        return web.json_response({"success": False, "error": "Filen måste vara en .zip"}, status=400)
+
+    blob = b""
+    while chunk := await field.read_chunk():
+        blob += chunk
+        if len(blob) > MAX_PACKAGE_BYTES:
+            return web.json_response({"success": False, "error": "Filen är för stor (max 5 MB)"}, status=413)
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(blob)) as zf:
+            names = zf.namelist()
+    except zipfile.BadZipFile:
+        return web.json_response({"success": False, "error": "Filen är inte en giltig zip"}, status=400)
+    if not any(n.lower().endswith(".pref") for n in names):
+        return web.json_response(
+            {"success": False, "error": "Zip:en ser inte ut som en TAK-data-package (ingen .pref-fil)"},
+            status=400,
+        )
+
+    tak_dir = Path(cfg.ODEN_HOME) / "tak"
+    tak_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    dest = tak_dir / f"{sanitize_token(filename[:-4], max_len=64)}.zip"
+    dest.write_bytes(blob)
+    dest.chmod(0o600)
+
+    logger.info("TAK: data package sparad till %s (%d bytes)", dest, len(blob))
+    return web.json_response({"success": True, "path": str(dest)})

@@ -42,6 +42,10 @@ chmod 600 ~/.config/oden/tak/*
 Öppna web-GUI:t → fliken **TAK**. Fyll i formuläret och spara — Oden återansluter
 direkt med de nya värdena och statusraden visar om det gick.
 
+Har du en data package: klicka **Välj fil…** vid `pref_package`. Zip:en laddas
+upp till `ODEN_HOME/tak/` (rättigheter `0600`) och sökvägen fylls i automatiskt.
+Du kan också skriva sökvägen direkt om filen redan ligger på Oden-värden.
+
 Alternativt från skript (inställningarna lagras som `tak_settings` i config-db):
 
 ```python

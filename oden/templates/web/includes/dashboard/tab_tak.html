@@ -46,8 +46,12 @@
                 </div>
                 <div class="config-field full-width">
                     <label for="tak-pref-package">Data package (.zip)</label>
-                    <input type="text" id="tak-pref-package" name="pref_package" placeholder="~/.config/oden/tak/oden-tak.zip">
-                    <span class="help-text">Alternativ till CoT-URL + certfält: samma zip som laddas in i ATAK</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="tak-pref-package" name="pref_package" placeholder="~/.config/oden/tak/oden-tak.zip" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('tak-pref-file').click()">Välj fil…</button>
+                        <input type="file" id="tak-pref-file" accept=".zip" style="display: none;" onchange="uploadTakPackage(this)">
+                    </div>
+                    <span class="help-text">Alternativ till CoT-URL + certfält: samma zip som laddas in i ATAK. "Välj fil…" laddar upp zip:en till Oden och fyller i sökvägen.</span>
                 </div>
                 <div class="config-field">
                     <label for="tak-callsign">Callsign</label>

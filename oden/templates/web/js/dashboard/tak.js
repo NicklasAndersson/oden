@@ -85,6 +85,28 @@ async function saveTakSettings() {
     if (result.success) loadTakStatus();
 }
 
+async function uploadTakPackage(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const body = new FormData();
+    body.append('file', file);
+    try {
+        const response = await fetch('/api/tak/upload-package', {method: 'POST', body: body});
+        const result = await response.json();
+        if (result.success) {
+            document.getElementById('tak-pref-package').value = result.path;
+            showConfigMessage('Data package uppladdad — klicka Spara för att ansluta', 'success');
+        } else {
+            showConfigMessage(result.error || 'Uppladdning misslyckades', 'error');
+        }
+    } catch (e) {
+        showConfigMessage('Uppladdning misslyckades', 'error');
+    } finally {
+        input.value = '';  // allow re-picking the same file
+    }
+}
+
 async function sendTakTest() {
     const mgrs = document.getElementById('tak-test-mgrs').value.trim();
     if (!mgrs) {

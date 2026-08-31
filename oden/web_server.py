@@ -93,6 +93,7 @@ from oden.web_handlers.tak_handlers import (
     tak_settings_save_handler,
     tak_status_handler,
     tak_test_handler,
+    tak_upload_package_handler,
 )
 from oden.web_handlers.template_handlers import (
     template_export_handler,
@@ -328,6 +329,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/tak/settings", tak_settings_handler)
         app.router.add_post("/api/tak/settings", tak_settings_save_handler)
         app.router.add_post("/api/tak/test", tak_test_handler)
+        app.router.add_post("/api/tak/upload-package", tak_upload_package_handler)
 
     return app
 

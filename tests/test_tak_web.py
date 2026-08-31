@@ -1,13 +1,32 @@
 """TAK web GUI endpoint tests."""
 
+import io
+import shutil
 import tempfile
 import unittest.mock
+import zipfile
 from pathlib import Path
 
+from aiohttp import FormData
 from aiohttp.test_utils import AioHTTPTestCase
 
 from oden.config_db import get_config_value, init_db
 from oden.web_server import create_app
+
+
+def _fake_data_package(with_pref: bool = True) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("certs/client.p12", b"not a real cert")
+        if with_pref:
+            zf.writestr("client.pref", "<preferences/>")
+    return buf.getvalue()
+
+
+def _upload_form(filename: str, content: bytes) -> FormData:
+    form = FormData()
+    form.add_field("file", content, filename=filename, content_type="application/zip")
+    return form
 
 
 class TestTakEndpoints(AioHTTPTestCase):
@@ -16,10 +35,16 @@ class TestTakEndpoints(AioHTTPTestCase):
             self.db_path = Path(tmp.name)
         self.db_path.unlink(missing_ok=True)
         init_db(self.db_path)
-        self._patch = unittest.mock.patch("oden.config.CONFIG_DB", self.db_path)
-        self._patch.start()
-        self.addCleanup(self._patch.stop)
+        self.oden_home = Path(tempfile.mkdtemp())
+        self._patches = [
+            unittest.mock.patch("oden.config.CONFIG_DB", self.db_path),
+            unittest.mock.patch("oden.config.ODEN_HOME", self.oden_home),
+        ]
+        for p in self._patches:
+            p.start()
+            self.addCleanup(p.stop)
         self.addCleanup(lambda: self.db_path.unlink(missing_ok=True))
+        self.addCleanup(lambda: shutil.rmtree(self.oden_home, ignore_errors=True))
         return create_app(setup_mode=False)
 
     async def test_status_reports_disabled_by_default(self):
@@ -113,3 +138,31 @@ class TestTakEndpoints(AioHTTPTestCase):
 
         self.assertEqual(len(published), 1)
         self.assertIn(b"ODEN.TEST.", published[0])
+
+    async def test_upload_package_stores_zip_and_returns_path(self):
+        resp = await self.client.post(
+            "/api/tak/upload-package", data=_upload_form("nicklas-atak.zip", _fake_data_package())
+        )
+        self.assertEqual(resp.status, 200)
+        body = await resp.json()
+        self.assertTrue(body["success"])
+
+        saved = Path(body["path"])
+        self.assertTrue(saved.is_file())
+        self.assertEqual(saved.parent, self.oden_home / "tak")
+        self.assertEqual(saved.read_bytes(), _fake_data_package())
+        self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+
+    async def test_upload_package_rejects_non_zip(self):
+        resp = await self.client.post("/api/tak/upload-package", data=_upload_form("notes.txt", b"hello"))
+        self.assertEqual(resp.status, 400)
+
+    async def test_upload_package_rejects_zip_without_pref(self):
+        resp = await self.client.post(
+            "/api/tak/upload-package", data=_upload_form("x.zip", _fake_data_package(with_pref=False))
+        )
+        self.assertEqual(resp.status, 400)
+
+    async def test_upload_package_rejects_corrupt_zip(self):
+        resp = await self.client.post("/api/tak/upload-package", data=_upload_form("x.zip", b"PK not really a zip"))
+        self.assertEqual(resp.status, 400)
