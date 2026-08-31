@@ -28,11 +28,8 @@ tray = [
     "Pillow>=12.2.0",
 ]
 tak = [
-    "pytak>=7",  # TAK client: mTLS, reconnect, CoT queues; aiohttp is already a core dep
-    # cryptography >= 47 ships arm64-only macOS wheels, which can't go into the
-    # x86_64 .app bundle. 46.x still ships universal2. Bump the ceiling only
-    # together with a release-pipeline that builds arm64 / universal2.
-    "cryptography>=43,<47",
+    # with-crypto -> cryptography (mTLS with .p12 / PEM); aiohttp is already a core dep
+    "pytak[with-crypto]>=7",
 ]
 dev = [
     "pytest>=9.1.1",
