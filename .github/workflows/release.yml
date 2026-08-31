@@ -79,7 +79,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install pyinstaller
-          python3 -m pip install -e ".[tray]"
+          python3 -m pip install -e ".[tray,tak]"
 
       # Cache JRE download (aarch64 for Apple Silicon)
       - name: Cache JRE arm64
@@ -309,7 +309,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pyinstaller
-          python -m pip install -e ".[tray]"
+          python -m pip install -e ".[tray,tak]"
 
       - name: Cache JRE x64
         id: cache-jre-x64-win

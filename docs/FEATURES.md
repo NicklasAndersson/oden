@@ -136,6 +136,7 @@ Från och med Oden 3.0 lagras varje inkommande envelope först i SQLite som ett 
 
 #### Pipeline-ordning
 
+0. `tak_publish` körs först *när TAK-integrationen är aktiv* — den skickar 7S-rapporter med position till en TAK Server som CoT-markörer och konsumerar aldrig meddelandet. Se [TAK_SETUP.md](TAK_SETUP.md).
 1. `group_filter` körs först och kan markera meddelandet som ignorerat enligt pipeline-inställningarna.
 2. `seven_s` försöker matcha och validera 7S RAPPORT-format.
 3. `fors` försöker matcha FORS-RAPPORT-format.

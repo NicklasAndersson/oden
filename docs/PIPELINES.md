@@ -117,6 +117,27 @@ Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 ---
 
+### TAK-publicering (`tak_publish`)
+
+**Vad den väljer:** Ingenting — den *konsumerar* aldrig ett meddelande. Körs
+alltid först när TAK-bryggan är aktiv (`[TAK] enabled`), som en sidoeffekt, och
+låter sedan resten av kedjan köra som vanligt.
+
+**Vad den gör:**
+- Parsar 7S-rapporter och plockar ut MGRS → lat/lon
+- Skickar en CoT-markör till TAK-servern (stabil UID per TNR, så en `++`-påfylld
+  rapport uppdaterar markören i stället för att dubblera den)
+- Hoppar över meddelanden från TAK (`_source = tak`) för att undvika eko-loop
+- FORS/PEDARS saknar position → ingen markör
+
+**Inställningar:** fliken **TAK** i web-GUI, eller `tak_settings` i config.db.
+Se [TAK_SETUP.md](TAK_SETUP.md) och [PLAN_TAK.md](PLAN_TAK.md).
+
+**Ingår inte** i `enabled_pipelines` — den läggs till automatiskt och kan inte
+ordnas om.
+
+---
+
 ### Gruppfilter-pipeline (`group_filter`)
 
 **Vad den väljer:** Meddelanden vars grupptitel matchar pipeline-regeln.

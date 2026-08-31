@@ -244,6 +244,7 @@ Viktigt:
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` prefix** - Behandlas som vanligt meddelande (legacy append-prefix är borttaget)
 - **7S RAPPORT** - Specialpipeline för 7S-format som skriver specad 7S-utdata med schemaformad frontmatter
+- **TAK-integration** - 7S-rapporter med position skickas till en TAK Server som CoT-markörer; inkommande CoT kan bli noter i valvet. Konfigureras i **TAK**-fliken, se [TAK_SETUP.md](./docs/TAK_SETUP.md)
 - **Platslänkar** - Google Maps, Apple Maps och OSM-länkar omvandlas automatiskt till geo-koordinater
 - **Anpassningsbara rapportmallar** - Redigera Jinja2-mallar direkt i GUI:ns template-editor
 - **Regex-länkar** - Konfigurera mönster (t.ex. registreringsnummer) som automatiskt blir Obsidian-länkar
@@ -311,6 +312,8 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 - [WEB_GUI.md](./docs/WEB_GUI.md) - Web-gränssnitt och API-referens
 - [REPORT_TEMPLATE.md](./docs/REPORT_TEMPLATE.md) - Mallsystem (Jinja2)
 - [PIPELINES.md](./docs/PIPELINES.md) - Pipeline-arkitektur, befintliga pipelines och hur man utvecklar nya
+- [TAK_SETUP.md](./docs/TAK_SETUP.md) - Koppla Oden till en TAK Server (operatörsguide)
+- [PLAN_TAK.md](./docs/PLAN_TAK.md) - Design och implementationsfaser för TAK-integrationen
 - [FORMAT_SPEC.md](./docs/FORMAT_SPEC.md) - Normativ 7S-spec för filformat, länkning och koordinatfält
 - [7S_frontmatter.schema.json](./docs/7S_frontmatter.schema.json) - JSON-schema för 7S-frontmatter
 - [PLAN_PIPELINES_MENU.md](./docs/PLAN_PIPELINES_MENU.md) - Implementationsplan för pipeline-administrationsmeny

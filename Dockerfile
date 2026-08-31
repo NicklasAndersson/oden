@@ -70,7 +70,7 @@ COPY oden/ oden/
 COPY templates/ templates/
 COPY config.ini ./
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[tak]"
 
 # Data and vault volumes
 # /data — Oden config (config.db, signal-data)
