@@ -35,8 +35,26 @@ class TestGetBundledJavaPath:
 
         assert result == str(java_bin)
 
-    def test_macos_apple_silicon_uses_x64_jre(self):
-        """On macOS Apple Silicon, x64 JRE is used (via Rosetta)."""
+    def test_macos_apple_silicon_uses_arm64_jre(self):
+        """On macOS Apple Silicon, the native arm64 JRE is used."""
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_path = Path(tmp)
+            java_bin = bundle_path / "jre-arm64" / "Contents" / "Home" / "bin" / "java"
+            java_bin.parent.mkdir(parents=True)
+            java_bin.touch()
+
+            with (
+                patch("oden.bundle_utils.is_bundled", return_value=True),
+                patch("oden.bundle_utils.get_bundle_path", return_value=bundle_path),
+                patch("oden.bundle_utils.platform.system", return_value="Darwin"),
+                patch("oden.bundle_utils.platform.machine", return_value="arm64"),
+            ):
+                result = get_bundled_java_path()
+
+        assert result == str(java_bin)
+
+    def test_macos_apple_silicon_falls_back_to_x64_jre(self):
+        """On macOS Apple Silicon, an x64-only bundle falls back to the x64 JRE (Rosetta 2)."""
         with tempfile.TemporaryDirectory() as tmp:
             bundle_path = Path(tmp)
             java_bin = bundle_path / "jre-x64" / "Contents" / "Home" / "bin" / "java"
@@ -52,6 +70,27 @@ class TestGetBundledJavaPath:
                 result = get_bundled_java_path()
 
         assert result == str(java_bin)
+
+    def test_macos_apple_silicon_prefers_arm64_over_x64(self):
+        """On macOS Apple Silicon, the arm64 JRE wins when both are present."""
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_path = Path(tmp)
+            arm64_bin = bundle_path / "jre-arm64" / "Contents" / "Home" / "bin" / "java"
+            arm64_bin.parent.mkdir(parents=True)
+            arm64_bin.touch()
+            x64_bin = bundle_path / "jre-x64" / "Contents" / "Home" / "bin" / "java"
+            x64_bin.parent.mkdir(parents=True)
+            x64_bin.touch()
+
+            with (
+                patch("oden.bundle_utils.is_bundled", return_value=True),
+                patch("oden.bundle_utils.get_bundle_path", return_value=bundle_path),
+                patch("oden.bundle_utils.platform.system", return_value="Darwin"),
+                patch("oden.bundle_utils.platform.machine", return_value="arm64"),
+            ):
+                result = get_bundled_java_path()
+
+        assert result == str(arm64_bin)
 
     def test_linux_x64_uses_bin_java(self):
         """On Linux x86_64, the JRE uses bin/java directly."""
