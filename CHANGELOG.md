@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **macOS-appen byggs nu nativt för Apple Silicon (arm64)**: DMG:n heter `Oden-<version>-macOS-arm64.dmg`, kräver inte längre Rosetta 2 på M-serie-Mackar och startar direkt på Mackar utan Rosetta installerat ([#261](https://github.com/NicklasAndersson/oden/issues/261))
+- **Intel-Mac-stödet för den nativa appen är borttaget**: Intel-Mackar kör Oden via Docker-imagen (`linux/amd64`), precis som Linux; installationsskripten upptäcker arkitekturen och visar rätt alternativ
+
 ## [3.2.1] - 2026-08-28
 
 ### Fixed

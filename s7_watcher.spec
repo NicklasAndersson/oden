@@ -87,7 +87,7 @@ windows_icon_path = 'images/oden.ico' if os.path.exists('images/oden.ico') else 
 
 # macOS: Create .app bundle with --windowed --onedir
 if sys.platform == 'darwin':
-    # Build for x86_64 (Intel) - works natively on Intel and via Rosetta 2 on Apple Silicon
+    # Builds for the architecture of the running Python (arm64 in CI — Apple Silicon only)
     exe = EXE(
         pyz,
         a.scripts,
@@ -101,7 +101,7 @@ if sys.platform == 'darwin':
         console=False,  # --windowed
         disable_windowed_traceback=False,
         argv_emulation=True,  # Better macOS integration
-        target_arch=None,  # Build for runner's native arch (x86_64 on macos-13)
+        target_arch=None,  # Build for the runner's native arch (arm64 on macos-latest)
         codesign_identity=os.environ.get('CODESIGN_IDENTITY'),
         entitlements_file=os.environ.get('ENTITLEMENTS_FILE'),
         icon=icon_path,

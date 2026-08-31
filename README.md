@@ -6,7 +6,9 @@ Oden tar emot Signal-meddelanden och sparar dem som Markdown-filer i ditt Obsidi
 
 ## Snabbstart
 
-### macOS (DMG)
+### macOS (DMG, Apple Silicon)
+
+> **Obs:** DMG:n byggs endast för Apple Silicon (M1 eller senare). Intel-Mackar stöds inte längre av den nativa appen — kör Oden via [Docker](#docker-linux-windows-intel-mac-raspberry-pi) istället, precis som på Linux.
 
 **Automatisk installation** — kör i Terminal:
 
@@ -36,7 +38,7 @@ Skripten ovan laddar ner och installerar en DMG: standardkommandot hämtar senas
 
 **Manuell installation:**
 
-1. Ladda ner `.dmg` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
+1. Ladda ner `Oden-<version>-macOS-arm64.dmg` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
 2. Öppna den och dra **Oden.app** till **Applications**
 3. Kör i Terminal:
 
@@ -56,7 +58,7 @@ Om en Windows-installerare finns bifogad till releasen:
 2. Kör installationsguiden (ingen administratörsbehörighet krävs)
 3. Starta Oden från Start-menyn eller genvägen på skrivbordet
 
-### Docker (Linux, Windows, Raspberry Pi)
+### Docker (Linux, Windows, Intel Mac, Raspberry Pi)
 
 ```bash
 docker run -d \

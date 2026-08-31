@@ -131,7 +131,7 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 **Tray icon:** On macOS, a system tray icon (pystray) provides start/stop, open GUI, and quit buttons. `pystray` and `Pillow` are optional extras (`pip install .[tray]`). Falls back to terminal-only mode if unavailable (always the case in Docker).
 
 ### Docker
-Oden is distributed as a multi-arch Docker image (`linux/amd64`, `linux/arm64`) alongside the macOS DMG.
+Oden is distributed as a multi-arch Docker image (`linux/amd64`, `linux/arm64`) alongside the macOS DMG. The DMG is built for Apple Silicon (arm64) only — Intel Macs use the Docker image, same as Linux.
 
 Key environment variables for Docker:
 - `ODEN_HOME=/data` — where config.db and signal-data live (volume mount)

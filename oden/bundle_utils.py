@@ -57,30 +57,31 @@ def get_bundled_java_path() -> str | None:
     system = platform.system()
     arch = platform.machine()
 
-    # On macOS, we always bundle x64 JRE (works via Rosetta on Apple Silicon)
-    if system == "Darwin":
-        jre_dir = "jre-x64"
-    # On Windows/Linux, match the architecture
-    elif arch == "arm64":
-        jre_dir = "jre-arm64"
+    # Match the bundled JRE to the running process architecture
+    if arch == "arm64":
+        jre_dirs = ["jre-arm64"]
+        if system == "Darwin":
+            # Older macOS bundles shipped only an x64 JRE (run via Rosetta 2)
+            jre_dirs.append("jre-x64")
     elif arch in ("x86_64", "AMD64"):
-        jre_dir = "jre-x64"
+        jre_dirs = ["jre-x64"]
     else:
         logger.warning(f"Unknown architecture: {arch}")
         return None
 
-    # macOS Temurin JRE tarballs use a Contents/Home/ structure (macOS app bundle convention)
-    if system == "Darwin":
-        java_path = bundle_path / jre_dir / "Contents" / "Home" / "bin" / "java"
-    else:
-        java_executable = "java.exe" if system == "Windows" else "java"
-        java_path = bundle_path / jre_dir / "bin" / java_executable
+    for jre_dir in jre_dirs:
+        # macOS Temurin JRE tarballs use a Contents/Home/ structure (macOS app bundle convention)
+        if system == "Darwin":
+            java_path = bundle_path / jre_dir / "Contents" / "Home" / "bin" / "java"
+        else:
+            java_executable = "java.exe" if system == "Windows" else "java"
+            java_path = bundle_path / jre_dir / "bin" / java_executable
 
-    if java_path.exists():
-        return str(java_path)
-    else:
-        logger.warning(f"Bundled Java not found at {java_path}")
-        return None
+        if java_path.exists():
+            return str(java_path)
+
+    logger.warning(f"Bundled Java not found (checked: {', '.join(jre_dirs)})")
+    return None
 
 
 def get_app_support_dir() -> Path:

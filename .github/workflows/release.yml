@@ -24,8 +24,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Build macOS DMG with bundled JRE and signal-cli
-  # Build x86_64 using Rosetta on Apple Silicon runner - works on both Intel and Apple Silicon Macs
+  # Build macOS DMG (Apple Silicon / arm64) with bundled JRE and signal-cli
+  # Intel Macs are not supported natively — they use the Docker image instead
   build-macos:
     if: >-
       ${{
@@ -45,20 +45,15 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
-      # Install x86_64 Python via Rosetta for Intel-compatible build
-      - name: Set up x86_64 Python via Rosetta
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify native arm64 Python
         run: |
-          # Install Rosetta if not already installed
-          softwareupdate --install-rosetta --agree-to-license || true
-          
-          # Download and install x86_64 Python
-          curl -L -o python-installer.pkg "https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg"
-          sudo installer -pkg python-installer.pkg -target /
-          rm python-installer.pkg
-          
-          # Verify we have x86_64 Python
-          /usr/local/bin/python3.12 --version
-          file /usr/local/bin/python3.12
+          python3 --version
+          file "$(python3 -c 'import sys; print(sys.executable)')"
 
       - name: Get version
         id: version
@@ -82,18 +77,17 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          # Use x86_64 Python
-          arch -x86_64 /usr/local/bin/python3.12 -m pip install --upgrade pip
-          arch -x86_64 /usr/local/bin/python3.12 -m pip install pyinstaller
-          arch -x86_64 /usr/local/bin/python3.12 -m pip install -e ".[tray]"
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pyinstaller
+          python3 -m pip install -e ".[tray]"
 
-      # Cache JRE download (x64 only for Intel build)
-      - name: Cache JRE x64
-        id: cache-jre-x64
+      # Cache JRE download (aarch64 for Apple Silicon)
+      - name: Cache JRE arm64
+        id: cache-jre-arm64
         uses: actions/cache@v6
         with:
-          path: build-dmg/jre-x64
-          key: temurin-jre-25-macos-x64-v2
+          path: build-dmg/jre-arm64
+          key: temurin-jre-25-macos-aarch64-v1
 
       - name: Cache signal-cli
         id: cache-signal-cli
@@ -102,17 +96,17 @@ jobs:
           path: build-dmg/signal-cli
           key: signal-cli-0.14.5-v1
 
-      # Download JRE x64 (for Intel build - works via Rosetta on Apple Silicon)
-      - name: Download JRE x64
-        if: steps.cache-jre-x64.outputs.cache-hit != 'true'
+      # Download aarch64 JRE (native on Apple Silicon)
+      - name: Download JRE arm64
+        if: steps.cache-jre-arm64.outputs.cache-hit != 'true'
         run: |
-          mkdir -p build-dmg/jre-x64
-          JRE_URL=$(curl -s "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=mac&vendor=eclipse" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['binary']['package']['link'])")
-          echo "Downloading JRE x64 from: $JRE_URL"
-          curl -L -o jre-x64.tar.gz "$JRE_URL"
-          tar -xzf jre-x64.tar.gz -C build-dmg/jre-x64 --strip-components=1
-          rm jre-x64.tar.gz
-          rm -rf build-dmg/jre-x64/man build-dmg/jre-x64/legal
+          mkdir -p build-dmg/jre-arm64
+          JRE_URL=$(curl -s "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=aarch64&image_type=jre&os=mac&vendor=eclipse" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['binary']['package']['link'])")
+          echo "Downloading JRE arm64 from: $JRE_URL"
+          curl -L -o jre-arm64.tar.gz "$JRE_URL"
+          tar -xzf jre-arm64.tar.gz -C build-dmg/jre-arm64 --strip-components=1
+          rm jre-arm64.tar.gz
+          rm -rf build-dmg/jre-arm64/man build-dmg/jre-arm64/legal
 
       # Download signal-cli
       - name: Download signal-cli
@@ -130,22 +124,22 @@ jobs:
       # Generate icons
       - name: Generate app icon
         run: |
-          arch -x86_64 /usr/local/bin/python3.12 scripts/generate_icon.py
-          arch -x86_64 /usr/local/bin/python3.12 scripts/generate_dmg_background.py
+          python3 scripts/generate_icon.py
+          python3 scripts/generate_dmg_background.py
 
       # Copy dependencies to project root for PyInstaller
       - name: Prepare build files
         run: |
-          cp -r build-dmg/jre-x64 .
+          cp -r build-dmg/jre-arm64 .
           cp -r build-dmg/signal-cli .
           mkdir -p oden/static
 
-      # Build with PyInstaller (x86_64 via Rosetta)
+      # Build with PyInstaller (native arm64)
       - name: Build macOS app bundle
         env:
           ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          arch -x86_64 /usr/local/bin/python3.12 -m PyInstaller --clean --noconfirm s7_watcher.spec
+          python3 -m PyInstaller --clean --noconfirm s7_watcher.spec
 
       # Create DMG
       - name: Install create-dmg
@@ -154,7 +148,7 @@ jobs:
       - name: Create DMG
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
-          DMG_NAME="Oden-${VERSION}-macOS.dmg"
+          DMG_NAME="Oden-${VERSION}-macOS-arm64.dmg"
 
           # Try with background
           create-dmg \
@@ -626,17 +620,19 @@ jobs:
           body: |
             ## Installation
             
-            ### macOS (Apple Silicon & Intel)
-            1. Download `Oden-${{ steps.version.outputs.VERSION }}-macOS.dmg`
+            ### macOS (Apple Silicon)
+            1. Download `Oden-${{ steps.version.outputs.VERSION }}-macOS-arm64.dmg`
             2. Open the DMG and drag Oden to Applications
             3. First launch: Right-click → Open (to bypass Gatekeeper)
+
+            > **Intel Macs:** native builds are no longer provided — use the Docker image below instead.
 
             ### Windows (Native Installer)
             1. Download `Oden-Setup-${{ steps.version.outputs.VERSION }}-x64.exe`
             2. Run the installer wizard (per-user install, no admin required)
             3. Launch Oden from Start Menu or desktop shortcut
-            
-            ### Docker (Linux, Windows, Raspberry Pi)
+
+            ### Docker (Linux, Windows, Intel Mac, Raspberry Pi)
             ```bash
             docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
             docker run -d \
