@@ -151,6 +151,46 @@ class CotToInbound(unittest.TestCase):
         inbound = cot_to_inbound(xml)
         self.assertLessEqual(len(inbound.custom_report), 64)
 
+    def test_arbitrary_wrapper_tag_is_not_hardcoded(self):
+        # Different template, different root tag name, no "custom_report" anywhere.
+        xml = (
+            "<event uid='a' type='a-u-G'><point lat='1' lon='1'/>"
+            "<detail><eight_line_report>"
+            "<size>3x Personnel</size>"
+            "</eight_line_report></detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report["size"], "3x Personnel")
+        self.assertEqual(inbound.custom_report_name, "Eight Line Report")  # humanized tag, no name attr
+
+    def test_attribute_based_fields(self):
+        # Some templates put the value in an attribute, keyed by name/label, not element text.
+        xml = (
+            "<event uid='a' type='a-u-G'><point lat='1' lon='1'/>"
+            "<detail><atak_report>"
+            "<field name='Size' value='3x Personnel'/>"
+            "<field label='Activity' value='Staging equipment'/>"
+            "</atak_report></detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report["Size"], "3x Personnel")
+        self.assertEqual(inbound.custom_report["Activity"], "Staging equipment")
+
+    def test_ignores_standard_cot_metadata(self):
+        # Every ATAK client attaches these regardless of report content; must never
+        # be mistaken for report fields.
+        xml = (
+            "<event uid='a' type='a-u-G'><point lat='1' lon='1'/><detail>"
+            "<takv os='30' version='4.11' device='Samsung' platform='ATAK-CIV'/>"
+            "<precisionlocation geopointsrc='GPS' altsrc='GPS'/>"
+            "<status battery='87'/>"
+            "<__group name='Cyan' role='Team Member'/>"
+            "<custom_report><line1_size>3x Personnel</line1_size></custom_report>"
+            "</detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report, {"line1_size": "3x Personnel"})
+
 
 class Helpers(unittest.TestCase):
     def test_sanitize_token_never_dotdot(self):

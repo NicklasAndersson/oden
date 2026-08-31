@@ -169,24 +169,88 @@ class InboundCot:
         return _TYPE_TO_AFFIL.get(self.cot_type[:4], "unknown")
 
 
-def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
-    """Pull an ATAK Reports-plugin ``<custom_report>`` block out of ``<detail>``.
+# Standard CoT/ATAK <detail> children that every client attaches (device status,
+# group membership, rendering hints, ...). Never treat these as report fields.
+_KNOWN_DETAIL_TAGS = {
+    "contact",
+    "remarks",
+    "link",
+    "archive",
+    "precisionlocation",
+    "status",
+    "uid",
+    "takv",
+    "track",
+    "color",
+    "usericon",
+    "height",
+    "marti",
+    "attachment_list",
+    "video",
+    "chatgrp",
+    "geofence",
+    "environment",
+    "emergency",
+    "bloodhound",
+    "routeinfo",
+    "shape",
+    "fillColor",
+    "strokeColor",
+    "labels_on",
+}
+_MAX_FIELD_DEPTH = 6
 
-    Some report forms (e.g. the stock 8-Line spot report) put their fields as
-    individual child elements of a ``<custom_report name="...">`` tag rather than
-    flattening them into ``<remarks>`` text. Untrusted input: cap field count and
-    length, keep original document order, skip empty values.
+
+def _humanize_tag(tag: str) -> str:
+    return tag.replace("_", " ").replace("-", " ").strip().title() or tag
+
+
+def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: int = 0) -> None:
+    """Walk one report block and collect its fields, whatever shape it turns out to be.
+
+    Handles both conventions seen across ATAK report-form templates: a value in the
+    element's text (``<line1_size>3x Personnel</line1_size>``), or in a ``value``
+    attribute keyed by ``name``/``label`` (``<field name="Size" value="..."/>``).
     """
-    node = detail.find("custom_report")
-    if node is None:
-        return "", {}
-    name = sanitize_token(node.get("name", ""), max_len=64)
+    if depth > _MAX_FIELD_DEPTH or len(fields) >= _MAX_CUSTOM_FIELDS:
+        return
+    attr_value = (elem.get("value") or "").strip()
+    if attr_value:
+        key = elem.get("label") or elem.get("name") or elem.tag
+        fields.setdefault(key, attr_value[:_MAX_CUSTOM_FIELD_LEN])
+
+    children = list(elem)
+    if not children:
+        text = (elem.text or "").strip()
+        if text and not attr_value:
+            fields.setdefault(elem.tag, text[:_MAX_CUSTOM_FIELD_LEN])
+        return
+    for child in children:
+        if len(fields) >= _MAX_CUSTOM_FIELDS:
+            break
+        _extract_report_fields(child, fields, depth=depth + 1)
+
+
+def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
+    """Pull operator-defined report fields out of ``<detail>``.
+
+    ATAK report forms are built from a custom XML template and shipped as a Data
+    Package, so there is no one fixed schema: the wrapper tag name, the field tag
+    names, and whether a value lives in element text or an attribute all vary by
+    template. So instead of matching one exact shape, treat any ``<detail>`` child
+    that isn't a standard CoT element as a report block and walk it generically.
+    Untrusted input: cap depth, field count and length; skip empty values.
+    """
+    name = ""
     fields: dict[str, str] = {}
-    for child in list(node)[:_MAX_CUSTOM_FIELDS]:
-        text = (child.text or "").strip()
-        if not text:
+    for child in detail:
+        if child.tag.startswith("__") or child.tag in _KNOWN_DETAIL_TAGS:
             continue
-        fields[child.tag] = text[:_MAX_CUSTOM_FIELD_LEN]
+        if not name:
+            name = sanitize_token(child.get("name", "") or _humanize_tag(child.tag), max_len=64)
+        _extract_report_fields(child, fields)
+        if len(fields) >= _MAX_CUSTOM_FIELDS:
+            break
     return name, fields
 
 
