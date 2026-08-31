@@ -240,7 +240,12 @@ async def start_tak_bridge() -> TakBridge | None:
     try:
         await _bridge.start()
     except ImportError:
-        logger.error("TAK är aktiverat men pytak saknas — installera med: pip install 'oden[tak]'")
+        import sys
+
+        if getattr(sys, "frozen", False):
+            logger.error("TAK är aktiverat men pytak följde inte med i det här bygget av Oden.")
+        else:
+            logger.error("TAK är aktiverat men pytak saknas — installera med: pip install 'oden[tak]'")
         _bridge = None
     except Exception as exc:
         logger.error("Kunde inte starta TAK-bryggan: %r", exc)

@@ -41,15 +41,11 @@ CoT-händelser från andra TAK-klienter ska kunna landa i valvet som rapporter.
   annan klient, inkommande CoT parsad. Krävde `tls_check_hostname = false`
   (serverns cert-namn ≠ DNS-namn) — nu default av. `read_pref_package` gör
   `.p12` → PEM + fyller i URL/cert/CA.
-- **Fas 5 – klar.** `s7_watcher.spec` plockar upp `pytak` + `cryptography`
-  automatiskt om de finns i byggmiljön (annars byggs appen utan TAK).
+- **Fas 5 – klar.** DMG/Windows/Docker byggs med `.[tak]` så pytak +
+  `cryptography` följer med i de nedladdningsbara apparna. `s7_watcher.spec`
+  samlar in `pytak` när det finns (`cryptography` har en egen PyInstaller-hook).
   `tak_publish` dokumenterad i `PIPELINES.md` och `FEATURES.md`. NTP- och
   certrotationskrav i `TAK_SETUP.md`.
-  **Kvar som medvetet val:** release-workflowen bygger `.[tray]`, inte
-  `.[tray,tak]` — de nedladdningsbara DMG/Windows-apparna har alltså inte TAK.
-  Vill man ha det: ändra `pip install -e ".[tray]"` → `".[tray,tak]"` i
-  `.github/workflows/release.yml` (3 ställen). Ökar bundle-storlek och
-  signeringsyta (native `cryptography`).
 
 ## Utvärdering av första utkastet
 

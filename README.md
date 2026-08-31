@@ -242,7 +242,7 @@ Viktigt:
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` prefix** - Behandlas som vanligt meddelande (legacy append-prefix är borttaget)
 - **7S RAPPORT** - Specialpipeline för 7S-format som skriver specad 7S-utdata med schemaformad frontmatter
-- **TAK-integration** (tillval, `pip install "oden[tak]"`) - 7S-rapporter med position skickas till en TAK Server som CoT-markörer; inkommande CoT kan bli noter i valvet. Konfigureras i **TAK**-fliken, se [TAK_SETUP.md](./docs/TAK_SETUP.md)
+- **TAK-integration** - 7S-rapporter med position skickas till en TAK Server som CoT-markörer; inkommande CoT kan bli noter i valvet. Konfigureras i **TAK**-fliken, se [TAK_SETUP.md](./docs/TAK_SETUP.md)
 - **Platslänkar** - Google Maps, Apple Maps och OSM-länkar omvandlas automatiskt till geo-koordinater
 - **Anpassningsbara rapportmallar** - Redigera Jinja2-mallar direkt i GUI:ns template-editor
 - **Regex-länkar** - Konfigurera mönster (t.ex. registreringsnummer) som automatiskt blir Obsidian-länkar

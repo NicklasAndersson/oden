@@ -58,13 +58,14 @@ elif sys.platform == 'win32':
 # Optional TAK support (oden[tak]): bundle pytak + its deps only when the
 # build environment has them installed. Without this block the app builds
 # fine, it just won't have TAK integration.
+# cryptography ships a PyInstaller hook already, so only pytak needs collecting.
 _tak_datas = []
 _tak_binaries = []
 if importlib.util.find_spec('pytak'):
     from PyInstaller.utils.hooks import collect_all
 
-    hiddenimports += ['oden.tak.bridge', 'oden.tak.listener', 'oden.tak.cot']
-    for _pkg in ('pytak', 'cryptography', 'takproto'):
+    hiddenimports += ['oden.tak.bridge', 'oden.tak.listener', 'oden.tak.cot', 'oden.web_handlers.tak_handlers']
+    for _pkg in ('pytak', 'takproto'):
         if importlib.util.find_spec(_pkg):
             _pkg_datas, _pkg_binaries, _pkg_hidden = collect_all(_pkg)
             _tak_datas += _pkg_datas

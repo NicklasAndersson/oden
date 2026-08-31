@@ -10,9 +10,8 @@ Verifierad mot TAK Server 5.7-RELEASE-8.
 
 - En TAK Server som körs någon annanstans, och en **TAK-admin** som kan ge dig
   klientåtkomst.
-- Oden installerad med TAK-stödet: `pip install "oden[tak]"` (drar in `pytak` +
-  `cryptography`). De nedladdningsbara DMG/Windows-apparna innehåller **inte** TAK
-  som standard – se PLAN_TAK "Fas 5".
+- TAK-stödet ingår i DMG/Windows/Docker-byggena. Kör du från källkod:
+  `pip install "oden[tak]"` (drar in `pytak` + `cryptography`).
 - Utgående nätåtkomst från Oden-värden till serverns CoT-port (normalt TCP
   **8089**). Inga inkommande portar behövs.
 - **NTP aktiverat** på Oden-värden. CoT-tider är i UTC; fel klocka ger markörer
