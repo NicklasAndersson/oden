@@ -64,7 +64,13 @@ _tak_binaries = []
 if importlib.util.find_spec('pytak'):
     from PyInstaller.utils.hooks import collect_all
 
-    hiddenimports += ['oden.tak.bridge', 'oden.tak.listener', 'oden.tak.cot', 'oden.web_handlers.tak_handlers']
+    hiddenimports += [
+        'oden.tak.bridge',
+        'oden.tak.listener',
+        'oden.tak.cot',
+        'oden.tak.eight_s',
+        'oden.web_handlers.tak_handlers',
+    ]
     for _pkg in ('pytak', 'takproto'):
         if importlib.util.find_spec(_pkg):
             _pkg_datas, _pkg_binaries, _pkg_hidden = collect_all(_pkg)

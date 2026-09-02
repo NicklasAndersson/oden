@@ -1,10 +1,12 @@
 """pytak-backed connection to a TAK Server.
 
-Phase 2: outbound only — Oden report -> CoT marker. The inbound listener
-(phase 3) attaches an rx task to the same ``CLITool``.
+Outbound: pipelines call ``publish`` with a CoT event. Inbound: ``listener``
+drains ``rx_queue``. The tx/rx queues belong to the bridge, not to the pytak
+``CLITool``, so a reconnect swaps the connection without losing queued markers
+or the listener waiting on the queue.
 
 ``pytak`` is an optional dependency (``oden[tak]``); it is imported lazily inside
-``TakBridge.start`` so nothing here is required unless TAK is enabled.
+``TakBridge`` so nothing here is required unless TAK is enabled.
 
 See docs/PLAN_TAK.md.
 """
@@ -24,6 +26,13 @@ from oden import config as cfg
 from oden.config_db import get_config_value
 
 logger = logging.getLogger(__name__)
+
+# asyncio.open_connection has no timeout of its own — a blackholed host would
+# otherwise hang "Spara" in the GUI forever.
+_CONNECT_TIMEOUT = 20.0
+# ponytail: plain exponential backoff, no jitter — one Oden per server.
+_RECONNECT_MIN = 5.0
+_RECONNECT_MAX = 300.0
 
 _DEFAULTS: dict[str, Any] = {
     "enabled": False,
@@ -90,7 +99,10 @@ class TakBridge:
 
     def __init__(self, settings: dict[str, Any]) -> None:
         self.settings = settings
+        self._config: Any = None
         self._clitool: Any = None
+        self._tx_queue: asyncio.Queue[bytes] | None = None
+        self._rx_queue: asyncio.Queue[bytes] | None = None
         self._run_task: asyncio.Task[Any] | None = None
         self._listener_task: asyncio.Task[None] | None = None
         self.connected = False
@@ -107,8 +119,8 @@ class TakBridge:
         return self._run_task is not None and not self._run_task.done()
 
     @property
-    def rx_queue(self) -> Any:
-        return getattr(self._clitool, "rx_queue", None)
+    def rx_queue(self) -> asyncio.Queue[bytes] | None:
+        return self._rx_queue
 
     @property
     def stale_seconds(self) -> int:
@@ -168,42 +180,65 @@ class TakBridge:
         parser["oden_tak"] = section
         return parser["oden_tak"]
 
+    async def _connect(self) -> None:
+        """Open (or re-open) the pytak connection, keeping our queues."""
+        import pytak  # optional dependency, imported only when TAK is enabled
+
+        self._clitool = pytak.CLITool(self._config, self._tx_queue, self._rx_queue)
+        # First time pytak sizes the queues; every reconnect reuses the same objects.
+        self._tx_queue, self._rx_queue = self._clitool.tx_queue, self._clitool.rx_queue
+        await asyncio.wait_for(self._clitool.setup(), _CONNECT_TIMEOUT)
+        self.connected = True
+        self.last_error = None
+
     async def start(self) -> None:
         if self.is_running:
             return
-        import pytak  # optional dependency, imported only when TAK is enabled
-
-        config = self._build_config()
-        if not config.get("COT_URL"):
+        self._config = self._build_config()
+        if not self._config.get("COT_URL"):
             raise ValueError("TAK: ingen server angiven (sätt cot_url eller pref_package)")
 
-        self._clitool = pytak.CLITool(config)
-        await self._clitool.setup()
+        await self._connect()
         self._run_task = asyncio.create_task(self._run())
-        self.connected = True
-        self.last_error = None
 
         from oden.tak.listener import start_tak_listener
 
         self._listener_task = start_tak_listener(self)
-        logger.info("TAK-bryggan startad (%s)", config.get("COT_URL", "pref_package"))
+        logger.info("TAK-bryggan startad (%s)", self._config.get("COT_URL"))
 
     async def _run(self) -> None:
-        try:
-            await self._clitool.run()
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # pragma: no cover - network path
+        """Run pytak until cancelled; on connection loss, reconnect with backoff.
+
+        Queued markers survive the gap (bounded tx queue) and the listener keeps
+        waiting on the same rx queue.
+        """
+        delay = _RECONNECT_MIN
+        while True:
+            try:
+                if not self.connected:
+                    await self._connect()
+                    delay = _RECONNECT_MIN
+                    logger.info("TAK-bryggan återansluten")
+                await self._clitool.run()
+                self.last_error = "pytak avslutade utan fel"
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self.last_error = repr(exc)
             self.connected = False
-            self.last_error = repr(exc)
-            logger.error("TAK-bryggan stannade: %r", exc)
+            logger.error("TAK-bryggan: %s — nytt försök om %.0f s", self.last_error, delay)
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, _RECONNECT_MAX)
 
     async def publish(self, cot: bytes) -> bool:
-        """Enqueue one CoT event for transmission. Never blocks the caller."""
-        if not self.is_running or self._clitool is None:
+        """Enqueue one CoT event for transmission. Never blocks the caller.
+
+        Accepted while reconnecting too — the queue is drained once the link is back.
+        """
+        if not self.is_running or self._tx_queue is None:
             return False
         try:
-            self._clitool.tx_queue.put_nowait(cot)
+            self._tx_queue.put_nowait(cot)
         except asyncio.QueueFull:
             logger.warning("TAK: TX-kön är full, släpper CoT-händelse")
             return False
@@ -222,6 +257,7 @@ class TakBridge:
                 await self._run_task
         self._run_task = None
         self._clitool = None
+        self._tx_queue = self._rx_queue = None
         self.connected = False
 
 

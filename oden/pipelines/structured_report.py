@@ -48,7 +48,13 @@ def yaml_quote(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+# A trailing "%% ... %%" block is hidden raw data, never report input — a
+# "TNR: ..." line inside it must not override the real field.
+_TRAILING_OBSIDIAN_COMMENT_RE = re.compile(r"\n%%\n.*?\n%%[ \t]*$", re.DOTALL)
+
+
 def iter_nonempty_lines(message_text: str) -> list[str]:
+    message_text = _TRAILING_OBSIDIAN_COMMENT_RE.sub("", message_text)
     return [line.strip() for line in message_text.splitlines() if line.strip()]
 
 
@@ -207,15 +213,12 @@ def _append_section(content: str, lines: Sequence[str]) -> str:
     return f"{content.rstrip()}\n\n" + "\n".join(lines) + "\n"
 
 
-_TRAILING_OBSIDIAN_COMMENT_RE = re.compile(r"\n%%\n.*?\n%%[ \t]*$", re.DOTALL)
-
-
 def trailing_obsidian_comment(message_text: str | None) -> str:
     """A trailing ``%% ... %%`` Obsidian comment block in the source message, or ``''``.
 
     Lets an upstream adapter (e.g. the TAK 8S->7S reshaper) stash raw data that
     Oden must round-trip verbatim into the report file while Obsidian keeps it
-    hidden in reading view.
+    hidden in reading view. The parsers never see it (``iter_nonempty_lines``).
     """
     if not message_text:
         return ""

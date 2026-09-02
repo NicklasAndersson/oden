@@ -128,7 +128,7 @@ Reports-plugin mappas den istället till en vanlig `7S RAPPORT` och skrivs som e
 8S-fälten och exakta koordinater följer med i ett dolt `%%`-block sist i filen
 så inget tappas. Eko-skyddet gör att filen inte publiceras tillbaka till TAK.
 
-Filtren är staplade billigast först: typ → callsign → eko-vakt (`ODEN.*`) → dedup
+Filtren är staplade billigast först: eko-vakt (`ODEN.*`) → typ → callsign → dedup
 per uid → tak per minut. Börja snävt och vidga; servern pushar hela lägesbilden
 till varje ansluten klient.
 
@@ -167,6 +167,7 @@ FreeTAKServer istället? Sätt `FTS_COMPAT=1` i miljön.
 | `pytak saknas` i loggen | `pip install "oden[tak]"` |
 | Ansluter men inget syns i ATAK | Markören redan stale, eller fel klocka. Kolla `cot_stale_seconds` + NTP |
 | Markör försvinner efter en stund | `cot_archive = false` och Oden tappade anslutningen |
+| Status 🔴 fast servern är uppe | Oden återansluter själv med ökande intervall (5 s → 5 min); `Senaste fel` visar orsaken. Spara inställningarna igen för att tvinga ett försök direkt |
 | Markör i havet (0,0) | MGRS i `Ställe` gick inte att tolka |
 | Dubbla markörer för samma rapport | uid-härledning matchar inte mellan original och `++` – buggrapport |
 | Översvämmas av inkommande noter | `inbound_types` för brett, eller höj `inbound_min_move_m` |

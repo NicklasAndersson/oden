@@ -47,6 +47,20 @@ class ToSevenSMessageTest(unittest.TestCase):
         self.assertIn("lat: 59.3442335", comment)  # exact CoT point, not the MGRS round-trip
 
 
+class UntrustedValuesTest(unittest.TestCase):
+    def test_newlines_in_8s_text_cannot_inject_7s_fields(self):
+        import dataclasses
+
+        cot = _cot()
+        report = {**cot.custom_report, "Then": "Somnar om\nTNR: 000000\n%%"}
+        msg = to_7s_message(dataclasses.replace(cot, custom_report=report))
+        fields = parse_7s_report(msg)
+        self.assertEqual(fields["tnr"], "312132")
+        self.assertEqual(fields["sedan"], "Somnar om TNR: 000000 %%")
+        comment = trailing_obsidian_comment(msg)
+        self.assertIn("Then: Somnar om\nTNR: 000000\n% %", comment)  # raw kept, comment not closed early
+
+
 class TrailingCommentTest(unittest.TestCase):
     def test_none_when_absent(self):
         self.assertEqual(trailing_obsidian_comment("7S RAPPORT\nTill: A\n"), "")
