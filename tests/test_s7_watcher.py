@@ -1,5 +1,6 @@
 import socket
 import unittest
+from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 from oden.s7_watcher import (
@@ -164,7 +165,7 @@ class TestSignalManager(unittest.TestCase):
             [
                 r"C:\\bundle\\jre-x64\\bin\\java.exe",
                 "-cp",
-                "C:/bundle/signal-cli/lib/*",
+                str(Path("C:/bundle/signal-cli/lib/*")),  # Path renders C:\...\* on Windows
                 "org.asamk.signal.Main",
                 "link",
                 "-n",

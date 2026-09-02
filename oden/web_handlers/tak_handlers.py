@@ -115,7 +115,7 @@ async def tak_settings_save_handler(request: web.Request) -> web.Response:
     bridge = get_tak_bridge()
     if not merged.get("enabled"):
         message = "TAK-inställningar sparade. TAK är avstängt."
-    elif bridge is not None and bridge.is_running:
+    elif bridge is not None and bridge.is_running and getattr(bridge, "connected", True):
         message = "TAK-inställningar sparade och ansluten."
     else:
         err = getattr(bridge, "last_error", None)
@@ -137,7 +137,8 @@ async def tak_status_handler(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "enabled": bool(settings.get("enabled")),
-            "connected": bool(bridge is not None and bridge.is_running),
+            # is_running = bridge task alive (may be mid-reconnect); connected = link actually up
+            "connected": bool(bridge is not None and bridge.is_running and getattr(bridge, "connected", True)),
             "cot_url": settings.get("cot_url") or settings.get("pref_package") or "",
             "inbound_enabled": bool(settings.get("inbound_enabled")),
             "sent_count": getattr(bridge, "sent_count", 0),

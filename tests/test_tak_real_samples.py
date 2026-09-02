@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from oden.tak.cot import cot_to_inbound
-from oden.tak.listener import _INBOUND_DEFAULTS, InboundFilter, render_observation
+from oden.tak.listener import _INBOUND_DEFAULTS, InboundFilter, build_envelope, render_observation
 
 _FIX = Path(__file__).parent / "fixtures" / "tak"
 
@@ -52,6 +52,15 @@ class RealSampleTest(unittest.TestCase):
         self.assertEqual(cot.cot_type, "b-m-p-s-p-i")
         self.assertEqual(cot.custom_report, {})
         self.assertTrue(self._filter().accept(cot))  # b-m-p-* is in defaults
+
+    def test_sender_is_the_operators_device_when_the_cot_names_one(self):
+        pointer = cot_to_inbound(_load("spi_pointer.xml"))
+        self.assertEqual(pointer.operator_uid, "ANDROID-a3078d3cd6571a0f")  # <creator>/<link relation="p-p">
+        self.assertEqual(build_envelope(pointer, "g")["envelope"]["sourceUuid"], "tak:ANDROID-a3078d3cd6571a0f")
+        # The Reports plugin names no device, so an 8S falls back to its own (per-report) uid
+        report = cot_to_inbound(_load("8s_report.xml"))
+        self.assertEqual(report.operator_uid, "")
+        self.assertEqual(build_envelope(report, "g")["envelope"]["sourceUuid"], f"tak:{report.uid}")
 
     def test_friendly_pli_is_filtered_out(self):
         f = self._filter()

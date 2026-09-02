@@ -71,7 +71,7 @@ class PublishTest(unittest.IsolatedAsyncioTestCase):
     async def test_publish_enqueues_and_counts(self):
         bridge = TakBridge(dict(_DEFAULTS))
         queue: asyncio.Queue = asyncio.Queue()
-        bridge._clitool = SimpleNamespace(tx_queue=queue)
+        bridge._tx_queue = queue
         bridge._run_task = asyncio.create_task(asyncio.sleep(3600))
         self.addCleanup(bridge._run_task.cancel)
 
@@ -87,13 +87,58 @@ class PublishTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_publish_drops_on_full_queue(self):
         bridge = TakBridge(dict(_DEFAULTS))
-        bridge._clitool = SimpleNamespace(tx_queue=asyncio.Queue(maxsize=1))
-        bridge._clitool.tx_queue.put_nowait(b"first")
+        bridge._tx_queue = asyncio.Queue(maxsize=1)
+        bridge._tx_queue.put_nowait(b"first")
         bridge._run_task = asyncio.create_task(asyncio.sleep(3600))
         self.addCleanup(bridge._run_task.cancel)
 
         self.assertFalse(await bridge.publish(b"second"))
         self.assertEqual(bridge.sent_count, 0)
+
+
+class _FakeCLITool:
+    """Connects fine; the first run() dies like a dropped socket, the second stays up."""
+
+    instances: list = []
+    runs = 0
+
+    def __init__(self, config, tx_queue=None, rx_queue=None):
+        self.tx_queue = tx_queue or asyncio.Queue()
+        self.rx_queue = rx_queue or asyncio.Queue()
+        _FakeCLITool.instances.append(self)
+
+    async def setup(self):
+        pass
+
+    async def run(self):
+        _FakeCLITool.runs += 1
+        if _FakeCLITool.runs == 1:
+            raise ConnectionResetError("server went away")
+        await asyncio.sleep(3600)
+
+
+class ReconnectTest(unittest.IsolatedAsyncioTestCase):
+    async def test_reconnects_and_keeps_queues(self):
+        _FakeCLITool.instances, _FakeCLITool.runs = [], 0
+        bridge = TakBridge({**_DEFAULTS, "cot_url": "tcp://x:8087"})
+        with (
+            patch.dict("sys.modules", {"pytak": SimpleNamespace(CLITool=_FakeCLITool)}),
+            patch("oden.tak.bridge._RECONNECT_MIN", 0.0),
+            patch("oden.tak.listener.start_tak_listener", return_value=None),
+        ):
+            await bridge.start()
+            self.addCleanup(bridge.stop)
+            first_tx, first_rx = bridge._tx_queue, bridge.rx_queue
+            for _ in range(20):  # let run() fail, backoff (0 s) and reconnect
+                await asyncio.sleep(0)
+
+        self.assertEqual(_FakeCLITool.runs, 2)
+        self.assertEqual(len(_FakeCLITool.instances), 2)
+        self.assertTrue(bridge.connected)
+        self.assertTrue(bridge.is_running)
+        self.assertIs(bridge._tx_queue, first_tx)
+        self.assertIs(bridge.rx_queue, first_rx)
+        self.assertIs(_FakeCLITool.instances[1].rx_queue, first_rx)
 
 
 class CertExpiryTest(unittest.TestCase):

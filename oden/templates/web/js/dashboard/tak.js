@@ -2,8 +2,6 @@
 //
 // TAK integration tab: status, settings form and the test marker button.
 
-const TAK_LIST_FIELDS = ['inbound_types', 'inbound_callsign_allow', 'inbound_callsign_deny'];
-
 async function loadTakStatus() {
     const container = document.getElementById('tak-status');
 
@@ -76,10 +74,8 @@ async function saveTakSettings() {
             payload[field.name] = field.checked;
         } else if (field.type === 'number') {
             payload[field.name] = Number(field.value);
-        } else if (TAK_LIST_FIELDS.includes(field.name)) {
-            payload[field.name] = field.value;  // servern delar på komma
         } else {
-            payload[field.name] = field.value;
+            payload[field.name] = field.value;  // listfält: servern delar på komma
         }
     }
 

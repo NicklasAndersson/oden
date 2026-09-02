@@ -158,6 +158,14 @@ Fält:
 får inte ha `Sysselsättning` eller `Symbol` som beskriver en fotgängare, och
 vice versa. (Detta gäller den centrala applikationens *tolkning* av fritexten.)
 
+### 5.1 Valfri råblock-kommentar sist i filen
+
+Efter kroppen kan filen avslutas med ett Obsidian-kommentarblock (`%%` på egen
+rad, innehåll, `%%` på egen rad). Det används för rådata som inte får tappas men
+inte hör hemma i kroppen — t.ex. en inkommande ATAK **8S**-rapport bevaras
+oförändrad där när Oden mappar den till en 7S-fil. Obsidian döljer blocket i
+läsvyn. Konsumenter ska ignorera det (varken tolka eller schemavalidera det).
+
 ---
 
 ## 6. Länkning av kännetecken (Obsidian-wikilänkar)

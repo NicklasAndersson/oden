@@ -12,7 +12,7 @@ import datetime as dt
 import logging
 from typing import Any
 
-from oden.pipelines.seven_s import _extract_location, _mgrs_to_latlon, is_7s_message, parse_7s_report
+from oden.pipelines.seven_s import _extract_location, is_7s_message, parse_7s_report
 from oden.pipelines.structured_report import extract_message_details
 from oden.tak.bridge import get_tak_bridge
 from oden.tak.cot import Report, report_to_cot
@@ -22,9 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _coords_from_stalle(stalle: str) -> tuple[float, float] | None:
     _plats, lat, lon = _extract_location(stalle)
-    if lat is not None and lon is not None:
-        return lat, lon
-    return _mgrs_to_latlon(stalle.strip())
+    return (lat, lon) if lat is not None and lon is not None else None
 
 
 class TakPublishPipeline:
