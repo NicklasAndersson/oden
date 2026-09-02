@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **TAK-integration**: 7S-rapporter med position skickas till en TAK Server som CoT-markörer, och inkommande CoT kan landa i valvet som `TAK-OBSERVATION`-noter. Ny **TAK**-flik i web-GUI med status, certutgångsvarning, filter för inkommande, testmarkör-knapp och live-återanslutning när inställningar sparas. Anslutning via data package, enrollment (användarnamn/lösenord) eller lösa cert-filer. Verifierad mot TAK Server 5.7. Se [docs/TAK_SETUP.md](docs/TAK_SETUP.md).
 - **Strukturerade rapportplugin-fält i inkommande CoT**: inkommande händelser vars ATAK-rapportmall (t.ex. en 8-Line spot report) lägger fält i `<detail>` visas nu i `TAK-OBSERVATION`-noten istället för att tappas bort tyst. Tolkningen är schemaoberoende — den antar varken en specifik wrapper-tagg, fältnamn eller om värdet ligger i elementtext eller ett attribut, eftersom mallarna är redigerbara och varierar.
+- **8S-rapporter blir 7S-filer**: en inkommande 8S-rapport från ATAK:s Reports-plugin mappas till en vanlig `7S RAPPORT` och skrivs som en 7S-fil (samma frontmatter och kropp), så Obsidian-valvet hanterar den utan ändring. De oförändrade 8S-fälten och exakta koordinater bevaras i ett dolt `%%`-block sist i filen.
 
 ## [4.0.0] - 2026-08-31
 

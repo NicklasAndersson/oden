@@ -29,6 +29,7 @@ from typing import Any
 
 from oden import config as cfg
 from oden.tak.cot import UID_PREFIX, InboundCot, cot_to_inbound, cot_type_matches, latlon_to_mgrs
+from oden.tak.eight_s import is_8s_report, to_7s_message
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,12 @@ def render_observation(cot: InboundCot) -> str:
 
 
 def build_envelope(cot: InboundCot, group_name: str) -> dict[str, Any]:
-    """Signal-shaped envelope so inbound CoT reuses the whole existing chain."""
+    """Signal-shaped envelope so inbound CoT reuses the whole existing chain.
+
+    An 8S report is reshaped into ``7S RAPPORT`` text so the seven_s pipeline
+    writes a normal 7S file; anything else stays a ``TAK-OBSERVATION`` note.
+    """
+    message = to_7s_message(cot) if is_8s_report(cot) else render_observation(cot)
     return {
         "envelope": {
             "sourceName": cot.callsign,
@@ -188,7 +194,7 @@ def build_envelope(cot: InboundCot, group_name: str) -> dict[str, Any]:
             "timestamp": int(cot.event_time.timestamp() * 1000),
             "_source": "tak",
             "dataMessage": {
-                "message": render_observation(cot),
+                "message": message,
                 "groupV2": {"id": INBOUND_GROUP_ID, "name": group_name},
                 "attachments": [],
             },

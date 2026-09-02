@@ -122,6 +122,12 @@ studsar tillbaka till TAK) i gruppen `TAK Inkommande`. Noterna passerar
 **gruppfiltret** som allt annat – kör du whitelist-läge måste `TAK Inkommande`
 finnas med i listan.
 
+**Undantag – 8S-rapporter:** bär händelsen en 8S-rapport från ATAK:s
+Reports-plugin mappas den istället till en vanlig `7S RAPPORT` och skrivs som en
+7S-fil (samma frontmatter och kropp som Signal-inmatade 7S). De oförändrade
+8S-fälten och exakta koordinater följer med i ett dolt `%%`-block sist i filen
+så inget tappas. Eko-skyddet gör att filen inte publiceras tillbaka till TAK.
+
 Filtren är staplade billigast först: typ → callsign → eko-vakt (`ODEN.*`) → dedup
 per uid → tak per minut. Börja snävt och vidga; servern pushar hela lägesbilden
 till varje ansluten klient.

@@ -207,6 +207,22 @@ def _append_section(content: str, lines: Sequence[str]) -> str:
     return f"{content.rstrip()}\n\n" + "\n".join(lines) + "\n"
 
 
+_TRAILING_OBSIDIAN_COMMENT_RE = re.compile(r"\n%%\n.*?\n%%[ \t]*$", re.DOTALL)
+
+
+def trailing_obsidian_comment(message_text: str | None) -> str:
+    """A trailing ``%% ... %%`` Obsidian comment block in the source message, or ``''``.
+
+    Lets an upstream adapter (e.g. the TAK 8S->7S reshaper) stash raw data that
+    Oden must round-trip verbatim into the report file while Obsidian keeps it
+    hidden in reading view.
+    """
+    if not message_text:
+        return ""
+    match = _TRAILING_OBSIDIAN_COMMENT_RE.search(message_text)
+    return match.group(0).strip() if match else ""
+
+
 @dataclass(frozen=True)
 class StructuredReportContext:
     fields: dict[str, Any]

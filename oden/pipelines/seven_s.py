@@ -20,6 +20,7 @@ from oden.pipelines.structured_report import (
     normalize_label,
     parse_labeled_fields,
     resolve_report_datetime,
+    trailing_obsidian_comment,
 )
 
 logger = logging.getLogger(__name__)
@@ -248,4 +249,12 @@ class SevenSPipeline(StructuredReportPipeline):
         if sedan:
             body_lines.extend([f"**Sedan:** {sedan}", ""])
 
-        return "\n".join(frontmatter_lines + body_lines)
+        report = "\n".join(frontmatter_lines + body_lines)
+
+        # Preserve a trailing %% ... %% block from the source (the 8S->7S reshaper
+        # parks the untouched 8S fields there). Hidden in Obsidian's reading view.
+        raw_message = (context.envelope.get("dataMessage") or {}).get("message")
+        comment = trailing_obsidian_comment(raw_message)
+        if comment:
+            report = f"{report.rstrip()}\n\n{comment}\n"
+        return report
