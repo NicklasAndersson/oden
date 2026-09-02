@@ -76,7 +76,8 @@ def _mgrs_to_latlon(mgrs_str: str) -> tuple[float, float] | None:
         return None
 
     try:
-        lat, lon = converter(mgrs_str.replace(" ", ""))
+        # "34V CL 3939 8179" (ATAK), "34VCL 39390 81789", tabs/nbsp — any spacing goes
+        lat, lon = converter("".join(mgrs_str.split()).upper())
         return float(lat), float(lon)
     except Exception as exc:
         logger.debug("Failed to convert MGRS %r to coordinates: %s", mgrs_str, exc)
@@ -88,9 +89,14 @@ def _normalize_label(label: str) -> str:
 
 
 def _extract_location(stalle: str) -> tuple[str, float | None, float | None]:
-    """Extract place text and optional decimal coordinates from Ställe."""
+    """Extract place text and optional decimal coordinates from Ställe.
+
+    ``"<MGRS>, <place>"`` gives place + coordinates; a bare ``"<MGRS>"`` gives
+    coordinates with the grid itself as place text.
+    """
     if "," not in stalle:
-        return stalle.strip(), None, None
+        coords = _mgrs_to_latlon(stalle)
+        return (stalle.strip(), *coords) if coords else (stalle.strip(), None, None)
 
     parts = stalle.split(",", 1)
     mgrs_str = parts[0].strip()

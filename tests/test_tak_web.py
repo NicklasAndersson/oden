@@ -1,6 +1,7 @@
 """TAK web GUI endpoint tests."""
 
 import io
+import os
 import shutil
 import tempfile
 import unittest.mock
@@ -151,7 +152,8 @@ class TestTakEndpoints(AioHTTPTestCase):
         self.assertTrue(saved.is_file())
         self.assertEqual(saved.parent, self.oden_home / "tak")
         self.assertEqual(saved.read_bytes(), _fake_data_package())
-        self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+        if os.name == "posix":  # Windows has no POSIX mode bits (chmod is a no-op there)
+            self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
 
     async def test_upload_package_rejects_non_zip(self):
         resp = await self.client.post("/api/tak/upload-package", data=_upload_form("notes.txt", b"hello"))

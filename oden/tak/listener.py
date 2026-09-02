@@ -22,13 +22,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import math
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from oden import config as cfg
-from oden.tak.cot import UID_PREFIX, InboundCot, cot_to_inbound, cot_type_matches, latlon_to_mgrs
+from oden.tak.cot import UID_PREFIX, InboundCot, cot_to_inbound, cot_type_matches, distance_m, latlon_to_mgrs
 from oden.tak.eight_s import is_8s_report, to_7s_message
 
 logger = logging.getLogger(__name__)
@@ -67,16 +66,6 @@ def _as_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(part).strip() for part in value if str(part).strip()]
     return []
-
-
-def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Haversine. Good enough for a "has it moved?" test."""
-    radius = 6_371_000.0
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    d_phi = math.radians(lat2 - lat1)
-    d_lambda = math.radians(lon2 - lon1)
-    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
-    return 2 * radius * math.asin(math.sqrt(a))
 
 
 def _content_signature(cot: InboundCot) -> str:
@@ -138,7 +127,7 @@ class InboundFilter:
             unchanged = (
                 previous.cot_type == current.cot_type
                 and previous.signature == current.signature
-                and _distance_m(previous.lat, previous.lon, current.lat, current.lon) < self.min_move_m
+                and distance_m(previous.lat, previous.lon, current.lat, current.lon) < self.min_move_m
             )
             if unchanged:
                 self.last_reject = "oförändrad sedan tidigare (dedup)"
@@ -184,13 +173,15 @@ def build_envelope(cot: InboundCot, group_name: str) -> dict[str, Any]:
 
     An 8S report is reshaped into ``7S RAPPORT`` text so the seven_s pipeline
     writes a normal 7S file; anything else stays a ``TAK-OBSERVATION`` note.
+    The sender is the operator's device when the CoT names one, so notes group
+    per operator rather than per marker.
     """
     message = to_7s_message(cot) if is_8s_report(cot) else render_observation(cot)
     return {
         "envelope": {
-            "sourceName": cot.callsign,
-            "sourceNumber": f"tak:{cot.uid}",
-            "sourceUuid": f"tak:{cot.uid}",
+            "sourceName": cot.operator_callsign or cot.callsign,
+            "sourceNumber": f"tak:{cot.sender_id}",
+            "sourceUuid": f"tak:{cot.sender_id}",
             "timestamp": int(cot.event_time.timestamp() * 1000),
             "_source": "tak",
             "dataMessage": {

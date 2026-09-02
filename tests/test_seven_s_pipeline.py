@@ -163,6 +163,15 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_7s_report(text)
 
+    def test_extract_location_accepts_bare_mgrs_with_any_spacing(self):
+        expected = _extract_location("34VCM7934926095, x")[1:]
+        self.assertIsNotNone(expected[0])
+        for stalle in ("34VCM7934926095", "34V CM 79349 26095", "34vcm 79349\t26095", "34VCM 79349 26095, "):
+            plats, lat, lon = _extract_location(stalle)
+            self.assertEqual((lat, lon), expected, stalle)
+            self.assertEqual(plats, stalle.strip())
+        self.assertEqual(_extract_location("Långkärrsvägen 3"), ("Långkärrsvägen 3", None, None))
+
     @patch("oden.pipelines.seven_s._mgrs_to_latlon", return_value=None)
     def test_extract_location_keeps_full_stalle_when_mgrs_unavailable(self, _mock_mgrs_to_latlon):
         stalle = "34VCM 79349 26095, Långkärrsvägen"

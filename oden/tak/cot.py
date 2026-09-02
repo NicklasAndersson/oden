@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
+import math
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -77,6 +78,16 @@ def _parse_time(value: str | None) -> _dt.datetime | None:
 
 def _valid_latlon(lat: float, lon: float) -> bool:
     return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0 and not (lat == 0.0 and lon == 0.0)
+
+
+def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Haversine. Good enough for "has it moved?" / "same grid cell?" tests."""
+    radius = 6_371_000.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(a))
 
 
 @dataclass(frozen=True)
@@ -163,10 +174,19 @@ class InboundCot:
     is_chat: bool
     custom_report_name: str = ""
     custom_report: dict[str, str] = field(default_factory=dict)
+    # The device that produced the event (<creator uid>/<link relation="p-p" uid>),
+    # stable across everything one operator places — unlike the per-marker uid.
+    operator_uid: str = ""
+    operator_callsign: str = ""
 
     @property
     def affiliation(self) -> str:
         return _TYPE_TO_AFFIL.get(self.cot_type[:4], "unknown")
+
+    @property
+    def sender_id(self) -> str:
+        """Best stable identity for "who sent this": the operator's device, else the marker."""
+        return self.operator_uid or self.uid
 
 
 # Standard CoT/ATAK <detail> children that every client attaches (device status,
@@ -323,6 +343,8 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
     is_chat = False
     custom_report_name = ""
     custom_report: dict[str, str] = {}
+    operator_uid = ""
+    operator_callsign = ""
     if detail is not None:
         contact = detail.find("contact")
         if contact is not None:
@@ -332,6 +354,14 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
             remarks = remarks_el.text
         is_chat = detail.find("__chat") is not None or root.get("type", "").startswith("b-t-f")
         custom_report_name, custom_report = _parse_custom_report(detail)
+        creator = detail.find("creator")
+        parent = next((el for el in detail.findall("link") if el.get("relation") == "p-p"), None)
+        raw_uid = (creator.get("uid", "") if creator is not None else "") or (
+            parent.get("uid", "") if parent is not None else ""
+        )
+        raw_callsign = parent.get("parent_callsign", "") if parent is not None else ""
+        operator_uid = sanitize_token(raw_uid, max_len=128) if raw_uid.strip() else ""
+        operator_callsign = sanitize_token(raw_callsign, max_len=64) if raw_callsign.strip() else ""
 
     event_time = _parse_time(root.get("time")) or _dt.datetime.now(_dt.timezone.utc)
 
@@ -349,6 +379,8 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
         is_chat=is_chat,
         custom_report_name=custom_report_name,
         custom_report=custom_report,
+        operator_uid=operator_uid,
+        operator_callsign=operator_callsign,
     )
 
 

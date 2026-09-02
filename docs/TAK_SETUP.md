@@ -127,6 +127,13 @@ Reports-plugin mappas den istället till en vanlig `7S RAPPORT` och skrivs som e
 7S-fil (samma frontmatter och kropp som Signal-inmatade 7S). De oförändrade
 8S-fälten och exakta koordinater följer med i ett dolt `%%`-block sist i filen
 så inget tappas. Eko-skyddet gör att filen inte publiceras tillbaka till TAK.
+`Ställe` blir markörens exakta punkt; skriver operatören en annan MGRS-ruta i
+POSITION (mer än ~20 m från markören) är det den som gäller. Fritext i POSITION
+blir platsnamn.
+
+Avsändaren på en inkommande not är operatörens enhet (`tak:ANDROID-…`) när
+CoT:en anger den (`<creator>`/`<link relation="p-p">`), annars markörens uid.
+ATAK:s Reports-plugin anger ingen enhet, så 8S-rapporter får ett uid per rapport.
 
 Filtren är staplade billigast först: eko-vakt (`ODEN.*`) → typ → callsign → dedup
 per uid → tak per minut. Börja snävt och vidga; servern pushar hela lägesbilden

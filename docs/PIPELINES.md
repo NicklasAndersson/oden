@@ -61,7 +61,7 @@ Nuvarande default:
 - Sparar sådana avvikelser som `pipeline_warning` i meddelandets pipeline-events så att de syns i observability-vyn
 - Skriver strukturerad markdown-fil till `vault/{group_name}/TNR<DDHHMM>[_n].md`, där filnamnet följer rapportens `TNR`
 - Genererar schemaformad YAML-frontmatter enligt [FORMAT_SPEC.md](FORMAT_SPEC.md) och [7S_frontmatter.schema.json](7S_frontmatter.schema.json)
-- Konverterar MGRS i `Ställe` till `lat`, `lon` och `location` när koordinater kan härledas
+- Konverterar MGRS i `Ställe` till `lat`, `lon` och `location` när koordinater kan härledas — `Ställe: <MGRS>, <plats>` eller bara `Ställe: <MGRS>`. Mellanslag/tabbar och gemener i MGRS spelar ingen roll (`34VCM7934926095`, `34V CM 79349 26095`, `34vcm 79349 26095` tolkas lika)
 - Länkar särskiljande kännetecken i `Symbol` med `[[...]]` enligt specen
 
 **Exempel på inmatning:**

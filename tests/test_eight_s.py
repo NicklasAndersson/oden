@@ -36,8 +36,23 @@ class ToSevenSMessageTest(unittest.TestCase):
         self.assertEqual(fields["stund"], "312132ZAUG2026")
         self.assertEqual(fields["sagesman"], "LarsNo")
         self.assertEqual(fields["sedan"], "Somnar om")
-        self.assertIn("34V CL 3939 8179", fields["stalle"])  # original grid kept as place text
+        # POSITION is the marker's own 10 m cell -> the exact CoT point, compact, no "X, X"
+        self.assertEqual(fields["stalle"], "34VCL3939081789")
         self.assertIn("medelålders man", fields["handelse"])
+
+    def test_position_edited_away_from_the_marker_wins(self):
+        import dataclasses
+
+        cot = _cot()
+
+        def stalle(position):
+            report = {**cot.custom_report, "Position": position}
+            return parse_7s_report(to_7s_message(dataclasses.replace(cot, custom_report=report)))["stalle"]
+
+        self.assertEqual(stalle("34V CL 4000 8300"), "34VCL40008300")  # ~700 m off: operator's grid
+        self.assertEqual(stalle("34vcl 3939 8179"), "34VCL3939081789")  # same cell, odd spacing: CoT point
+        self.assertEqual(stalle(""), "34VCL3939081789")
+        self.assertEqual(stalle("vid grinden"), "34VCL3939081789, vid grinden")
 
     def test_raw_8s_ridealong_is_a_hidden_comment(self):
         comment = trailing_obsidian_comment(self.msg)
