@@ -50,6 +50,7 @@ async def _run_lifecycle(
     across stop/start cycles so the GUI is always reachable.
     """
     from oden.signal_log_monitor import monitor_signal_cli_log
+    from oden.tak.bridge import start_tak_bridge, stop_tak_bridge
     from oden.web_server import start_web_server
 
     app_state = get_app_state()
@@ -74,6 +75,9 @@ async def _run_lifecycle(
 
     listener_task: asyncio.Task | None = None
     log_monitor_task = asyncio.create_task(monitor_signal_cli_log(quit_event))
+
+    # TAK bridge — no-op unless tak_settings.enabled; runs for the whole lifetime
+    await start_tak_bridge()
 
     try:
         while not quit_event.is_set():
@@ -147,6 +151,8 @@ async def _run_lifecycle(
     except asyncio.CancelledError:
         logger.info("Lifecycle cancelled.")
     finally:
+        await stop_tak_bridge()
+
         if log_monitor_task is not None and not log_monitor_task.done():
             log_monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):

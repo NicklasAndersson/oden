@@ -10,6 +10,7 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.app_state import get_app_state
+from oden.contacts_db import upsert_contacts_bulk
 from oden.web_handlers._helpers import handle_errors, parse_json_body, require_writer
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ async def contacts_refresh_handler(request: web.Request) -> web.Response:
     if response and "result" in response:
         contacts = response["result"]
         app_state.update_contacts(contacts)
+        upsert_contacts_bulk(cfg.CONFIG_DB, contacts, account=cfg.SIGNAL_NUMBER)
         return web.json_response(
             {
                 "success": True,
@@ -95,6 +97,7 @@ async def update_contact_handler(request: web.Request) -> web.Response:
     )
     if contacts_resp and "result" in contacts_resp:
         app_state.update_contacts(contacts_resp["result"])
+        upsert_contacts_bulk(cfg.CONFIG_DB, contacts_resp["result"], account=cfg.SIGNAL_NUMBER)
 
     logger.info("Contact %s updated", number)
     return web.json_response({"success": True})

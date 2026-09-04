@@ -19,7 +19,7 @@ jobs:
       with:
         python-version-file: ".python-version"
     - name: Install ruff
-      run: pip install ruff
+      run: pip install "ruff~=0.15.19"
     - name: Run ruff linter
       run: ruff check .
     - name: Run ruff formatter check
@@ -35,7 +35,7 @@ jobs:
         python-version-file: ".python-version"
     - name: Install package with test dependencies
       run: |
-        pip install -e .
+        pip install -e ".[tak]"
         pip install pytest pytest-cov
     - name: Run tests with coverage
       run: |

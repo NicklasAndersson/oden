@@ -1,0 +1,12 @@
+<event version="2.0" uid="ANDROID-a3078d3cd6571a0f" type="a-f-G-U-C" how="m-g" time="2026-08-31T19:41:40Z" start="2026-08-31T19:41:40Z" stale="2026-08-31T19:42:34Z" access="Undefined">
+  <point lat="59.509964" lon="17.765875" hae="58.196" ce="9.9" le="9999999.0"/>
+  <detail>
+    <contact callsign="DOWNY" endpoint="*:-1:stcp"/>
+    <__group name="Cyan" role="Team Member"/>
+    <precisionlocation geopointsrc="GPS" altsrc="GPS"/>
+    <status battery="58"/>
+    <takv device="SAMSUNG SM-S936B" platform="ATAK-CIV" os="36" version="5.6.0.12 (9c9a5897)[playstore].1769863102-CIV"/>
+    <track speed="0.8299999833106995" course="148.6852207359061"/>
+    <uid Droid="DOWNY"/>
+  </detail>
+</event>

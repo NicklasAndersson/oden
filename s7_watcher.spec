@@ -55,6 +55,29 @@ if sys.platform == 'darwin':
 elif sys.platform == 'win32':
     hiddenimports.extend(['pystray._win32', 'PIL.ImageWin'])
 
+# Optional TAK support (oden[tak]): bundle pytak + its deps only when the
+# build environment has them installed. Without this block the app builds
+# fine, it just won't have TAK integration.
+# cryptography ships a PyInstaller hook already, so only pytak needs collecting.
+_tak_datas = []
+_tak_binaries = []
+if importlib.util.find_spec('pytak'):
+    from PyInstaller.utils.hooks import collect_all
+
+    hiddenimports += [
+        'oden.tak.bridge',
+        'oden.tak.listener',
+        'oden.tak.cot',
+        'oden.tak.eight_s',
+        'oden.web_handlers.tak_handlers',
+    ]
+    for _pkg in ('pytak', 'takproto'):
+        if importlib.util.find_spec(_pkg):
+            _pkg_datas, _pkg_binaries, _pkg_hidden = collect_all(_pkg)
+            _tak_datas += _pkg_datas
+            _tak_binaries += _pkg_binaries
+            hiddenimports += _pkg_hidden
+
 # mgrs loads its native extension via ctypes at runtime — PyInstaller
 # can't detect this statically, so we collect it explicitly.
 _mgrs_binaries = []
@@ -68,8 +91,8 @@ if _mgrs_spec and _mgrs_spec.origin:
 a = Analysis(
     ['oden/s7_watcher.py'],
     pathex=[],
-    binaries=_mgrs_binaries,
-    datas=datas,
+    binaries=_mgrs_binaries + _tak_binaries,
+    datas=datas + _tak_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
@@ -87,7 +110,7 @@ windows_icon_path = 'images/oden.ico' if os.path.exists('images/oden.ico') else 
 
 # macOS: Create .app bundle with --windowed --onedir
 if sys.platform == 'darwin':
-    # Build for x86_64 (Intel) - works natively on Intel and via Rosetta 2 on Apple Silicon
+    # Builds for the architecture of the running Python (arm64 in CI — Apple Silicon only)
     exe = EXE(
         pyz,
         a.scripts,
@@ -101,7 +124,7 @@ if sys.platform == 'darwin':
         console=False,  # --windowed
         disable_windowed_traceback=False,
         argv_emulation=True,  # Better macOS integration
-        target_arch=None,  # Build for runner's native arch (x86_64 on macos-13)
+        target_arch=None,  # Build for the runner's native arch (arm64 on macos-latest)
         codesign_identity=os.environ.get('CODESIGN_IDENTITY'),
         entitlements_file=os.environ.get('ENTITLEMENTS_FILE'),
         icon=icon_path,

@@ -163,6 +163,15 @@ class TestSevenSPipelineHelpers(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_7s_report(text)
 
+    def test_extract_location_accepts_bare_mgrs_with_any_spacing(self):
+        expected = _extract_location("34VCM7934926095, x")[1:]
+        self.assertIsNotNone(expected[0])
+        for stalle in ("34VCM7934926095", "34V CM 79349 26095", "34vcm 79349\t26095", "34VCM 79349 26095, "):
+            plats, lat, lon = _extract_location(stalle)
+            self.assertEqual((lat, lon), expected, stalle)
+            self.assertEqual(plats, stalle.strip())
+        self.assertEqual(_extract_location("Långkärrsvägen 3"), ("Långkärrsvägen 3", None, None))
+
     @patch("oden.pipelines.seven_s._mgrs_to_latlon", return_value=None)
     def test_extract_location_keeps_full_stalle_when_mgrs_unavailable(self, _mock_mgrs_to_latlon):
         stalle = "34VCM 79349 26095, Långkärrsvägen"
@@ -209,9 +218,9 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn('signal_avsandare_nummer: "+46701234567"', content)
         self.assertIn('signal_avsandare_id: "dd1bac1d-b955-4ac0-9d53-14053c4fe69f"', content)
         self.assertIn('plats: "Långkärrsvägen"', content)
-        self.assertIn("lat: 59.49063", content)
-        self.assertIn("lon: 17.46740", content)
-        self.assertIn('location: "59.49063,17.46740"', content)
+        self.assertIn("lat: 59.75513", content)
+        self.assertIn("lon: 18.85253", content)
+        self.assertIn('location: "59.75513,18.85253"', content)
         self.assertIn("sagesman: AQ", content)
         self.assertIn("**TNR:** 221520", content)
         self.assertIn("**Stund:** 221520", content)

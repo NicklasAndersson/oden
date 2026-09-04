@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 async def _send_reaction(source_number: str | None, timestamp: int, group_id: str | None) -> None:
     """Send an emoji reaction to confirm a saved message."""
-    if not cfg.AUTO_REACTION_ENABLED or not source_number:
+    # ponytail: "tak:" senders are synthetic CoT sources, not Signal recipients
+    if not cfg.AUTO_REACTION_ENABLED or not source_number or source_number.startswith("tak:"):
         return
     try:
         from oden.app_state import get_app_state
@@ -57,7 +58,7 @@ async def _send_reaction(source_number: str | None, timestamp: int, group_id: st
 
 async def _send_read_receipt(source_number: str | None, timestamp: int) -> None:
     """Send a read receipt to confirm a processed message."""
-    if not cfg.AUTO_READ_RECEIPT_ENABLED or not source_number:
+    if not cfg.AUTO_READ_RECEIPT_ENABLED or not source_number or source_number.startswith("tak:"):
         return
     try:
         from oden.app_state import get_app_state

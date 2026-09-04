@@ -1,0 +1,10 @@
+<event version="2.0" uid="ANDROID-a3078d3cd6571a0f.SPI1" type="b-m-p-s-p-i" how="h-e" time="2026-08-31T19:44:17Z" start="2026-08-31T19:44:17Z" stale="2026-08-31T19:44:37Z" access="Undefined">
+  <point lat="59.3442335" lon="18.1756791" hae="9999999.0" ce="9999999.0" le="9999999.0"/>
+  <detail>
+    <contact callsign="DOWNY.DP1"/>
+    <link uid="ANDROID-a3078d3cd6571a0f" type="a-f-G-U-C" relation="p-p"/>
+    <hideLabel/>
+    <creator uid="ANDROID-a3078d3cd6571a0f" type="a-f-G-U-C"/>
+    <_flow-tags_ TAK-Server-7e3cba2a3cd544e7bbed2c667731cadc="2026-08-31T19:44:17Z"/>
+  </detail>
+</event>

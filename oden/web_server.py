@@ -49,6 +49,7 @@ from oden.web_handlers.contact_handlers import (
 )
 from oden.web_handlers.group_handlers import (
     accept_invitation_handler,
+    create_group_handler,
     decline_invitation_handler,
     groups_handler,
     invitations_handler,
@@ -87,6 +88,13 @@ from oden.web_handlers.setup_handlers import (
     setup_status_handler,
     setup_validate_path_handler,
     setup_verify_code_handler,
+)
+from oden.web_handlers.tak_handlers import (
+    tak_settings_handler,
+    tak_settings_save_handler,
+    tak_status_handler,
+    tak_test_handler,
+    tak_upload_package_handler,
 )
 from oden.web_handlers.template_handlers import (
     template_export_handler,
@@ -264,6 +272,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_get("/api/groups", groups_handler)
         app.router.add_post("/api/groups/refresh", refresh_groups_handler)
         app.router.add_post("/api/groups/update", update_group_handler)
+        app.router.add_post("/api/groups/create", create_group_handler)
         app.router.add_post("/api/config-save", config_save_handler)
         app.router.add_delete("/api/config/reset", config_reset_handler)
         app.router.add_post("/api/signal-cli/restart", restart_signal_cli_handler)
@@ -316,6 +325,13 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/templates/{name}/preview", template_preview_handler)
         app.router.add_post("/api/templates/{name}/reset", template_reset_handler)
         app.router.add_get("/api/templates/{name}/export", template_export_handler)
+
+        # TAK integration routes
+        app.router.add_get("/api/tak/status", tak_status_handler)
+        app.router.add_get("/api/tak/settings", tak_settings_handler)
+        app.router.add_post("/api/tak/settings", tak_settings_save_handler)
+        app.router.add_post("/api/tak/test", tak_test_handler)
+        app.router.add_post("/api/tak/upload-package", tak_upload_package_handler)
 
     return app
 

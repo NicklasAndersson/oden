@@ -42,6 +42,7 @@ DEFAULT_CONFIG = {
     "enabled_pipelines": ["group_filter", "seven_s", "fors", "pedars", "generic_template"],
     "pipeline_settings": {"group_filter": {"mode": "blacklist", "groups": []}},
     "raw_message_retention_days": 30,
+    "tak_settings": {"enabled": False},
     "signal_typing_indicators": False,
     "signal_link_previews": False,
     "signal_unidentified_delivery_indicators": False,
@@ -79,6 +80,7 @@ TYPE_MAP = {
     "enabled_pipelines": "json",
     "pipeline_settings": "json",
     "raw_message_retention_days": "int",
+    "tak_settings": "json",
     "signal_typing_indicators": "bool",
     "signal_link_previews": "bool",
     "signal_unidentified_delivery_indicators": "bool",
@@ -253,8 +255,22 @@ def init_db(db_path: Path) -> None:
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_pipeline_events_run_id ON pipeline_events(run_id)")
 
+        # Migration to schema version 6: add contacts table (restart recovery,
+        # same purpose as the groups table — signal-cli's listContacts result
+        # is only held in memory otherwise).
+        if current_version < 6:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS contacts (
+                    number TEXT NOT NULL,
+                    account TEXT NOT NULL DEFAULT '',
+                    data TEXT NOT NULL,
+                    last_seen TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (number, account)
+                )
+            """)
+
         # Store current schema version (never downgrade)
-        latest_version = max(current_version, 5)
+        latest_version = max(current_version, 6)
         cursor.execute(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
             ("schema_version", str(latest_version)),

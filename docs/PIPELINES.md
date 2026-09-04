@@ -61,7 +61,7 @@ Nuvarande default:
 - Sparar sådana avvikelser som `pipeline_warning` i meddelandets pipeline-events så att de syns i observability-vyn
 - Skriver strukturerad markdown-fil till `vault/{group_name}/TNR<DDHHMM>[_n].md`, där filnamnet följer rapportens `TNR`
 - Genererar schemaformad YAML-frontmatter enligt [FORMAT_SPEC.md](FORMAT_SPEC.md) och [7S_frontmatter.schema.json](7S_frontmatter.schema.json)
-- Konverterar MGRS i `Ställe` till `lat`, `lon` och `location` när koordinater kan härledas
+- Konverterar MGRS i `Ställe` till `lat`, `lon` och `location` när koordinater kan härledas — `Ställe: <MGRS>, <plats>` eller bara `Ställe: <MGRS>`. Mellanslag/tabbar och gemener i MGRS spelar ingen roll (`34VCM7934926095`, `34V CM 79349 26095`, `34vcm 79349 26095` tolkas lika)
 - Länkar särskiljande kännetecken i `Symbol` med `[[...]]` enligt specen
 
 **Exempel på inmatning:**
@@ -114,6 +114,27 @@ sagesman: AQ
 Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 **Status i DB:** Om meddelande är en 7S RAPPORT markeras det som *processed* efter första körningen.
+
+---
+
+### TAK-publicering (`tak_publish`)
+
+**Vad den väljer:** Ingenting — den *konsumerar* aldrig ett meddelande. Körs
+alltid först när TAK-bryggan är aktiv (`[TAK] enabled`), som en sidoeffekt, och
+låter sedan resten av kedjan köra som vanligt.
+
+**Vad den gör:**
+- Parsar 7S-rapporter och plockar ut MGRS → lat/lon
+- Skickar en CoT-markör till TAK-servern (stabil UID per TNR, så en `++`-påfylld
+  rapport uppdaterar markören i stället för att dubblera den)
+- Hoppar över meddelanden från TAK (`_source = tak`) för att undvika eko-loop
+- FORS/PEDARS saknar position → ingen markör
+
+**Inställningar:** fliken **TAK** i web-GUI, eller `tak_settings` i config.db.
+Se [TAK_SETUP.md](TAK_SETUP.md) och [PLAN_TAK.md](PLAN_TAK.md).
+
+**Ingår inte** i `enabled_pipelines` — den läggs till automatiskt och kan inte
+ordnas om.
 
 ---
 
@@ -267,11 +288,12 @@ En ny pipeline måste:
 from typing import Any
 import asyncio
 
+
 class MyCustomPipeline:
     """Describe pipeline purpose."""
-    
+
     name = "my_custom"  # Unique identifier for config
-    
+
     async def run(
         self,
         *,
@@ -280,24 +302,24 @@ class MyCustomPipeline:
         writer: asyncio.StreamWriter,
     ) -> bool:
         """Process one message.
-        
+
         Returns True if handled, False to pass to next pipeline.
         """
         # msg_data innehåller rå signal-cli-envelope och metadata
-        
+
         # Välj om denna pipeline ska hantera meddelandet
         if not self._should_handle(msg_data):
             return False
-        
+
         # Gör något (skriva fil, API-anrop, etc.)
         await self._do_work(msg_data)
-        
+
         return True  # Meddelandet hanterat
-    
+
     def _should_handle(self, msg_data: dict[str, Any]) -> bool:
         # Din logik här
         pass
-    
+
     async def _do_work(self, msg_data: dict[str, Any]) -> None:
         # Din logik här
         pass

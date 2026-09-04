@@ -1,0 +1,9 @@
+<event version="2.0" uid="e87de992-f71c-4a78-9ad6-aca696c7deea" type="t-x-takp-v" time="2026-08-31T19:41:57Z" start="2026-08-31T19:41:57Z" stale="2026-08-31T19:42:57Z" how="m-g">
+  <point lat="0.0" lon="0.0" hae="0.0" ce="999999" le="999999"/>
+  <detail>
+    <TakControl>
+      <TakProtocolSupport version="1"/>
+      <TakServerVersionInfo serverVersion="5.7-RELEASE-8-HEAD" apiVersion="3"/>
+    </TakControl>
+  </detail>
+</event>

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-09-02
+
+### Added
+
+- **TAK-integration**: 7S-rapporter med position skickas till en TAK Server som CoT-markörer, och inkommande CoT kan landa i valvet som `TAK-OBSERVATION`-noter. Ny **TAK**-flik i web-GUI med status, certutgångsvarning, filter för inkommande, testmarkör-knapp och live-återanslutning när inställningar sparas. Anslutning via data package, enrollment (användarnamn/lösenord) eller lösa cert-filer. Verifierad mot TAK Server 5.7. Se [docs/TAK_SETUP.md](docs/TAK_SETUP.md).
+- **Strukturerade rapportplugin-fält i inkommande CoT**: inkommande händelser vars ATAK-rapportmall (t.ex. en 8-Line spot report) lägger fält i `<detail>` visas nu i `TAK-OBSERVATION`-noten istället för att tappas bort tyst. Tolkningen är schemaoberoende — den antar varken en specifik wrapper-tagg, fältnamn eller om värdet ligger i elementtext eller ett attribut, eftersom mallarna är redigerbara och varierar.
+- **8S-rapporter blir 7S-filer**: en inkommande 8S-rapport från ATAK:s Reports-plugin mappas till en vanlig `7S RAPPORT` och skrivs som en 7S-fil (samma frontmatter och kropp), så Obsidian-valvet hanterar den utan ändring. De oförändrade 8S-fälten och exakta koordinater bevaras i ett dolt `%%`-block sist i filen.
+- **MGRS i `Ställe` tål vilken mellanslagsstil som helst** (`34V CM 79349 26095`, `34vcm 79349 26095`, tabbar) och behöver inget platsnamn efter kommat för att ge koordinater. Inkommande TAK-noter får operatörens enhet som avsändare (`tak:ANDROID-…`) när CoT:en anger den, så noter från samma operatör hör ihop.
+- **TAK-bryggan återansluter själv**: tappas anslutningen till TAK-servern försöker Oden igen med ökande intervall (5 s → 5 min) tills den är tillbaka. Köade markörer skickas när länken är uppe igen och inkommande CoT fortsätter fungera utan omstart. Anslutningsförsök har en timeout (20 s) så ett "Spara" i TAK-fliken inte kan hänga. Statusraden visar 🔴 under återanslutning.
+
+## [4.0.0] - 2026-08-31
+
+### ⚠️ Breaking
+
+- **Intel-Mac-stödet för den nativa appen är borttaget**: Intel-Mackar kör Oden via Docker-imagen (`linux/amd64`), precis som Linux; installationsskripten upptäcker arkitekturen och visar rätt alternativ
+
+### Changed
+
+- **macOS-appen byggs nu nativt för Apple Silicon (arm64)**: DMG:n heter `Oden-<version>-macOS-arm64.dmg`, kräver inte längre Rosetta 2 på M-serie-Mackar och startar direkt på Mackar utan Rosetta installerat ([#261](https://github.com/NicklasAndersson/oden/issues/261))
+
+## [3.2.1] - 2026-08-28
+
+### Fixed
+
+- **Gruppfilter i Pipelines-fliken**: Whitelist/Blacklist-dropdownen och grupp-rutan nollställdes av den automatiska uppdateringen var 3:e sekund medan man redigerade; ändringar behålls nu tills de sparas
+
+## [3.2.0] - 2026-08-26
+
+### Added
+
+- **Bilder i strukturerade pipelines**: Stöd för bildhantering i 7S/FORS/PEDARS-flödena
+
+### Changed
+
+- **Regex auto-linking borttaget**: Konfigurerbar auto-länkning (tel, regnr, personnummer) tas bort till förmån för Obsidians egen länkning; 7S hårdkodade skyltlänkning påverkas inte
+
+### Fixed
+
+- **Live-uppdatering av pipeline-inställningar**: Auto-reaktion och läskvitto i Pipelines-fliken slår igenom direkt istället för att kräva omstart
+- **7S MGRS-koordinater**: Mellanslag i Ställe-fältet stripades inte bort före MGRS-till-latlon-konvertering, vilket gav felaktiga koordinater
+
 ## [3.1.2] - 2026-06-26
 
 ### Added

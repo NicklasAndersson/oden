@@ -31,4 +31,8 @@ function showTab(tabName) {
     if (tabName === 'messages') {
         loadMessagesDashboard();
     }
+    // Load TAK status and settings when switching to the TAK tab
+    if (tabName === 'tak') {
+        loadTakStatus();
+    }
 }
