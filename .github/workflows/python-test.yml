@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version-file: ".python-version"
     - name: Install ruff
@@ -30,7 +30,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version-file: ".python-version"
     - name: Install package with test dependencies
@@ -51,7 +51,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version-file: ".python-version"
     - name: Install package
@@ -64,7 +64,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version-file: ".python-version"
     - name: Install package with test dependencies
