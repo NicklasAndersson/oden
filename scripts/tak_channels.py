@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import socket
 import ssl
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -61,43 +62,15 @@ def _client_pem(p12_path: Path, passphrase: str, dest: Path) -> Path:
     return pem
 
 
-def _parse_response(raw_response: str) -> tuple[int, str]:
-    """(status, body) ur ett HTTP-svar, chunked eller inte."""
-    head, _, body = raw_response.partition("\r\n\r\n")
-    status = 0
-    first = head.split("\r\n", 1)[0].split(" ")
-    if len(first) > 1 and first[1].isdigit():
-        status = int(first[1])
-    if "transfer-encoding: chunked" in head.lower():
-        out, rest = [], body
-        while rest:
-            size_line, _, rest = rest.partition("\r\n")
-            try:
-                size = int(size_line.strip().split(";")[0], 16)
-            except ValueError:
-                break
-            if size == 0:
-                break
-            out.append(rest[:size])
-            rest = rest[size + 2 :]
-        body = "".join(out)
-    return status, body
-
-
-def _get(host: str, port: int, path: str, ctx: ssl.SSLContext, timeout: float) -> tuple[int, str]:
-    request = f"GET {path} HTTP/1.1\r\nHost: {host}\r\nAccept: application/json\r\nConnection: close\r\n\r\n"
-    chunks: list[bytes] = []
-    with (
-        socket.create_connection((host, port), timeout=timeout) as raw,
-        ctx.wrap_socket(raw, server_hostname=host if ctx.check_hostname else None) as tls,
-    ):
-        tls.sendall(request.encode())
-        while True:
-            part = tls.recv(65536)
-            if not part:
-                break
-            chunks.append(part)
-    return _parse_response(b"".join(chunks).decode("utf-8", "replace"))
+def _get(url: str, ctx: ssl.SSLContext, timeout: float) -> tuple[int, str]:
+    """(status, body). urllib sköter chunked svar och statuskoder; vi bara bär certet."""
+    request = urllib.request.Request(url, headers={"Accept": "application/json"})
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            return response.status, response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:  # 401/403/404 är svar, inte haverier
+        return exc.code, exc.read().decode("utf-8", "replace")
 
 
 def _print_channels(payload: object) -> None:
@@ -146,6 +119,9 @@ def main() -> int:
             return 2
 
         ctx = ssl.create_default_context(cafile=package.ca_pem or None)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        # Odens dokumenterade default: TAK-cert matchar sällan adressen man ringer.
+        # CA-verifieringen är kvar — det är bara namnkontrollen som stängs av.
         ctx.check_hostname = args.check_hostname
         if not package.ca_pem:
             print("Paketet har ingen CA — kan inte verifiera servern.", file=sys.stderr)
@@ -157,7 +133,7 @@ def main() -> int:
         for label, path in _ENDPOINTS:
             print(f"{label} — {path}")
             try:
-                status, body = _get(host, args.port, path, ctx, args.timeout)
+                status, body = _get(f"https://{host}:{args.port}{path}", ctx, args.timeout)
             except (OSError, ssl.SSLError) as exc:
                 print(f"  gick inte att nå: {exc}\n")
                 failures += 1
