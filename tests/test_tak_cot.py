@@ -3,10 +3,12 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from oden.tak.cot import (
+    CotTypeMatcher,
     Report,
     cot_to_inbound,
     cot_type_matches,
     make_uid,
+    raw_event_type,
     report_to_cot,
     sanitize_token,
 )
@@ -236,6 +238,99 @@ class Helpers(unittest.TestCase):
         self.assertTrue(cot_type_matches("a-h-G", ["a-f-*", "a-h-*"]))
         self.assertTrue(cot_type_matches("a-h-G", ["a-h-G"]))
         self.assertFalse(cot_type_matches("a-f-G-U-C", ["a-h-*", "a-u-*"]))
+
+
+class RawEventTypeTest(unittest.TestCase):
+    """The cheap pre-screen read. None always means "parse it properly"."""
+
+    def test_reads_the_root_type(self):
+        self.assertEqual(raw_event_type(b'<event uid="x" type="a-f-G-U-C"><point/></event>'), "a-f-G-U-C")
+
+    def test_reads_single_quoted_attributes(self):
+        self.assertEqual(raw_event_type(b"<event uid='x' type='a-h-G'><point/></event>"), "a-h-G")
+
+    def test_type_last_and_across_newlines(self):
+        self.assertEqual(raw_event_type(b'<event\n  uid="x"\n  how="m-g"\n  type="b-a-o-tbl"\n>'), "b-a-o-tbl")
+
+    def test_xml_declaration_is_allowed_before_the_root(self):
+        self.assertEqual(raw_event_type(b'<?xml version="1.0"?>\n<event uid="x" type="a-h-G"/>'), "a-h-G")
+
+    def test_a_nested_type_cannot_be_mistaken_for_the_root(self):
+        # The root is the flood type; a nested link carries a whitelisted one.
+        xml = b'<event uid="x" type="a-f-G-U-C"><detail><link type="a-h-G" relation="p-p"/></detail></event>'
+        self.assertEqual(raw_event_type(xml), "a-f-G-U-C")
+
+    def test_nested_type_alone_is_undecidable(self):
+        self.assertIsNone(raw_event_type(b'<event uid="x"><detail><link type="a-h-G"/></detail></event>'))
+
+    def test_a_literal_gt_inside_a_value_does_not_end_the_tag(self):
+        self.assertEqual(raw_event_type(b'<event uid="a>b" type="a-h-G"/>'), "a-h-G")
+
+    def test_entities_are_left_to_elementtree(self):
+        # a-f&#45;G expands to a-f-G, which IS whitelisted — must not be judged here.
+        self.assertIsNone(raw_event_type(b'<event uid="x" type="a-f&#45;G"/>'))
+
+    def test_a_comment_before_the_root_is_undecidable(self):
+        xml = b'<!-- <event type="a-f-G-U-C"/> --><event uid="x" type="a-h-G"/>'
+        self.assertIsNone(raw_event_type(xml))
+
+    def test_byte_order_mark_is_undecidable(self):
+        self.assertIsNone(raw_event_type(b'\xef\xbb\xbf<event uid="x" type="a-h-G"/>'))
+
+    def test_another_element_named_like_event(self):
+        self.assertIsNone(raw_event_type(b'<eventlog type="a-h-G"/>'))
+        self.assertIsNone(raw_event_type(b'<cot:event uid="x" type="a-h-G"/>'))
+
+    def test_no_type_attribute(self):
+        self.assertIsNone(raw_event_type(b'<event uid="x"><point/></event>'))
+
+    def test_protobuf_and_non_bytes_are_undecidable(self):
+        self.assertIsNone(raw_event_type(b"\xbf\x01\xbf\x12\x0ctakproto"))
+        self.assertIsNone(raw_event_type('<event uid="x" type="a-h-G"/>'))  # str, not bytes
+        self.assertIsNone(raw_event_type(object()))
+        self.assertIsNone(raw_event_type(None))
+
+    def test_a_type_beyond_the_scanned_head_is_undecidable(self):
+        padded = b'<event uid="' + b"x" * 600 + b'" type="a-h-G"/>'
+        self.assertIsNone(raw_event_type(padded))
+
+    def test_a_truncated_read_is_undecidable(self):
+        self.assertIsNone(raw_event_type(b'<event uid="x" ty'))
+
+
+class CotTypeMatcherTest(unittest.TestCase):
+    """The compiled matcher must agree with cot_type_matches, the reference."""
+
+    _PATTERNS = [
+        ["a-f-G", "a-h-*", "a-n-G", "a-u-*", "b-m-p-*", "b-a-*"],
+        [],
+        ["*"],
+        ["a-h-G"],
+        [" a-u-* ", "", "  "],
+    ]
+    _TYPES = [
+        "a-f-G",
+        "a-f-G-U-C",
+        "a-h-G",
+        "a-h-G-U-C-F",
+        "a-n-G",
+        "a-u-G",
+        "b-m-p-s-p-i",
+        "b-a-o-tbl",
+        "t-x-takp-v",
+        "",
+    ]
+
+    def test_agrees_with_the_reference_implementation(self):
+        for patterns in self._PATTERNS:
+            matcher = CotTypeMatcher.from_patterns(patterns)
+            for cot_type in self._TYPES:
+                with self.subTest(patterns=patterns, cot_type=cot_type):
+                    self.assertEqual(matcher.matches(cot_type), cot_type_matches(cot_type, patterns))
+
+    def test_no_patterns_matches_nothing_by_itself(self):
+        # The caller gates on the pattern list being non-empty, as accept() does.
+        self.assertFalse(CotTypeMatcher.from_patterns([]).matches("a-h-G"))
 
 
 if __name__ == "__main__":

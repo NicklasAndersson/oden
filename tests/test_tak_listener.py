@@ -1,7 +1,10 @@
+import asyncio
 import shutil
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from oden.config_db import init_db
@@ -15,6 +18,7 @@ from oden.tak.listener import (
     InboundFilter,
     build_envelope,
     render_observation,
+    run_tak_listener,
 )
 
 
@@ -206,6 +210,142 @@ class InboundRoundTripTest(unittest.IsolatedAsyncioTestCase):
         notes = list(Path(self.vault).rglob("*.md"))
         self.assertTrue(notes, "inkommande CoT skrev ingen not i valvet")
         self.assertIn(OBSERVATION_HEADER, notes[0].read_text(encoding="utf-8"))
+
+
+_FIX = Path(__file__).parent / "fixtures" / "tak"
+_DEFAULT_TYPES = ["a-f-G", "a-h-*", "a-n-G", "a-u-*", "b-m-p-*", "b-a-*"]
+
+
+def _raw(uid="ENEMY.1", cot_type="a-h-G", lat=59.33, lon=18.07):
+    """The same shape as _cot(), but left as raw bytes off the wire."""
+    return (
+        f"<event version='2.0' uid='{uid}' type='{cot_type}' how='m-g' time='2026-08-28T14:30:00.00Z'>"
+        f"<point lat='{lat}' lon='{lon}' hae='9999999.0' ce='9999999.0' le='9999999.0'/>"
+        f"<detail><contact callsign='Alpha'/><remarks>Två fordon</remarks></detail></event>"
+    ).encode()
+
+
+class PrescreenTest(unittest.TestCase):
+    """The pre-screen may say "certainly reject" or "don't know" — never more."""
+
+    def _filter(self, **overrides):
+        return InboundFilter({"inbound_types": _DEFAULT_TYPES, **overrides})
+
+    def test_rejects_the_friendly_pli_flood_without_parsing(self):
+        self.assertTrue(self._filter().prescreen_rejects(_raw(cot_type="a-f-G-U-C")))
+
+    def test_lets_a_whitelisted_type_through_to_the_full_parse(self):
+        self.assertFalse(self._filter().prescreen_rejects(_raw(cot_type="a-h-G")))
+
+    def test_never_rejects_what_accept_would_take(self):
+        """The invariant the optimization rests on, over real and awkward payloads."""
+        payloads = [path.read_bytes() for path in sorted(_FIX.glob("*.xml"))]
+        payloads += [
+            _raw(cot_type=t) for t in ("a-h-G", "a-f-G", "a-f-G-U-C", "b-m-p-s-p-i", "b-a-o-tbl", "t-x-takp-v")
+        ]
+        payloads += [
+            b"<event uid='x' type='a-h-G'><detail><link type='a-f-G-U-C'/></detail></event>",
+            b'<!-- <event type="a-f-G-U-C"/> --><event uid="x" type="a-h-G"><point lat="59.3" lon="18.0"/></event>',
+            b'<event uid="x" type="a-f&#45;G"><point lat="59.3" lon="18.0"/></event>',
+            b"\xbf\x01\xbf\x12takproto",
+            b"inte xml alls",
+            b"",
+        ]
+        for data in payloads:
+            with self.subTest(data=data[:60]):
+                cot = cot_to_inbound(data)
+                would_accept = cot is not None and InboundFilter({"inbound_types": _DEFAULT_TYPES}).accept(cot)
+                if would_accept:
+                    self.assertFalse(
+                        self._filter().prescreen_rejects(data),
+                        "förfiltret kastade något som filtret hade släppt igenom",
+                    )
+
+    def test_leaves_filter_state_untouched(self):
+        filt = self._filter()
+        for _ in range(100):
+            self.assertTrue(filt.prescreen_rejects(_raw(cot_type="a-f-G-U-C")))
+        self.assertEqual(filt._seen, {})
+        self.assertEqual(filt._window_count, 0)
+
+    def test_disabled_when_no_types_are_configured(self):
+        self.assertFalse(InboundFilter({"inbound_types": []}).prescreen_rejects(_raw(cot_type="a-f-G-U-C")))
+
+    def test_undecidable_payloads_fall_through(self):
+        for data in (object(), None, "<event uid='x' type='a-f-G-U-C'/>", b"\xbf\x01takproto"):
+            with self.subTest(data=data):
+                self.assertFalse(self._filter().prescreen_rejects(data))
+
+
+class _StubBridge:
+    """Just enough bridge for run_tak_listener: settings, an rx queue, counters."""
+
+    def __init__(self, settings):
+        self.settings = settings
+        self.rx_queue: asyncio.Queue = asyncio.Queue()
+        self.rx_total = 0
+        self.rx_filtered = 0
+        self.received_count = 0
+        self.last_rx_at = None
+
+
+class ListenerCountersTest(unittest.IsolatedAsyncioTestCase):
+    """The pre-screen must not change rx_total or rx_filtered for the same traffic."""
+
+    _TRAFFIC = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls._TRAFFIC = [
+            _raw(cot_type="a-f-G-U-C"),  # PLI flood, pre-screened away
+            _raw(cot_type="a-f-G-U-C"),
+            _raw(uid="ENEMY.2", cot_type="a-h-G"),  # a note
+            (_FIX / "8s_report.xml").read_bytes(),  # a note
+            (_FIX / "takproto_v.xml").read_bytes(),  # server hello, no position
+            b"inte xml alls",
+            b"",
+        ]
+
+    async def _drain(self, *, prescreen: bool) -> tuple[int, int, int]:
+        bridge = _StubBridge({"inbound_enabled": True, "inbound_types": _DEFAULT_TYPES})
+        for item in self._TRAFFIC:
+            bridge.rx_queue.put_nowait(item)
+
+        created = []
+
+        async def fake_run_message(**kwargs):
+            created.append(kwargs.get("message_id"))
+
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch("oden.messages_db.create_raw_message", side_effect=lambda *a, **k: len(created) + 1)
+            )
+            stack.enter_context(patch("oden.messages_db.update_message_status"))
+            stack.enter_context(
+                patch(
+                    "oden.pipeline_orchestrator.PipelineOrchestrator",
+                    return_value=SimpleNamespace(run_message=fake_run_message),
+                )
+            )
+            if not prescreen:  # the old behaviour: parse everything, then filter
+                stack.enter_context(patch.object(InboundFilter, "prescreen_rejects", lambda self, data: False))
+
+            task = asyncio.create_task(run_tak_listener(bridge))
+            while bridge.rx_queue.qsize() and not task.done():
+                await asyncio.sleep(0)
+            for _ in range(50):
+                await asyncio.sleep(0)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        return bridge.rx_total, bridge.rx_filtered, bridge.received_count
+
+    async def test_counters_are_identical_with_and_without_the_prescreen(self):
+        with_pre = await self._drain(prescreen=True)
+        without_pre = await self._drain(prescreen=False)
+        self.assertEqual(with_pre, without_pre)
+        self.assertEqual(with_pre[0], len(self._TRAFFIC))
+        self.assertEqual(sum(with_pre[1:]), len(self._TRAFFIC))
 
 
 if __name__ == "__main__":

@@ -27,7 +27,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from oden import config as cfg
-from oden.tak.cot import UID_PREFIX, InboundCot, cot_to_inbound, cot_type_matches, distance_m, latlon_to_mgrs
+from oden.tak.cot import (
+    UID_PREFIX,
+    CotTypeMatcher,
+    InboundCot,
+    cot_to_inbound,
+    distance_m,
+    latlon_to_mgrs,
+    raw_event_type,
+)
 from oden.tak.eight_s import is_8s_report, to_7s_message
 
 logger = logging.getLogger(__name__)
@@ -87,6 +95,9 @@ class InboundFilter:
     def __init__(self, settings: dict[str, Any]) -> None:
         merged = {**_INBOUND_DEFAULTS, **settings}
         self.types = _as_list(merged["inbound_types"])
+        # Same patterns, compiled: this matcher runs on the raw pre-screen path
+        # for every inbound event. cot_type_matches stays the reference version.
+        self._type_matcher = CotTypeMatcher.from_patterns(self.types)
         self.allow = [c.lower() for c in _as_list(merged["inbound_callsign_allow"])]
         self.deny = [c.lower() for c in _as_list(merged["inbound_callsign_deny"])]
         self.min_move_m = _num(merged["inbound_min_move_m"], 100.0)
@@ -105,11 +116,28 @@ class InboundFilter:
         self._window_count += 1
         return self._window_count > self.max_per_minute
 
+    def prescreen_rejects(self, data: object) -> bool:
+        """True only when the type whitelist *certainly* rejects this raw payload.
+
+        Conservative by construction: anything the cheap read cannot decide
+        returns False and goes on to the full parse and ``accept`` as before.
+        ``accept`` remains the authoritative filter — this only lets the
+        listener skip an XML parse that was doomed anyway, which is the
+        difference between 14 us and 1 us for the position-report flood.
+
+        Type only. The own-echo guard is deliberately not pre-screened: accept()
+        tests the *sanitized* uid, so a raw-bytes comparison would not agree.
+        """
+        if not self.types:
+            return False
+        raw_type = raw_event_type(data)
+        return raw_type is not None and not self._type_matcher.matches(raw_type)
+
     def accept(self, cot: InboundCot, *, now: float | None = None) -> bool:
         if cot.uid.startswith(UID_PREFIX):
             self.last_reject = "egen markör (eko)"
             return False
-        if self.types and not cot_type_matches(cot.cot_type, self.types):
+        if self.types and not self._type_matcher.matches(cot.cot_type):
             self.last_reject = f"typ {cot.cot_type} matchar inte inbound_types"
             return False
 
@@ -215,11 +243,15 @@ async def run_tak_listener(bridge: Any) -> None:
         try:
             bridge.rx_total += 1
             bridge.last_rx_at = datetime.now(timezone.utc)
-            cot = cot_to_inbound(data)
+            prescreened = filt.prescreen_rejects(data)
+            cot = None if prescreened else cot_to_inbound(data)
 
             if cot is None:
                 bridge.rx_filtered += 1
-                logger.debug("TAK: CoT utan användbar position, ignoreras")
+                logger.debug(
+                    "TAK: ignorerar CoT (%s)",
+                    "typ utanför inbound_types" if prescreened else "ingen användbar position",
+                )
             elif not filt.accept(cot):
                 bridge.rx_filtered += 1
                 logger.debug("TAK: filtrerade CoT %s (%s) — %s", cot.uid, cot.cot_type, filt.last_reject)

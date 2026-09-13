@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -243,6 +244,128 @@ class CertExpiryTest(unittest.TestCase):
 
         self.assertIsNone(cert_expiry({}))
         self.assertIsNone(cert_expiry({"tls_client_cert": "/nonexistent/x.p12"}))
+
+
+class _EofReader:
+    """A socket reader whose far end has gone away, like pytak's after a drop."""
+
+    def __init__(self, at_eof=True):
+        self._at_eof = at_eof
+        self.reads = 0
+
+    def at_eof(self):
+        return self._at_eof
+
+    async def readuntil(self, separator):
+        """What pytak's RXWorker calls; at EOF it returns instantly, forever."""
+        self.reads += 1
+        raise asyncio.IncompleteReadError(partial=b"", expected=None)
+
+
+class _RxWorkerStub:
+    """Stands in for pytak's RXWorker between setup() and run(): carries the reader."""
+
+    def __init__(self, reader):
+        self.reader = reader
+
+
+class _SpinningCLITool:
+    """pytak as it really behaves after a dropped link.
+
+    ``run()`` never returns (RXWorker swallows the EOF error and loops), and the
+    worker it started keeps running unless someone cancels it explicitly.
+    """
+
+    instances: list = []
+
+    def __init__(self, config, tx_queue=None, rx_queue=None):
+        self.tx_queue = tx_queue or asyncio.Queue()
+        self.rx_queue = rx_queue or asyncio.Queue()
+        self.reader = _EofReader()
+        self.tasks = {_RxWorkerStub(self.reader)}  # a set, exactly like pytak's
+        self.running_tasks: set = set()
+        _SpinningCLITool.instances.append(self)
+
+    async def setup(self):
+        pass
+
+    async def _worker(self):
+        while True:  # exactly pytak's RXWorker.run loop
+            with contextlib.suppress(asyncio.IncompleteReadError):
+                # readcot swallows this, which is what makes run() spin forever
+                await self.reader.readuntil(b"</event>")
+            await asyncio.sleep(0)
+
+    async def run(self):
+        self.running_tasks = {asyncio.create_task(self._worker())}
+        await asyncio.wait(self.running_tasks, return_when=asyncio.FIRST_EXCEPTION)
+
+
+class DroppedLinkTest(unittest.IsolatedAsyncioTestCase):
+    """A link that dies must be noticed, must not spin, and must not leak."""
+
+    def _bridge(self):
+        _SpinningCLITool.instances = []
+        return TakBridge({**_DEFAULTS, "cot_url": "tcp://x:8087"})
+
+    async def test_eof_is_detected_and_the_bridge_reconnects(self):
+        bridge = self._bridge()
+        with (
+            patch.dict("sys.modules", {"pytak": SimpleNamespace(CLITool=_SpinningCLITool)}),
+            patch("oden.tak.bridge._EOF_POLL", 0.0),
+            patch("oden.tak.bridge._RECONNECT_MIN", 0.0),
+            patch("oden.tak.listener.start_tak_listener", return_value=None),
+        ):
+            await bridge.start()
+            for _ in range(50):  # the watchdog fires, then a fresh connect
+                await asyncio.sleep(0)
+            self.assertGreater(len(_SpinningCLITool.instances), 1, "bryggan försökte aldrig återansluta")
+            await bridge.stop()  # while pytak is still patched
+
+    async def test_the_dead_worker_does_not_spin_on(self):
+        bridge = self._bridge()
+        with (
+            patch.dict("sys.modules", {"pytak": SimpleNamespace(CLITool=_SpinningCLITool)}),
+            patch("oden.tak.bridge._EOF_POLL", 0.0),
+            patch("oden.tak.bridge._RECONNECT_MIN", 3600.0),  # one attempt, then park
+            patch("oden.tak.listener.start_tak_listener", return_value=None),
+        ):
+            await bridge.start()
+            for _ in range(50):
+                await asyncio.sleep(0)
+            first = _SpinningCLITool.instances[0]
+            settled = first.reader.reads
+            # The drop is reported instead of being hidden behind a green light.
+            self.assertIn("stängde anslutningen", bridge.last_error or "")
+            self.assertFalse(bridge.connected)
+            for _ in range(200):  # plenty of loop turns for a spinner to run wild
+                await asyncio.sleep(0)
+            await bridge.stop()
+
+        self.assertEqual(first.reader.reads, settled, "pytaks worker snurrar vidare efter avbrottet")
+        self.assertTrue(all(t.done() for t in first.running_tasks))
+
+    async def test_stop_leaves_no_pytak_tasks_behind(self):
+        before = len(asyncio.all_tasks())
+        for _ in range(3):  # the TAK tab does stop+start on every save
+            bridge = self._bridge()
+            with (
+                patch.dict("sys.modules", {"pytak": SimpleNamespace(CLITool=_SpinningCLITool)}),
+                patch("oden.tak.bridge._EOF_POLL", 3600.0),  # keep the link "up"
+                patch("oden.tak.bridge._RECONNECT_MIN", 3600.0),
+                patch("oden.tak.listener.start_tak_listener", return_value=None),
+            ):
+                await bridge.start()
+                for _ in range(10):
+                    await asyncio.sleep(0)
+                await bridge.stop()
+
+        for _ in range(10):
+            await asyncio.sleep(0)
+        self.assertEqual(len(asyncio.all_tasks()), before, "en start/stopp-omgång lämnade tasks kvar")
+        self.assertIsNone(bridge._clitool)
+        for tool in _SpinningCLITool.instances:
+            self.assertTrue(all(t.done() for t in tool.running_tasks))
 
 
 if __name__ == "__main__":

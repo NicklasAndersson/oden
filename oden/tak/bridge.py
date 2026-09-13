@@ -35,6 +35,11 @@ logger = logging.getLogger(__name__)
 # asyncio.open_connection has no timeout of its own — a blackholed host would
 # otherwise hang "Spara" in the GUI forever.
 _CONNECT_TIMEOUT = 20.0
+# How often the watchdog asks the socket whether the far end has gone away.
+# pytak cannot tell us: RXWorker.readcot swallows IncompleteReadError and its
+# run loop spins on instead of returning, so CLITool.run() never finishes and
+# a dropped link would otherwise burn a core while the GUI still shows green.
+_EOF_POLL = 1.0
 # ponytail: plain exponential backoff, no jitter — one Oden per server.
 _RECONNECT_MIN = 5.0
 _RECONNECT_MAX = 300.0
@@ -153,6 +158,7 @@ class TakBridge:
         self._clitool: Any = None
         self._tx_queue: asyncio.Queue[bytes] | None = None
         self._rx_queue: asyncio.Queue[bytes] | None = None
+        self._reader: Any = None  # pytak's RXWorker reader, for the EOF watchdog
         self._run_task: asyncio.Task[Any] | None = None
         self._listener_task: asyncio.Task[None] | None = None
         self._needs_enrollment = False
@@ -280,6 +286,10 @@ class TakBridge:
         # First time pytak sizes the queues; every reconnect reuses the same objects.
         self._tx_queue, self._rx_queue = self._clitool.tx_queue, self._clitool.rx_queue
         await asyncio.wait_for(self._clitool.setup(), _CONNECT_TIMEOUT)
+        self._reader = next(
+            (r for r in (getattr(w, "reader", None) for w in getattr(self._clitool, "tasks", ())) if r is not None),
+            None,
+        )
         self.connected = True
         self.last_error = None
 
@@ -298,6 +308,39 @@ class TakBridge:
         self._listener_task = start_tak_listener(self)
         logger.info("TAK-bryggan startad (%s)", self._config.get("COT_URL"))
 
+    async def _watch_for_eof(self) -> None:
+        """Return once the far end has closed the connection.
+
+        pytak never reports this: ``RXWorker.readcot`` turns the
+        ``IncompleteReadError`` at EOF into ``None`` and its ``while True`` loop
+        immediately tries again, so it spins at tens of thousands of reads a
+        second and ``CLITool.run()`` never returns. Asking the reader directly
+        is what turns a dead link back into a reconnect.
+        """
+        reader = self._reader
+        if reader is None or not hasattr(reader, "at_eof"):
+            await asyncio.Event().wait()  # nothing to watch: let pytak decide
+            return
+        while not reader.at_eof():
+            await asyncio.sleep(_EOF_POLL)
+
+    async def _teardown_clitool(self) -> None:
+        """Stop pytak's worker tasks and drop the CLITool.
+
+        Cancelling the task that awaits ``CLITool.run()`` is not enough:
+        ``asyncio.wait`` does not cancel what it waits on, so the TX/RX workers
+        survive, and after a dropped link they survive *spinning*. The TAK tab
+        stops and starts the bridge on every save, so one leak per save adds up.
+        """
+        clitool, self._clitool, self._reader = self._clitool, None, None
+        if clitool is None:
+            return
+        tasks = [t for t in getattr(clitool, "running_tasks", ()) or () if not t.done()]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     async def _run(self) -> None:
         """Run pytak until cancelled; on connection loss, reconnect with backoff.
 
@@ -306,21 +349,43 @@ class TakBridge:
         """
         delay = _RECONNECT_MIN
         while True:
+            runner: asyncio.Task[Any] | None = None
+            watchdog: asyncio.Task[None] | None = None
             try:
                 if not self.connected:
                     await self._connect()
                     delay = _RECONNECT_MIN
                     logger.info("TAK-bryggan återansluten")
-                await self._clitool.run()
-                self.last_error = "pytak avslutade utan fel"
+                runner = asyncio.create_task(self._clitool.run())
+                watchdog = asyncio.create_task(self._watch_for_eof())
+                done, _ = await asyncio.wait({runner, watchdog}, return_when=asyncio.FIRST_COMPLETED)
+                if runner in done:
+                    runner.result()  # raises whatever pytak failed with
+                    self.last_error = "pytak avslutade utan fel"
+                else:
+                    self.last_error = "servern stängde anslutningen"
             except asyncio.CancelledError:
+                await self._cancel(runner, watchdog)
+                await self._teardown_clitool()
                 raise
             except Exception as exc:
                 self.last_error = safe_error(exc, self.settings)
+            await self._cancel(runner, watchdog)
+            # A new CLITool is built on reconnect, so this one's workers have to
+            # go now or they keep the old socket and spin on it forever.
+            await self._teardown_clitool()
             self.connected = False
             logger.error("TAK-bryggan: %s — nytt försök om %.0f s", self.last_error, delay)
             await asyncio.sleep(delay)
             delay = min(delay * 2, _RECONNECT_MAX)
+
+    @staticmethod
+    async def _cancel(*tasks: asyncio.Task[Any] | None) -> None:
+        pending = [t for t in tasks if t is not None and not t.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     async def publish(self, cot: bytes) -> bool:
         """Enqueue one CoT event for transmission. Never blocks the caller.
@@ -348,7 +413,7 @@ class TakBridge:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._run_task
         self._run_task = None
-        self._clitool = None
+        await self._teardown_clitool()
         self._tx_queue = self._rx_queue = None
         self.connected = False
 

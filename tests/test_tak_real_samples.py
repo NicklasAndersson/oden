@@ -7,7 +7,7 @@ the way we expect — the synthetic tests elsewhere can drift from reality.
 import unittest
 from pathlib import Path
 
-from oden.tak.cot import cot_to_inbound
+from oden.tak.cot import cot_to_inbound, raw_event_type
 from oden.tak.listener import _INBOUND_DEFAULTS, InboundFilter, build_envelope, render_observation
 
 _FIX = Path(__file__).parent / "fixtures" / "tak"
@@ -69,6 +69,29 @@ class RealSampleTest(unittest.TestCase):
 
     def test_takproto_announcement_yields_nothing(self):
         self.assertIsNone(cot_to_inbound(_load("takproto_v.xml")))
+
+    def test_raw_event_type_agrees_with_the_full_parse(self):
+        """The cheap read must give the same type the XML parser reports."""
+        for name, expected in (
+            ("8s_report.xml", "a-h-G"),
+            ("spi_pointer.xml", "b-m-p-s-p-i"),
+            ("friendly_pli.xml", "a-f-G-U-C"),
+            ("takproto_v.xml", "t-x-takp-v"),
+        ):
+            with self.subTest(name):
+                data = _load(name)
+                self.assertEqual(raw_event_type(data), expected)
+                cot = cot_to_inbound(data)
+                if cot is not None:  # takproto_v has no usable position
+                    self.assertEqual(raw_event_type(data), cot.cot_type)
+
+    def test_the_pli_flood_is_discarded_without_parsing(self):
+        self.assertTrue(self._filter().prescreen_rejects(_load("friendly_pli.xml")))
+
+    def test_reports_and_pointers_survive_the_prescreen(self):
+        for name in ("8s_report.xml", "spi_pointer.xml"):
+            with self.subTest(name):
+                self.assertFalse(self._filter().prescreen_rejects(_load(name)))
 
 
 if __name__ == "__main__":
