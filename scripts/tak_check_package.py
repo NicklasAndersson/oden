@@ -53,10 +53,10 @@ def _describe(package, workdir: Path) -> None:
 
 
 async def _connect(args: argparse.Namespace, package, workdir: Path) -> int:
-    password = os.environ.get(args.password_env, "")
+    password = os.environ.get(args.env_var, "")
     if package.needs_enrollment and not (args.user and password):
         print(
-            f"\nPaketet kräver enrollment. Kör igen med --user <namn> och {args.password_env} satt i miljön.",
+            f"\nPaketet kräver enrollment. Kör igen med --user <namn> och {args.env_var} satt i miljön.",
             file=sys.stderr,
         )
         return 2
@@ -66,7 +66,7 @@ async def _connect(args: argparse.Namespace, package, workdir: Path) -> int:
         "enabled": True,
         "pref_package": str(args.package),
         "enroll_username": args.user or "",
-        "enroll_password_env": args.password_env,
+        "enroll_password_env": args.env_var,
         "callsign": args.callsign,
     }
 
@@ -126,7 +126,14 @@ async def _main() -> int:
     parser.add_argument("package", type=Path, help="sökväg till data-package-.zip")
     parser.add_argument("--connect", action="store_true", help="anslut på riktigt, inte bara läs paketet")
     parser.add_argument("--user", help="enrollment-användarnamn")
-    parser.add_argument("--password-env", default="ODEN_TAK_ENROLL_PASSWORD", help="env-var med enrollment-lösenordet")
+    # dest=env_var, inte password_env: hjälptexten skriver ut env-varens NAMN, och ett
+    # attribut som heter *password* läses av CodeQL som själva hemligheten (falskt larm).
+    parser.add_argument(
+        "--password-env",
+        dest="env_var",
+        default="ODEN_TAK_ENROLL_PASSWORD",
+        help="env-var med enrollment-lösenordet",
+    )
     parser.add_argument("--callsign", default="ODEN")
     parser.add_argument("--send", metavar="MGRS", help="skicka en testmarkör efter anslutning")
     args = parser.parse_args()

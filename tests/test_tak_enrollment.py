@@ -51,14 +51,20 @@ def _client_p12(passphrase: str, *, days_valid: int) -> bytes:
     )
 
 
+# Recorded enrollment arguments, deliberately NOT an attribute of FakeEnrollment: the
+# recorded password would taint the class object, and CodeQL then reads the unrelated
+# FakeEnrollment.fail_with below as the password being logged in clear text.
+_CALLS: list[dict] = []
+
+
 class FakeEnrollment:
     """Stand-in for pytak.crypto_classes.CertificateEnrollment.
 
     Mirrors the real thing's contract: writes the .p12 to output_path on success;
     on failure logs the reason to ``pytak.crypto_classes`` and writes nothing.
+    Arguments of each call land in the module-level ``_CALLS``.
     """
 
-    calls: list[dict] = []
     fail_with: str | None = None
     days_valid = 365
 
@@ -66,7 +72,7 @@ class FakeEnrollment:
         pass
 
     async def begin_enrollment(self, *, domain, username, password, output_path, passphrase, **_):
-        FakeEnrollment.calls.append({"domain": domain, "username": username, "password": password})
+        _CALLS.append({"domain": domain, "username": username, "password": password})
         # Real pytak WARNs this on every attempt, success or failure.
         logging.getLogger("pytak.crypto_classes").warning("SSL verification disabled - NOT for production use!")
         if FakeEnrollment.fail_with:
@@ -87,7 +93,7 @@ class EnrollmentTest(unittest.IsolatedAsyncioTestCase):
         self._tmp = TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.dest = Path(self._tmp.name) / "tak"
-        FakeEnrollment.calls = []
+        _CALLS.clear()
         FakeEnrollment.fail_with = None
         FakeEnrollment.days_valid = 365
 
@@ -96,7 +102,7 @@ class EnrollmentTest(unittest.IsolatedAsyncioTestCase):
             first = await ensure_cert(HOST, USER, PASSWORD, self.dest)
             second = await ensure_cert(HOST, USER, PASSWORD, self.dest)
 
-        self.assertEqual(len(FakeEnrollment.calls), 1)
+        self.assertEqual(len(_CALLS), 1)
         self.assertEqual(first, second)
         self.assertTrue(Path(first.path).is_file())
         self.assertTrue(Path(first.path).parent == self.dest)
@@ -123,7 +129,7 @@ class EnrollmentTest(unittest.IsolatedAsyncioTestCase):
             FakeEnrollment.days_valid = 365
             renewed = await ensure_cert(HOST, USER, PASSWORD, self.dest)
 
-        self.assertEqual(len(FakeEnrollment.calls), 2)
+        self.assertEqual(len(_CALLS), 2)
         self.assertGreater(renewed.expires_at, dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=300))
 
     async def test_a_different_account_gets_its_own_cert(self):
@@ -131,7 +137,7 @@ class EnrollmentTest(unittest.IsolatedAsyncioTestCase):
             a = await ensure_cert(HOST, USER, PASSWORD, self.dest)
             b = await ensure_cert(HOST, "annan", PASSWORD, self.dest)
         self.assertNotEqual(a.path, b.path)
-        self.assertEqual(len(FakeEnrollment.calls), 2)
+        self.assertEqual(len(_CALLS), 2)
 
     async def test_failure_reports_pytaks_reason_in_swedish(self):
         """pytak swallows the exception; its log line is the only evidence, so it goes in the error."""
@@ -200,7 +206,7 @@ class BridgeEnrollmentTest(unittest.IsolatedAsyncioTestCase):
         self._tmp = TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.dest = Path(self._tmp.name) / "tak"
-        FakeEnrollment.calls = []
+        _CALLS.clear()
         FakeEnrollment.fail_with = None
         FakeEnrollment.days_valid = 365
         _FakeCLITool.instances = []
@@ -226,7 +232,7 @@ class BridgeEnrollmentTest(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(bridge.stop)
 
         config = _FakeCLITool.instances[0].config
-        self.assertEqual(FakeEnrollment.calls, [{"domain": HOST, "username": USER, "password": PASSWORD}])
+        self.assertEqual(_CALLS, [{"domain": HOST, "username": USER, "password": PASSWORD}])
         self.assertEqual(config.get("PYTAK_TLS_CLIENT_CERT"), bridge.enrolled.path)
         self.assertEqual(config.get("PYTAK_TLS_CLIENT_PASSWORD"), bridge.enrolled.passphrase)
         self.assertNotIn("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD", config)
