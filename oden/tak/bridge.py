@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import secrets
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,7 @@ from typing import Any
 
 from oden import config as cfg
 from oden.config_db import get_config_value
+from oden.tak.pref_package import package_settings, tak_dir
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +50,11 @@ _DEFAULTS: dict[str, Any] = {
     # Turning this off keeps CA verification but skips the hostname check.
     "tls_check_hostname": False,
     # Certificate enrollment (username/password against the server, port 8446).
-    # The password is read from the env var named here, never stored.
+    # The password comes from the env var named here when that variable is set,
+    # otherwise from enroll_password (typed in the TAK tab).
     "enroll_username": "",
     "enroll_password_env": "ODEN_TAK_ENROLL_PASSWORD",
+    "enroll_password": "",
     "callsign": "ODEN",
     "cot_stale_seconds": 3600,
     "cot_archive": True,
@@ -61,6 +65,20 @@ _DEFAULTS: dict[str, Any] = {
 def load_tak_settings() -> dict[str, Any]:
     raw = get_config_value(cfg.CONFIG_DB, "tak_settings") or {}
     return {**_DEFAULTS, **raw}
+
+
+def _secret(settings: dict[str, Any], env_key: str, value_key: str) -> str:
+    """Resolve a password: the environment variable when it is actually set, else the stored value.
+
+    ``env_key`` names the *setting* holding the environment variable's name, so
+    an operator can keep the secret out of the config db. Falling back only when
+    the variable is genuinely absent matters: both ``*_password_env`` settings
+    have a default, so keying off "is a variable name configured" would make the
+    stored value unreachable.
+    """
+    env_name = str(settings.get(env_key) or "").strip()
+    from_env = os.environ.get(env_name, "") if env_name else ""
+    return from_env or str(settings.get(value_key) or "")
 
 
 def cert_expiry(settings: dict[str, Any]) -> datetime | None:
@@ -79,8 +97,7 @@ def cert_expiry(settings: dict[str, Any]) -> datetime | None:
 
         blob = Path(os.path.expanduser(path)).read_bytes()
         if path.lower().endswith((".p12", ".pfx")):
-            pw_env = str(settings.get("tls_client_password_env") or "").strip()
-            password = os.environ.get(pw_env, "") if pw_env else str(settings.get("tls_client_password") or "")
+            password = _secret(settings, "tls_client_password_env", "tls_client_password")
             _key, cert, _chain = pkcs12.load_key_and_certificates(blob, password.encode() or None)
         else:
             cert = load_pem_x509_certificate(blob)
@@ -146,21 +163,22 @@ class TakBridge:
                 }[key]
                 section[section_key] = os.path.expanduser(str(s[key]))
 
-        pref_package = os.path.expanduser(str(s.get("pref_package") or "").strip())
-        if pref_package:
-            # Unzips the data package, converts the .p12s to PEM and fills in
-            # COT_URL + PYTAK_TLS_CLIENT_CERT/KEY/CAFILE from the .pref inside.
-            import pytak
-
-            section.update({k: str(v) for k, v in pytak.read_pref_package(pref_package).items() if v})
+        package = package_settings(s, tak_dir())
+        if package is not None:
+            section["COT_URL"] = package.cot_url
+            if package.client_cert:
+                section["PYTAK_TLS_CLIENT_CERT"] = package.client_cert
+                if package.client_password:
+                    section["PYTAK_TLS_CLIENT_PASSWORD"] = package.client_password
+            if package.ca_pem:
+                section["PYTAK_TLS_CLIENT_CAFILE"] = package.ca_pem
 
         if str(s.get("cot_url") or "").strip():
             section["COT_URL"] = str(s["cot_url"]).strip()
         for key in ("tls_client_cert", "tls_client_key", "tls_ca_cert"):
             _path(key)
 
-        pw_env = str(s.get("tls_client_password_env") or "").strip()
-        password = os.environ.get(pw_env, "") if pw_env else str(s.get("tls_client_password") or "")
+        password = _secret(s, "tls_client_password_env", "tls_client_password")
         if password:
             section["PYTAK_TLS_CLIENT_PASSWORD"] = password
         if not bool(s.get("tls_verify", True)):
@@ -169,12 +187,20 @@ class TakBridge:
             section["PYTAK_TLS_DONT_CHECK_HOSTNAME"] = "1"
 
         enroll_user = str(s.get("enroll_username") or "").strip()
-        if enroll_user:
-            enroll_pw_env = str(s.get("enroll_password_env") or "").strip()
-            enroll_pw = os.environ.get(enroll_pw_env, "") if enroll_pw_env else ""
+        enroll_pw = _secret(s, "enroll_password_env", "enroll_password")
+        if enroll_user and enroll_pw:
             section["PYTAK_TLS_CERT_ENROLLMENT_USERNAME"] = enroll_user
-            if enroll_pw:
-                section["PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"] = enroll_pw
+            section["PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"] = enroll_pw
+            # pytak generates one itself when unset -- and prints it to stdout on
+            # every connection attempt. The enrolled .p12 is per-connection, so a
+            # fresh throwaway passphrase is all it needs.
+            section["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] = secrets.token_urlsafe(16)
+        elif package is not None and package.needs_enrollment and not section.get("PYTAK_TLS_CLIENT_CERT"):
+            missing = "användarnamn" if not enroll_user else "lösenord"
+            raise ValueError(
+                f"TAK: data-paketet innehåller bara serverns CA och kräver enrollment, "
+                f"men enrollment-{missing} saknas. Fyll i det i TAK-fliken."
+            )
 
         parser = ConfigParser()
         parser["oden_tak"] = section

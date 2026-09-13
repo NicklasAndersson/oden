@@ -1,12 +1,10 @@
 import asyncio
-import importlib.util
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from oden.tak.bridge import _DEFAULTS, TakBridge
-
-_HAS_PYTAK = importlib.util.find_spec("pytak") is not None
+from oden.tak.pref_package import PackageConfig
 
 
 class BuildConfigTest(unittest.TestCase):
@@ -22,7 +20,7 @@ class BuildConfigTest(unittest.TestCase):
         self.assertEqual(cfg["PYTAK_TLS_CLIENT_CERT"], "/c/oden.p12")
         self.assertEqual(cfg["PYTAK_TLS_CLIENT_CAFILE"], "/c/ca.pem")
 
-    def test_password_comes_from_named_env_var_only(self):
+    def test_password_comes_from_the_named_env_var(self):
         cfg = self._config(
             {"cot_url": "tls://x:8089", "tls_client_password_env": "MY_TAK_PW"},
             env={"MY_TAK_PW": "s3cret"},
@@ -41,18 +39,29 @@ class BuildConfigTest(unittest.TestCase):
         cfg_on = self._config({"cot_url": "tls://x:8089", "tls_check_hostname": True})
         self.assertNotIn("PYTAK_TLS_DONT_CHECK_HOSTNAME", cfg_on)
 
-    @unittest.skipUnless(_HAS_PYTAK, "pytak not installed (oden[tak])")
     def test_pref_package_fills_url_and_certs(self):
-        fake = {
-            "COT_URL": "ssl://tak.example:8089",
-            "PYTAK_TLS_CLIENT_CERT": "/tmp/c.pem",
-            "PYTAK_TLS_CLIENT_KEY": "/tmp/k.pem",
-            "PYTAK_TLS_CLIENT_CAFILE": "/tmp/ca.pem",
-        }
-        with patch("pytak.read_pref_package", return_value=fake):
+        package = PackageConfig(
+            cot_url="ssl://tak.example:8089",
+            client_cert="/tmp/c.p12",
+            client_password="pw",
+            ca_pem="/tmp/ca.pem",
+        )
+        with patch("oden.tak.bridge.package_settings", return_value=package):
             cfg = self._config({"pref_package": "/tmp/pkg.zip"})
         self.assertEqual(cfg["COT_URL"], "ssl://tak.example:8089")
+        self.assertEqual(cfg["PYTAK_TLS_CLIENT_CERT"], "/tmp/c.p12")
+        self.assertEqual(cfg["PYTAK_TLS_CLIENT_PASSWORD"], "pw")
         self.assertEqual(cfg["PYTAK_TLS_CLIENT_CAFILE"], "/tmp/ca.pem")
+
+    def test_trust_only_package_without_credentials_is_a_readable_error(self):
+        """Regression: this used to surface as a TypeError from inside pytak."""
+        package = PackageConfig(cot_url="ssl://tak.example:8089", ca_pem="/tmp/ca.pem", needs_enrollment=True)
+        with (
+            patch("oden.tak.bridge.package_settings", return_value=package),
+            self.assertRaises(ValueError) as ctx,
+        ):
+            self._config({"pref_package": "/tmp/pkg.zip"})
+        self.assertIn("enrollment", str(ctx.exception))
 
     def test_enrollment_username_and_env_password(self):
         cfg = self._config(

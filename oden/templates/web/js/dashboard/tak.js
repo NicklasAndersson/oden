@@ -57,6 +57,7 @@ async function loadTakSettings() {
     for (const [key, value] of Object.entries(settings)) {
         const field = document.querySelector('#tak-form [name="' + key + '"]');
         if (!field) continue;
+        if (field.type === 'password') continue;  // never sent by the server
         if (field.type === 'checkbox') {
             field.checked = Boolean(value);
         } else if (Array.isArray(value)) {
@@ -65,6 +66,26 @@ async function loadTakSettings() {
             field.value = value === null || value === undefined ? '' : value;
         }
     }
+
+    const help = document.getElementById('tak-enroll-pw-help');
+    if (help) {
+        help.textContent = settings.enroll_password_set
+            ? 'Ett lösenord är sparat. Skriv ett nytt för att byta, eller Rensa för att ta bort det.'
+            : 'Krävs för data-paket som bara innehåller serverns CA. Miljövariabeln nedan har företräde när den är satt.';
+    }
+}
+
+async function clearTakEnrollPassword() {
+    document.getElementById('tak-enroll-pw').value = '';
+    const response = await fetch('/api/tak/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enroll_password: null}),
+    });
+    const result = await response.json();
+    showConfigMessage(result.success ? 'Enrollment-lösenordet borttaget' : (result.error || 'Kunde inte rensa'),
+                      result.success ? 'success' : 'error');
+    if (result.success) loadTakStatus();
 }
 
 async function saveTakSettings() {
@@ -100,7 +121,8 @@ async function uploadTakPackage(input) {
         const result = await response.json();
         if (result.success) {
             document.getElementById('tak-pref-package').value = result.path;
-            showConfigMessage('Data package uppladdad — klicka Spara för att ansluta', 'success');
+            showConfigMessage(result.message || 'Data package uppladdad — klicka Spara för att ansluta',
+                              result.needs_enrollment ? 'warning' : 'success');
         } else {
             showConfigMessage(result.error || 'Uppladdning misslyckades', 'error');
         }

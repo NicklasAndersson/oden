@@ -98,8 +98,17 @@
                     <span class="help-text">Alternativ till egen certfil: Oden hämtar ett cert från servern (port 8446)</span>
                 </div>
                 <div class="config-field">
+                    <label for="tak-enroll-pw">Enrollment-lösenord</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="tak-enroll-pw" name="enroll_password" autocomplete="new-password" placeholder="lämna tom för att behålla sparat" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary" onclick="clearTakEnrollPassword()">Rensa</button>
+                    </div>
+                    <span class="help-text" id="tak-enroll-pw-help">Krävs för data-paket som bara innehåller serverns CA. Miljövariabeln nedan har företräde när den är satt.</span>
+                </div>
+                <div class="config-field">
                     <label for="tak-enroll-pw-env">Miljövariabel för enrollment-lösenord</label>
                     <input type="text" id="tak-enroll-pw-env" name="enroll_password_env" placeholder="ODEN_TAK_ENROLL_PASSWORD">
+                    <span class="help-text">Sätts variabeln i miljön används den istället för fältet ovan</span>
                 </div>
                 <div class="config-field full-width">
                     <div class="checkbox-wrapper">

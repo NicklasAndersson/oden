@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **TAK: data-paket som kräver enrollment kunde inte användas alls.** Ett paket som bara innehåller serverns CA (`caLocation0` + `enrollForCertificateWithTrust0`, utan `certificateLocation`) — det ATAK-paket en TAK-admin delar ut när klienten ska hämta sitt eget cert — fick anslutningen att falla med `TypeError('stat: path should be string, bytes, os.PathLike or integer, not NoneType')`. `pytak.read_pref_package` hanterar bara paket med inbakat klientcert, och pytaks enrollment-stöd är en separat funktion som inte läser paket. Oden läser nu `.pref`-filen själv, förstår båda sorternas paket, konverterar serverns CA-truststore (`.p12`) till den PEM som TLS-lagret kräver, och kopplar ihop paketet med enrollment-flödet. Saknas uppgifter sägs det på svenska istället för som ett biblioteksfel, och TAK-fliken talar om vilken sort paketet är redan vid uppladdningen
+- **TAK: enrollment-lösenord kan skrivas i TAK-fliken.** Tidigare gick det bara via miljövariabel, vilket en Oden.app startad från Finder inte ser. Lösenordet returneras aldrig av API:t — formuläret får bara veta att ett finns sparat. Miljövariabeln har fortfarande företräde när den faktiskt är satt
+- **TAK: sparat cert-lösenord ignorerades.** `tls_client_password` kunde aldrig användas eftersom `tls_client_password_env` alltid har ett defaultnamn; miljövariabeln gäller nu bara när den verkligen är satt i miljön
+
 ## [4.0.1] - 2026-09-02
 
 ### Added

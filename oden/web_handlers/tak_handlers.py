@@ -19,6 +19,7 @@ from oden.config_db import set_config_value
 from oden.tak.bridge import cert_expiry, get_tak_bridge, load_tak_settings
 from oden.tak.cot import Report, latlon_to_mgrs, report_to_cot, sanitize_token
 from oden.tak.listener import _INBOUND_DEFAULTS
+from oden.tak.pref_package import describe_package, read_data_package, tak_dir
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,10 @@ MAX_PACKAGE_BYTES = 5 * 1024 * 1024  # data packages are ~30 KB; 5 MB is generou
 # Settings the form may write. tls_client_password is deliberately absent — the
 # password comes from the environment variable named by tls_client_password_env,
 # so it never lands in the config db or in an HTTP response.
+#
+# enroll_password is the exception: enrollment is the only way to connect with a
+# trust-only data package, and an env var is awkward to set for a desktop app, so
+# the TAK tab accepts one directly. It is write-only over HTTP — see _SECRET_KEYS.
 _EDITABLE_KEYS = {
     "enabled": bool,
     "cot_url": str,
@@ -41,6 +46,7 @@ _EDITABLE_KEYS = {
     "tls_check_hostname": bool,
     "enroll_username": str,
     "enroll_password_env": str,
+    "enroll_password": str,
     "callsign": str,
     "cot_stale_seconds": int,
     "cot_archive": bool,
@@ -52,6 +58,10 @@ _EDITABLE_KEYS = {
     "inbound_max_per_minute": int,
     "inbound_group_name": str,
 }
+
+
+# Written by the form, never read back out of it.
+_SECRET_KEYS = {"enroll_password"}
 
 
 def _coerce(value: Any, kind: type) -> Any:
@@ -69,10 +79,17 @@ def _coerce(value: Any, kind: type) -> Any:
     return str(value or "")
 
 
+@handle_errors("tak settings")
 async def tak_settings_handler(request: web.Request) -> web.Response:
-    """Current TAK settings. Never returns a password."""
+    """Current TAK settings. Never returns a password.
+
+    Secrets are reported only as a "one is stored" flag so the form can show
+    that without ever putting the value on the wire.
+    """
     settings = {**_INBOUND_DEFAULTS, **load_tak_settings()}
-    return web.json_response({key: settings.get(key) for key in _EDITABLE_KEYS})
+    payload: dict[str, Any] = {key: settings.get(key) for key in _EDITABLE_KEYS if key not in _SECRET_KEYS}
+    payload["enroll_password_set"] = bool(str(settings.get("enroll_password") or "").strip())
+    return web.json_response(payload)
 
 
 @handle_errors("save tak settings")
@@ -82,6 +99,14 @@ async def tak_settings_save_handler(request: web.Request) -> web.Response:
     stored = load_tak_settings()
 
     updates = {key: _coerce(data[key], kind) for key, kind in _EDITABLE_KEYS.items() if key in data}
+
+    # The form posts every field on every save, and a password field is blank
+    # unless the operator just typed in it — so blank means "leave it alone",
+    # and only an explicit null (the Rensa button) clears a stored secret.
+    for key in _SECRET_KEYS:
+        if key in updates and not updates[key] and data[key] is not None:
+            del updates[key]
+
     merged = {**stored, **updates}
 
     if merged.get("enabled") and not (merged.get("cot_url") or merged.get("pref_package")):
@@ -237,11 +262,29 @@ async def tak_upload_package_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    tak_dir = Path(cfg.ODEN_HOME) / "tak"
-    tak_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    dest = tak_dir / f"{sanitize_token(filename[:-4], max_len=64)}.zip"
+    dest_dir = tak_dir()
+    dest_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    dest = dest_dir / f"{sanitize_token(filename[:-4], max_len=64)}.zip"
     dest.write_bytes(blob)
     dest.chmod(0o600)
 
     logger.info("TAK: data package sparad till %s (%d bytes)", dest, len(blob))
-    return web.json_response({"success": True, "path": str(dest)})
+
+    # Say which of the two kinds this is straight away: a trust-only package
+    # needs enrollment credentials, and finding that out at upload time beats
+    # discovering it as a failed connection after Spara.
+    try:
+        package = read_data_package(str(dest), dest_dir)
+    except ValueError as exc:
+        return web.json_response({"success": True, "path": str(dest), "message": str(exc), "kind": "okänd"})
+
+    return web.json_response(
+        {
+            "success": True,
+            "path": str(dest),
+            "message": describe_package(package),
+            "kind": package.kind,
+            "needs_enrollment": package.needs_enrollment,
+            "cot_url": package.cot_url,
+        }
+    )

@@ -4,6 +4,7 @@
 ``bridge``   pytak connection: tx/rx queues, reconnect, settings
 ``listener`` inbound CoT -> filters -> Signal-shaped envelope -> pipelines
 ``eight_s``  ATAK 8S report block -> ``7S RAPPORT`` text
+``pref_package`` ATAK data package (.zip) -> connection settings, both kinds
 
 ``pytak`` is optional (``oden[tak]``) and only imported when TAK is enabled.
 
