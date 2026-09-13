@@ -17,15 +17,17 @@ import asyncio
 import contextlib
 import logging
 import os
-import secrets
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from oden import config as cfg
 from oden.config_db import get_config_value
+from oden.tak.enrollment import EnrolledCert, ensure_cert
 from oden.tak.pref_package import package_settings, tak_dir
+from oden.tak.redact import redact
 
 logger = logging.getLogger(__name__)
 
@@ -100,26 +102,6 @@ def _escape_for_pytak(key: str, value: str) -> str:
     return value.replace("%", "%%") if key.startswith(_PYTAK_REPARSED_PREFIX) else value
 
 
-# Short enough to be a coincidence, long enough to be worth hiding.
-_MIN_REVEALING_RUN = 6
-
-
-def _revealing_runs(secret: str) -> list[str]:
-    """Every chunk of *secret* long enough that leaking it would matter, longest first.
-
-    A library rarely quotes the whole value: ConfigParser reported only the tail
-    of a password, from the "%" it tripped on. Matching on the full string alone
-    would have let that through.
-    """
-    if len(secret) < _MIN_REVEALING_RUN:
-        return []
-    return [
-        secret[start : start + length]
-        for length in range(len(secret), _MIN_REVEALING_RUN - 1, -1)
-        for start in range(0, len(secret) - length + 1)
-    ]
-
-
 def safe_error(exc: BaseException, settings: dict[str, Any]) -> str:
     """``repr(exc)`` with any configured password scrubbed out.
 
@@ -128,12 +110,7 @@ def safe_error(exc: BaseException, settings: dict[str, Any]) -> str:
     ConfigParser puts a rejected password straight into its message. Matching on
     the actual secret works whatever shape the message takes.
     """
-    text = repr(exc)
-    for env_key, value_key in _SECRET_SETTINGS:
-        secret = _secret(settings, env_key, value_key)
-        for run in _revealing_runs(secret):
-            text = text.replace(run, "***")
-    return text
+    return redact(repr(exc), *(_secret(settings, env_key, value_key) for env_key, value_key in _SECRET_SETTINGS))
 
 
 def cert_expiry(settings: dict[str, Any]) -> datetime | None:
@@ -177,6 +154,8 @@ class TakBridge:
         self._rx_queue: asyncio.Queue[bytes] | None = None
         self._run_task: asyncio.Task[Any] | None = None
         self._listener_task: asyncio.Task[None] | None = None
+        self._needs_enrollment = False
+        self.enrolled: EnrolledCert | None = None
         self.connected = False
         self.last_error: str | None = None
         self.last_tx_at: datetime | None = None
@@ -241,16 +220,14 @@ class TakBridge:
         if not bool(s.get("tls_check_hostname", False)):
             section["PYTAK_TLS_DONT_CHECK_HOSTNAME"] = "1"
 
+        # Enrollment is Oden's job (see oden.tak.enrollment), done in _connect()
+        # because it is async. pytak only ever sees the resulting client cert, so
+        # PYTAK_TLS_CERT_ENROLLMENT_* are deliberately never set here.
         enroll_user = str(s.get("enroll_username") or "").strip()
         enroll_pw = _secret(s, "enroll_password_env", "enroll_password")
-        if enroll_user and enroll_pw:
-            section["PYTAK_TLS_CERT_ENROLLMENT_USERNAME"] = enroll_user
-            section["PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"] = enroll_pw
-            # pytak generates one itself when unset -- and prints it to stdout on
-            # every connection attempt. The enrolled .p12 is per-connection, so a
-            # fresh throwaway passphrase is all it needs.
-            section["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] = secrets.token_urlsafe(16)
-        elif package is not None and package.needs_enrollment and not section.get("PYTAK_TLS_CLIENT_CERT"):
+        have_cert = bool(section.get("PYTAK_TLS_CLIENT_CERT"))
+        self._needs_enrollment = bool(enroll_user and enroll_pw) and not have_cert
+        if not self._needs_enrollment and not have_cert and package is not None and package.needs_enrollment:
             missing = "användarnamn" if not enroll_user else "lösenord"
             raise ValueError(
                 f"TAK: data-paketet innehåller bara serverns CA och kräver enrollment, "
@@ -264,10 +241,33 @@ class TakBridge:
         parser["oden_tak"] = {key: _escape_for_pytak(key, value) for key, value in section.items()}
         return parser["oden_tak"]
 
+    async def _ensure_enrolled_cert(self) -> None:
+        """Point pytak at our cached (or freshly enrolled) client cert.
+
+        Runs on every (re)connect: a cache hit is one file read, and a cert
+        nearing expiry gets renewed without a restart.
+        """
+        s = self.settings
+        host = urlparse(str(self._config.get("COT_URL") or "")).hostname
+        if not host:
+            raise ValueError("TAK: kunde inte läsa ut värdnamnet ur serveradressen för enrollment")
+        self.enrolled = await ensure_cert(
+            host,
+            str(s.get("enroll_username") or "").strip(),
+            _secret(s, "enroll_password_env", "enroll_password"),
+            tak_dir(),
+        )
+        self._config["PYTAK_TLS_CLIENT_CERT"] = _escape_for_pytak("PYTAK_TLS_CLIENT_CERT", self.enrolled.path)
+        self._config["PYTAK_TLS_CLIENT_PASSWORD"] = _escape_for_pytak(
+            "PYTAK_TLS_CLIENT_PASSWORD", self.enrolled.passphrase
+        )
+
     async def _connect(self) -> None:
         """Open (or re-open) the pytak connection, keeping our queues."""
         import pytak  # optional dependency, imported only when TAK is enabled
 
+        if self._needs_enrollment:
+            await self._ensure_enrolled_cert()
         self._clitool = pytak.CLITool(self._config, self._tx_queue, self._rx_queue)
         # First time pytak sizes the queues; every reconnect reuses the same objects.
         self._tx_queue, self._rx_queue = self._clitool.tx_queue, self._clitool.rx_queue

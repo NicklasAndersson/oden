@@ -231,23 +231,33 @@ class BuildConfigTest(unittest.TestCase):
             self._config(enroll_username="oden")
         self.assertIn("lösenord", str(ctx.exception))
 
-    def test_credentials_produce_an_enrollment_config(self):
-        config = self._config(enroll_username="oden", enroll_password="hemligt")
+    def test_credentials_leave_enrollment_to_oden_not_pytak(self):
+        """The password must never reach pytak's config: Oden enrolls itself in _connect()."""
+        bridge = self.bridge_mod.TakBridge(
+            {
+                **self.bridge_mod._DEFAULTS,
+                "enabled": True,
+                "pref_package": self.package,
+                "enroll_username": "oden",
+                "enroll_password": "hemligt",
+            }
+        )
+        config = bridge._build_config()
 
         self.assertEqual(config.get("COT_URL"), "ssl://tak.example.mil:8089")
-        self.assertEqual(config.get("PYTAK_TLS_CERT_ENROLLMENT_USERNAME"), "oden")
-        self.assertEqual(config.get("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"), "hemligt")
         self.assertTrue(Path(config.get("PYTAK_TLS_CLIENT_CAFILE")).is_file())
-        # Set explicitly, or pytak generates one and prints it to stdout each connect.
-        self.assertTrue(config.get("PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"))
+        self.assertTrue(bridge._needs_enrollment)
+        for key in config:
+            self.assertNotIn("ENROLLMENT", key.upper(), key)
+        self.assertNotIn("hemligt", "".join(config.values()))
 
     def test_env_var_wins_over_the_stored_password_when_actually_set(self):
         import os
         from unittest.mock import patch
 
+        settings = {**self.bridge_mod._DEFAULTS, "enroll_password": "fran-db"}
         with patch.dict(os.environ, {"ODEN_TAK_ENROLL_PASSWORD": "fran-miljon"}):
-            config = self._config(enroll_username="oden", enroll_password="fran-db")
-        self.assertEqual(config.get("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"), "fran-miljon")
+            self.assertEqual(self.bridge_mod._secret(settings, "enroll_password_env", "enroll_password"), "fran-miljon")
 
     def test_stored_password_is_used_when_the_env_var_is_absent(self):
         import os
@@ -255,13 +265,27 @@ class BuildConfigTest(unittest.TestCase):
 
         # The env var *name* always has a default, so the stored value must still
         # be reachable — it was not before this fix.
+        settings = {**self.bridge_mod._DEFAULTS, "enroll_password": "fran-db"}
         with patch.dict(os.environ, {}, clear=True):
-            config = self._config(enroll_username="oden", enroll_password="fran-db")
-        self.assertEqual(config.get("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"), "fran-db")
+            self.assertEqual(self.bridge_mod._secret(settings, "enroll_password_env", "enroll_password"), "fran-db")
 
     def test_an_explicit_cot_url_still_overrides_the_package(self):
         config = self._config(enroll_username="o", enroll_password="p", cot_url="tls://annan:8089")
         self.assertEqual(config.get("COT_URL"), "tls://annan:8089")
+
+    def test_an_explicit_client_cert_switches_enrollment_off(self):
+        bridge = self.bridge_mod.TakBridge(
+            {
+                **self.bridge_mod._DEFAULTS,
+                "enabled": True,
+                "pref_package": self.package,
+                "enroll_username": "o",
+                "enroll_password": "p",
+                "tls_client_cert": "/c/egen.p12",
+            }
+        )
+        bridge._build_config()
+        self.assertFalse(bridge._needs_enrollment)
 
 
 class ConnectStringTest(unittest.TestCase):

@@ -2,8 +2,10 @@
 """Inspect an ATAK data package, and optionally connect with it.
 
 Reads nothing from Oden's config-db and writes nothing to it, so it is safe to
-run while Oden is running. Extracted certificates go to a temporary directory
-that is deleted on exit.
+run while Oden is running. The read-only inspection unpacks into a temporary
+directory that is deleted on exit; ``--connect`` uses ``ODEN_HOME/tak`` exactly
+like a normal Oden run, so the enrolled client cert is cached there and the
+*second* run should connect without touching port 8446 at all.
 
     # what is in this package?
     python scripts/tak_check_package.py ~/.config/oden/tak/atak-box.zip
@@ -68,14 +70,18 @@ async def _connect(args: argparse.Namespace, package, workdir: Path) -> int:
         "callsign": args.callsign,
     }
 
-    import oden.tak.bridge as bridge_mod
-
-    bridge_mod.tak_dir = lambda: workdir  # keep key material out of ODEN_HOME
+    from oden.tak.enrollment import cached_cert
+    from oden.tak.pref_package import tak_dir
 
     bridge = TakBridge(settings)
     print(f"\nAnsluter till {package.cot_url} …")
     if package.needs_enrollment:
-        print(f"(hämtar först ett klientcert från {args.user}@…:8446)")
+        host = package.cot_url.split("://", 1)[-1].rsplit(":", 1)[0]
+        cached = cached_cert(host, args.user, tak_dir())
+        if cached:
+            print(f"(återanvänder cachat klientcert, giltigt t.o.m. {cached.expires_at:%Y-%m-%d} — ingen enrollment)")
+        else:
+            print(f"(hämtar först ett klientcert från {args.user}@{host}:8446, cachas i {tak_dir()})")
     try:
         await bridge.start()
     except Exception as exc:
@@ -84,6 +90,8 @@ async def _connect(args: argparse.Namespace, package, workdir: Path) -> int:
 
     try:
         print(f"ANSLUTEN (connected={bridge.connected})")
+        if bridge.enrolled:
+            print(f"Klientcert: {bridge.enrolled.path} (giltigt t.o.m. {bridge.enrolled.expires_at:%Y-%m-%d})")
         if args.send:
             now = dt.datetime.now(dt.timezone.utc)
             import mgrs

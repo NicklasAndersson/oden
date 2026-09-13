@@ -153,7 +153,9 @@ async def tak_settings_save_handler(request: web.Request) -> web.Response:
 async def tak_status_handler(request: web.Request) -> web.Response:
     settings = load_tak_settings()
     bridge = get_tak_bridge()
-    expiry = cert_expiry(settings)
+    # A cert the operator pointed at, else the one Oden enrolled for itself.
+    enrolled = getattr(bridge, "enrolled", None)
+    expiry = cert_expiry(settings) or (enrolled.expires_at if enrolled else None)
 
     days_left = None
     if expiry is not None:

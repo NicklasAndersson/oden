@@ -7,6 +7,7 @@ import tempfile
 import unittest.mock
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 from aiohttp import FormData
 from aiohttp.test_utils import AioHTTPTestCase
@@ -54,6 +55,31 @@ class TestTakEndpoints(AioHTTPTestCase):
         data = await resp.json()
         self.assertFalse(data["enabled"])
         self.assertFalse(data["connected"])
+
+    async def test_status_shows_expiry_of_the_enrolled_cert(self):
+        """Enrollment users had no cert expiry in the GUI: cert_expiry only knew tls_client_cert."""
+        import datetime as dt
+
+        from oden.tak.enrollment import EnrolledCert
+
+        soon = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=10)
+        bridge = SimpleNamespace(
+            is_running=True,
+            connected=True,
+            sent_count=0,
+            received_count=0,
+            rx_total=0,
+            rx_filtered=0,
+            last_tx_at=None,
+            last_rx_at=None,
+            last_error=None,
+            enrolled=EnrolledCert(path="/x.p12", passphrase="p", expires_at=soon),
+        )
+        with unittest.mock.patch("oden.web_handlers.tak_handlers.get_tak_bridge", return_value=bridge):
+            data = await (await self.client.get("/api/tak/status")).json()
+
+        self.assertEqual(data["cert_days_left"], 9)
+        self.assertTrue(data["cert_warning"])  # under CERT_WARN_DAYS
 
     async def test_settings_never_expose_a_password(self):
         await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "enroll_password": "hemligt"})

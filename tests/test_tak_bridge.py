@@ -75,37 +75,36 @@ class BuildConfigTest(unittest.TestCase):
         """
         import pytak.client_functions as client_functions
 
-        password = "Kx4MGg%sj56Y#P?"
         cfg = self._config(
-            {
-                "cot_url": "tls://x:8089",
-                "enroll_username": "25HVBAT675",
-                "enroll_password_env": "ENR_PW",
-                "tls_client_password_env": "CERT_PW",
-            },
-            env={"ENR_PW": password, "CERT_PW": "100%sure"},
+            {"cot_url": "tls://x:8089", "tls_client_cert": "/c/egen.p12", "tls_client_password_env": "CERT_PW"},
+            env={"CERT_PW": "Kx4MGg%sj56Y#P?"},
         )
 
         tls = client_functions.get_tls_config(cfg)
-        self.assertEqual(tls.get("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"), password)
-        self.assertEqual(tls.get("PYTAK_TLS_CLIENT_PASSWORD"), "100%sure")
+        self.assertEqual(tls.get("PYTAK_TLS_CLIENT_PASSWORD"), "Kx4MGg%sj56Y#P?")
 
     def test_cot_url_is_not_escaped(self):
         """COT_URL is read straight off our section, so it must not be doubled."""
         cfg = self._config({"cot_url": "tls://x:8089"})
         self.assertEqual(cfg["COT_URL"], "tls://x:8089")
 
-    def test_enrollment_username_and_env_password(self):
-        cfg = self._config(
-            {"cot_url": "tls://x:8089", "enroll_username": "nicklas", "enroll_password_env": "ENR_PW"},
-            env={"ENR_PW": "pw"},
+    def test_enrollment_credentials_never_enter_pytak_config(self):
+        """pytak would re-enroll on every connect and leave the .p12 in $TMPDIR; Oden does it instead."""
+        bridge = TakBridge(
+            {**_DEFAULTS, "cot_url": "tls://x:8089", "enroll_username": "nicklas", "enroll_password_env": "ENR_PW"}
         )
-        self.assertEqual(cfg["PYTAK_TLS_CERT_ENROLLMENT_USERNAME"], "nicklas")
-        self.assertEqual(cfg["PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"], "pw")
+        with patch.dict("os.environ", {"ENR_PW": "pw"}):
+            cfg = bridge._build_config()
 
-    def test_no_enrollment_keys_without_username(self):
-        cfg = self._config({"cot_url": "tls://x:8089"})
+        self.assertTrue(bridge._needs_enrollment)
         self.assertNotIn("PYTAK_TLS_CERT_ENROLLMENT_USERNAME", cfg)
+        self.assertNotIn("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD", cfg)
+        self.assertNotIn("PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE", cfg)
+
+    def test_no_enrollment_without_a_username(self):
+        bridge = TakBridge({**_DEFAULTS, "cot_url": "tls://x:8089"})
+        bridge._build_config()
+        self.assertFalse(bridge._needs_enrollment)
 
 
 class PublishTest(unittest.IsolatedAsyncioTestCase):
