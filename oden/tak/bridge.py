@@ -88,6 +88,38 @@ _SECRET_SETTINGS = (
 )
 
 
+# pytak's get_tls_config() copies these keys into a ConfigParser of its own, and
+# that one does interpolate — so a literal "%" has to reach it doubled. Keys it
+# does not touch (COT_URL) are read straight off our section and stay as-is.
+# tests/test_tak_bridge.py pins this against the real pytak, so a pytak that
+# stops interpolating fails the suite instead of silently sending "%%".
+_PYTAK_REPARSED_PREFIX = "PYTAK_TLS_"
+
+
+def _escape_for_pytak(key: str, value: str) -> str:
+    return value.replace("%", "%%") if key.startswith(_PYTAK_REPARSED_PREFIX) else value
+
+
+# Short enough to be a coincidence, long enough to be worth hiding.
+_MIN_REVEALING_RUN = 6
+
+
+def _revealing_runs(secret: str) -> list[str]:
+    """Every chunk of *secret* long enough that leaking it would matter, longest first.
+
+    A library rarely quotes the whole value: ConfigParser reported only the tail
+    of a password, from the "%" it tripped on. Matching on the full string alone
+    would have let that through.
+    """
+    if len(secret) < _MIN_REVEALING_RUN:
+        return []
+    return [
+        secret[start : start + length]
+        for length in range(len(secret), _MIN_REVEALING_RUN - 1, -1)
+        for start in range(0, len(secret) - length + 1)
+    ]
+
+
 def safe_error(exc: BaseException, settings: dict[str, Any]) -> str:
     """``repr(exc)`` with any configured password scrubbed out.
 
@@ -99,8 +131,8 @@ def safe_error(exc: BaseException, settings: dict[str, Any]) -> str:
     text = repr(exc)
     for env_key, value_key in _SECRET_SETTINGS:
         secret = _secret(settings, env_key, value_key)
-        if secret:
-            text = text.replace(secret, "***")
+        for run in _revealing_runs(secret):
+            text = text.replace(run, "***")
     return text
 
 
@@ -225,11 +257,11 @@ class TakBridge:
                 f"men enrollment-{missing} saknas. Fyll i det i TAK-fliken."
             )
 
-        # interpolation=None: passwords are arbitrary bytes, and BasicInterpolation
-        # reads "%" as syntax — a password containing "%s" raises on assignment
-        # (with the password in the message).
+        # interpolation=None: passwords are arbitrary text, and BasicInterpolation
+        # reads "%" as syntax — a password containing "%s" raises on assignment,
+        # with the password in the message.
         parser = ConfigParser(interpolation=None)
-        parser["oden_tak"] = section
+        parser["oden_tak"] = {key: _escape_for_pytak(key, value) for key, value in section.items()}
         return parser["oden_tak"]
 
     async def _connect(self) -> None:

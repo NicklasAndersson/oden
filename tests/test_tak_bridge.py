@@ -63,8 +63,19 @@ class BuildConfigTest(unittest.TestCase):
             self._config({"pref_package": "/tmp/pkg.zip"})
         self.assertIn("enrollment", str(ctx.exception))
 
-    def test_password_containing_a_percent_sign_survives(self):
-        """ConfigParser's BasicInterpolation reads % as syntax and rejects the value."""
+    def test_password_containing_a_percent_sign_reaches_pytak_intact(self):
+        """A "%" has to survive two ConfigParsers: ours, then pytak's own.
+
+        Ours is built with interpolation off, so it would reject the value on
+        assignment. pytak's get_tls_config() then copies the TLS keys into a
+        second ConfigParser that *does* interpolate, so the value has to arrive
+        there doubled. This asserts the end result against the real pytak — if
+        pytak ever stops interpolating, this fails rather than quietly handing
+        the server a password full of "%%".
+        """
+        import pytak.client_functions as client_functions
+
+        password = "Kx4MGg%sj56Y#P?"
         cfg = self._config(
             {
                 "cot_url": "tls://x:8089",
@@ -72,10 +83,17 @@ class BuildConfigTest(unittest.TestCase):
                 "enroll_password_env": "ENR_PW",
                 "tls_client_password_env": "CERT_PW",
             },
-            env={"ENR_PW": "Kx4MGg%sj56Y#P?", "CERT_PW": "100%%safe"},
+            env={"ENR_PW": password, "CERT_PW": "100%sure"},
         )
-        self.assertEqual(cfg["PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"], "Kx4MGg%sj56Y#P?")
-        self.assertEqual(cfg["PYTAK_TLS_CLIENT_PASSWORD"], "100%%safe")
+
+        tls = client_functions.get_tls_config(cfg)
+        self.assertEqual(tls.get("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"), password)
+        self.assertEqual(tls.get("PYTAK_TLS_CLIENT_PASSWORD"), "100%sure")
+
+    def test_cot_url_is_not_escaped(self):
+        """COT_URL is read straight off our section, so it must not be doubled."""
+        cfg = self._config({"cot_url": "tls://x:8089"})
+        self.assertEqual(cfg["COT_URL"], "tls://x:8089")
 
     def test_enrollment_username_and_env_password(self):
         cfg = self._config(
@@ -179,6 +197,23 @@ class SafeErrorTest(unittest.TestCase):
 
         self.assertNotIn("Kx4MGg", text)
         self.assertIn("***", text)
+
+    def test_a_fragment_of_a_password_is_scrubbed(self):
+        from oden.tak.bridge import safe_error
+
+        # What pytak's interpolation error actually looked like: only the tail.
+        exc = ValueError("'%' must be followed by '%' or '(', found: '%sj56Y#P?'")
+        text = safe_error(exc, self._settings())
+
+        self.assertNotIn("sj56Y#P?", text)
+        self.assertIn("***", text)
+
+    def test_a_short_password_is_not_matched_letter_by_letter(self):
+        from oden.tak.bridge import safe_error
+
+        # Too short to mask safely without mangling unrelated text.
+        text = safe_error(ValueError("anslutningen bröts"), self._settings(enroll_password="abc"))
+        self.assertEqual(text, repr(ValueError("anslutningen bröts")))
 
     def test_a_password_held_in_an_env_var_is_scrubbed_too(self):
         from oden.tak.bridge import safe_error
