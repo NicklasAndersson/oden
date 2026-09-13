@@ -39,8 +39,12 @@ Fråga TAK-admin om **ett av** följande (enklast först):
    från servern (port 8446) första gången, sparar det under `ODEN_HOME/tak/`
    (`enrolled-*.p12`, rättigheter `0600`) och återanvänder det vid varje
    anslutning; certet förnyas av sig självt när mindre än 7 dygn återstår, och
-   utgången syns i TAK-fliken. Kombineras med ett enrollment-paket, eller med
-   `cot_url` + `tls_ca_cert` om du fått CA:t som lös PEM-fil.
+   utgången syns i TAK-fliken. **Förnyelsen kräver att enrollment-lösenordet
+   fortfarande gäller** — TAK Server ger typiskt 30-dygnscert, så byts lösenordet
+   måste det uppdateras i TAK-fliken (eller env-varen) före nästa förnyelse,
+   annars slutar TAK fungera vid utgången med ett `401` i loggen. Kombineras med
+   ett enrollment-paket, eller med `cot_url` + `tls_ca_cert` om du fått CA:t som
+   lös PEM-fil.
 3. **Lösa filer** – klientcertifikat (`.p12` eller PEM) + lösenord + serverns
    CA-cert (PEM).
 
@@ -216,7 +220,8 @@ Utpackade certifikat hamnar i en temporärkatalog som tas bort när skriptet slu
 | `pytak saknas` i loggen | `pip install "oden[tak]"` |
 | `TypeError('stat: path should be ... not NoneType')` vid anslutning | Gammal version (≤ 4.0.1) med ett **enrollment-paket**: paketet saknar klientcert och den dåvarande inläsningen klarade bara paket med cert. Uppgradera; Oden säger nu istället vilka enrollment-uppgifter som fattas |
 | `data-paketet innehåller bara serverns CA och kräver enrollment` | Rätt sorts paket, men fyll i enrollment-användarnamn och lösenord i TAK-fliken |
-| `enrollment mot host:8446 som … misslyckades — Error generating CSR: 401` | Fel användarnamn/lösenord. `Cannot connect`/timeout i samma rad → port 8446 nås inte från Oden-värden |
+| `enrollment mot host:8446 som … misslyckades — Error generating CSR: 401` | Fel användarnamn/lösenord. Fungerade det nyss: kontrollera att env-varen fortfarande är satt i **den här** terminalen (`printenv ODEN_TAK_ENROLL_PASSWORD \| wc -c`) och att lösenordet inte roterats sedan certet förnyades sist. `Cannot connect`/timeout i samma rad → port 8446 nås inte från Oden-värden |
+| TAK slutade fungera ~30 dygn efter driftsättning, `401` i loggen | Det enrollade certet gick ut och förnyelsen nekades — enrollment-lösenordet har bytts. Uppdatera det i TAK-fliken och spara |
 | Ansluter men inget syns i ATAK | Markören redan stale, eller fel klocka. Kolla `cot_stale_seconds` + NTP |
 | Markör försvinner efter en stund | `cot_archive = false` och Oden tappade anslutningen |
 | Status 🔴 fast servern är uppe | Oden återansluter själv med ökande intervall (5 s → 5 min); `Senaste fel` visar orsaken. Spara inställningarna igen för att tvinga ett försök direkt |

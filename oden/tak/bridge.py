@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import warnings
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from pathlib import Path
@@ -268,6 +269,13 @@ class TakBridge:
 
         if self._needs_enrollment:
             await self._ensure_enrolled_cert()
+        if self._config.get("PYTAK_TLS_DONT_CHECK_HOSTNAME"):
+            # Our documented default (TAK certs rarely name the address you dial),
+            # so pytak's warnings.warn about it is noise. The DONT_VERIFY warning
+            # is left alone: turning CA verification off *should* be loud.
+            warnings.filterwarnings(
+                "ignore", message="Disabled TLS Server Common Name Verification", category=UserWarning
+            )
         self._clitool = pytak.CLITool(self._config, self._tx_queue, self._rx_queue)
         # First time pytak sizes the queues; every reconnect reuses the same objects.
         self._tx_queue, self._rx_queue = self._clitool.tx_queue, self._clitool.rx_queue

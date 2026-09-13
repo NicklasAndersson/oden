@@ -81,11 +81,15 @@ def cached_cert(host: str, username: str, dest_dir: Path, *, now: _dt.datetime |
     return EnrolledCert(str(p12_path), passphrase, expires_at)
 
 
-class _CaptureWarnings(logging.Handler):
-    """Collect pytak's WARNING+ lines while enrollment runs; they are the only error report we get."""
+class _CaptureErrors(logging.Handler):
+    """Collect pytak's ERROR lines while enrollment runs; they are the only error report we get.
+
+    ERROR only: pytak also WARNs "SSL verification disabled" on every attempt,
+    which is not a cause and would read like one in the message.
+    """
 
     def __init__(self) -> None:
-        super().__init__(level=logging.WARNING)
+        super().__init__(level=logging.ERROR)
         self.lines: list[str] = []
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -104,7 +108,7 @@ async def enroll(host: str, username: str, password: str, dest_dir: Path) -> Enr
     passphrase = secrets.token_urlsafe(16)
 
     logger.info("TAK: hämtar klientcert från %s:%d som %s", host, ENROLLMENT_PORT, username)
-    capture = _CaptureWarnings()
+    capture = _CaptureErrors()
     pytak_log = logging.getLogger(_PYTAK_ENROLL_LOGGER)
     pytak_log.addHandler(capture)
     try:

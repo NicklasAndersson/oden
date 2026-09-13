@@ -67,6 +67,8 @@ class FakeEnrollment:
 
     async def begin_enrollment(self, *, domain, username, password, output_path, passphrase, **_):
         FakeEnrollment.calls.append({"domain": domain, "username": username, "password": password})
+        # Real pytak WARNs this on every attempt, success or failure.
+        logging.getLogger("pytak.crypto_classes").warning("SSL verification disabled - NOT for production use!")
         if FakeEnrollment.fail_with:
             logging.getLogger("pytak.crypto_classes").error(FakeEnrollment.fail_with)
             return
@@ -142,6 +144,8 @@ class EnrollmentTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(f"{HOST}:8446", message)
         self.assertIn("401", message)
         self.assertIn("användarnamn", message)
+        # pytak's per-attempt WARNING is not a cause and must not read like one
+        self.assertNotIn("SSL verification disabled", message)
         self.assertFalse(list(self.dest.glob("*.p12")), "no half-written cert may be left behind")
 
     async def test_failure_message_never_carries_the_password(self):
