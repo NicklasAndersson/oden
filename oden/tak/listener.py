@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
+import os
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from oden import config as cfg
@@ -96,12 +99,97 @@ class _Seen:
     lon: float
     signature: str  # remarks + custom_report fields, used to detect an unchanged repeat
     cot_type: str
+    seen_at: float = 0.0  # unix time, only used to age the cache that survives a restart
+
+
+_SEEN_FILENAME = "inbound-seen.json"
+# A marker deleted from the server long ago must not block a legitimate re-import
+# forever, so the persisted cache forgets what it has not seen for this long.
+_SEEN_MAX_AGE_S = 30 * 24 * 3600
+
+
+def _seen_path() -> Path:
+    from oden.tak.pref_package import tak_dir
+
+    return tak_dir() / _SEEN_FILENAME
+
+
+def load_seen(path: Path | None = None, *, now: float | None = None) -> dict[str, _Seen]:
+    """The dedup cache from the previous run.
+
+    Without this a restart re-imports the server's whole live picture: a TAK
+    Server republishes every active marker, and an empty cache reads each one as
+    new. One restart is one duplicate note per live marker.
+
+    Never raises. A missing, unreadable or corrupt file means an empty cache and
+    a re-import, which is the old behaviour — not a listener that refuses to run.
+    """
+    target = path or _seen_path()
+    try:
+        raw = json.loads(target.read_text(encoding="utf-8"))
+        rows = raw["seen"] if isinstance(raw, dict) else raw
+        if not isinstance(rows, dict):
+            raise ValueError("seen is not an object")
+    except FileNotFoundError:
+        return {}
+    except Exception as exc:
+        logger.warning("TAK: kunde inte läsa %s (%s) — börjar om med tom dedup-cache", target.name, exc)
+        return {}
+
+    cutoff = (now if now is not None else time.time()) - _SEEN_MAX_AGE_S
+    fresh: list[tuple[str, _Seen]] = []
+    for uid, row in rows.items():
+        try:
+            seen = _Seen(
+                lat=float(row["lat"]),
+                lon=float(row["lon"]),
+                signature=str(row["signature"]),
+                cot_type=str(row["cot_type"]),
+                seen_at=float(row.get("seen_at", 0.0)),
+            )
+        except (TypeError, ValueError, KeyError, AttributeError):
+            continue  # one bad row must not cost us the rest
+        if seen.seen_at >= cutoff:
+            fresh.append((str(uid), seen))
+
+    # On overflow keep the most recently seen, not an arbitrary slice.
+    fresh.sort(key=lambda pair: pair[1].seen_at, reverse=True)
+    return dict(fresh[:_SEEN_CAP])
+
+
+def save_seen(seen: dict[str, _Seen], path: Path | None = None) -> None:
+    """Write the dedup cache. Never raises — a failed write costs a re-import, nothing more."""
+    target = path or _seen_path()
+    payload = {
+        "seen": {
+            uid: {
+                "lat": item.lat,
+                "lon": item.lon,
+                "signature": item.signature,
+                "cot_type": item.cot_type,
+                "seen_at": item.seen_at,
+            }
+            for uid, item in seen.items()
+        }
+    }
+    tmp = target.with_name(target.name + ".tmp")
+    try:
+        # Positions and report text: same 0700 directory as the key material,
+        # created the same way (enrollment may never have run for this package).
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.chmod(0o600)
+        os.replace(tmp, target)  # atomic: a crash mid-write cannot corrupt the cache
+    except Exception as exc:
+        logger.warning("TAK: kunde inte spara dedup-cachen till %s (%s)", target.name, exc)
+        with contextlib.suppress(OSError):
+            tmp.unlink()
 
 
 class InboundFilter:
     """Decides whether one inbound CoT is worth a note. Pure, so it is testable."""
 
-    def __init__(self, settings: dict[str, Any]) -> None:
+    def __init__(self, settings: dict[str, Any], *, seen: dict[str, _Seen] | None = None) -> None:
         merged = {**_INBOUND_DEFAULTS, **settings}
         self.types = _as_list(merged["inbound_types"])
         # Same patterns, compiled: this matcher runs on the raw pre-screen path
@@ -111,7 +199,9 @@ class InboundFilter:
         self.deny = [c.lower() for c in _as_list(merged["inbound_callsign_deny"])]
         self.min_move_m = _num(merged["inbound_min_move_m"], 100.0)
         self.max_per_minute = int(_num(merged["inbound_max_per_minute"], 60.0))
-        self._seen: dict[str, _Seen] = {}
+        self._seen: dict[str, _Seen] = dict(seen or {})
+        # True when _seen changed since the last save, so a quiet server costs no writes.
+        self.seen_dirty = False
         self._window_start = 0.0
         self._window_count = 0
         self.last_reject: str = ""  # why the most recent accept() returned False
@@ -124,6 +214,10 @@ class InboundFilter:
             self._window_count = 0
         self._window_count += 1
         return self._window_count > self.max_per_minute
+
+    def seen_snapshot(self) -> dict[str, _Seen]:
+        """A copy of the dedup state, for persisting it. The filter itself does no I/O."""
+        return dict(self._seen)
 
     def prescreen_rejects(self, data: object) -> bool:
         """True only when the type whitelist *certainly* rejects this raw payload.
@@ -159,7 +253,8 @@ class InboundFilter:
             return False
 
         previous = self._seen.get(cot.uid)
-        current = _Seen(cot.lat, cot.lon, _content_signature(cot), cot.cot_type)
+        now_s = time.time() if now is None else now
+        current = _Seen(cot.lat, cot.lon, _content_signature(cot), cot.cot_type, seen_at=now_s)
         if previous is not None:
             unchanged = (
                 previous.cot_type == current.cot_type
@@ -173,6 +268,7 @@ class InboundFilter:
         if len(self._seen) >= _SEEN_CAP:
             self._seen.clear()
         self._seen[cot.uid] = current  # record content even if rate-limiting drops this instance
+        self.seen_dirty = True
 
         if self._rate_limited(time.monotonic() if now is None else now):
             self.last_reject = f"över {self.max_per_minute} CoT/minut"
@@ -260,14 +356,28 @@ async def run_tak_listener(bridge: Any) -> None:
 
     settings = {**_INBOUND_DEFAULTS, **bridge.settings}
     group_name = str(settings["inbound_group_name"]).strip() or "TAK Inkommande"
-    filt = InboundFilter(settings)
+    restored = load_seen()
+    if restored:
+        logger.info("TAK: minns %d tidigare sedda markörer — de importeras inte igen", len(restored))
+    filt = InboundFilter(settings, seen=restored)
     tally: dict[str, int] = {}
+
+    def persist_seen() -> None:
+        """Save only when something changed, so a quiet server writes nothing."""
+        if filt.seen_dirty:
+            save_seen(filt.seen_snapshot())
+            filt.seen_dirty = False
+
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
     last_summary = time.monotonic()
 
     logger.info("TAK: lyssnar på inkommande CoT (typer: %s)", ", ".join(filt.types) or "alla")
     while True:
-        data = await bridge.rx_queue.get()
+        try:
+            data = await bridge.rx_queue.get()
+        except asyncio.CancelledError:
+            persist_seen()  # a clean stop must not throw away what this run learned
+            raise
         try:
             bridge.rx_total += 1
             bridge.last_rx_at = datetime.now(timezone.utc)
@@ -310,7 +420,9 @@ async def run_tak_listener(bridge: Any) -> None:
                 )
                 tally.clear()  # the tally describes the window, the counters the session
                 last_summary = now
+                persist_seen()
         except asyncio.CancelledError:
+            persist_seen()
             raise
         except Exception as exc:
             logger.warning("TAK: kunde inte hantera inkommande CoT: %r", exc)

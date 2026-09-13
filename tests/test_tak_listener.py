@@ -1,6 +1,8 @@
 import asyncio
+import json
 import shutil
 import tempfile
+import time
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
@@ -13,15 +15,20 @@ from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.pipelines.seven_s import is_7s_message
 from oden.tak.cot import cot_to_inbound
 from oden.tak.listener import (
+    _SEEN_CAP,
+    _SEEN_MAX_AGE_S,
     _TALLY_CAP,
     INBOUND_GROUP_ID,
     OBSERVATION_HEADER,
     InboundFilter,
     _count,
     _describe_tally,
+    _Seen,
     build_envelope,
+    load_seen,
     render_observation,
     run_tak_listener,
+    save_seen,
 )
 
 
@@ -330,6 +337,10 @@ class ListenerCountersTest(unittest.IsolatedAsyncioTestCase):
                     return_value=SimpleNamespace(run_message=fake_run_message),
                 )
             )
+            # This test is about counters, not persistence: keep the dedup cache out of
+            # it, or the first run's saved state dedupes the second run's traffic.
+            stack.enter_context(patch("oden.tak.listener.load_seen", return_value={}))
+            stack.enter_context(patch("oden.tak.listener.save_seen"))
             if not prescreen:  # the old behaviour: parse everything, then filter
                 stack.enter_context(patch.object(InboundFilter, "prescreen_rejects", lambda self, data: False))
 
@@ -424,6 +435,149 @@ class DiscardLoggingTest(unittest.IsolatedAsyncioTestCase):
         summaries = [line for line in logs.output if "hittills" in line]
         self.assertTrue(summaries, "ingen sammanfattningsrad loggades")
         self.assertIn("bortfiltrerade typer: a-f-G-U-C", summaries[-1])
+
+
+class SeenPersistenceTest(unittest.TestCase):
+    """The dedup cache must survive a restart, or every restart re-imports the picture."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.path = Path(self._tmp.name) / "tak" / "inbound-seen.json"
+
+    def _filter(self, **kw):
+        return InboundFilter({"inbound_types": _DEFAULT_TYPES}, **kw)
+
+    def test_a_marker_imported_before_a_restart_is_not_imported_again(self):
+        before = self._filter()
+        cot = _cot(uid="8S.abc", cot_type="a-h-G")
+        self.assertTrue(before.accept(cot), "första gången ska den släppas igenom")
+        save_seen(before.seen_snapshot(), self.path)
+
+        after = self._filter(seen=load_seen(self.path))
+        self.assertFalse(after.accept(_cot(uid="8S.abc", cot_type="a-h-G")))
+        self.assertIn("dedup", after.last_reject)
+
+    def test_real_movement_still_gets_through_after_a_restart(self):
+        before = self._filter()
+        before.accept(_cot(uid="8S.abc", cot_type="a-h-G", lat=59.33, lon=18.07))
+        save_seen(before.seen_snapshot(), self.path)
+
+        after = self._filter(seen=load_seen(self.path))
+        self.assertTrue(after.accept(_cot(uid="8S.abc", cot_type="a-h-G", lat=59.40, lon=18.07)))
+
+    def test_nothing_saved_means_nothing_remembered(self):
+        self.assertEqual(load_seen(self.path), {})
+
+    def test_a_corrupt_file_costs_a_reimport_not_a_crash(self):
+        self.path.parent.mkdir(parents=True)
+        self.path.write_text("{detta är inte json", encoding="utf-8")
+        with self.assertLogs("oden.tak.listener", level="WARNING"):
+            self.assertEqual(load_seen(self.path), {})
+
+    def test_a_single_bad_row_does_not_cost_the_good_ones(self):
+        self.path.parent.mkdir(parents=True)
+        now = time.time()
+        self.path.write_text(
+            json.dumps(
+                {
+                    "seen": {
+                        "bra": {"lat": 59.3, "lon": 18.0, "signature": "x", "cot_type": "a-h-G", "seen_at": now},
+                        "trasig": {"lat": "inte ett tal", "cot_type": "a-h-G"},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(list(load_seen(self.path)), ["bra"])
+
+    def test_entries_it_has_not_seen_for_a_month_are_forgotten(self):
+        now = time.time()
+        stale = {"gammal": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now - _SEEN_MAX_AGE_S - 60)}
+        fresh = {"ny": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now)}
+        save_seen({**stale, **fresh}, self.path)
+        self.assertEqual(list(load_seen(self.path, now=now)), ["ny"])
+
+    def test_an_oversized_file_keeps_the_most_recent(self):
+        now = time.time()
+        crowd = {f"uid-{i}": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now - i) for i in range(_SEEN_CAP + 50)}
+        save_seen(crowd, self.path)
+        loaded = load_seen(self.path, now=now)
+        self.assertEqual(len(loaded), _SEEN_CAP)
+        self.assertIn("uid-0", loaded)  # newest
+        self.assertNotIn(f"uid-{_SEEN_CAP + 49}", loaded)  # oldest
+
+    def test_the_file_is_owner_only_and_leaves_no_temp_behind(self):
+        save_seen({"x": _Seen(59.3, 18.0, "s", "a-h-G", seen_at=time.time())}, self.path)
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.path.parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(list(self.path.parent.glob("*.tmp")), [])
+
+    def test_an_unwritable_target_is_a_warning_not_a_crash(self):
+        blocker = Path(self._tmp.name) / "inte-en-katalog"
+        blocker.write_text("x", encoding="utf-8")
+        with self.assertLogs("oden.tak.listener", level="WARNING"):
+            save_seen({"x": _Seen(59.3, 18.0, "s", "a-h-G")}, blocker / "inbound-seen.json")
+
+    def test_the_filter_reports_whether_there_is_anything_to_save(self):
+        filt = self._filter()
+        self.assertFalse(filt.seen_dirty, "ett nytt filter har inget att spara")
+        filt.accept(_cot(uid="8S.abc", cot_type="a-h-G"))
+        self.assertTrue(filt.seen_dirty)
+
+    def test_a_rejected_type_leaves_nothing_to_save(self):
+        filt = self._filter()
+        self.assertFalse(filt.accept(_cot(cot_type="a-f-G-U-C")))
+        self.assertFalse(filt.seen_dirty, "en kastad CoT ska inte orsaka en skrivning")
+
+
+class RestartDoesNotDuplicateTest(unittest.IsolatedAsyncioTestCase):
+    """The bug itself: a restart used to re-import every live marker as a new note."""
+
+    async def _run_once(self, seen_path: Path) -> int:
+        """Start a listener, feed the same live marker, stop it. Returns notes created."""
+        bridge = _StubBridge({"inbound_enabled": True, "inbound_types": _DEFAULT_TYPES})
+        bridge.rx_queue.put_nowait(_raw(uid="8S.live", cot_type="a-h-G"))
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("oden.tak.listener._seen_path", return_value=seen_path))
+            stack.enter_context(patch("oden.messages_db.create_raw_message", side_effect=lambda *a, **k: 1))
+            stack.enter_context(patch("oden.messages_db.update_message_status"))
+
+            async def noop(**kwargs):
+                return None
+
+            stack.enter_context(
+                patch(
+                    "oden.pipeline_orchestrator.PipelineOrchestrator",
+                    return_value=SimpleNamespace(run_message=noop),
+                )
+            )
+            task = asyncio.create_task(run_tak_listener(bridge))
+            for _ in range(50):
+                await asyncio.sleep(0)
+            task.cancel()  # a clean stop, which is when the cache is written
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        return bridge.received_count
+
+    async def test_the_same_live_marker_is_not_imported_twice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seen_path = Path(tmp) / "tak" / "inbound-seen.json"
+
+            first = await self._run_once(seen_path)
+            self.assertEqual(first, 1, "första körningen ska skapa noten")
+            self.assertTrue(seen_path.is_file(), "dedup-cachen skrevs inte vid nedstängning")
+
+            second = await self._run_once(seen_path)
+            self.assertEqual(second, 0, "omstarten importerade markören igen")
+
+    async def test_without_the_saved_cache_it_would_import_again(self):
+        """Guards the test above: prove the second run only passes because of the file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            await self._run_once(Path(tmp) / "tak" / "seen-a.json")
+            again = await self._run_once(Path(tmp) / "tak" / "seen-b.json")
+            self.assertEqual(again, 1)
 
 
 if __name__ == "__main__":

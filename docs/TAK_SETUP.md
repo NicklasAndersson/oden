@@ -141,6 +141,21 @@ En TAK Server signerar sina egna certifikat:
 - Serverns cert-namn är ofta inte DNS-namnet du ringer →
   `Hostname mismatch`. `tls_check_hostname` är av som standard; CA-koll kvar på.
 
+### Omstart importerar inte om det som redan kommit in
+
+En TAK Server återutsänder varje levande markör, och ATAK kan göra det så ofta
+som var tionde sekund. Dedup-skyddet håller reda på vad som redan blivit en not,
+och det tillståndet sparas i `ODEN_HOME/tak/inbound-seen.json` (rättigheter
+`0600`) så att en omstart av Oden inte gör om serverns lägesbild till nya noter.
+Filen innehåller uid, position och en textsignatur per markör — inga
+rapporttexter i klartext, men den ligger i samma skyddade katalog som
+nyckelmaterialet.
+
+Den skrivs var trettionde sekund när något ändrats, och vid nedstängning. Poster
+som inte setts på trettio dygn glöms, så en markör som togs bort för länge sedan
+inte blockerar en legitim återimport. Raderas filen är enda följden att det som
+fortfarande är levande på servern importeras en gång till.
+
 ### Vilka kanaler är Oden med i?
 
 TAK Servers *channels* (internt *groups*) bestämmer vem som får se vad, och de
