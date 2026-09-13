@@ -13,9 +13,12 @@ from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.pipelines.seven_s import is_7s_message
 from oden.tak.cot import cot_to_inbound
 from oden.tak.listener import (
+    _TALLY_CAP,
     INBOUND_GROUP_ID,
     OBSERVATION_HEADER,
     InboundFilter,
+    _count,
+    _describe_tally,
     build_envelope,
     render_observation,
     run_tak_listener,
@@ -346,6 +349,81 @@ class ListenerCountersTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(with_pre, without_pre)
         self.assertEqual(with_pre[0], len(self._TRAFFIC))
         self.assertEqual(sum(with_pre[1:]), len(self._TRAFFIC))
+
+
+class TallyTest(unittest.TestCase):
+    """A whitelist that never matches must say what it threw away."""
+
+    def test_names_the_most_common_types_worst_first(self):
+        tally = {"t-x-c-t": 20, "t-x-takp-v": 2, "a-f-G-U-C": 9}
+        text = _describe_tally(tally)
+        self.assertIn("t-x-c-t x20", text)
+        self.assertLess(text.index("t-x-c-t"), text.index("a-f-G-U-C"), "vanligaste typen ska stå först")
+        self.assertLess(text.index("a-f-G-U-C"), text.index("t-x-takp-v"))
+
+    def test_says_nothing_when_nothing_was_discarded(self):
+        self.assertEqual(_describe_tally({}), "")
+
+    def test_marks_that_more_types_were_seen_than_listed(self):
+        self.assertIn("m.fl.", _describe_tally({f"t-{i}": i for i in range(10)}))
+        self.assertNotIn("m.fl.", _describe_tally({"t-x-c-t": 1}))
+
+    def test_cannot_grow_without_bound(self):
+        tally: dict[str, int] = {}
+        for i in range(_TALLY_CAP * 3):
+            _count(tally, f"typ-{i}")
+        self.assertEqual(len(tally), _TALLY_CAP)
+
+    def test_keeps_counting_types_it_already_knows_when_full(self):
+        tally = {f"typ-{i}": 1 for i in range(_TALLY_CAP)}
+        _count(tally, "typ-0")
+        _count(tally, "en-ny-typ")
+        self.assertEqual(tally["typ-0"], 2)
+        self.assertNotIn("en-ny-typ", tally)
+
+
+class DiscardLoggingTest(unittest.IsolatedAsyncioTestCase):
+    """At DEBUG the log must name the type of every discarded event."""
+
+    async def test_the_type_is_named_even_without_a_usable_position(self):
+        bridge = _StubBridge({"inbound_enabled": True, "inbound_types": _DEFAULT_TYPES})
+        # A whitelisted type that carries no position: it survives the pre-screen,
+        # then the parse rejects it — the case where the type used to go unsaid.
+        bridge.rx_queue.put_nowait(_raw(cot_type="a-h-G", lat=0.0, lon=0.0))
+        bridge.rx_queue.put_nowait(_raw(cot_type="a-f-G-U-C"))  # the flood, pre-screened away
+
+        with self.assertLogs("oden.tak.listener", level="DEBUG") as logs:
+            task = asyncio.create_task(run_tak_listener(bridge))
+            for _ in range(50):
+                await asyncio.sleep(0)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        lines = "\n".join(logs.output)
+        self.assertIn("typ=a-h-G — ingen användbar position", lines)
+        self.assertIn("typ=a-f-G-U-C", lines)
+        self.assertIn("utanför inbound_types", lines)
+
+    async def test_the_summary_names_what_was_discarded(self):
+        bridge = _StubBridge({"inbound_enabled": True, "inbound_types": _DEFAULT_TYPES})
+        for _ in range(3):
+            bridge.rx_queue.put_nowait(_raw(cot_type="a-f-G-U-C"))
+
+        with (
+            patch("oden.tak.listener._SUMMARY_EVERY_SECONDS", 0.0),
+            self.assertLogs("oden.tak.listener", level="INFO") as logs,
+        ):
+            task = asyncio.create_task(run_tak_listener(bridge))
+            for _ in range(50):
+                await asyncio.sleep(0)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        summaries = [line for line in logs.output if "hittills" in line]
+        self.assertTrue(summaries, "ingen sammanfattningsrad loggades")
+        self.assertIn("bortfiltrerade typer: a-f-G-U-C", summaries[-1])
 
 
 if __name__ == "__main__":

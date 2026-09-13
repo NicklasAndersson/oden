@@ -59,6 +59,9 @@ _INBOUND_DEFAULTS: dict[str, Any] = {
 # server. On overflow we forget everything and re-learn — a handful of static
 # markers get re-imported once, no worse.
 _SEEN_CAP = 5000
+# Distinct discarded CoT types the tally keeps. A server sends a handful; the cap
+# is only so a broken or hostile peer cannot grow it without bound.
+_TALLY_CAP = 32
 
 
 def _num(value: Any, default: float) -> float:
@@ -74,6 +77,12 @@ def _as_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(part).strip() for part in value if str(part).strip()]
     return []
+
+
+def _count(tally: dict[str, int], key: str) -> None:
+    """Increment, but never let an unknown peer grow the tally without bound."""
+    if key in tally or len(tally) < _TALLY_CAP:
+        tally[key] = tally.get(key, 0) + 1
 
 
 def _content_signature(cot: InboundCot) -> str:
@@ -222,6 +231,24 @@ def build_envelope(cot: InboundCot, group_name: str) -> dict[str, Any]:
 
 
 _SUMMARY_EVERY_SECONDS = 30.0
+# How many discarded types the summary names.
+_TALLY_IN_SUMMARY = 4
+
+
+def _describe_tally(tally: dict[str, int]) -> str:
+    """The most common discarded types, for the periodic summary.
+
+    Without this, a whitelist that never matches looks identical to a quiet
+    server in the log: all you see is "N mottagna, N filtrerade". Naming what
+    was thrown away is what tells you whether to widen inbound_types or to go
+    looking further upstream.
+    """
+    if not tally:
+        return ""
+    top = sorted(tally.items(), key=lambda kv: (-kv[1], kv[0]))[:_TALLY_IN_SUMMARY]
+    listed = ", ".join(f"{cot_type} x{count}" for cot_type, count in top)
+    more = " m.fl." if len(tally) > len(top) else ""
+    return f" — bortfiltrerade typer: {listed}{more}"
 
 
 async def run_tak_listener(bridge: Any) -> None:
@@ -234,6 +261,7 @@ async def run_tak_listener(bridge: Any) -> None:
     settings = {**_INBOUND_DEFAULTS, **bridge.settings}
     group_name = str(settings["inbound_group_name"]).strip() or "TAK Inkommande"
     filt = InboundFilter(settings)
+    tally: dict[str, int] = {}
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
     last_summary = time.monotonic()
 
@@ -248,12 +276,18 @@ async def run_tak_listener(bridge: Any) -> None:
 
             if cot is None:
                 bridge.rx_filtered += 1
+                # The type is the one thing you need when the whitelist never matches,
+                # so name it even for an event that never became an InboundCot.
+                raw_type = raw_event_type(data)
+                _count(tally, raw_type or "okänd typ")
                 logger.debug(
-                    "TAK: ignorerar CoT (%s)",
-                    "typ utanför inbound_types" if prescreened else "ingen användbar position",
+                    "TAK: ignorerar CoT typ=%s — %s",
+                    raw_type or "okänd",
+                    "utanför inbound_types" if prescreened else "ingen användbar position",
                 )
             elif not filt.accept(cot):
                 bridge.rx_filtered += 1
+                _count(tally, cot.cot_type)
                 logger.debug("TAK: filtrerade CoT %s (%s) — %s", cot.uid, cot.cot_type, filt.last_reject)
             else:
                 bridge.received_count += 1
@@ -268,11 +302,13 @@ async def run_tak_listener(bridge: Any) -> None:
             now = time.monotonic()
             if now - last_summary >= _SUMMARY_EVERY_SECONDS and bridge.rx_total:
                 logger.info(
-                    "TAK inkommande hittills: %d mottagna, %d filtrerade, %d noter skapade",
+                    "TAK inkommande hittills: %d mottagna, %d filtrerade, %d noter skapade%s",
                     bridge.rx_total,
                     bridge.rx_filtered,
                     bridge.received_count,
+                    _describe_tally(tally),
                 )
+                tally.clear()  # the tally describes the window, the counters the session
                 last_summary = now
         except asyncio.CancelledError:
             raise
