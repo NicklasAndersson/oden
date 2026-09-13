@@ -184,6 +184,26 @@ FreeTAKServer istället? Sätt `FTS_COMPAT=1` i miljön.
 5. (Om `inbound_enabled`) Skapa en markör i ATAK → en `TAK-OBSERVATION`-not ska
    dyka upp i Odens meddelandevy under `TAK Inkommande`.
 
+### Kontrollera ett data-paket från terminalen
+
+`scripts/tak_check_package.py` säger vad ett paket innehåller och kan testa
+anslutningen utan att röra config-db:n — går att köra medan Oden är igång:
+
+```bash
+# vad är det här för paket?
+python scripts/tak_check_package.py ~/.config/oden/tak/mitt-paket.zip
+
+# enrollment-paket: hämta cert och anslut på riktigt
+export ODEN_TAK_ENROLL_PASSWORD='...'
+python scripts/tak_check_package.py ~/.config/oden/tak/mitt-paket.zip --connect --user oden
+
+# ... och skicka en markör när anslutningen är uppe
+python scripts/tak_check_package.py ~/.config/oden/tak/mitt-paket.zip \
+    --connect --user oden --send 34VCM7934926095
+```
+
+Utpackade certifikat hamnar i en temporärkatalog som tas bort när skriptet slutar.
+
 ## Felsökning
 
 | Symptom | Trolig orsak |
