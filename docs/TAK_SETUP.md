@@ -141,6 +141,24 @@ En TAK Server signerar sina egna certifikat:
 - Serverns cert-namn är ofta inte DNS-namnet du ringer →
   `Hostname mismatch`. `tls_check_hostname` är av som standard; CA-koll kvar på.
 
+### Vilka kanaler är Oden med i?
+
+TAK Servers *channels* (internt *groups*) bestämmer vem som får se vad, och de
+sitter på servern knutna till certifikatet. Listan skickas aldrig till klienten,
+och Oden läser inte ens `__group` i inkommande CoT — Oden kan alltså inte visa
+den. Får du inga noter fast kontot är eget och typen borde matcha, fråga servern
+direkt med Odens eget cert:
+
+```bash
+python scripts/tak_channels.py ~/.config/oden/tak/paket.zip --user 25HVBAT675
+```
+
+Den listar kanalerna för det kontot med riktning och om de är aktiva, plus vilka
+klienter servern ser. Oden får bara trafik i kanaler som är aktiva och omfattar
+IN. Skickar din ATAK-enhet i en kanal som inte står i listan kommer ingenting
+fram, hur vid `inbound_types` än är. Certet måste redan vara hämtat, så kör en
+anslutning först. Marti-API:t ligger normalt på 8443 (`--port` för annat).
+
 ### Inkommande CoT – noter i valvet
 
 En not får rubriken `TAK-OBSERVATION` (medvetet *inte* `… RAPPORT`, så den inte
@@ -228,7 +246,8 @@ Utpackade certifikat hamnar i en temporärkatalog som tas bort när skriptet slu
 | Markör i havet (0,0) | MGRS i `Ställe` gick inte att tolka |
 | Dubbla markörer för samma rapport | uid-härledning matchar inte mellan original och `++` – buggrapport |
 | Översvämmas av inkommande noter | `inbound_types` för brett, eller höj `inbound_min_move_m` |
-| Inget loggas när du placerar punkter i TAK | (1) `inbound_enabled` av? (2) **Oden och du använder samma TAK-konto** — servern skickar inte tillbaka dina egna events till din andra anslutning; ge Oden ett eget cert/konto. (3) Punkttypen matchar inte `inbound_types`. Statusraden i TAK-fliken visar `N mottagna / M filtrerade`; sätt loggnivå `DEBUG` för att se varje filtrerad CoT |
+| Inget loggas när du placerar punkter i TAK | (1) `inbound_enabled` av? (2) **Oden och du använder samma TAK-konto** — servern skickar inte tillbaka dina egna events till din andra anslutning; ge Oden ett eget cert/konto. (3) **Olika kanaler** — servern levererar bara CoT i kanaler kontot är med i; se nedan. (4) Punkttypen matchar inte `inbound_types`. Statusraden i TAK-fliken visar `N mottagna / M filtrerade`, och sammanfattningsraden i loggen räknar upp vilka typer som kastades |
+| Vet inte vilken kanal Oden är med i | Oden vet det inte själv — kanaltillhörighet sitter på servern, knuten till certifikatet, och skickas aldrig till klienten som en lista. Fråga servern: `python scripts/tak_channels.py <paket.zip> --user <namn>` |
 | Markörer syns för dig men inte andra | Servern kräver data marking / mission – prata med TAK-admin |
 
 ## Säkerhet
