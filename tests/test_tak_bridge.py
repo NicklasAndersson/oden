@@ -63,6 +63,20 @@ class BuildConfigTest(unittest.TestCase):
             self._config({"pref_package": "/tmp/pkg.zip"})
         self.assertIn("enrollment", str(ctx.exception))
 
+    def test_password_containing_a_percent_sign_survives(self):
+        """ConfigParser's BasicInterpolation reads % as syntax and rejects the value."""
+        cfg = self._config(
+            {
+                "cot_url": "tls://x:8089",
+                "enroll_username": "25HVBAT675",
+                "enroll_password_env": "ENR_PW",
+                "tls_client_password_env": "CERT_PW",
+            },
+            env={"ENR_PW": "Kx4MGg%sj56Y#P?", "CERT_PW": "100%%safe"},
+        )
+        self.assertEqual(cfg["PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"], "Kx4MGg%sj56Y#P?")
+        self.assertEqual(cfg["PYTAK_TLS_CLIENT_PASSWORD"], "100%%safe")
+
     def test_enrollment_username_and_env_password(self):
         cfg = self._config(
             {"cot_url": "tls://x:8089", "enroll_username": "nicklas", "enroll_password_env": "ENR_PW"},
@@ -148,6 +162,45 @@ class ReconnectTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(bridge._tx_queue, first_tx)
         self.assertIs(bridge.rx_queue, first_rx)
         self.assertIs(_FakeCLITool.instances[1].rx_queue, first_rx)
+
+
+class SafeErrorTest(unittest.TestCase):
+    """Errors reach the log, last_error and the TAK tab — they must not carry secrets."""
+
+    def _settings(self, **overrides):
+        return {**_DEFAULTS, "enroll_password": "Kx4MGg%sj56Y#P?", **overrides}
+
+    def test_a_password_quoted_by_a_library_is_scrubbed(self):
+        from oden.tak.bridge import safe_error
+
+        # ConfigParser really does put the rejected value in its message.
+        exc = ValueError("invalid interpolation syntax in 'Kx4MGg%sj56Y#P?' at position 6")
+        text = safe_error(exc, self._settings())
+
+        self.assertNotIn("Kx4MGg", text)
+        self.assertIn("***", text)
+
+    def test_a_password_held_in_an_env_var_is_scrubbed_too(self):
+        from oden.tak.bridge import safe_error
+
+        settings = self._settings(enroll_password="", enroll_password_env="ENR_PW")
+        with patch.dict("os.environ", {"ENR_PW": "hemlig-fras"}):
+            text = safe_error(ValueError("kunde inte använda hemlig-fras"), settings)
+
+        self.assertNotIn("hemlig-fras", text)
+
+    def test_ordinary_errors_pass_through_intact(self):
+        from oden.tak.bridge import safe_error
+
+        text = safe_error(ConnectionRefusedError("Connect call failed"), self._settings())
+        self.assertIn("Connect call failed", text)
+
+    def test_no_configured_password_is_not_a_wildcard(self):
+        from oden.tak.bridge import safe_error
+
+        settings = {**_DEFAULTS, "enroll_password": "", "tls_client_password": ""}
+        text = safe_error(ValueError("helt vanligt fel"), settings)
+        self.assertIn("helt vanligt fel", text)
 
 
 class CertExpiryTest(unittest.TestCase):

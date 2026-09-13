@@ -81,6 +81,29 @@ def _secret(settings: dict[str, Any], env_key: str, value_key: str) -> str:
     return from_env or str(settings.get(value_key) or "")
 
 
+# (setting holding the env var name, setting holding the literal value)
+_SECRET_SETTINGS = (
+    ("tls_client_password_env", "tls_client_password"),
+    ("enroll_password_env", "enroll_password"),
+)
+
+
+def safe_error(exc: BaseException, settings: dict[str, Any]) -> str:
+    """``repr(exc)`` with any configured password scrubbed out.
+
+    Errors from this module end up in the log, in ``last_error`` and on the TAK
+    tab's status row, and library exceptions quote the value that upset them —
+    ConfigParser puts a rejected password straight into its message. Matching on
+    the actual secret works whatever shape the message takes.
+    """
+    text = repr(exc)
+    for env_key, value_key in _SECRET_SETTINGS:
+        secret = _secret(settings, env_key, value_key)
+        if secret:
+            text = text.replace(secret, "***")
+    return text
+
+
 def cert_expiry(settings: dict[str, Any]) -> datetime | None:
     """Best-effort expiry date of the configured client cert.
 
@@ -202,7 +225,10 @@ class TakBridge:
                 f"men enrollment-{missing} saknas. Fyll i det i TAK-fliken."
             )
 
-        parser = ConfigParser()
+        # interpolation=None: passwords are arbitrary bytes, and BasicInterpolation
+        # reads "%" as syntax — a password containing "%s" raises on assignment
+        # (with the password in the message).
+        parser = ConfigParser(interpolation=None)
         parser["oden_tak"] = section
         return parser["oden_tak"]
 
@@ -250,7 +276,7 @@ class TakBridge:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                self.last_error = repr(exc)
+                self.last_error = safe_error(exc, self.settings)
             self.connected = False
             logger.error("TAK-bryggan: %s — nytt försök om %.0f s", self.last_error, delay)
             await asyncio.sleep(delay)
@@ -313,8 +339,9 @@ async def start_tak_bridge() -> TakBridge | None:
             logger.error("TAK är aktiverat men pytak saknas — installera med: pip install 'oden[tak]'")
         _bridge = None
     except Exception as exc:
-        logger.error("Kunde inte starta TAK-bryggan: %r", exc)
-        _bridge.last_error = repr(exc)
+        message = safe_error(exc, settings)
+        logger.error("Kunde inte starta TAK-bryggan: %s", message)
+        _bridge.last_error = message
     return _bridge
 
 

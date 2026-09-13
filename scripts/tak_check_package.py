@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from oden.tak.bridge import _DEFAULTS, TakBridge
+from oden.tak.bridge import _DEFAULTS, TakBridge, safe_error
 from oden.tak.cot import Report, latlon_to_mgrs, report_to_cot
 from oden.tak.pref_package import describe_package, read_data_package
 
@@ -79,7 +79,7 @@ async def _connect(args: argparse.Namespace, package, workdir: Path) -> int:
     try:
         await bridge.start()
     except Exception as exc:
-        print(f"\nMISSLYCKADES: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(f"\nMISSLYCKADES: {safe_error(exc, settings)}", file=sys.stderr)
         return 1
 
     try:
