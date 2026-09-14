@@ -50,13 +50,58 @@ Sista steget behövs eftersom vi saknar Apple-certifikat. Alternativt kan du hö
 
 ### Windows (inbyggd installationsfil)
 
-Om en Windows-installerare finns bifogad till releasen:
+> **Obs:** installationsfilen byggs bara för **x64**. Windows på ARM stöds inte av den
+> nativa appen — kör Oden via [Docker](#docker-linux-windows-intel-mac-raspberry-pi) istället.
+
+**Automatisk installation** — kör i PowerShell (ingen administratörsbehörighet krävs):
+
+```powershell
+$ProgressPreference = 'SilentlyContinue'   # annars går nedladdningen mycket långsamt i PowerShell 5.1
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$rel   = Invoke-RestMethod https://api.github.com/repos/NicklasAndersson/oden/releases/latest
+$asset = $rel.assets | Where-Object { $_.name -like '*-x64.exe' } | Select-Object -First 1
+$exe   = Join-Path $env:TEMP $asset.name
+Invoke-WebRequest $asset.browser_download_url -OutFile $exe
+Start-Process $exe
+```
+
+Installera en specifik version — byt bara ut `$version`:
+
+```powershell
+$version = '4.0.2'
+$rel   = Invoke-RestMethod "https://api.github.com/repos/NicklasAndersson/oden/releases/tags/v$version"
+$asset = $rel.assets | Where-Object { $_.name -like '*-x64.exe' } | Select-Object -First 1
+$exe   = Join-Path $env:TEMP $asset.name
+Invoke-WebRequest $asset.browser_download_url -OutFile $exe
+Start-Process $exe
+```
+
+Installera senaste **snapshot** (testversion — motsvarar `install_snapshot_mac.sh` på macOS):
+
+```powershell
+$rel   = Invoke-RestMethod https://api.github.com/repos/NicklasAndersson/oden/releases |
+         Where-Object { $_.prerelease } | Select-Object -First 1
+$asset = $rel.assets | Where-Object { $_.name -like '*-x64.exe' } | Select-Object -First 1
+Write-Host "Installerar $($rel.tag_name)"
+$exe   = Join-Path $env:TEMP $asset.name
+Invoke-WebRequest $asset.browser_download_url -OutFile $exe
+Start-Process $exe
+```
+
+Kommandona ovan hämtar rätt `.exe` från GitHub och startar installationsguiden. Vill du se
+vilka snapshots som finns innan du väljer, lista dem med
+`Invoke-RestMethod https://api.github.com/repos/NicklasAndersson/oden/releases | Where-Object { $_.prerelease } | Select-Object tag_name, published_at`.
 
 **Manuell installation:**
 
-1. Ladda ner `.exe` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
+1. Ladda ner `Oden-Setup-<version>-x64.exe` från [senaste releasen](https://github.com/NicklasAndersson/oden/releases/latest)
 2. Kör installationsguiden (ingen administratörsbehörighet krävs)
 3. Starta Oden från Start-menyn eller genvägen på skrivbordet
+
+**SmartScreen varnar.** Installationsfilen är inte kodsignerad, så Windows visar
+*"Windows skyddade din dator"*. Välj **Mer information → Kör ändå**. Det motsvarar
+`xattr -cr` på macOS och beror på att vi saknar signeringscertifikat, inte på filen.
 
 ### Docker (Linux, Windows, Intel Mac, Raspberry Pi)
 
