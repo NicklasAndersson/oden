@@ -1,5 +1,6 @@
 let currentStep = 1;
 let linkedNumber = null;
+let signalEnabled = true;
 let countdownInterval = null;
 let pollInterval = null;
 let existingAccounts = [];
@@ -63,6 +64,7 @@ function showExistingAccounts(accounts) {
 
 function useExistingAccount(number) {
     linkedNumber = number;
+    signalEnabled = true;
     hideAllStep2Sections();
     document.getElementById('link-success').classList.remove('hidden');
     document.getElementById('linked-number').textContent = number;
@@ -106,6 +108,7 @@ function goToStep(step) {
     currentStep = step;
 
     if (step === 2) {
+        signalEnabled = true;
         if (existingAccounts.length > 0) {
             // Accounts already loaded from initial status response — skip extra fetch
             showMethodSelection();
@@ -116,9 +119,19 @@ function goToStep(step) {
 
     if (step === 3) {
         document.getElementById('confirm-vault').textContent = document.getElementById('vault-path').value;
-        document.getElementById('confirm-number').textContent = linkedNumber || '(ej konfigurerad)';
+        document.getElementById('confirm-number').textContent = signalEnabled
+            ? (linkedNumber || '(ej konfigurerad)')
+            : 'Hoppas över (kan slås på senare via Avancerat → Kör setup för Signal)';
         document.getElementById('confirm-device').textContent = document.getElementById('device-name')?.value || 'Oden';
     }
+}
+
+function skipSignalSetup() {
+    clearInterval(countdownInterval);
+    clearInterval(pollInterval);
+    fetch('/api/setup/cancel-link', { method: 'POST' }).catch(() => {});
+    signalEnabled = false;
+    goToStep(3);
 }
 
 function startSelectedMethod() {
@@ -382,7 +395,8 @@ async function saveConfig() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 vault_path: vaultPath,
-                signal_number: linkedNumber,
+                signal_number: signalEnabled ? linkedNumber : null,
+                signal_enabled: signalEnabled,
                 display_name: document.getElementById('device-name')?.value || 'Oden'
             })
         });

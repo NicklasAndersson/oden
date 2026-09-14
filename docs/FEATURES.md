@@ -442,6 +442,7 @@ All konfiguration lagras i en SQLite-databas (`config.db`) i Oden-hemkatalogen. 
 |--------|-----|----------|-------------|
 | `vault_path` | string | `~/oden-vault` | Sökväg till Obsidian-valvet |
 | `signal_number` | string | `+46XXXXXXXXX` | Signal-telefonnummer |
+| `signal_enabled` | bool | `true` | `false` = kör utan Signal/signal-cli (t.ex. bara TAK). Kräver omstart |
 | `display_name` | string | `oden` | Signal-visningsnamn |
 | `timezone` | string | `Europe/Stockholm` | Tidszon för tidsstämplar |
 | `filename_format` | string | `classic` | Filnamnsformat: `classic`, `tnr`, `tnr-name` |

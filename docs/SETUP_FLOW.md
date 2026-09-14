@@ -18,6 +18,7 @@ flowchart TD
     G -->|Ja| H[Recovery-erbjudande]
     G -->|Nej| I[Steg 2: Signal-konto]
     H --> I
+    I -->|Hoppa över Signal-setup| J
     I --> J[Steg 3: Vault och visningsnamn]
     J --> K[Steg 4: Obsidian-mall]
     K --> Z
@@ -95,6 +96,12 @@ Registrerar ett nytt Signal-nummer direkt.
 
 Oden kan automatiskt detektera befintliga Signal-konton genom att läsa `signal-cli/data/`-katalogen direkt — utan att starta JVM:en. Om konton hittas erbjuds de som alternativ.
 
+### Hoppa över Signal-setup
+
+Längst ner i steg 2 finns **Hoppa över Signal-setup →**, för den som bara vill köra t.ex. TAK. Då sparas `signal_enabled = false` och inget Signal-nummer krävs. Oden startar utan signal-cli; webbgränssnittet och TAK-bryggan körs som vanligt. Signal-flikarna (Grupper, Kontakter, Signal-konton och Signal-delarna av Avancerat) visar en inforuta och deras knappar är avstängda.
+
+Signal slås på senare via **Avancerat → Kör setup för Signal**: länka ett konto, spara och starta om Oden. Valet läses vid uppstart, så en ändring kräver omstart.
+
 ### Multi-account
 
 Setup-wizarden konfigurerar det första kontot. Ytterligare konton kan läggas till efter setup via **Signal-konton**-fliken i dashboard-läge. signal-cli körs i multi-account daemon-läge och kan hantera flera konton parallellt — men Oden behandlar meddelanden för ett aktivt konto åt gången.
@@ -129,5 +136,5 @@ När alla steg är genomförda:
 
 1. Konfigurationen sparas till `config.db`
 2. Webbgränssnittet växlar automatiskt till **dashboard-läge**
-3. signal-cli startas och Oden börjar lyssna efter meddelanden
+3. signal-cli startas och Oden börjar lyssna efter meddelanden (hoppas över om Signal-setup hoppades över)
 4. Tray-ikonen (om tillgänglig) uppdateras till aktivt läge

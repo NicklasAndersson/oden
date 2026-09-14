@@ -22,6 +22,7 @@ from oden.app_state import get_app_state
 from oden.config import (
     SIGNAL_CLI_HOST,
     SIGNAL_CLI_PORT,
+    SIGNAL_ENABLED,
     SIGNAL_NUMBER,
     UNMANAGED_SIGNAL_CLI,
     WEB_ENABLED,
@@ -42,6 +43,7 @@ async def _run_lifecycle(
     port: int,
     signal_manager: SignalManager | None,
     tray: OdenTray | None,
+    signal_enabled: bool = True,
 ) -> None:
     """Long-lived async lifecycle that keeps the web server running.
 
@@ -74,12 +76,19 @@ async def _run_lifecycle(
         logger.info(f"Web GUI enabled on port {WEB_PORT}")
 
     listener_task: asyncio.Task | None = None
-    log_monitor_task = asyncio.create_task(monitor_signal_cli_log(quit_event))
+    log_monitor_task = None
+    if signal_enabled:
+        log_monitor_task = asyncio.create_task(monitor_signal_cli_log(quit_event))
 
     # TAK bridge — no-op unless tak_settings.enabled; runs for the whole lifetime
     await start_tak_bridge()
 
     try:
+        if not signal_enabled:
+            # ponytail: choice made at startup; toggling Signal needs an Oden restart
+            logger.info("Signal är avstängt — kör utan signal-cli (webb och TAK är igång).")
+            await quit_event.wait()
+
         while not quit_event.is_set():
             # Reset events for this cycle
             stop_event.clear()
@@ -285,6 +294,7 @@ def main() -> None:
                 new_host = new_config["signal_cli_host"]
                 new_port = new_config["signal_cli_port"]
                 new_unmanaged = new_config["unmanaged_signal_cli"]
+                new_signal_enabled = new_config.get("signal_enabled", True)
                 logger.info(
                     "Post-setup config: signal_number=%s, CONFIG_DB=%s",
                     new_number,
@@ -309,9 +319,10 @@ def main() -> None:
         new_host = SIGNAL_CLI_HOST
         new_port = SIGNAL_CLI_PORT
         new_unmanaged = UNMANAGED_SIGNAL_CLI
+        new_signal_enabled = SIGNAL_ENABLED
 
     # Validate configuration
-    if new_number == "+46XXXXXXXXX" or not new_number:
+    if new_signal_enabled and (new_number == "+46XXXXXXXXX" or not new_number):
         logger.error("❌ Signal number not configured!")
         logger.error("Please run Oden again to complete setup.")
         sys.exit(1)
@@ -321,7 +332,7 @@ def main() -> None:
     app_state = get_app_state()
     app_state.tray = tray
 
-    signal_manager = None if new_unmanaged else SignalManager(new_host, new_port)
+    signal_manager = None if new_unmanaged or not new_signal_enabled else SignalManager(new_host, new_port)
 
     # --- Tray callbacks use AppState lifecycle helpers ---
     if tray is not None:
@@ -338,6 +349,7 @@ def main() -> None:
                     port=new_port,
                     signal_manager=signal_manager,
                     tray=tray,
+                    signal_enabled=new_signal_enabled,
                 )
             )
         except (KeyboardInterrupt, SystemExit):

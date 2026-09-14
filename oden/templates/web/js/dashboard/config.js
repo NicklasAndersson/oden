@@ -38,6 +38,11 @@ async function loadSignalCliStatus() {
     if (!versionNode || !logNode) {
         return;
     }
+    if (!SIGNAL_ENABLED) {
+        versionNode.textContent = 'Signal är avstängt.';
+        logNode.textContent = 'Signal är avstängt.';
+        return;
+    }
 
     try {
         const response = await fetch('/api/signal-cli/status');
@@ -76,7 +81,7 @@ async function loadSignalCliStatus() {
 }
 
 async function rerunSetup() {
-    if (!confirm('Är du säker? Detta startar om Oden i setup-läge. Befintlig konfiguration behålls tills du sparar ny.')) {
+    if (!confirm('Kör setup för Signal? Du kan länka eller byta Signal-konto, eller hoppa över Signal. Befintlig konfiguration behålls tills du sparar ny.')) {
         return;
     }
     try {

@@ -18,7 +18,7 @@
                     <div class="status-dot"></div>
                     <span>Lyssnar</span>
                 </div>
-                <button class="btn btn-secondary" onclick="restartSignalCli()" title="Starta om signal-cli">
+                <button class="btn btn-secondary" onclick="restartSignalCli()" title="Starta om signal-cli"{% if not signal_enabled %} disabled{% endif %}>
                     ↻ Starta om signal-cli
                 </button>
                 <button class="btn btn-danger" onclick="shutdownApp()" title="Stäng av Oden">
@@ -73,6 +73,7 @@
 {% block scripts %}
     <script>
     const version = '{{ version }}';
+    const SIGNAL_ENABLED = {{ signal_enabled|tojson }};
     {% include "js/dashboard/shared.js" %}
     {% include "js/dashboard/dirty-tracking.js" %}
     {% include "js/dashboard/logs.js" %}
