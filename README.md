@@ -80,8 +80,12 @@ Start-Process $exe
 Installera senaste **snapshot** (testversion — motsvarar `install_snapshot_mac.sh` på macOS):
 
 ```powershell
+# GitHub returnerar inte releaserna i tidsordning, så sortera själv — annars
+# är det slumpen som avgör vilken snapshot du får.
 $rel   = Invoke-RestMethod https://api.github.com/repos/NicklasAndersson/oden/releases |
-         Where-Object { $_.prerelease } | Select-Object -First 1
+         Where-Object { $_.prerelease } |
+         Sort-Object { [datetime]$_.published_at } -Descending |
+         Select-Object -First 1
 $asset = $rel.assets | Where-Object { $_.name -like '*-x64.exe' } | Select-Object -First 1
 Write-Host "Installerar $($rel.tag_name)"
 $exe   = Join-Path $env:TEMP $asset.name
@@ -89,9 +93,28 @@ Invoke-WebRequest $asset.browser_download_url -OutFile $exe
 Start-Process $exe
 ```
 
-Kommandona ovan hämtar rätt `.exe` från GitHub och startar installationsguiden. Vill du se
-vilka snapshots som finns innan du väljer, lista dem med
-`Invoke-RestMethod https://api.github.com/repos/NicklasAndersson/oden/releases | Where-Object { $_.prerelease } | Select-Object tag_name, published_at`.
+Kommandona ovan hämtar rätt `.exe` från GitHub och startar installationsguiden.
+
+Vill du se vilka snapshots som finns innan du väljer — till exempel för att installera
+bygget från en viss pull request — lista dem först:
+
+```powershell
+Invoke-RestMethod https://api.github.com/repos/NicklasAndersson/oden/releases |
+    Where-Object { $_.prerelease } |
+    Sort-Object { [datetime]$_.published_at } -Descending |
+    Select-Object tag_name, published_at
+```
+
+Installera sedan en namngiven snapshot genom att byta ut `$tag`:
+
+```powershell
+$tag   = 'pr-272-snapshot-3923eec'
+$rel   = Invoke-RestMethod "https://api.github.com/repos/NicklasAndersson/oden/releases/tags/$tag"
+$asset = $rel.assets | Where-Object { $_.name -like '*-x64.exe' } | Select-Object -First 1
+$exe   = Join-Path $env:TEMP $asset.name
+Invoke-WebRequest $asset.browser_download_url -OutFile $exe
+Start-Process $exe
+```
 
 **Manuell installation:**
 
