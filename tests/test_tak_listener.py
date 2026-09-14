@@ -1,5 +1,4 @@
 import asyncio
-import json
 import shutil
 import tempfile
 import time
@@ -21,6 +20,7 @@ from oden.tak.listener import (
     INBOUND_GROUP_ID,
     OBSERVATION_HEADER,
     InboundFilter,
+    _content_signature,
     _count,
     _describe_tally,
     _Seen,
@@ -443,7 +443,8 @@ class SeenPersistenceTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.path = Path(self._tmp.name) / "tak" / "inbound-seen.json"
+        self.db = Path(self._tmp.name) / "config.db"
+        init_db(self.db)
 
     def _filter(self, **kw):
         return InboundFilter({"inbound_types": _DEFAULT_TYPES}, **kw)
@@ -452,72 +453,72 @@ class SeenPersistenceTest(unittest.TestCase):
         before = self._filter()
         cot = _cot(uid="8S.abc", cot_type="a-h-G")
         self.assertTrue(before.accept(cot), "första gången ska den släppas igenom")
-        save_seen(before.seen_snapshot(), self.path)
+        save_seen(before.seen_snapshot(), self.db)
 
-        after = self._filter(seen=load_seen(self.path))
+        after = self._filter(seen=load_seen(self.db))
         self.assertFalse(after.accept(_cot(uid="8S.abc", cot_type="a-h-G")))
         self.assertIn("dedup", after.last_reject)
 
     def test_real_movement_still_gets_through_after_a_restart(self):
         before = self._filter()
         before.accept(_cot(uid="8S.abc", cot_type="a-h-G", lat=59.33, lon=18.07))
-        save_seen(before.seen_snapshot(), self.path)
+        save_seen(before.seen_snapshot(), self.db)
 
-        after = self._filter(seen=load_seen(self.path))
+        after = self._filter(seen=load_seen(self.db))
         self.assertTrue(after.accept(_cot(uid="8S.abc", cot_type="a-h-G", lat=59.40, lon=18.07)))
 
     def test_nothing_saved_means_nothing_remembered(self):
-        self.assertEqual(load_seen(self.path), {})
+        self.assertEqual(load_seen(self.db), {})
 
-    def test_a_corrupt_file_costs_a_reimport_not_a_crash(self):
-        self.path.parent.mkdir(parents=True)
-        self.path.write_text("{detta är inte json", encoding="utf-8")
-        with self.assertLogs("oden.tak.listener", level="WARNING"):
-            self.assertEqual(load_seen(self.path), {})
-
-    def test_a_single_bad_row_does_not_cost_the_good_ones(self):
-        self.path.parent.mkdir(parents=True)
+    def test_a_save_replaces_what_was_there(self):
         now = time.time()
-        self.path.write_text(
-            json.dumps(
-                {
-                    "seen": {
-                        "bra": {"lat": 59.3, "lon": 18.0, "signature": "x", "cot_type": "a-h-G", "seen_at": now},
-                        "trasig": {"lat": "inte ett tal", "cot_type": "a-h-G"},
-                    }
-                }
-            ),
-            encoding="utf-8",
-        )
-        self.assertEqual(list(load_seen(self.path)), ["bra"])
+        save_seen({"gammal": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now)}, self.db)
+        save_seen({"ny": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now)}, self.db)
+        self.assertEqual(list(load_seen(self.db, now=now)), ["ny"])
+
+    def test_a_broken_database_costs_a_reimport_not_a_crash(self):
+        bare = Path(self._tmp.name) / "utan-tabell.db"  # never init_db'd
+        with self.assertLogs("oden.tak.listener", level="WARNING"):
+            self.assertEqual(load_seen(bare), {})
+        with self.assertLogs("oden.tak.listener", level="WARNING"):
+            save_seen({"x": _Seen(59.3, 18.0, "s", "a-h-G")}, bare)
 
     def test_entries_it_has_not_seen_for_a_month_are_forgotten(self):
         now = time.time()
         stale = {"gammal": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now - _SEEN_MAX_AGE_S - 60)}
         fresh = {"ny": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now)}
-        save_seen({**stale, **fresh}, self.path)
-        self.assertEqual(list(load_seen(self.path, now=now)), ["ny"])
+        save_seen({**stale, **fresh}, self.db)
+        self.assertEqual(list(load_seen(self.db, now=now)), ["ny"])
 
-    def test_an_oversized_file_keeps_the_most_recent(self):
+    def test_an_oversized_cache_keeps_the_most_recent(self):
         now = time.time()
         crowd = {f"uid-{i}": _Seen(59.3, 18.0, "x", "a-h-G", seen_at=now - i) for i in range(_SEEN_CAP + 50)}
-        save_seen(crowd, self.path)
-        loaded = load_seen(self.path, now=now)
+        save_seen(crowd, self.db)
+        loaded = load_seen(self.db, now=now)
         self.assertEqual(len(loaded), _SEEN_CAP)
         self.assertIn("uid-0", loaded)  # newest
         self.assertNotIn(f"uid-{_SEEN_CAP + 49}", loaded)  # oldest
 
-    def test_the_file_is_owner_only_and_leaves_no_temp_behind(self):
-        save_seen({"x": _Seen(59.3, 18.0, "s", "a-h-G", seen_at=time.time())}, self.path)
-        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
-        self.assertEqual(self.path.parent.stat().st_mode & 0o777, 0o700)
-        self.assertEqual(list(self.path.parent.glob("*.tmp")), [])
+    def test_a_marker_that_stays_live_is_not_forgotten_after_a_month(self):
+        """seen_at means last seen, not last imported: an unchanged repeat keeps it fresh."""
+        start = time.time() - _SEEN_MAX_AGE_S - 3600
+        repeat = _cot(uid="8S.abc", cot_type="a-h-G", lat=59.33, lon=18.07)
+        filt = self._filter(seen={"8S.abc": _Seen(59.33, 18.07, _content_signature(repeat), "a-h-G", seen_at=start)})
 
-    def test_an_unwritable_target_is_a_warning_not_a_crash(self):
-        blocker = Path(self._tmp.name) / "inte-en-katalog"
-        blocker.write_text("x", encoding="utf-8")
-        with self.assertLogs("oden.tak.listener", level="WARNING"):
-            save_seen({"x": _Seen(59.3, 18.0, "s", "a-h-G")}, blocker / "inbound-seen.json")
+        self.assertFalse(filt.accept(repeat))
+        self.assertTrue(filt.seen_dirty)
+        save_seen(filt.seen_snapshot(), self.db)
+        self.assertIn("8S.abc", load_seen(self.db))
+
+    def test_an_unchanged_repeat_within_a_day_leaves_nothing_to_save(self):
+        now = time.time()
+        repeat = _cot(uid="8S.abc", cot_type="a-h-G", lat=59.33, lon=18.07)
+        filt = self._filter(
+            seen={"8S.abc": _Seen(59.33, 18.07, _content_signature(repeat), "a-h-G", seen_at=now - 3600)}
+        )
+
+        self.assertFalse(filt.accept(repeat, now=now))
+        self.assertFalse(filt.seen_dirty, "en upprepning ska inte ge en skrivning varje sparning")
 
     def test_the_filter_reports_whether_there_is_anything_to_save(self):
         filt = self._filter()
@@ -534,13 +535,13 @@ class SeenPersistenceTest(unittest.TestCase):
 class RestartDoesNotDuplicateTest(unittest.IsolatedAsyncioTestCase):
     """The bug itself: a restart used to re-import every live marker as a new note."""
 
-    async def _run_once(self, seen_path: Path) -> int:
+    async def _run_once(self, db: Path) -> int:
         """Start a listener, feed the same live marker, stop it. Returns notes created."""
         bridge = _StubBridge({"inbound_enabled": True, "inbound_types": _DEFAULT_TYPES})
         bridge.rx_queue.put_nowait(_raw(uid="8S.live", cot_type="a-h-G"))
 
         with ExitStack() as stack:
-            stack.enter_context(patch("oden.tak.listener._seen_path", return_value=seen_path))
+            stack.enter_context(patch("oden.config.CONFIG_DB", db))
             stack.enter_context(patch("oden.messages_db.create_raw_message", side_effect=lambda *a, **k: 1))
             stack.enter_context(patch("oden.messages_db.update_message_status"))
 
@@ -561,22 +562,27 @@ class RestartDoesNotDuplicateTest(unittest.IsolatedAsyncioTestCase):
                 await task
         return bridge.received_count
 
+    def _db(self, tmp: str, name: str) -> Path:
+        db = Path(tmp) / name
+        init_db(db)
+        return db
+
     async def test_the_same_live_marker_is_not_imported_twice(self):
         with tempfile.TemporaryDirectory() as tmp:
-            seen_path = Path(tmp) / "tak" / "inbound-seen.json"
+            db = self._db(tmp, "config.db")
 
-            first = await self._run_once(seen_path)
+            first = await self._run_once(db)
             self.assertEqual(first, 1, "första körningen ska skapa noten")
-            self.assertTrue(seen_path.is_file(), "dedup-cachen skrevs inte vid nedstängning")
+            self.assertTrue(load_seen(db), "dedup-cachen skrevs inte vid nedstängning")
 
-            second = await self._run_once(seen_path)
+            second = await self._run_once(db)
             self.assertEqual(second, 0, "omstarten importerade markören igen")
 
     async def test_without_the_saved_cache_it_would_import_again(self):
-        """Guards the test above: prove the second run only passes because of the file."""
+        """Guards the test above: prove the second run only passes because of the database."""
         with tempfile.TemporaryDirectory() as tmp:
-            await self._run_once(Path(tmp) / "tak" / "seen-a.json")
-            again = await self._run_once(Path(tmp) / "tak" / "seen-b.json")
+            await self._run_once(self._db(tmp, "a.db"))
+            again = await self._run_once(self._db(tmp, "b.db"))
             self.assertEqual(again, 1)
 
 

@@ -145,15 +145,13 @@ En TAK Server signerar sina egna certifikat:
 
 En TAK Server återutsänder varje levande markör, och ATAK kan göra det så ofta
 som var tionde sekund. Dedup-skyddet håller reda på vad som redan blivit en not,
-och det tillståndet sparas i `ODEN_HOME/tak/inbound-seen.json` (rättigheter
-`0600`) så att en omstart av Oden inte gör om serverns lägesbild till nya noter.
-Filen innehåller uid, position och en textsignatur per markör — inga
-rapporttexter i klartext, men den ligger i samma skyddade katalog som
-nyckelmaterialet.
+och det tillståndet sparas i tabellen `tak_inbound_seen` i `config.db` så att en
+omstart av Oden inte gör om serverns lägesbild till nya noter. Tabellen innehåller
+uid, position och en textsignatur per markör.
 
 Den skrivs var trettionde sekund när något ändrats, och vid nedstängning. Poster
 som inte setts på trettio dygn glöms, så en markör som togs bort för länge sedan
-inte blockerar en legitim återimport. Raderas filen är enda följden att det som
+inte blockerar en legitim återimport. Töms tabellen är enda följden att det som
 fortfarande är levande på servern importeras en gång till.
 
 ### Vilka kanaler är Oden med i?

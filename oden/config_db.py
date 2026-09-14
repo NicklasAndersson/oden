@@ -269,8 +269,22 @@ def init_db(db_path: Path) -> None:
                 )
             """)
 
+        # Migration to schema version 7: TAK inbound dedup cache (restart recovery —
+        # without it a restart re-imports the server's live picture as new notes).
+        if current_version < 7:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tak_inbound_seen (
+                    uid TEXT PRIMARY KEY,
+                    lat REAL NOT NULL,
+                    lon REAL NOT NULL,
+                    signature TEXT NOT NULL,
+                    cot_type TEXT NOT NULL,
+                    seen_at REAL NOT NULL
+                )
+            """)
+
         # Store current schema version (never downgrade)
-        latest_version = max(current_version, 6)
+        latest_version = max(current_version, 7)
         cursor.execute(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
             ("schema_version", str(latest_version)),

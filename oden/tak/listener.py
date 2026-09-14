@@ -21,11 +21,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
-import os
+import sqlite3
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -102,88 +101,50 @@ class _Seen:
     seen_at: float = 0.0  # unix time, only used to age the cache that survives a restart
 
 
-_SEEN_FILENAME = "inbound-seen.json"
 # A marker deleted from the server long ago must not block a legitimate re-import
 # forever, so the persisted cache forgets what it has not seen for this long.
 _SEEN_MAX_AGE_S = 30 * 24 * 3600
+# An unchanged repeat refreshes seen_at at most this often. Refreshing on every repeat
+# would dirty the cache on each save for a server that republishes every ten seconds.
+_SEEN_REFRESH_S = 24 * 3600
 
 
-def _seen_path() -> Path:
-    from oden.tak.pref_package import tak_dir
-
-    return tak_dir() / _SEEN_FILENAME
-
-
-def load_seen(path: Path | None = None, *, now: float | None = None) -> dict[str, _Seen]:
-    """The dedup cache from the previous run.
+def load_seen(db_path: Path, *, now: float | None = None) -> dict[str, _Seen]:
+    """The dedup cache from the previous run, most recently seen first.
 
     Without this a restart re-imports the server's whole live picture: a TAK
     Server republishes every active marker, and an empty cache reads each one as
     new. One restart is one duplicate note per live marker.
 
-    Never raises. A missing, unreadable or corrupt file means an empty cache and
-    a re-import, which is the old behaviour — not a listener that refuses to run.
+    Never raises. A database error means an empty cache and a re-import, which is
+    the old behaviour — not a listener that refuses to run.
     """
-    target = path or _seen_path()
+    cutoff = (time.time() if now is None else now) - _SEEN_MAX_AGE_S
     try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-        rows = raw["seen"] if isinstance(raw, dict) else raw
-        if not isinstance(rows, dict):
-            raise ValueError("seen is not an object")
-    except FileNotFoundError:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn:
+            rows = conn.execute(
+                "SELECT uid, lat, lon, signature, cot_type, seen_at FROM tak_inbound_seen"
+                " WHERE seen_at >= ? ORDER BY seen_at DESC LIMIT ?",
+                (cutoff, _SEEN_CAP),
+            ).fetchall()
+    except sqlite3.Error as exc:
+        logger.warning("TAK: kunde inte läsa dedup-cachen (%s) — börjar om med tom cache", exc)
         return {}
-    except Exception as exc:
-        logger.warning("TAK: kunde inte läsa %s (%s) — börjar om med tom dedup-cache", target.name, exc)
-        return {}
+    return {uid: _Seen(lat, lon, signature, cot_type, seen_at) for uid, lat, lon, signature, cot_type, seen_at in rows}
 
-    cutoff = (now if now is not None else time.time()) - _SEEN_MAX_AGE_S
-    fresh: list[tuple[str, _Seen]] = []
-    for uid, row in rows.items():
-        try:
-            seen = _Seen(
-                lat=float(row["lat"]),
-                lon=float(row["lon"]),
-                signature=str(row["signature"]),
-                cot_type=str(row["cot_type"]),
-                seen_at=float(row.get("seen_at", 0.0)),
+
+def save_seen(seen: dict[str, _Seen], db_path: Path) -> None:
+    """Replace the stored dedup cache. Never raises — a failed write costs a re-import, nothing more."""
+    try:
+        # The second `conn` is the transaction: a crash mid-write leaves the previous cache.
+        with contextlib.closing(sqlite3.connect(db_path)) as conn, conn:
+            conn.execute("DELETE FROM tak_inbound_seen")
+            conn.executemany(
+                "INSERT INTO tak_inbound_seen (uid, lat, lon, signature, cot_type, seen_at) VALUES (?, ?, ?, ?, ?, ?)",
+                [(uid, s.lat, s.lon, s.signature, s.cot_type, s.seen_at) for uid, s in seen.items()],
             )
-        except (TypeError, ValueError, KeyError, AttributeError):
-            continue  # one bad row must not cost us the rest
-        if seen.seen_at >= cutoff:
-            fresh.append((str(uid), seen))
-
-    # On overflow keep the most recently seen, not an arbitrary slice.
-    fresh.sort(key=lambda pair: pair[1].seen_at, reverse=True)
-    return dict(fresh[:_SEEN_CAP])
-
-
-def save_seen(seen: dict[str, _Seen], path: Path | None = None) -> None:
-    """Write the dedup cache. Never raises — a failed write costs a re-import, nothing more."""
-    target = path or _seen_path()
-    payload = {
-        "seen": {
-            uid: {
-                "lat": item.lat,
-                "lon": item.lon,
-                "signature": item.signature,
-                "cot_type": item.cot_type,
-                "seen_at": item.seen_at,
-            }
-            for uid, item in seen.items()
-        }
-    }
-    tmp = target.with_name(target.name + ".tmp")
-    try:
-        # Positions and report text: same 0700 directory as the key material,
-        # created the same way (enrollment may never have run for this package).
-        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
-        tmp.chmod(0o600)
-        os.replace(tmp, target)  # atomic: a crash mid-write cannot corrupt the cache
-    except Exception as exc:
-        logger.warning("TAK: kunde inte spara dedup-cachen till %s (%s)", target.name, exc)
-        with contextlib.suppress(OSError):
-            tmp.unlink()
+    except sqlite3.Error as exc:
+        logger.warning("TAK: kunde inte spara dedup-cachen (%s)", exc)
 
 
 class InboundFilter:
@@ -262,6 +223,11 @@ class InboundFilter:
                 and distance_m(previous.lat, previous.lon, current.lat, current.lon) < self.min_move_m
             )
             if unchanged:
+                # Still live, so still seen: without this a marker that sits unchanged on the
+                # server for _SEEN_MAX_AGE_S is forgotten and re-imported on the next restart.
+                if now_s - previous.seen_at >= _SEEN_REFRESH_S:
+                    self._seen[cot.uid] = replace(previous, seen_at=now_s)
+                    self.seen_dirty = True
                 self.last_reject = "oförändrad sedan tidigare (dedup)"
                 return False
 
@@ -356,7 +322,7 @@ async def run_tak_listener(bridge: Any) -> None:
 
     settings = {**_INBOUND_DEFAULTS, **bridge.settings}
     group_name = str(settings["inbound_group_name"]).strip() or "TAK Inkommande"
-    restored = load_seen()
+    restored = load_seen(cfg.CONFIG_DB)
     if restored:
         logger.info("TAK: minns %d tidigare sedda markörer — de importeras inte igen", len(restored))
     filt = InboundFilter(settings, seen=restored)
@@ -365,7 +331,7 @@ async def run_tak_listener(bridge: Any) -> None:
     def persist_seen() -> None:
         """Save only when something changed, so a quiet server writes nothing."""
         if filt.seen_dirty:
-            save_seen(filt.seen_snapshot())
+            save_seen(filt.seen_snapshot(), cfg.CONFIG_DB)
             filt.seen_dirty = False
 
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
