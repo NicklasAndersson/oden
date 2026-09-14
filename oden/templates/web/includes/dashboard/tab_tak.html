@@ -163,6 +163,22 @@
                     <input type="number" id="tak-inbound-rate" name="inbound_max_per_minute" min="0" max="10000">
                 </div>
                 <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-inbound-packages" name="inbound_fetch_packages">
+                        <label for="tak-inbound-packages">Hämta uppdragspaket (rapporter med bilaga)</label>
+                    </div>
+                    <span class="help-text">En 8S som skickas med bild går aldrig på CoT-strömmen utan hamnar i serverns filarkiv. Utan det här tappas hela rapporten, inte bara bilden</span>
+                </div>
+                <div class="config-field">
+                    <label for="tak-package-poll">Pollning av filarkiv (sekunder)</label>
+                    <input type="number" id="tak-package-poll" name="inbound_package_poll_seconds" min="15" max="3600">
+                </div>
+                <div class="config-field">
+                    <label for="tak-marti-port">Marti-API-port</label>
+                    <input type="number" id="tak-marti-port" name="marti_port" min="1" max="65535">
+                    <span class="help-text">Normalt 8443, inte samma port som CoT-anslutningen</span>
+                </div>
+                <div class="config-field full-width">
                     <label for="tak-inbound-group">Gruppnamn för inkommande</label>
                     <input type="text" id="tak-inbound-group" name="inbound_group_name" placeholder="TAK Inkommande">
                     <span class="help-text">Kör du whitelist-läge i gruppfiltret måste detta namn finnas i listan</span>

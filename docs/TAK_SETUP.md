@@ -112,6 +112,26 @@ set_config_value(
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
 | `inbound_group_name` | `TAK Inkommande` | Gruppnamn noterna hamnar under |
+| **Uppdragspaket (rapporter med bilaga)** | | |
+| `inbound_fetch_packages` | `false` | Hämta *mission packages* ur serverns filarkiv. **Utan det tappas hela rapporten** när en 8S skickas med bild – inte bara bilden |
+| `inbound_package_poll_seconds` | `60` | Hur ofta filarkivet frågas. Golv på 15 s |
+| `marti_port` | `8443` | Marti-API:ts port. Inte samma som CoT-anslutningens |
+
+**En 8S med bifogad bild syns aldrig på CoT-strömmen.** ATAK packar då händelsen och
+bilden i ett *mission package*, laddar upp det till serverns filarkiv och skickar
+ingenting på kanalen. Oden ser alltså inte rapporten alls, och eftersom den aldrig
+kommer fram loggas heller ingenting om den. Slå på `inbound_fetch_packages` för att
+få med dem.
+
+Första gången pollningen kör **importeras ingenting** – filarkivet innehåller ofta
+hundratals gamla paket, och de skulle begrava valvet. Den rundan antecknar bara vad
+som redan finns, och först paket som dyker upp därefter blir noter. Vill du tvinga
+fram en återimport: töm tabellen `tak_package_seen` i `config.db`.
+
+Bilagan hamnar i valvet och länkas från noten under `## Bilagor`, precis som en
+Signal-bilaga. Poster på 0 byte hoppas över och loggas som varning – ATAK kan
+deklarera en bild i manifestet och ändå packa en tom fil, och en tom fil i valvet
+är sämre än ingen.
 
 **Lösenord.** Enrollment-lösenordet kan skrivas direkt i TAK-fliken — det är den
 enkla vägen, och det är enda sättet att komma igång med ett enrollment-paket utan

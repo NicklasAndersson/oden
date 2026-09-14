@@ -181,6 +181,16 @@ class TakBridge:
         return self._rx_queue
 
     @property
+    def pytak_config(self) -> Any:
+        """The resolved connection config — server URL, client cert, CA.
+
+        The file-store poller authenticates with exactly what the CoT connection
+        already settled on, rather than resolving the package and cert a second
+        time. None until :meth:`start` has run.
+        """
+        return self._config
+
+    @property
     def stale_seconds(self) -> int:
         try:
             return max(1, int(self.settings.get("cot_stale_seconds", 3600)))

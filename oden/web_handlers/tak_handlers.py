@@ -57,6 +57,9 @@ _EDITABLE_KEYS = {
     "inbound_min_move_m": float,
     "inbound_max_per_minute": int,
     "inbound_group_name": str,
+    "inbound_fetch_packages": bool,
+    "inbound_package_poll_seconds": int,
+    "marti_port": int,
 }
 
 

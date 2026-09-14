@@ -14,16 +14,26 @@ What survives is wrapped in a Signal-shaped envelope and pushed through the
 normal pipeline chain, so it shows up in the message view, the vault, retention
 and the group filter like anything else.
 
+There is a *second* inbound path alongside the stream. An 8S sent from ATAK with
+an attachment never appears on the CoT broadcast at all — ATAK packs the event and
+the photo into a mission package and uploads it to the server's file store instead,
+so listening to CoT loses the whole report, not just its image. When
+``inbound_fetch_packages`` is on, :func:`run_package_poller` watches that store and
+feeds the embedded CoT through this same filter and the same pipelines, so a report
+looks identical in the vault whichever way it arrived. See :mod:`oden.tak.marti`.
+
 See docs/PLAN_TAK.md phase 3.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import logging
 import sqlite3
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -55,6 +65,12 @@ _INBOUND_DEFAULTS: dict[str, Any] = {
     "inbound_min_move_m": 100.0,
     "inbound_max_per_minute": 60,
     "inbound_group_name": "TAK Inkommande",
+    # An 8S sent *with* an attachment never reaches the CoT stream: ATAK uploads a
+    # mission package to the server's file store instead. Off by default because
+    # polling the store is outgoing traffic the operator has not asked for.
+    "inbound_fetch_packages": False,
+    "inbound_package_poll_seconds": 60,
+    "marti_port": 8443,
 }
 
 # ponytail: crude cap so the dedup cache can't grow without bound on a busy
@@ -145,6 +161,36 @@ def save_seen(seen: dict[str, _Seen], db_path: Path) -> None:
             )
     except sqlite3.Error as exc:
         logger.warning("TAK: kunde inte spara dedup-cachen (%s)", exc)
+
+
+def load_package_seen(db_path: Path) -> set[str]:
+    """Hashes of mission packages already ingested.
+
+    Without this every poll re-imports the whole archive — the file store keeps
+    months of packages, and none of them are ever "new" again on their own.
+
+    Never raises: a database error means an empty set, and the per-uid dedup in
+    :class:`InboundFilter` still stops the re-imported events becoming notes.
+    """
+    try:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn:
+            return {row[0] for row in conn.execute("SELECT hash FROM tak_package_seen")}
+    except sqlite3.Error as exc:
+        logger.warning("TAK: kunde inte läsa paketcachen (%s)", exc)
+        return set()
+
+
+def remember_package(db_path: Path, digest: str, name: str, submitted_at: str) -> None:
+    """Record one package as taken. Written per package, not per batch, so an
+    interrupted poll never re-imports what it already turned into notes."""
+    try:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn, conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO tak_package_seen (hash, name, submitted_at, seen_at) VALUES (?, ?, ?, ?)",
+                (digest, name, submitted_at, time.time()),
+            )
+    except sqlite3.Error as exc:
+        logger.warning("TAK: kunde inte spara paketcachen (%s)", exc)
 
 
 class InboundFilter:
@@ -267,13 +313,22 @@ def render_observation(cot: InboundCot) -> str:
     return "\n".join(lines)
 
 
-def build_envelope(cot: InboundCot, group_name: str) -> dict[str, Any]:
+def build_envelope(
+    cot: InboundCot,
+    group_name: str,
+    attachments: Sequence[tuple[str, bytes]] = (),
+) -> dict[str, Any]:
     """Signal-shaped envelope so inbound CoT reuses the whole existing chain.
 
     An 8S report is reshaped into ``7S RAPPORT`` text so the seven_s pipeline
     writes a normal 7S file; anything else stays a ``TAK-OBSERVATION`` note.
     The sender is the operator's device when the CoT names one, so notes group
     per operator rather than per marker.
+
+    ``attachments`` are ``(filename, bytes)`` from a mission package. They are
+    base64-encoded into the shape ``attachment_handler.save_attachments`` already
+    expects, so the vault write and the ``## Bilagor`` section need no TAK-specific
+    code at all.
     """
     message = to_7s_message(cot) if is_8s_report(cot) else render_observation(cot)
     return {
@@ -286,7 +341,9 @@ def build_envelope(cot: InboundCot, group_name: str) -> dict[str, Any]:
             "dataMessage": {
                 "message": message,
                 "groupV2": {"id": INBOUND_GROUP_ID, "name": group_name},
-                "attachments": [],
+                "attachments": [
+                    {"filename": name, "data": base64.b64encode(blob).decode("ascii")} for name, blob in attachments
+                ],
             },
         }
     }
@@ -313,11 +370,128 @@ def _describe_tally(tally: dict[str, int]) -> str:
     return f" — bortfiltrerade typer: {listed}{more}"
 
 
-async def run_tak_listener(bridge: Any) -> None:
-    """Consume the bridge's rx queue until cancelled."""
-    from datetime import datetime, timezone
+async def _create_note(
+    cot: InboundCot,
+    group_name: str,
+    orchestrator: Any,
+    *,
+    attachments: Sequence[tuple[str, bytes]] = (),
+) -> None:
+    """Turn one accepted CoT into a queued message and run it through the pipelines.
 
+    Shared by the CoT stream and the mission-package poller so both paths produce
+    byte-identical notes — the only difference between them is where the event came
+    from, which is not something the vault should be able to tell.
+    """
     from oden.messages_db import STATUS_QUEUED, create_raw_message, update_message_status
+
+    msg_data = build_envelope(cot, group_name, attachments)
+    message_id = create_raw_message(cfg.CONFIG_DB, cfg.SIGNAL_NUMBER, msg_data)
+    update_message_status(cfg.CONFIG_DB, message_id, STATUS_QUEUED)
+    # No Signal reader/writer: a TAK message carries no quote, and any attachment
+    # it has is already inline as base64, so nothing needs fetching over JSON-RPC.
+    await orchestrator.run_message(message_id=message_id, msg_data=msg_data, reader=None, writer=None)
+
+
+async def run_package_poller(bridge: Any, *, filt: InboundFilter, group_name: str, orchestrator: Any) -> None:
+    """Ingest mission packages from the Marti file store until cancelled.
+
+    An 8S sent with an attachment never appears on the CoT stream, so without this
+    the whole report is lost — not just its photo. See :mod:`oden.tak.marti`.
+
+    The first round only *records* what is already in the archive. A TAK Server
+    keeps months of packages, and importing several hundred old reports the first
+    time inbound is switched on would bury the vault. Clearing ``tak_package_seen``
+    is the deliberate way to ask for a backfill.
+    """
+    from tempfile import TemporaryDirectory
+
+    from oden.tak import marti
+
+    settings = {**_INBOUND_DEFAULTS, **bridge.settings}
+    # A floor on the interval: this is someone else's server, and a tight loop over
+    # a ~900-row archive is rude regardless of what the setting says.
+    interval = max(15.0, _num(settings["inbound_package_poll_seconds"], 60.0))
+    port = int(_num(settings["marti_port"], 8443.0))
+    seen = load_package_seen(cfg.CONFIG_DB)
+
+    with TemporaryDirectory(prefix="oden_marti_") as tmp:
+        try:
+            base_url = marti.marti_base_url(str(bridge.pytak_config.get("COT_URL") or ""), port)
+            context = await asyncio.to_thread(marti.ssl_context, bridge.pytak_config, Path(tmp))
+        except Exception as exc:
+            logger.error("TAK: kan inte fråga filarkivet (%r) — paketpollningen startar inte", exc)
+            return
+
+        seeding = not seen
+        logger.info("TAK: pollar filarkivet var %.0f s (%s)", interval, base_url)
+
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                files = await asyncio.to_thread(marti.search, base_url, context)
+                fresh = [f for f in files if f.hash not in seen and f.looks_like_mission_package]
+
+                if seeding:
+                    for item in fresh:
+                        remember_package(cfg.CONFIG_DB, item.hash, item.name, item.submitted_at)
+                        seen.add(item.hash)
+                    logger.info(
+                        "TAK: filarkivet hade %d paket sedan tidigare — de importeras inte. "
+                        "Nya paket hämtas från och med nu.",
+                        len(fresh),
+                    )
+                    seeding = False
+                    continue
+
+                for item in fresh:
+                    # Recorded before it is parsed: a package we cannot use must not
+                    # come back every single round for the rest of the session.
+                    seen.add(item.hash)
+                    remember_package(cfg.CONFIG_DB, item.hash, item.name, item.submitted_at)
+
+                    blob = await asyncio.to_thread(marti.fetch, base_url, item.hash, context)
+                    if blob is None:
+                        continue
+                    package = await asyncio.to_thread(marti.unpack, blob)
+                    if package is None:
+                        logger.debug("TAK: %s är inget uppdragspaket med CoT — hoppar över", item.name)
+                        continue
+
+                    cot = cot_to_inbound(package.cot)
+                    if cot is None:
+                        logger.debug("TAK: CoT:en i %s gick inte att tolka", item.name)
+                        continue
+
+                    bridge.rx_total += 1
+                    if not filt.accept(cot):
+                        bridge.rx_filtered += 1
+                        logger.debug("TAK: filtrerade paket-CoT %s — %s", cot.uid, filt.last_reject)
+                        continue
+
+                    bridge.received_count += 1
+                    if package.skipped_empty:
+                        logger.warning(
+                            "TAK: %s deklarerar %d bilaga/bilagor som är 0 byte — ATAK packade dem tomma",
+                            item.name,
+                            package.skipped_empty,
+                        )
+                    logger.info(
+                        "TAK: uppdragspaket %s (%s, %d bilaga/bilagor) → not i '%s'",
+                        item.name,
+                        cot.cot_type,
+                        len(package.attachments),
+                        group_name,
+                    )
+                    await _create_note(cot, group_name, orchestrator, attachments=package.attachments)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("TAK: paketpollningen misslyckades den här rundan (%r)", exc)
+
+
+async def run_tak_listener(bridge: Any) -> None:
+    """Consume the bridge's rx queue until cancelled, and poll the file store alongside."""
     from oden.pipeline_orchestrator import PipelineOrchestrator
 
     settings = {**_INBOUND_DEFAULTS, **bridge.settings}
@@ -335,9 +509,37 @@ async def run_tak_listener(bridge: Any) -> None:
             filt.seen_dirty = False
 
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
-    last_summary = time.monotonic()
+
+    # The file-store poller shares this run's filter, so a marker that arrived on
+    # the stream is not imported a second time from a package.
+    poller: asyncio.Task[None] | None = None
+    if settings.get("inbound_fetch_packages"):
+        poller = asyncio.create_task(
+            run_package_poller(bridge, filt=filt, group_name=group_name, orchestrator=orchestrator)
+        )
 
     logger.info("TAK: lyssnar på inkommande CoT (typer: %s)", ", ".join(filt.types) or "alla")
+    try:
+        await _consume_rx(bridge, filt, tally, group_name, orchestrator, persist_seen)
+    finally:
+        if poller is not None and not poller.done():
+            poller.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await poller
+
+
+async def _consume_rx(
+    bridge: Any,
+    filt: InboundFilter,
+    tally: dict[str, int],
+    group_name: str,
+    orchestrator: Any,
+    persist_seen: Any,
+) -> None:
+    """The rx-queue loop proper, split out so the poller's cleanup has somewhere to hang."""
+    from datetime import datetime, timezone
+
+    last_summary = time.monotonic()
     while True:
         try:
             data = await bridge.rx_queue.get()
@@ -367,13 +569,8 @@ async def run_tak_listener(bridge: Any) -> None:
                 logger.debug("TAK: filtrerade CoT %s (%s) — %s", cot.uid, cot.cot_type, filt.last_reject)
             else:
                 bridge.received_count += 1
-                msg_data = build_envelope(cot, group_name)
-                message_id = create_raw_message(cfg.CONFIG_DB, cfg.SIGNAL_NUMBER, msg_data)
-                update_message_status(cfg.CONFIG_DB, message_id, STATUS_QUEUED)
                 logger.info("TAK: inkommande CoT %s (%s) → not i '%s'", cot.uid, cot.cot_type, group_name)
-                # ponytail: no Signal reader/writer for TAK-sourced messages — they carry
-                # no attachments and no quote, the only things the pipelines use them for.
-                await orchestrator.run_message(message_id=message_id, msg_data=msg_data, reader=None, writer=None)
+                await _create_note(cot, group_name, orchestrator)
 
             now = time.monotonic()
             if now - last_summary >= _SUMMARY_EVERY_SECONDS and bridge.rx_total:
