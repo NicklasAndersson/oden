@@ -120,8 +120,9 @@ async def config_save_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    # Validate required fields
-    if not form_updates["signal_number"] or form_updates["signal_number"] == "+46XXXXXXXXX":
+    # Validate required fields (the number is only required while Signal is enabled)
+    signal_enabled = existing.get("signal_enabled", True)
+    if signal_enabled and (not form_updates["signal_number"] or form_updates["signal_number"] == "+46XXXXXXXXX"):
         return web.json_response(
             {"success": False, "error": "Signal-nummer måste anges"},
             status=400,

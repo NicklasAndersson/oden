@@ -133,6 +133,7 @@ async def index_handler(request: web.Request) -> web.Response:
         {
             "version": __version__,
             "expected_signal_cli_version": EXPECTED_SIGNAL_CLI_VERSION,
+            "signal_enabled": cfg.SIGNAL_ENABLED,
         },
     )
 

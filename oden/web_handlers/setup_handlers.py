@@ -448,60 +448,24 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
         vault_path = data.get("vault_path", str(DEFAULT_VAULT_PATH))
         signal_number = data.get("signal_number", "")
         display_name = data.get("display_name", "oden")
+        signal_enabled = data.get("signal_enabled", True) is not False
 
-        logger.info(f"Save config request: signal_number={signal_number}, vault_path={vault_path}")
+        logger.info(
+            "Save config request: signal_enabled=%s, signal_number=%s, vault_path=%s",
+            signal_enabled,
+            signal_number,
+            vault_path,
+        )
 
-        # Use linked number from _linker only if no number was provided
-        if not signal_number and _linker and _linker.linked_number:
-            signal_number = _linker.linked_number
-            logger.info(f"Using linked number from _linker: {signal_number}")
+        if signal_enabled:
+            # Use linked number from _linker only if no number was provided
+            if not signal_number and _linker and _linker.linked_number:
+                signal_number = _linker.linked_number
+                logger.info(f"Using linked number from _linker: {signal_number}")
 
-        if not signal_number or signal_number == "+46XXXXXXXXX":
-            return web.json_response(
-                {
-                    "success": False,
-                    "error": "Signal-nummer måste anges",
-                },
-                status=400,
-            )
-
-        # Validate that the number exists in signal-cli accounts
-        from oden.signal_manager import get_existing_accounts
-
-        try:
-            accounts = get_existing_accounts()
-            account_numbers = [a["number"] for a in accounts]
-            if not accounts:
-                return web.json_response(
-                    {
-                        "success": False,
-                        "error": "Inga signal-cli-konton hittades. Länka ett konto innan du sparar.",
-                    },
-                    status=400,
-                )
-            if signal_number not in account_numbers:
-                logger.warning(
-                    "Setup save rejected: %s not in signal-cli accounts %s",
-                    signal_number,
-                    account_numbers,
-                )
-                return web.json_response(
-                    {
-                        "success": False,
-                        "error": f"Numret {signal_number} finns inte bland signal-cli:s konton. "
-                        f"Tillgängliga konton: {', '.join(account_numbers)}",
-                    },
-                    status=400,
-                )
-        except Exception as e:
-            logger.warning("Could not validate signal_number against accounts: %s", e)
-            return web.json_response(
-                {
-                    "success": False,
-                    "error": "Kunde inte kontakta signal-cli för validering. Kontrollera att signal-cli körs.",
-                },
-                status=400,
-            )
+            error = _validate_setup_signal_number(signal_number)
+            if error:
+                return web.json_response({"success": False, "error": error}, status=400)
 
         # Expand and validate vault path
         vault_path = str(Path(vault_path).expanduser())
@@ -539,12 +503,15 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
             except Exception as e:
                 logger.warning(f"Could not read existing config for merge: {e}")
 
-        # Setup-managed keys — only these are set during initial setup
+        # Setup-managed keys — only these are set during initial setup.
+        # Skipping Signal keeps any previously saved number for a later re-enable.
         setup_updates = {
             "vault_path": vault_path,
-            "signal_number": signal_number,
+            "signal_enabled": signal_enabled,
             "display_name": display_name,
         }
+        if signal_enabled:
+            setup_updates["signal_number"] = signal_number
         logger.info("Setup updates to apply: %s", setup_updates)
 
         # For fresh installs (no existing config), add sensible defaults
@@ -564,23 +531,31 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
 
         save_config(config_dict)
 
-        # Verify the save by reading back the signal_number
+        # Verify the save by reading back what setup wrote
         verify = get_all_config(config_db_path)
-        saved_number = verify.get("signal_number", "")
-        if saved_number != signal_number:
+        expected = {k: setup_updates[k] for k in ("signal_enabled", "signal_number") if k in setup_updates}
+        saved = {k: verify.get(k) for k in expected}
+        if saved != expected:
             logger.error(
-                "POST-SAVE VERIFICATION FAILED: expected signal_number=%s, got=%s (db=%s)",
-                signal_number,
-                saved_number,
+                "POST-SAVE VERIFICATION FAILED: expected %s, got %s (db=%s)",
+                expected,
+                saved,
                 config_db_path,
             )
         else:
-            logger.info("Setup complete. Config verified at %s (signal_number=%s)", config_db_path, saved_number)
+            logger.info("Setup complete. Config verified at %s (%s)", config_db_path, saved)
+
+        message = "Konfiguration sparad! Oden startar om..."
+        # A running lifecycle (setup re-run from the dashboard) only reads signal_enabled at startup
+        from oden.app_state import get_app_state
+
+        if get_app_state().loop is not None and existing.get("signal_enabled", True) != signal_enabled:
+            message = "Konfiguration sparad! Starta om Oden för att Signal-ändringen ska gälla."
 
         return web.json_response(
             {
                 "success": True,
-                "message": "Konfiguration sparad! Oden startar om...",
+                "message": message,
                 "config_path": str(config_db_path),
             }
         )
@@ -590,6 +565,31 @@ async def setup_save_config_handler(request: web.Request) -> web.Response:
     except Exception as e:
         logger.error(f"Error saving setup config: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+def _validate_setup_signal_number(signal_number: str) -> str | None:
+    """Return an error message if *signal_number* is not a usable signal-cli account."""
+    if not signal_number or signal_number == "+46XXXXXXXXX":
+        return "Signal-nummer måste anges"
+
+    from oden.signal_manager import get_existing_accounts
+
+    try:
+        accounts = get_existing_accounts()
+    except Exception as e:
+        logger.warning("Could not validate signal_number against accounts: %s", e)
+        return "Kunde inte kontakta signal-cli för validering. Kontrollera att signal-cli körs."
+
+    account_numbers = [a["number"] for a in accounts]
+    if not accounts:
+        return "Inga signal-cli-konton hittades. Länka ett konto innan du sparar."
+    if signal_number not in account_numbers:
+        logger.warning("Setup save rejected: %s not in signal-cli accounts %s", signal_number, account_numbers)
+        return (
+            f"Numret {signal_number} finns inte bland signal-cli:s konton. "
+            f"Tillgängliga konton: {', '.join(account_numbers)}"
+        )
+    return None
 
 
 async def setup_start_register_handler(request: web.Request) -> web.Response:

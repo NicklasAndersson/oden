@@ -1,5 +1,7 @@
 {#- Tab: Kontakter (contacts) -#}
 <div id="tab-contacts" class="tab-content">
+    {% include "includes/dashboard/signal_off_notice.html" %}
+    <fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
     <div class="config-section">
         <div class="flex-header-mb">
             <h3>👥 Kontakter</h3>
@@ -12,6 +14,7 @@
             <div class="empty-state">Laddar kontakter...</div>
         </div>
     </div>
+    </fieldset>
 </div>
 
 {#- Contact edit modal -#}

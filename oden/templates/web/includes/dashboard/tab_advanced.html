@@ -3,6 +3,8 @@
     <form id="config-form-advanced" class="config-form">
         <div class="config-section">
             <h3>🔧 signal-cli</h3>
+            {% include "includes/dashboard/signal_off_notice.html" %}
+            <fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
             <div class="config-grid">
                 <div class="config-field">
                     <label for="cfg-signal-host">Host</label>
@@ -33,6 +35,7 @@
                     <span class="help-text">Aktivera om signal-cli redan körs separat och inte ska hanteras av Oden</span>
                 </div>
             </div>
+            </fieldset>
         </div>
 
         <div class="config-section">
@@ -70,11 +73,11 @@
         </div>
 
         <div class="config-section section-divider">
-            <h3>🔄 Setup</h3>
+            <h3>🔄 Setup för Signal</h3>
             <p class="help-paragraph">
-                Kör om setup-guiden för att länka nytt Signal-konto eller importera konfiguration.
+                Kör setup-guiden för Signal: länka eller byt Signal-konto, eller slå på Signal om Oden körs utan.
             </p>
-            <button type="button" class="btn btn-danger" onclick="rerunSetup()">Kör om setup</button>
+            <button type="button" class="btn btn-danger" onclick="rerunSetup()">Kör setup för Signal</button>
         </div>
     </form>
 
@@ -84,6 +87,7 @@
         <p class="help-paragraph">
             Signal-protokollinställningar som styr vad kontot delar med andra. Sparas direkt i signal-cli.
         </p>
+        <fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
         <div class="config-grid">
             <div class="config-field">
                 <label>
@@ -117,5 +121,6 @@
         <div class="config-actions">
             <button type="button" class="btn btn-primary" onclick="saveSignalConfig()">Spara Signal-inställningar</button>
         </div>
+        </fieldset>
     </div>
 </div>
