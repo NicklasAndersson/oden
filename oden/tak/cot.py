@@ -398,6 +398,85 @@ def cot_type_matches(cot_type: str, patterns: list[str]) -> bool:
     return False
 
 
+# --- Cheap pre-screen for the inbound flood ---------------------------------
+# A TAK Server pushes the whole picture, so on a busy net nearly every event is
+# a position report that the type whitelist throws away. Parsing the XML first
+# and looking at the type afterwards costs about 17x more than reading the type
+# off the raw bytes, so the listener asks these two helpers first and only
+# parses what might survive. See ``InboundFilter.prescreen_rejects``.
+
+_HEAD_BYTES = 512  # a CoT root start tag is ~200 B; never scan further than this
+# Only whitespace and at most one XML declaration may precede the root element.
+_LEAD_OK = re.compile(rb"\s*(?:<\?xml[^>]*\?>\s*)?")
+# One properly quoted XML attribute. The [^"<] / [^'<] value classes are what
+# keep the scan inside the start tag, so a nested <link type="..."> can never be
+# mistaken for the root type, and a literal ">" inside a value cannot end it.
+_XML_ATTR = rb"""(?:\s+[A-Za-z_:][-\w.:]*\s*=\s*(?:"[^"<]*"|'[^'<]*'))"""
+_ROOT_TYPE = re.compile(rb"<event" + _XML_ATTR + rb"""*?\s+type\s*=\s*(?:"([^"<]*)"|'([^'<]*)')""")
+
+
+def raw_event_type(data: object) -> str | None:
+    """The root ``<event type=...>`` read straight off the wire, or ``None``.
+
+    ``None`` always means "cannot tell cheaply, parse it properly" and never
+    "discard". It covers anything that is not bytes (pytak passes a takproto
+    object when protobuf is on), a root tag that is not a plain ``<event``,
+    junk or a comment before the root, an entity-encoded type (only
+    ElementTree may expand those, and ``a-f&#45;G`` expands to a whitelisted
+    type), and a ``type`` sitting beyond the head we are willing to scan.
+    """
+    if not isinstance(data, (bytes, bytearray)):
+        return None
+    start = data.find(b"<event", 0, _HEAD_BYTES)
+    if start < 0:
+        return None
+    if start and _LEAD_OK.fullmatch(data, 0, start) is None:
+        return None
+    match = _ROOT_TYPE.match(data, start, _HEAD_BYTES)
+    if match is None:
+        return None
+    raw = match.group(1) if match.group(1) is not None else match.group(2)
+    if b"&" in raw:
+        return None
+    try:
+        return raw.decode("ascii")
+    except UnicodeDecodeError:
+        return None
+
+
+@dataclass(frozen=True)
+class CotTypeMatcher:
+    """``inbound_types`` compiled once into exact matches plus prefixes.
+
+    Same semantics as :func:`cot_type_matches`, which stays the readable
+    reference implementation and is what the tests compare against. Worth
+    compiling because this runs on the raw pre-screen path for every inbound
+    event: the pattern scan drops from ~280 ns to ~20 ns.
+    """
+
+    exact: frozenset[str]
+    prefixes: tuple[str, ...]
+
+    @classmethod
+    def from_patterns(cls, patterns: list[str]) -> CotTypeMatcher:
+        exact: set[str] = set()
+        prefixes: list[str] = []
+        for pattern in patterns:
+            pattern = pattern.strip()
+            if not pattern:
+                continue
+            if pattern.endswith("*"):
+                prefixes.append(pattern[:-1])
+            else:
+                exact.add(pattern)
+        return cls(frozenset(exact), tuple(prefixes))
+
+    def matches(self, cot_type: str) -> bool:
+        if cot_type in self.exact:
+            return True
+        return bool(self.prefixes) and cot_type.startswith(self.prefixes)
+
+
 def latlon_to_mgrs(lat: float, lon: float) -> str:
     """Best-effort lat/lon -> MGRS for display. Empty string if mgrs is missing."""
     try:

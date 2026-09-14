@@ -69,6 +69,9 @@ if importlib.util.find_spec('pytak'):
         'oden.tak.listener',
         'oden.tak.cot',
         'oden.tak.eight_s',
+        'oden.tak.pref_package',
+        'oden.tak.enrollment',
+        'oden.tak.redact',
         'oden.web_handlers.tak_handlers',
     ]
     for _pkg in ('pytak', 'takproto'):

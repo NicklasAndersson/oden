@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import os
 import re
 import unicodedata
@@ -16,6 +17,8 @@ from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.attachment_handler import save_attachments
 from oden.formatting import format_sender_display, resolve_output_dir
+
+logger = logging.getLogger(__name__)
 
 _SHORT_REPORT_TIME_RE = re.compile(r"^\d{6}$")
 _LONG_REPORT_TIME_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([A-Z])([A-Z]{3})(\d{4})$")
@@ -489,5 +492,10 @@ class StructuredReportPipeline:
 
         with open(filepath, "w", encoding="utf-8") as handle:
             handle.write(content)
+
+        # Same wording as the unstructured path in oden.processing, so one grep
+        # finds every written report. Without it a 7S file lands silently and the
+        # only trace is a counter saying a note was created, somewhere.
+        logger.info("WROTE: %s", filepath)
 
         return True

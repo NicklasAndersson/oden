@@ -231,6 +231,33 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("## Metadata", content)
 
     @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_logs_where_it_wrote_the_report(self, mock_get_app_state):
+        """A report that lands silently is a report nobody can find."""
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+            self.assertLogs("oden.pipelines.structured_report", level="INFO") as logs,
+        ):
+            handled = await SevenSPipeline().run(
+                msg_data=_make_msg_data(stalle="34VCM 79349 26095, Långkärrsvägen"),
+                reader=AsyncMock(),
+                writer=AsyncMock(),
+            )
+            self.assertTrue(handled)
+            written = str(Path(tmpdir) / "TNR221520.md")
+
+        # Same wording as the unstructured path, so one grep finds both.
+        self.assertTrue(
+            any(f"WROTE: {written}" in line for line in logs.output),
+            f"sökvägen loggades inte: {logs.output}",
+        )
+
+    @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_supports_event_format_with_optional_symbol(self, mock_get_app_state):
         app_state = Mock()
         app_state.resolve_contact_name.return_value = "Nicklas"

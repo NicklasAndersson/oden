@@ -26,10 +26,25 @@ placerar. Be TAK-admin om ett dedikerat cert (t.ex. `oden`).
 
 Fråga TAK-admin om **ett av** följande (enklast först):
 
-1. **Data package (`.zip`)** – samma fil som laddas in i ATAK/WinTAK. Innehåller
-   serveradress, server-CA och klientcert. Oden packar upp den själv.
+1. **Data package (`.zip`)** – samma fil som laddas in i ATAK/WinTAK. Oden
+   packar upp den själv. Det finns **två sorter**, och de kräver olika saker:
+   - **med klientcertifikat** (`.pref`-filen har `certificateLocation` +
+     `clientPassword`): allt som behövs ligger i zip:en. Ladda upp och spara.
+   - **enrollment-paket** (`.pref`-filen har `caLocation0` + `caPassword0` och
+     `enrollForCertificateWithTrust0 = true`, men **inget** `certificateLocation`):
+     zip:en innehåller bara serverns CA. Du behöver dessutom ett
+     enrollment-konto enligt punkt 2. TAK-fliken säger vilken sort din zip är
+     när du laddar upp den.
 2. **Enrollment-konto** – användarnamn + lösenord. Oden hämtar ett klientcert
-   från servern (port 8446) vid start.
+   från servern (port 8446) första gången, sparar det under `ODEN_HOME/tak/`
+   (`enrolled-*.p12`, rättigheter `0600`) och återanvänder det vid varje
+   anslutning; certet förnyas av sig självt när mindre än 7 dygn återstår, och
+   utgången syns i TAK-fliken. **Förnyelsen kräver att enrollment-lösenordet
+   fortfarande gäller** — TAK Server ger typiskt 30-dygnscert, så byts lösenordet
+   måste det uppdateras i TAK-fliken (eller env-varen) före nästa förnyelse,
+   annars slutar TAK fungera vid utgången med ett `401` i loggen. Kombineras med
+   ett enrollment-paket, eller med `cot_url` + `tls_ca_cert` om du fått CA:t som
+   lös PEM-fil.
 3. **Lösa filer** – klientcertifikat (`.p12` eller PEM) + lösenord + serverns
    CA-cert (PEM).
 
@@ -74,15 +89,16 @@ set_config_value(
 |---|---|---|
 | `enabled` | `false` | Slår på TAK-integrationen |
 | **Anslutning – välj EN väg** | | |
-| `pref_package` | – | Sökväg till data-package-`.zip`. Fyller själv i URL, cert, nyckel och CA |
+| `pref_package` | – | Sökväg till data-package-`.zip`. Fyller själv i URL och CA, plus klientcert om paketet har ett |
 | `cot_url` | – | `tls://host:8089` (mTLS) eller `tcp://host:8087` (plain, betrott nät) |
-| `enroll_username` | – | Enrollment: användarnamn. Lösenord läses ur env-var enligt `enroll_password_env` |
+| `enroll_username` | – | Enrollment: användarnamn |
+| `enroll_password` | – | Enrollment: lösenord, skrivs i TAK-fliken. Skickas aldrig tillbaka av API:t |
 | `tls_client_cert` | – | `.p12` eller PEM (lösa filer). Lösenord ur env-var enligt `tls_client_password_env` |
 | `tls_client_key` | – | Separat PEM-nyckel om certet saknar den |
 | `tls_ca_cert` | – | Serverns CA (PEM). Behövs inte med `pref_package` |
 | **TLS** | | |
-| `tls_client_password_env` | `ODEN_TAK_CERT_PASSWORD` | Env-var som certlösenordet läses ur |
-| `enroll_password_env` | `ODEN_TAK_ENROLL_PASSWORD` | Env-var som enrollment-lösenordet läses ur |
+| `tls_client_password_env` | `ODEN_TAK_CERT_PASSWORD` | Env-var som certlösenordet läses ur när den är satt |
+| `enroll_password_env` | `ODEN_TAK_ENROLL_PASSWORD` | Env-var som enrollment-lösenordet läses ur när den är satt |
 | `tls_verify` | `true` | CA-verifiering av servern. `false` bara i labb |
 | `tls_check_hostname` | `false` | Kräv att cert-namnet matchar adressen. TAK-cert matchar sällan DNS-namnet – lämna av |
 | **Utgående markörer** | | |
@@ -97,23 +113,64 @@ set_config_value(
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
 | `inbound_group_name` | `TAK Inkommande` | Gruppnamn noterna hamnar under |
 
-Lösenord sätts som miljövariabel, aldrig i config-db eller GUI:
+**Lösenord.** Enrollment-lösenordet kan skrivas direkt i TAK-fliken — det är den
+enkla vägen, och det är enda sättet att komma igång med ett enrollment-paket utan
+att pilla med miljövariabler. API:t returnerar det aldrig; GUI:t visar bara att
+ett lösenord finns sparat.
+
+Vill du hellre hålla det utanför config-db går miljövariabeln fortfarande att
+använda, och **den har företräde när den faktiskt är satt i miljön**:
 
 ```bash
 export ODEN_TAK_CERT_PASSWORD='...'      # eller ODEN_TAK_ENROLL_PASSWORD
 ```
 
-macOS-app / systemd: lägg variabeln i launchd/unit-miljön.
+macOS-app / systemd: lägg variabeln i launchd/unit-miljön. Startar du Oden.app
+från Finder ärvs **inte** din terminals `export` — använd fältet i TAK-fliken,
+eller `launchctl setenv`.
 
 ### Server-CA och cert-namn
 
 En TAK Server signerar sina egna certifikat:
 
-- `pref_package` innehåller serverns `truststore-root` – inget mer behövs.
+- `pref_package` innehåller serverns CA – Oden konverterar den till PEM åt dig.
+  Har paketet även ett klientcert behövs inget mer; är det ett enrollment-paket
+  behövs dessutom `enroll_username` + `enroll_password`.
 - Lösa filer utan `tls_ca_cert` → `self-signed certificate in certificate chain`.
   Exportera CA:t från TAK-admin/CloudTAK, eller `tls_verify = false` i labb.
 - Serverns cert-namn är ofta inte DNS-namnet du ringer →
   `Hostname mismatch`. `tls_check_hostname` är av som standard; CA-koll kvar på.
+
+### Omstart importerar inte om det som redan kommit in
+
+En TAK Server återutsänder varje levande markör, och ATAK kan göra det så ofta
+som var tionde sekund. Dedup-skyddet håller reda på vad som redan blivit en not,
+och det tillståndet sparas i tabellen `tak_inbound_seen` i `config.db` så att en
+omstart av Oden inte gör om serverns lägesbild till nya noter. Tabellen innehåller
+uid, position och en textsignatur per markör.
+
+Den skrivs var trettionde sekund när något ändrats, och vid nedstängning. Poster
+som inte setts på trettio dygn glöms, så en markör som togs bort för länge sedan
+inte blockerar en legitim återimport. Töms tabellen är enda följden att det som
+fortfarande är levande på servern importeras en gång till.
+
+### Vilka kanaler är Oden med i?
+
+TAK Servers *channels* (internt *groups*) bestämmer vem som får se vad, och de
+sitter på servern knutna till certifikatet. Listan skickas aldrig till klienten,
+och Oden läser inte ens `__group` i inkommande CoT — Oden kan alltså inte visa
+den. Får du inga noter fast kontot är eget och typen borde matcha, fråga servern
+direkt med Odens eget cert:
+
+```bash
+python scripts/tak_channels.py ~/.config/oden/tak/paket.zip --user 25HVBAT675
+```
+
+Den listar kanalerna för det kontot med riktning och om de är aktiva, plus vilka
+klienter servern ser. Oden får bara trafik i kanaler som är aktiva och omfattar
+IN. Skickar din ATAK-enhet i en kanal som inte står i listan kommer ingenting
+fram, hur vid `inbound_types` än är. Certet måste redan vara hämtat, så kör en
+anslutning först. Marti-API:t ligger normalt på 8443 (`--port` för annat).
 
 ### Inkommande CoT – noter i valvet
 
@@ -165,6 +222,26 @@ FreeTAKServer istället? Sätt `FTS_COMPAT=1` i miljön.
 5. (Om `inbound_enabled`) Skapa en markör i ATAK → en `TAK-OBSERVATION`-not ska
    dyka upp i Odens meddelandevy under `TAK Inkommande`.
 
+### Kontrollera ett data-paket från terminalen
+
+`scripts/tak_check_package.py` säger vad ett paket innehåller och kan testa
+anslutningen utan att röra config-db:n — går att köra medan Oden är igång:
+
+```bash
+# vad är det här för paket?
+python scripts/tak_check_package.py ~/.config/oden/tak/mitt-paket.zip
+
+# enrollment-paket: hämta cert och anslut på riktigt
+export ODEN_TAK_ENROLL_PASSWORD='...'
+python scripts/tak_check_package.py ~/.config/oden/tak/mitt-paket.zip --connect --user oden
+
+# ... och skicka en markör när anslutningen är uppe
+python scripts/tak_check_package.py ~/.config/oden/tak/mitt-paket.zip \
+    --connect --user oden --send 34VCM7934926095
+```
+
+Utpackade certifikat hamnar i en temporärkatalog som tas bort när skriptet slutar.
+
 ## Felsökning
 
 | Symptom | Trolig orsak |
@@ -172,13 +249,18 @@ FreeTAKServer istället? Sätt `FTS_COMPAT=1` i miljön.
 | `self-signed certificate in certificate chain` | `tls_ca_cert` saknas/fel. Använd `pref_package` eller serverns `truststore-root.pem` |
 | `Hostname mismatch, certificate is not valid for ...` | Serverns cert-namn ≠ adressen. `tls_check_hostname` ska vara av |
 | `pytak saknas` i loggen | `pip install "oden[tak]"` |
+| `TypeError('stat: path should be ... not NoneType')` vid anslutning | Gammal version (≤ 4.0.1) med ett **enrollment-paket**: paketet saknar klientcert och den dåvarande inläsningen klarade bara paket med cert. Uppgradera; Oden säger nu istället vilka enrollment-uppgifter som fattas |
+| `data-paketet innehåller bara serverns CA och kräver enrollment` | Rätt sorts paket, men fyll i enrollment-användarnamn och lösenord i TAK-fliken |
+| `enrollment mot host:8446 som … misslyckades — Error generating CSR: 401` | Fel användarnamn/lösenord. Fungerade det nyss: kontrollera att env-varen fortfarande är satt i **den här** terminalen (`printenv ODEN_TAK_ENROLL_PASSWORD \| wc -c`) och att lösenordet inte roterats sedan certet förnyades sist. `Cannot connect`/timeout i samma rad → port 8446 nås inte från Oden-värden |
+| TAK slutade fungera ~30 dygn efter driftsättning, `401` i loggen | Det enrollade certet gick ut och förnyelsen nekades — enrollment-lösenordet har bytts. Uppdatera det i TAK-fliken och spara |
 | Ansluter men inget syns i ATAK | Markören redan stale, eller fel klocka. Kolla `cot_stale_seconds` + NTP |
 | Markör försvinner efter en stund | `cot_archive = false` och Oden tappade anslutningen |
 | Status 🔴 fast servern är uppe | Oden återansluter själv med ökande intervall (5 s → 5 min); `Senaste fel` visar orsaken. Spara inställningarna igen för att tvinga ett försök direkt |
 | Markör i havet (0,0) | MGRS i `Ställe` gick inte att tolka |
 | Dubbla markörer för samma rapport | uid-härledning matchar inte mellan original och `++` – buggrapport |
 | Översvämmas av inkommande noter | `inbound_types` för brett, eller höj `inbound_min_move_m` |
-| Inget loggas när du placerar punkter i TAK | (1) `inbound_enabled` av? (2) **Oden och du använder samma TAK-konto** — servern skickar inte tillbaka dina egna events till din andra anslutning; ge Oden ett eget cert/konto. (3) Punkttypen matchar inte `inbound_types`. Statusraden i TAK-fliken visar `N mottagna / M filtrerade`; sätt loggnivå `DEBUG` för att se varje filtrerad CoT |
+| Inget loggas när du placerar punkter i TAK | (1) `inbound_enabled` av? (2) **Oden och du använder samma TAK-konto** — servern skickar inte tillbaka dina egna events till din andra anslutning; ge Oden ett eget cert/konto. (3) **Olika kanaler** — servern levererar bara CoT i kanaler kontot är med i; se nedan. (4) Punkttypen matchar inte `inbound_types`. Statusraden i TAK-fliken visar `N mottagna / M filtrerade`, och sammanfattningsraden i loggen räknar upp vilka typer som kastades |
+| Vet inte vilken kanal Oden är med i | Oden vet det inte själv — kanaltillhörighet sitter på servern, knuten till certifikatet, och skickas aldrig till klienten som en lista. Fråga servern: `python scripts/tak_channels.py <paket.zip> --user <namn>` |
 | Markörer syns för dig men inte andra | Servern kräver data marking / mission – prata med TAK-admin |
 
 ## Säkerhet
@@ -187,6 +269,15 @@ FreeTAKServer istället? Sätt `FTS_COMPAT=1` i miljön.
 - Cert-/enrollment-lösenord i miljövariabel eller OS-nyckelring – aldrig i
   config-db (den visas i GUI:t).
 - `tls_verify = false` bara i labb.
+- Enrollment-anropet mot port 8446 görs av `pytak`, som stänger av
+  TLS-verifieringen för just det anropet (`trust_all` är hårdkodat i
+  `CertificateEnrollment`). Användarnamn och lösenord går alltså över en kanal
+  vars servercert inte verifieras — enrolla på ett nät du litar på, och använd
+  ett konto som bara är till för Oden. Anropet görs bara när inget giltigt cert
+  finns cachat, inte vid varje anslutning.
+- Det enrollade certet (privat nyckel) ligger i `ODEN_HOME/tak/enrolled-*.p12`
+  med passfrasen i `.pass` bredvid, båda `0600`. Ta bort dem om kontot byter
+  ägare — Oden hämtar ett nytt vid nästa start.
 - Inkommande CoT behandlas som osäker indata (callsign/uid saneras, koordinater
   klampas, remarks trunkeras). Slå på `inbound_enabled` bara på ett nät du litar på.
 - Klientcert går ut – GUI:t varnar < 30 dygn innan (gäller `tls_client_cert`;

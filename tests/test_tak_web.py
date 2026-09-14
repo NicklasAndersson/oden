@@ -7,6 +7,7 @@ import tempfile
 import unittest.mock
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 from aiohttp import FormData
 from aiohttp.test_utils import AioHTTPTestCase
@@ -55,11 +56,56 @@ class TestTakEndpoints(AioHTTPTestCase):
         self.assertFalse(data["enabled"])
         self.assertFalse(data["connected"])
 
+    async def test_status_shows_expiry_of_the_enrolled_cert(self):
+        """Enrollment users had no cert expiry in the GUI: cert_expiry only knew tls_client_cert."""
+        import datetime as dt
+
+        from oden.tak.enrollment import EnrolledCert
+
+        soon = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=10)
+        bridge = SimpleNamespace(
+            is_running=True,
+            connected=True,
+            sent_count=0,
+            received_count=0,
+            rx_total=0,
+            rx_filtered=0,
+            last_tx_at=None,
+            last_rx_at=None,
+            last_error=None,
+            enrolled=EnrolledCert(path="/x.p12", passphrase="p", expires_at=soon),
+        )
+        with unittest.mock.patch("oden.web_handlers.tak_handlers.get_tak_bridge", return_value=bridge):
+            data = await (await self.client.get("/api/tak/status")).json()
+
+        self.assertEqual(data["cert_days_left"], 9)
+        self.assertTrue(data["cert_warning"])  # under CERT_WARN_DAYS
+
     async def test_settings_never_expose_a_password(self):
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "enroll_password": "hemligt"})
+
         resp = await self.client.get("/api/tak/settings")
         data = await resp.json()
         self.assertNotIn("tls_client_password", data)
         self.assertIn("tls_client_password_env", data)
+        # The enrollment password is write-only: the form learns only that one exists.
+        self.assertNotIn("enroll_password", data)
+        self.assertTrue(data["enroll_password_set"])
+        self.assertNotIn("hemligt", await resp.text())
+
+    async def test_blank_password_keeps_the_stored_one(self):
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "enroll_password": "hemligt"})
+        # The form posts every field on every save, so a blank one must not wipe it.
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "enroll_password": ""})
+
+        self.assertEqual(get_config_value(self.db_path, "tak_settings")["enroll_password"], "hemligt")
+
+    async def test_explicit_null_clears_the_stored_password(self):
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "enroll_password": "hemligt"})
+        await self.client.post("/api/tak/settings", json={"enroll_password": None})
+
+        self.assertEqual(get_config_value(self.db_path, "tak_settings")["enroll_password"], "")
+        self.assertFalse((await (await self.client.get("/api/tak/settings")).json())["enroll_password_set"])
 
     async def test_save_roundtrips_and_splits_comma_lists(self):
         resp = await self.client.post(
@@ -154,6 +200,24 @@ class TestTakEndpoints(AioHTTPTestCase):
         self.assertEqual(saved.read_bytes(), _fake_data_package())
         if os.name == "posix":  # Windows has no POSIX mode bits (chmod is a no-op there)
             self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+
+    async def test_upload_package_reports_that_enrollment_is_needed(self):
+        """A trust-only package should say so at upload time, not as a failed connect."""
+        from tests.test_tak_pref_package import _CA_PASSWORD, _truststore
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("config.pref", (Path("tests/fixtures/tak/enrollment_package.pref")).read_text())
+            zf.writestr("caCert.p12", _truststore(_CA_PASSWORD))
+
+        resp = await self.client.post("/api/tak/upload-package", data=_upload_form("atak-box.zip", buf.getvalue()))
+        body = await resp.json()
+
+        self.assertTrue(body["success"])
+        self.assertEqual(body["kind"], "enrollment")
+        self.assertTrue(body["needs_enrollment"])
+        self.assertEqual(body["cot_url"], "ssl://tak.example.mil:8089")
+        self.assertIn("enrollment-användarnamn", body["message"])
 
     async def test_upload_package_rejects_non_zip(self):
         resp = await self.client.post("/api/tak/upload-package", data=_upload_form("notes.txt", b"hello"))
