@@ -316,5 +316,40 @@ class PollerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.notes, [])
 
 
+class NonUtf8ListingTest(unittest.TestCase):
+    """A live server returned CP1252 bytes inside its JSON and strict decoding threw,
+    which lost the whole listing — and with it every package — over one accent."""
+
+    def test_a_cp1252_byte_does_not_lose_the_listing(self):
+        from unittest import mock
+
+        # Exactly the shape that failed in production: "test blågul" with a raw
+        # 0xe5, plus the 0xd6 the log named, in an otherwise UTF-8 response.
+        body = (
+            b'{"results":[{"Hash":"a","Name":"test bl\xe5gul.zip"},'
+            b'{"Hash":"b","Name":"\xd6vning.zip"},'
+            b'{"Hash":"c","Name":"\xc3\xa5t\xc3\xa4rlig.zip"}]}'
+        )
+        with mock.patch.object(marti, "_get", return_value=body):
+            files = marti.search("https://example.invalid", None)
+        self.assertEqual([f.hash for f in files], ["a", "b", "c"])
+        # Correctly-encoded UTF-8 elsewhere in the response must survive intact.
+        self.assertEqual(files[2].name, "åtärlig.zip")
+
+    def test_valid_utf8_is_never_mangled(self):
+        from unittest import mock
+
+        body = '{"results":[{"Hash":"a","Name":"Övning på Värmdö.zip"}]}'.encode()
+        with mock.patch.object(marti, "_get", return_value=body):
+            files = marti.search("https://example.invalid", None)
+        self.assertEqual(files[0].name, "Övning på Värmdö.zip")
+
+    def test_genuinely_broken_json_still_yields_nothing_without_raising(self):
+        from unittest import mock
+
+        with mock.patch.object(marti, "_get", return_value=b"<html>fel</html>"):
+            self.assertEqual(marti.search("https://example.invalid", None), [])
+
+
 if __name__ == "__main__":
     unittest.main()

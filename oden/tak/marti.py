@@ -152,12 +152,33 @@ def _get(url: str, context: ssl.SSLContext, timeout: float, *, max_bytes: int) -
     return body
 
 
+def _decode_listing(body: bytes) -> str:
+    """Marti's JSON is not reliably UTF-8, so decode it defensively.
+
+    A filename typed on a client with a Windows locale comes back as raw CP1252
+    bytes inside an otherwise UTF-8 response — a live server returned
+    ``test blågul`` with an ``0xd6`` in it, and strict decoding threw. Losing the
+    *entire* listing over one accented character is a far worse trade than a
+    mangled name: ``Name`` is only used for logging and the ``.zip`` test, while a
+    failed decode means no package is ever ingested.
+
+    Decoding as CP1252 wholesale would be worse still — it would turn every
+    correctly-encoded character into mojibake — so only the offending bytes are
+    replaced.
+    """
+    try:
+        return body.decode("utf-8")
+    except UnicodeDecodeError:
+        logger.warning("TAK: filarkivet svarade med tecken som inte är UTF-8 — filnamn kan se konstiga ut")
+        return body.decode("utf-8", "replace")
+
+
 def search(base_url: str, context: ssl.SSLContext, *, timeout: float = 30.0) -> list[MartiFile]:
     """Everything the file store will show this account. Never raises: a broken
     query means "nothing new this round", not a listener that stops."""
     try:
         body = _get(f"{base_url}/Marti/sync/search", context, timeout, max_bytes=16 * 1024 * 1024)
-        rows = json.loads(body).get("results") or []
+        rows = json.loads(_decode_listing(body)).get("results") or []
     except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError) as exc:
         logger.warning("TAK: kunde inte läsa filarkivet (%s)", exc)
         return []
