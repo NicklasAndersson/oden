@@ -25,7 +25,7 @@ oden = "oden.s7_watcher:main"
 [project.optional-dependencies]
 tray = [
     "pystray>=0.19.5",
-    "Pillow>=12.2.0",
+    "Pillow>=12.3.0",
 ]
 tak = [
     # with-crypto -> cryptography (mTLS with .p12 / PEM); aiohttp is already a core dep
