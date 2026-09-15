@@ -275,12 +275,16 @@ class InboundFilter:
             self.last_reject = f"typ {cot.cot_type} matchar inte inbound_types"
             return False
 
-        callsign = cot.callsign.lower()
-        if self.deny and any(d in callsign for d in self.deny):
-            self.last_reject = f"callsign {cot.callsign} på deny-listan"
+        # The *sender*, not the marker's own label. Matching the label only ever
+        # worked by accident: "8S-LarsNo-312132" passed an allow-list of "R" on the
+        # r in "LarsNo", while the same operator's "8S-AQEA01-121729" was blocked.
+        sender = cot.sender_callsign
+        lowered = sender.lower()
+        if self.deny and any(d in lowered for d in self.deny):
+            self.last_reject = f"avsändare {sender} på deny-listan"
             return False
-        if self.allow and not any(a in callsign for a in self.allow):
-            self.last_reject = f"callsign {cot.callsign} inte på allow-listan"
+        if self.allow and not any(a in lowered for a in self.allow):
+            self.last_reject = f"avsändare {sender} inte på allow-listan"
             return False
 
         # Before dedup, so a marker that was never wanted does not take a slot in

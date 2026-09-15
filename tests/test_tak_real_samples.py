@@ -204,3 +204,51 @@ class ReportsOnlyTest(unittest.TestCase):
         f = self._filter(inbound_reports_only=True)
         f.accept(cot_to_inbound(self._MARKER))
         self.assertEqual(f.seen_snapshot(), {})
+
+
+class SenderCallsignFilterTest(unittest.TestCase):
+    """The callsign filter tests who *sent* the event, not what the marker is called.
+
+    Matching the marker label only ever worked by accident: an allow-list of "R"
+    passed ``8S-LarsNo-312132`` on the r in "LarsNo" while blocking the same
+    operator's ``8S-AQEA01-121729``, and a hand-placed marker is named whatever
+    the operator typed."""
+
+    def _filter(self, **overrides):
+        return InboundFilter({**_INBOUND_DEFAULTS, **overrides})
+
+    def test_the_sender_is_recovered_whatever_the_marker_is_called(self):
+        for name, marker, sender in (
+            ("8s_report.xml", "8S-LarsNo-312132", "LarsNo"),  # unwrapped, no parent_callsign
+            ("8s_hvreports.xml", "8S-AQEA01-121729", "AQEA01"),  # from parent_callsign
+            ("spi_pointer.xml", "DOWNY.DP1", "DOWNY"),  # suffix stripped
+            ("friendly_pli.xml", "DOWNY", "DOWNY"),  # already the device
+        ):
+            with self.subTest(name):
+                cot = cot_to_inbound(_load(name))
+                self.assertEqual(cot.callsign, marker)
+                self.assertEqual(cot.sender_callsign, sender)
+
+    def test_an_allow_list_is_matched_against_the_sender(self):
+        f = self._filter(inbound_callsign_allow=["R"])
+        # AQEA01 has no r anywhere, so it is blocked...
+        self.assertFalse(f.accept(cot_to_inbound(_load("8s_hvreports.xml"))))
+        self.assertIn("avsändare AQEA01", f.last_reject)
+        # ...while LarsNo does, and passes on the sender rather than the label.
+        self.assertTrue(f.accept(cot_to_inbound(_load("8s_report.xml"))))
+
+    def test_the_sender_and_not_the_label_decides(self):
+        """AQEA01 has no r, but its marker label would match an allow-list of "12"."""
+        cot = cot_to_inbound(_load("8s_hvreports.xml"))
+        self.assertIn("12", cot.callsign)  # 8S-AQEA01-121729
+        self.assertNotIn("12", cot.sender_callsign)
+        self.assertFalse(self._filter(inbound_callsign_allow=["12"]).accept(cot))
+
+    def test_matching_the_real_sender_lets_it_through(self):
+        cot = cot_to_inbound(_load("8s_hvreports.xml"))
+        self.assertTrue(self._filter(inbound_callsign_allow=["AQEA01"]).accept(cot))
+
+    def test_the_reject_reason_names_the_sender_not_the_marker(self):
+        f = self._filter(inbound_callsign_deny=["AQEA01"])
+        f.accept(cot_to_inbound(_load("8s_hvreports.xml")))
+        self.assertIn("avsändare AQEA01", f.last_reject)

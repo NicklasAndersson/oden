@@ -44,6 +44,11 @@ _TYPE_TO_AFFIL = {v[:4]: k for k, v in AFFIL_TO_TYPE.items()}  # "a-f-" -> "frie
 
 _TOKEN_OK = re.compile(r"[^A-Za-z0-9 ._-]+")
 
+# Report plugins name their marker <form>-<callsign>-<DDHHMM>, e.g.
+# "8S-AREA99-142218". The middle segment is the only place the sender's callsign
+# appears when the CoT carries no <link parent_callsign>.
+_EMBEDDED_CALLSIGN = re.compile(r"^[A-Za-z0-9]{1,8}-(?P<callsign>.+)-\d{6}$")
+
 
 def sanitize_token(value: str, *, max_len: int = 64) -> str:
     """Make a callsign/uid safe for filenames and logs. Never returns ``..``."""
@@ -187,6 +192,26 @@ class InboundCot:
     def sender_id(self) -> str:
         """Best stable identity for "who sent this": the operator's device, else the marker."""
         return self.operator_uid or self.uid
+
+    @property
+    def sender_callsign(self) -> str:
+        """Who sent this, as a callsign — the value shown as ``Avsändare:`` on the note.
+
+        Deliberately *not* ``callsign``, which is the marker's own label. For a
+        report that label is generated (``8S-AREA99-142218``) and for a
+        hand-placed marker it is whatever the operator typed ("Upk 90"), so
+        matching against it only ever works by accident.
+
+        When the CoT names no operator the generated label is unwrapped instead,
+        which recovers the callsign for report plugins that omit ``parent_callsign``.
+        """
+        if self.operator_callsign:
+            return self.operator_callsign
+        embedded = _EMBEDDED_CALLSIGN.match(self.callsign)
+        if embedded:
+            return embedded.group("callsign")
+        # "DOWNY.DP1" / "DOWNY.SPI1" — a pointer named after its own device.
+        return self.callsign.split(".", 1)[0]
 
 
 # Standard CoT/ATAK <detail> children that every client attaches (device status,

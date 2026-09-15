@@ -108,7 +108,7 @@ set_config_value(
 | **Inkommande CoT** | | |
 | `inbound_enabled` | `false` | Ta emot CoT och skapa `TAK-OBSERVATION`-noter |
 | `inbound_types` | `a-f-G, a-h-*, a-n-G, a-u-*, a-x-X, b-m-p-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Fångar manuellt placerade markörer/punkter, inte den automatiska lägesrapporteringen (`a-f-*` med undertyper). `a-x-X` är exakt, inte `a-x-*` — det är där HV Rapporter lägger sina 8S |
-| `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på callsign |
+| `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på **avsändarens** callsign — samma värde som står som `Avsändare:` på noten, inte markörens namn. Delsträngsmatchning, skiftlägesokänslig |
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
 | `inbound_group_name` | `TAK Inkommande` | Gruppnamn noterna hamnar under |
