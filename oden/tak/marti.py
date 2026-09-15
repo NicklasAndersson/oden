@@ -21,6 +21,7 @@ the directory it is unpacked into.
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import logging
 import os
@@ -173,11 +174,63 @@ def _decode_listing(body: bytes) -> str:
         return body.decode("utf-8", "replace")
 
 
-def search(base_url: str, context: ssl.SSLContext, *, timeout: float = 30.0) -> list[MartiFile]:
-    """Everything the file store will show this account. Never raises: a broken
-    query means "nothing new this round", not a listener that stops."""
+def supports_incremental(base_url: str, context: ssl.SSLContext, *, timeout: float = 15.0) -> bool:
+    """True when the server honours ``?startTime=`` on ``/Marti/sync/search``.
+
+    Asked with a timestamp an hour in the *future*, so the three outcomes are
+    unambiguous and the probe costs almost nothing:
+
+    * honoured  -> no rows, a few hundred bytes
+    * ignored   -> the whole archive comes back, hundreds of kB
+    * rejected  -> HTTP 400
+
+    Only an empty 200 counts as support. Guessing wrong in the other direction
+    just means full listings, which is the old behaviour.
+    """
+    ahead = _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=1)
     try:
-        body = _get(f"{base_url}/Marti/sync/search", context, timeout, max_bytes=16 * 1024 * 1024)
+        body = _get(_search_url(base_url, _as_marti_time(ahead)), context, timeout, max_bytes=1024 * 1024)
+        return not (json.loads(_decode_listing(body)).get("results") or [])
+    except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
+        return False
+
+
+def _as_marti_time(when: _dt.datetime) -> str:
+    """The ISO-8601 shape the server's own ``SubmissionDateTime`` uses."""
+    return when.astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _search_url(base_url: str, since: str = "") -> str:
+    url = f"{base_url}/Marti/sync/search"
+    return f"{url}?{urllib.parse.urlencode({'startTime': since})}" if since else url
+
+
+def shift_back(timestamp: str, seconds: int) -> str:
+    """``timestamp`` moved back by ``seconds``, or unchanged if it will not parse."""
+    try:
+        when = _dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return timestamp
+    return _as_marti_time(when - _dt.timedelta(seconds=seconds))
+
+
+def search(
+    base_url: str,
+    context: ssl.SSLContext,
+    *,
+    timeout: float = 30.0,
+    since: str = "",
+) -> list[MartiFile]:
+    """Everything the file store will show this account. Never raises: a broken
+    query means "nothing new this round", not a listener that stops.
+
+    ``since`` narrows the query to packages submitted after that timestamp. The
+    full listing is 400 kB of JSON for ~950 rows and grows with the exercise, so
+    fetching all of it every minute is what otherwise stops the poll interval
+    from being lowered.
+    """
+    try:
+        body = _get(_search_url(base_url, since), context, timeout, max_bytes=16 * 1024 * 1024)
         rows = json.loads(_decode_listing(body)).get("results") or []
     except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError) as exc:
         logger.warning("TAK: kunde inte läsa filarkivet (%s)", exc)

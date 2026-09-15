@@ -379,6 +379,14 @@ def build_envelope(
     }
 
 
+# The first poll comes quickly so a restart does not hide a fresh report for two
+# intervals; long enough that the bridge has settled first.
+_FIRST_POLL_DELAY = 5.0
+# How far back an incremental query reaches beyond the newest thing seen.
+# Absorbs out-of-order submissions and clock skew; re-seeing a package is free
+# because the hash cache already knows it.
+_POLL_OVERLAP_S = 600
+
 _SUMMARY_EVERY_SECONDS = 30.0
 # How many discarded types the summary names.
 _TALLY_IN_SUMMARY = 4
@@ -454,12 +462,31 @@ async def run_package_poller(bridge: Any, *, filt: InboundFilter, group_name: st
             return
 
         seeding = not seen
-        logger.info("TAK: pollar filarkivet var %.0f s (%s)", interval, base_url)
+        incremental = await asyncio.to_thread(marti.supports_incremental, base_url, context)
+        # Newest SubmissionDateTime seen so far. The server's own clock writes it,
+        # so using it as the query floor sidesteps any skew against ours.
+        high_water = ""
+        logger.info(
+            "TAK: pollar filarkivet var %.0f s (%s)%s",
+            interval,
+            base_url,
+            "" if incremental else " — servern stödjer inte startTime, hämtar hela listan varje gång",
+        )
 
+        first = True
         while True:
-            await asyncio.sleep(interval)
+            # A short first wait so a restart does not hide a report for two full
+            # intervals; after that, the configured pace.
+            await asyncio.sleep(_FIRST_POLL_DELAY if first else interval)
+            first = False
             try:
-                files = await asyncio.to_thread(marti.search, base_url, context)
+                since = ""
+                if incremental and not seeding and high_water:
+                    # Overlap backwards: submissions can land out of order, and the
+                    # hash cache makes seeing the same package twice free.
+                    since = marti.shift_back(high_water, _POLL_OVERLAP_S)
+                files = await asyncio.to_thread(marti.search, base_url, context, since=since)
+                high_water = max([high_water, *(f.submitted_at for f in files)])
                 fresh = [f for f in files if f.hash not in seen and f.looks_like_mission_package]
 
                 if seeding:

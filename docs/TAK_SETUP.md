@@ -115,7 +115,7 @@ set_config_value(
 | `inbound_reports_only` | `false` | Bara händelser som bär ett ifyllt rapportblock. Typfiltret kan inte skilja en 8S från en lös fiendemarkör — båda är `a-h-G` |
 | **Uppdragspaket (rapporter med bilaga)** | | |
 | `inbound_fetch_packages` | `false` | Hämta *mission packages* ur serverns filarkiv. **Utan det tappas hela rapporten** när en 8S skickas med bild – inte bara bilden |
-| `inbound_package_poll_seconds` | `60` | Hur ofta filarkivet frågas. Golv på 15 s |
+| `inbound_package_poll_seconds` | `60` | Hur ofta filarkivet frågas. Golv på 15 s. Stödjer servern `startTime` hämtas bara det som tillkommit sedan förra rundan, och då är korta intervall billiga |
 | `marti_port` | `8443` | Marti-API:ts port. Inte samma som CoT-anslutningens |
 
 **En 8S med bifogad bild syns aldrig på CoT-strömmen.** ATAK packar då händelsen och
@@ -123,6 +123,15 @@ bilden i ett *mission package*, laddar upp det till serverns filarkiv och skicka
 ingenting på kanalen. Oden ser alltså inte rapporten alls, och eftersom den aldrig
 kommer fram loggas heller ingenting om den. Slå på `inbound_fetch_packages` för att
 få med dem.
+
+Rapporter **utan** bilaga kommer via CoT-strömmen och syns direkt. Bara de med
+bilaga går via filarkivet, och för dem är fördröjningen som mest ett pollningsintervall.
+
+Hela listningen är ~400 kB för ~950 rader och växer under övningen, så att hämta
+allt varje minut är det som annars sätter golvet för intervallet. Oden provar därför
+`?startTime=` vid start: honoreras den frågas bara det som tillkommit sedan förra
+rundan (typiskt noll rader, några hundra byte), annars hämtas hela listan som förut.
+Vilket det blev står i loggraden när pollningen startar.
 
 Första gången pollningen kör **importeras ingenting** – filarkivet innehåller ofta
 hundratals gamla paket, och de skulle begrava valvet. Den rundan antecknar bara vad

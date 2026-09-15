@@ -222,8 +222,9 @@ class PollerTest(unittest.IsolatedAsyncioTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.notes: list[tuple[str, tuple[str, ...]]] = []
+        self.searches: list[str] = []  # the `since` each poll asked for
 
-    async def _poll(self, files, blobs, *, rounds: int = 1):
+    async def _poll(self, files, blobs, *, rounds: int = 1, incremental: bool = True):
         import asyncio
         import contextlib
         from unittest import mock
@@ -247,9 +248,15 @@ class PollerTest(unittest.IsolatedAsyncioTestCase):
             self.notes.append((cot.uid, tuple(name for name, _ in attachments)))
 
         filt = listener.InboundFilter({"inbound_types": ["a-h-G"]})
+
+        def record_search(_url, _ctx, *, since="", **_kw):
+            self.searches.append(since)
+            return files
+
         with (
             mock.patch.object(marti, "ssl_context", return_value=None),
-            mock.patch.object(marti, "search", return_value=files),
+            mock.patch.object(marti, "supports_incremental", return_value=incremental),
+            mock.patch.object(marti, "search", side_effect=record_search),
             mock.patch.object(marti, "fetch", side_effect=lambda _url, digest, _ctx: blobs.get(digest)),
             mock.patch.object(listener, "_create_note", capture),
             mock.patch.object(asyncio, "sleep", fake_sleep),
@@ -349,6 +356,66 @@ class NonUtf8ListingTest(unittest.TestCase):
 
         with mock.patch.object(marti, "_get", return_value=b"<html>fel</html>"):
             self.assertEqual(marti.search("https://example.invalid", None), [])
+
+
+class IncrementalPollTest(unittest.TestCase):
+    """The full listing is 400 kB of JSON for ~950 rows and grows with the exercise,
+    so fetching all of it every minute is what stops the interval being lowered."""
+
+    def test_start_time_is_added_only_when_asked_for(self):
+        self.assertEqual(marti._search_url("https://x"), "https://x/Marti/sync/search")
+        self.assertIn("startTime=2026", marti._search_url("https://x", "2026-09-15T09:00:00.000Z"))
+
+    def test_the_timestamp_matches_the_shape_the_server_itself_writes(self):
+        import datetime as dt
+
+        when = dt.datetime(2026, 9, 15, 9, 0, tzinfo=dt.timezone.utc)
+        self.assertEqual(marti._as_marti_time(when), "2026-09-15T09:00:00.000Z")
+
+    def test_shift_back_moves_the_floor(self):
+        self.assertEqual(marti.shift_back("2026-09-15T09:32:30.914Z", 600), "2026-09-15T09:22:30.000Z")
+
+    def test_an_unparseable_timestamp_is_passed_through_untouched(self):
+        """Better a too-wide query than a crash in the poll loop."""
+        self.assertEqual(marti.shift_back("skräp", 600), "skräp")
+
+    def test_support_is_claimed_only_for_an_empty_200(self):
+        """A server that ignores startTime returns the whole archive, not nothing."""
+        from unittest import mock
+
+        with mock.patch.object(marti, "_get", return_value=b'{"results":[]}'):
+            self.assertTrue(marti.supports_incremental("https://x", None))
+        with mock.patch.object(marti, "_get", return_value=b'{"results":[{"Hash":"a"}]}'):
+            self.assertFalse(marti.supports_incremental("https://x", None))
+        with mock.patch.object(marti, "_get", side_effect=OSError("400")):
+            self.assertFalse(marti.supports_incremental("https://x", None))
+
+
+class PollerIncrementalTest(PollerTest):
+    """How the poller uses it, on top of PollerTest's stubs."""
+
+    async def test_the_seeding_round_asks_for_everything(self):
+        files = [marti.MartiFile("h1", "a.zip", "2026-09-15T09:00:00.000Z", "", "", 10)]
+        await self._poll(files, {})
+        self.assertEqual(self.searches, [""])  # seeding needs the full archive
+
+    async def test_later_rounds_ask_only_for_what_is_new(self):
+        from oden.tak.listener import remember_package
+
+        remember_package(self.db, "gammal", "g.zip", "2026-01-01")  # past seeding
+        files = [marti.MartiFile("h1", "a.zip", "2026-09-15T09:32:30.914Z", "", "", 10)]
+        await self._poll(files, {}, rounds=2)
+        self.assertEqual(self.searches[0], "")  # nothing seen yet, so no floor
+        # Second round starts from the newest row, minus the overlap window.
+        self.assertEqual(self.searches[1], "2026-09-15T09:22:30.000Z")
+
+    async def test_a_server_without_start_time_keeps_asking_for_everything(self):
+        from oden.tak.listener import remember_package
+
+        remember_package(self.db, "gammal", "g.zip", "2026-01-01")
+        files = [marti.MartiFile("h1", "a.zip", "2026-09-15T09:32:30.914Z", "", "", 10)]
+        await self._poll(files, {}, rounds=2, incremental=False)
+        self.assertEqual(self.searches, ["", ""])
 
 
 if __name__ == "__main__":
