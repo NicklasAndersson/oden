@@ -283,6 +283,34 @@ def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: i
         _extract_report_fields(child, fields, depth=depth + 1)
 
 
+def _report_name_element(elem: ET.Element, *, depth: int = 0) -> ET.Element:
+    """The element whose tag actually names the report, unwrapping container tags.
+
+    Some plugins put the report straight under ``<detail>``
+    (``<_8S_ POSITION=.../>``, the "8S" plugin), others wrap it in a container
+    first (``<HVSS_DOCUMENTS><_8S_>…``, the "HV Rapporter" plugin). Naming the
+    report after the outer tag would call the second one "Hvss Documents" and it
+    would never be recognised as an 8S at all.
+
+    Unwrapping needs both halves of the test, because a container holding one
+    field looks exactly like a wrapper holding one report:
+
+    * the outer element must carry no data of its own — one child, no text, no
+      attributes;
+    * and that child must itself hold fields, so it has children or attributes.
+
+    Without the second half, ``<eight_line_report><size>3x</size></…>`` would be
+    named after its only field and called "Size".
+    """
+    children = list(elem)
+    if depth >= _MAX_FIELD_DEPTH or len(children) != 1 or elem.attrib or (elem.text or "").strip():
+        return elem
+    inner = children[0]
+    if not len(inner) and not inner.attrib:
+        return elem  # a bare leaf is a field, not a report block
+    return _report_name_element(inner, depth=depth + 1)
+
+
 def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
     """Pull operator-defined report fields out of ``<detail>``.
 
@@ -299,7 +327,8 @@ def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
         if child.tag.startswith("__") or child.tag in _KNOWN_DETAIL_TAGS:
             continue
         if not name:
-            name = sanitize_token(child.get("name", "") or _humanize_tag(child.tag), max_len=64)
+            named = _report_name_element(child)
+            name = sanitize_token(named.get("name", "") or _humanize_tag(named.tag), max_len=64)
         _extract_report_fields(child, fields)
         if len(fields) >= _MAX_CUSTOM_FIELDS:
             break

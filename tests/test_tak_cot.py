@@ -153,6 +153,32 @@ class CotToInbound(unittest.TestCase):
         inbound = cot_to_inbound(xml)
         self.assertLessEqual(len(inbound.custom_report), 64)
 
+    def test_a_container_tag_does_not_become_the_report_name(self):
+        """HV Rapporter wraps the report: <HVSS_DOCUMENTS><_8S_>…. Named after the
+        wrapper it would be "Hvss Documents" and never recognised as an 8S."""
+        xml = (
+            "<event uid='a' type='a-x-X'><point lat='1' lon='1'/>"
+            "<detail><WRAPPER><_8S_><SAGESMAN>AQEA01</SAGESMAN></_8S_></WRAPPER></detail></event>"
+        )
+        inbound = cot_to_inbound(xml)
+        self.assertEqual(inbound.custom_report_name, "8S")
+        self.assertEqual(inbound.custom_report["SAGESMAN"], "AQEA01")
+
+    def test_a_wrapper_carrying_attributes_names_itself(self):
+        """Attributes mean it holds data, so it is the report — not a container."""
+        xml = (
+            "<event uid='a' type='a-u-G'><point lat='1' lon='1'/>"
+            "<detail><my_report SIZE='3x'><inner><x>1</x></inner></my_report></detail></event>"
+        )
+        self.assertEqual(cot_to_inbound(xml).custom_report_name, "My Report")
+
+    def test_unwrapping_stops_at_the_innermost_container(self):
+        xml = (
+            "<event uid='a' type='a-u-G'><point lat='1' lon='1'/>"
+            "<detail><a><b><_8S_><SAGESMAN>X</SAGESMAN></_8S_></b></a></detail></event>"
+        )
+        self.assertEqual(cot_to_inbound(xml).custom_report_name, "8S")
+
     def test_arbitrary_wrapper_tag_is_not_hardcoded(self):
         # Different template, different root tag name, no "custom_report" anywhere.
         xml = (

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from oden.tak.cot import cot_to_inbound, raw_event_type
+from oden.tak.eight_s import is_8s_report, to_7s_message
 from oden.tak.listener import _INBOUND_DEFAULTS, InboundFilter, build_envelope, render_observation
 
 _FIX = Path(__file__).parent / "fixtures" / "tak"
@@ -96,3 +97,61 @@ class RealSampleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HvReportsFormatTest(unittest.TestCase):
+    """The *other* 8S. Two ATAK plugins are enabled side by side across the fleet and
+    both file an 8S: "8S" (com.atakmap.android.eights.plugin) flattens English keys
+    into attributes under ``a-h-G``, "HV Rapporter"
+    (com.atakmap.android.hvreports.plugin) nests Swedish keys as element text inside
+    ``<HVSS_DOCUMENTS>`` under ``a-x-X``. Neither is "the" format."""
+
+    def _cot(self):
+        return cot_to_inbound(_load("8s_hvreports.xml"))
+
+    def test_the_wrapper_does_not_hide_that_this_is_an_8s(self):
+        """Named after <HVSS_DOCUMENTS> it would be "Hvss Documents" and never recognised."""
+        cot = self._cot()
+        self.assertEqual(cot.cot_type, "a-x-X")
+        self.assertEqual(cot.custom_report_name, "8S")
+        self.assertTrue(is_8s_report(cot))
+
+    def test_swedish_element_fields_are_extracted(self):
+        report = self._cot().custom_report
+        self.assertEqual(report["SAGESMAN"], "AQEA01")
+        self.assertEqual(report["STYRKA_SLAG"], "4 soldater")
+        self.assertEqual(report["STÄLLE"], "33VVF6937665634")
+
+    def test_it_reaches_the_default_filter(self):
+        """a-x-X has to be in inbound_types or the report is dropped before parsing."""
+        self.assertTrue(InboundFilter(dict(_INBOUND_DEFAULTS)).accept(self._cot()))
+
+    def test_swedish_keys_map_onto_the_same_7s_fields(self):
+        message = to_7s_message(self._cot())
+        self.assertIn("Ställe: 33VVF6937665634", message)  # STÄLLE
+        self.assertIn("Händelse: 4 soldater, Lökar", message)  # STYRKA_SLAG + SYSSELSÄTTNING
+        self.assertIn("Sagesman: AQEA01", message)  # SAGESMAN
+        self.assertIn("Symbol: Hv", message)
+        self.assertIn("Sedan: Vila", message)  # SEDAN
+
+    def test_the_iso_utc_timestamp_becomes_a_local_tnr(self):
+        """STUND is ISO 8601 in UTC; read as local it would put the TNR two hours off."""
+        message = to_7s_message(self._cot())
+        self.assertIn("TNR: 121729", message)  # 2026-06-12T15:29:17Z -> 17:29 local
+        self.assertIn("Stund: 121729ZJUN2026", message)
+
+    def test_the_sender_is_the_operator_not_the_marker(self):
+        cot = self._cot()
+        self.assertEqual(cot.operator_callsign, "AQEA01")
+        self.assertEqual(cot.operator_uid, "ANDROID-3f5372c2e13e953c")
+
+    def test_the_two_plugins_produce_the_same_7s_shape(self):
+        """Whatever the vault sees must not depend on which plugin the operator used."""
+        for name in ("8s_report.xml", "8s_hvreports.xml"):
+            with self.subTest(name):
+                message = to_7s_message(cot_to_inbound(_load(name)))
+                labels = [line.split(":")[0] for line in message.split("%%")[0].strip().splitlines() if ":" in line]
+                self.assertEqual(
+                    labels,
+                    ["Till", "Från", "TNR", "Stund", "Ställe", "Händelse", "Symbol", "Sagesman", "Sedan"],
+                )

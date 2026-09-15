@@ -107,7 +107,7 @@ set_config_value(
 | `cot_archive` | `true` | Sätter `<archive/>` så markören överlever att Oden kopplar ner |
 | **Inkommande CoT** | | |
 | `inbound_enabled` | `false` | Ta emot CoT och skapa `TAK-OBSERVATION`-noter |
-| `inbound_types` | `a-f-G, a-h-*, a-n-G, a-u-*, b-m-p-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Fångar manuellt placerade markörer/punkter, inte den automatiska lägesrapporteringen (`a-f-*` med undertyper) |
+| `inbound_types` | `a-f-G, a-h-*, a-n-G, a-u-*, a-x-X, b-m-p-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Fångar manuellt placerade markörer/punkter, inte den automatiska lägesrapporteringen (`a-f-*` med undertyper). `a-x-X` är exakt, inte `a-x-*` — det är där HV Rapporter lägger sina 8S |
 | `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på callsign |
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
@@ -132,6 +132,24 @@ Bilagan hamnar i valvet och länkas från noten under `## Bilagor`, precis som e
 Signal-bilaga. Poster på 0 byte hoppas över och loggas som varning – ATAK kan
 deklarera en bild i manifestet och ändå packa en tom fil, och en tom fil i valvet
 är sämre än ingen.
+
+### Två 8S-format
+
+Samma rapporttyp kommer i två oförenliga former, eftersom två olika ATAK-plugins är
+igång samtidigt i förbandet och båda skriver en 8S:
+
+| plugin | CoT-typ | form |
+|---|---|---|
+| **8S** (`com.atakmap.android.eights.plugin`) | `a-h-G` | engelska fältnamn som attribut på `<_8S_>` |
+| **HV Rapporter** (`com.atakmap.android.hvreports.plugin`) | `a-x-X` | svenska fältnamn som elementtext, inlindade i `<HVSS_DOCUMENTS>`, tid i ISO 8601 (UTC) |
+
+Oden hanterar båda och skriver samma 7S-not oavsett vilken operatören använde. Det
+kräver att **`a-x-X` finns i `inbound_types`** — utan den kastas HV Rapporter-rapporten
+innan den ens parsas, och eftersom den aldrig kommer fram loggas ingenting om den.
+
+Fältnamnen slås upp normaliserat (versaler, utan skiljetecken) mot en alias-lista, så
+`STÄLLE` och `POSITION` landar i samma 7S-fält. Det finns alltså ingen "rätt" form att
+ställa om terminalerna till — båda fungerar.
 
 **Lösenord.** Enrollment-lösenordet kan skrivas direkt i TAK-fliken — det är den
 enkla vägen, och det är enda sättet att komma igång med ett enrollment-paket utan

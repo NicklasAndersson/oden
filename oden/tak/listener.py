@@ -59,7 +59,9 @@ _INBOUND_DEFAULTS: dict[str, Any] = {
     "inbound_enabled": False,
     # Manually placed markers/points (a-{f,h,u,n}-G, b-m-p-*) and alerts (b-a-*).
     # Deliberately NOT bare a-f-* — that catches the flood of friendly PLI/tracks.
-    "inbound_types": ["a-f-G", "a-h-*", "a-n-G", "a-u-*", "b-m-p-*", "b-a-*"],
+    # a-x-X is exact, not a-x-*: it is what the "HV Rapporter" plugin files an 8S
+    # under, and the rest of a-x-* is other things entirely.
+    "inbound_types": ["a-f-G", "a-h-*", "a-n-G", "a-u-*", "a-x-X", "b-m-p-*", "b-a-*"],
     "inbound_callsign_allow": [],
     "inbound_callsign_deny": [],
     "inbound_min_move_m": 100.0,
