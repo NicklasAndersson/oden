@@ -164,6 +164,13 @@
                 </div>
                 <div class="config-field full-width">
                     <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-inbound-reports-only" name="inbound_reports_only">
+                        <label for="tak-inbound-reports-only">Bara ifyllda rapporter, inga lösa markörer</label>
+                    </div>
+                    <span class="help-text">En 8S har samma CoT-typ som en vanlig fiendemarkör, så typfiltret kan inte skilja dem åt. Det här släpper bara in händelser som bär ett ifyllt rapportblock</span>
+                </div>
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
                         <input type="checkbox" id="tak-inbound-packages" name="inbound_fetch_packages">
                         <label for="tak-inbound-packages">Hämta uppdragspaket (rapporter med bilaga)</label>
                     </div>

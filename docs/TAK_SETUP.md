@@ -112,6 +112,7 @@ set_config_value(
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
 | `inbound_group_name` | `TAK Inkommande` | Gruppnamn noterna hamnar under |
+| `inbound_reports_only` | `false` | Bara händelser som bär ett ifyllt rapportblock. Typfiltret kan inte skilja en 8S från en lös fiendemarkör — båda är `a-h-G` |
 | **Uppdragspaket (rapporter med bilaga)** | | |
 | `inbound_fetch_packages` | `false` | Hämta *mission packages* ur serverns filarkiv. **Utan det tappas hela rapporten** när en 8S skickas med bild – inte bara bilden |
 | `inbound_package_poll_seconds` | `60` | Hur ofta filarkivet frågas. Golv på 15 s |

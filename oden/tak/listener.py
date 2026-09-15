@@ -67,6 +67,8 @@ _INBOUND_DEFAULTS: dict[str, Any] = {
     "inbound_min_move_m": 100.0,
     "inbound_max_per_minute": 60,
     "inbound_group_name": "TAK Inkommande",
+    # Only notes for reports an operator filled in, never bare map markers.
+    "inbound_reports_only": False,
     # An 8S sent *with* an attachment never reaches the CoT stream: ATAK uploads a
     # mission package to the server's file store instead. Off by default because
     # polling the store is outgoing traffic the operator has not asked for.
@@ -103,6 +105,25 @@ def _count(tally: dict[str, int], key: str) -> None:
     """Increment, but never let an unknown peer grow the tally without bound."""
     if key in tally or len(tally) < _TALLY_CAP:
         tally[key] = tally.get(key, 0) + 1
+
+
+# A plugin block that carries a single flag (``<targetmunitions visibility="true"/>``)
+# is plumbing, not something an operator filled in. Two fields is the cheapest line
+# that separates the two without hardcoding every plugin's tag name — the known-tag
+# list in cot.py handles the ones we have actually seen.
+_MIN_REPORT_FIELDS = 2
+
+
+def has_structured_report(cot: InboundCot) -> bool:
+    """True when the operator filled something in, rather than just dropping a marker.
+
+    ``a-h-G`` cannot tell the two apart on its own: the "8S" plugin files its
+    reports under exactly the same CoT type as any hand-placed hostile marker. So
+    the report block is the only signal available.
+    """
+    if is_8s_report(cot):
+        return True
+    return len(cot.custom_report) >= _MIN_REPORT_FIELDS
 
 
 def _content_signature(cot: InboundCot) -> str:
@@ -206,6 +227,7 @@ class InboundFilter:
         self._type_matcher = CotTypeMatcher.from_patterns(self.types)
         self.allow = [c.lower() for c in _as_list(merged["inbound_callsign_allow"])]
         self.deny = [c.lower() for c in _as_list(merged["inbound_callsign_deny"])]
+        self.reports_only = bool(merged["inbound_reports_only"])
         self.min_move_m = _num(merged["inbound_min_move_m"], 100.0)
         self.max_per_minute = int(_num(merged["inbound_max_per_minute"], 60.0))
         self._seen: dict[str, _Seen] = dict(seen or {})
@@ -259,6 +281,12 @@ class InboundFilter:
             return False
         if self.allow and not any(a in callsign for a in self.allow):
             self.last_reject = f"callsign {cot.callsign} inte på allow-listan"
+            return False
+
+        # Before dedup, so a marker that was never wanted does not take a slot in
+        # the cache and then block a real report that later reuses the uid.
+        if self.reports_only and not has_structured_report(cot):
+            self.last_reject = f"{cot.cot_type} bär ingen ifylld rapport"
             return False
 
         previous = self._seen.get(cot.uid)

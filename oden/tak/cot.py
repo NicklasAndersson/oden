@@ -214,7 +214,6 @@ _KNOWN_DETAIL_TAGS = {
     "bloodhound",
     "routeinfo",
     "shape",
-    "fillColor",
     "strokeColor",
     "labels_on",
     "creator",
@@ -222,6 +221,10 @@ _KNOWN_DETAIL_TAGS = {
     "_flow-tags_",
     "_medevac_status_",
     "modelInfo",
+    # Rendering flags from fires/targeting plugins. Seen in the wild on ordinary
+    # hostile markers, where they would otherwise masquerade as a one-field report.
+    "targetmunitions",
+    "fillColor",
 }
 _MAX_FIELD_DEPTH = 6
 # Attribute names that are structure/plumbing, never a report field value.

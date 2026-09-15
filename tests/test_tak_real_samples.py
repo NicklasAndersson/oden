@@ -9,7 +9,13 @@ from pathlib import Path
 
 from oden.tak.cot import cot_to_inbound, raw_event_type
 from oden.tak.eight_s import is_8s_report, to_7s_message
-from oden.tak.listener import _INBOUND_DEFAULTS, InboundFilter, build_envelope, render_observation
+from oden.tak.listener import (
+    _INBOUND_DEFAULTS,
+    InboundFilter,
+    build_envelope,
+    has_structured_report,
+    render_observation,
+)
 
 _FIX = Path(__file__).parent / "fixtures" / "tak"
 
@@ -155,3 +161,46 @@ class HvReportsFormatTest(unittest.TestCase):
                     labels,
                     ["Till", "Från", "TNR", "Stund", "Ställe", "Händelse", "Symbol", "Sagesman", "Sedan"],
                 )
+
+
+class ReportsOnlyTest(unittest.TestCase):
+    """``a-h-G`` is both an 8S report and any hand-placed hostile marker, so the type
+    filter cannot separate them. ``inbound_reports_only`` uses the report block instead."""
+
+    # A real hostile marker off the live server: the operator typed a name, nothing else.
+    # The <targetmunitions> flag is plugin plumbing that used to surface as a "report".
+    _MARKER = (
+        b"<event version='2.0' uid='e4237546' type='a-h-G' how='h-g-i-g-o' "
+        b"time='2026-09-15T09:31:51Z' start='2026-09-15T09:31:51Z' stale='2026-09-15T10:31:51Z'>"
+        b"<point lat='59.24237' lon='14.22170' hae='9999999.0' ce='9999999.0' le='9999999.0'/>"
+        b"<detail><contact callsign='Upk 90'/>"
+        b"<targetmunitions visibility='true'/></detail></event>"
+    )
+
+    def _filter(self, **overrides):
+        return InboundFilter({**_INBOUND_DEFAULTS, **overrides})
+
+    def test_plugin_flags_are_not_mistaken_for_a_report(self):
+        cot = cot_to_inbound(self._MARKER)
+        self.assertEqual(cot.custom_report, {})  # targetmunitions is plumbing
+        self.assertFalse(has_structured_report(cot))
+
+    def test_off_by_default_nothing_changes(self):
+        self.assertTrue(self._filter().accept(cot_to_inbound(self._MARKER)))
+
+    def test_a_bare_marker_is_dropped_when_reports_only(self):
+        f = self._filter(inbound_reports_only=True)
+        self.assertFalse(f.accept(cot_to_inbound(self._MARKER)))
+        self.assertIn("ingen ifylld rapport", f.last_reject)
+
+    def test_both_8s_formats_survive_reports_only(self):
+        """The whole point: reports get through, markers do not."""
+        for name in ("8s_report.xml", "8s_hvreports.xml"):
+            with self.subTest(name):
+                self.assertTrue(self._filter(inbound_reports_only=True).accept(cot_to_inbound(_load(name))))
+
+    def test_a_dropped_marker_does_not_take_a_slot_in_the_dedup_cache(self):
+        """Otherwise it would block a real report that later reuses the same uid."""
+        f = self._filter(inbound_reports_only=True)
+        f.accept(cot_to_inbound(self._MARKER))
+        self.assertEqual(f.seen_snapshot(), {})
