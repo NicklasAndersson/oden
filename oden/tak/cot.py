@@ -543,3 +543,83 @@ def latlon_to_mgrs(lat: float, lon: float) -> str:
     except Exception as exc:  # pragma: no cover - depends on optional native lib
         logger.debug("latlon_to_mgrs failed: %s", exc)
         return ""
+
+
+# What Oden reports itself as in <takv>. ATAK shows this in the contact's detail
+# view, so it should say plainly that this is not a handheld.
+_PLI_PLATFORM = "Oden"
+_PLI_DEVICE = "Oden S7 Watcher"
+
+
+def self_pli_cot(
+    *,
+    callsign: str,
+    lat: float,
+    lon: float,
+    team: str = "Cyan",
+    role: str = "Team Member",
+    stale_seconds: int = 120,
+    hae: float | None = None,
+    now: _dt.datetime | None = None,
+) -> bytes:
+    """Oden's own position report, so operators can address reports *to* it.
+
+    A TAK Server delivers a directed CoT only to the callsigns named in
+    ``<marti><dest>``, and ATAK builds that picker from the position reports it
+    has seen. Publishing nothing therefore makes Oden unaddressable: it is absent
+    from every contact list, and anything sent to a person or a team rather than
+    broadcast never reaches it. Verified on a live server — a sender's own PLI
+    arrived while their directed report did not.
+
+    Shaped after a real ATAK-CIV PLI (tests/fixtures/tak/friendly_pli.xml),
+    including ``endpoint`` on ``<contact>`` and ``<uid Droid=…>``, because those
+    are what make a client list it as a contact rather than draw a bare marker.
+
+    The uid starts with ``UID_PREFIX``, so the listener's own-echo guard drops it
+    when the server reflects it back.
+    """
+    if not _valid_latlon(lat, lon):
+        raise ValueError(f"self_pli_cot: invalid lat/lon {lat},{lon}")
+
+    name = sanitize_token(callsign, max_len=64) or UID_PREFIX
+    when = now or _dt.datetime.now(_dt.timezone.utc)
+    event = ET.Element(
+        "event",
+        {
+            "version": "2.0",
+            # Stable, so each report updates the same contact instead of piling up.
+            "uid": f"{UID_PREFIX}.PLI.{name}".replace(" ", ""),
+            "type": "a-f-G-U-C",  # friendly ground unit, combat — an ordinary client
+            # "m-g" like a real device: the point is to be listed as a contact, and
+            # mimicking what demonstrably works matters more here than claiming
+            # "human entered" for a position that is in fact configured once.
+            "how": "m-g",
+            "time": _fmt_time(when),
+            "start": _fmt_time(when),
+            "stale": _fmt_time(when + _dt.timedelta(seconds=max(1, stale_seconds))),
+        },
+    )
+    ET.SubElement(
+        event,
+        "point",
+        {
+            "lat": f"{lat:.7f}",
+            "lon": f"{lon:.7f}",
+            "hae": f"{hae:.1f}" if hae is not None else _UNKNOWN_VAL,
+            "ce": _UNKNOWN_VAL,
+            "le": _UNKNOWN_VAL,
+        },
+    )
+    detail = ET.SubElement(event, "detail")
+    # endpoint: "*:-1:stcp" is what a server-connected ATAK client sends, and it is
+    # what marks this as reachable rather than just plotted.
+    ET.SubElement(detail, "contact", {"callsign": name, "endpoint": "*:-1:stcp"})
+    ET.SubElement(
+        detail,
+        "__group",
+        {"name": sanitize_token(team, max_len=32) or "Cyan", "role": sanitize_token(role, max_len=32) or "Team Member"},
+    )
+    ET.SubElement(detail, "takv", {"device": _PLI_DEVICE, "platform": _PLI_PLATFORM, "os": "", "version": ""})
+    ET.SubElement(detail, "precisionlocation", {"geopointsrc": "USER", "altsrc": "USER"})
+    ET.SubElement(detail, "uid", {"Droid": name})
+    return ET.tostring(event, encoding="utf-8", xml_declaration=False)

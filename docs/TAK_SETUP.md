@@ -105,6 +105,11 @@ set_config_value(
 | `callsign` | `ODEN` | Vår identitet på servern |
 | `cot_stale_seconds` | `3600` | Hur länge en markör är giltig |
 | `cot_archive` | `true` | Sätter `<archive/>` så markören överlever att Oden kopplar ner |
+| **Egen position (PLI)** | | |
+| `pli_enabled` | `false` | Rapportera Odens egen position, så den syns som kontakt i ATAK |
+| `pli_lat` / `pli_lon` | – | Var Oden står. Krävs — utan position startar inte rapporteringen |
+| `pli_team` / `pli_role` | `Cyan` / `Team Member` | Lag och roll. Rapporter adresserade till laget når då Oden |
+| `pli_interval_seconds` | `60` | Hur ofta. Markören är giltig två intervall, så ett missat utskick släcker inte kontakten |
 | **Inkommande CoT** | | |
 | `inbound_enabled` | `false` | Ta emot CoT och skapa `TAK-OBSERVATION`-noter |
 | `inbound_types` | `a-f-G, a-h-*, a-n-G, a-u-*, a-x-X, b-m-p-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Fångar manuellt placerade markörer/punkter, inte den automatiska lägesrapporteringen (`a-f-*` med undertyper). `a-x-X` är exakt, inte `a-x-*` — det är där HV Rapporter lägger sina 8S |
@@ -160,6 +165,25 @@ innan den ens parsas, och eftersom den aldrig kommer fram loggas ingenting om de
 Fältnamnen slås upp normaliserat (versaler, utan skiljetecken) mot en alias-lista, så
 `STÄLLE` och `POSITION` landar i samma 7S-fält. Det finns alltså ingen "rätt" form att
 ställa om terminalerna till — båda fungerar.
+
+### Att kunna adressera rapporter till Oden
+
+En TAK-server levererar **riktad** CoT bara till de callsign som står i
+`<marti><dest>`, och ATAK bygger den mottagarlistan ur de positionsrapporter den
+sett. Oden skickade tidigare ingen egen position och gick därför inte att välja som
+mottagare: allt som skickades till en person eller ett lag i stället för som
+broadcast kom aldrig fram — och eftersom servern aldrig skickade det loggades
+ingenting heller.
+
+Skarp verifiering: avsändarens egna positionsrapporter kom fram medan deras riktade
+rapport inte gjorde det.
+
+Slå på `pli_enabled` och ange `pli_lat`/`pli_lon`, så dyker Oden upp i kontaktlistan
+och går att adressera. Sätt `pli_team` till det lag rapporterna skickas till om
+avsändarna adresserar lag snarare än enskilda.
+
+Priset är att Oden syns som en ikon på allas karta. Vill du undvika det är
+alternativet att avsändarna använder Broadcast.
 
 **Lösenord.** Enrollment-lösenordet kan skrivas direkt i TAK-fliken — det är den
 enkla vägen, och det är enda sättet att komma igång med ett enrollment-paket utan

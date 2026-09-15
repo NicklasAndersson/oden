@@ -136,6 +136,34 @@
             <div class="config-grid">
                 <div class="config-field full-width">
                     <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-pli-enabled" name="pli_enabled">
+                        <label for="tak-pli-enabled">Rapportera Odens egen position (syns som kontakt i ATAK)</label>
+                    </div>
+                    <span class="help-text">Utan den går det inte att adressera en rapport till Oden — servern levererar riktad CoT bara till callsign som står i mottagarlistan, och ATAK bygger den listan ur positionsrapporter. Sätter en ikon på allas karta</span>
+                </div>
+                <div class="config-field">
+                    <label for="tak-pli-lat">Odens latitud</label>
+                    <input type="number" step="any" id="tak-pli-lat" name="pli_lat" placeholder="59.3293">
+                </div>
+                <div class="config-field">
+                    <label for="tak-pli-lon">Odens longitud</label>
+                    <input type="number" step="any" id="tak-pli-lon" name="pli_lon" placeholder="18.0686">
+                </div>
+                <div class="config-field">
+                    <label for="tak-pli-team">Lag (färg)</label>
+                    <input type="text" id="tak-pli-team" name="pli_team" placeholder="Cyan">
+                    <span class="help-text">Rapporter adresserade till laget når då Oden</span>
+                </div>
+                <div class="config-field">
+                    <label for="tak-pli-role">Roll</label>
+                    <input type="text" id="tak-pli-role" name="pli_role" placeholder="Team Member">
+                </div>
+                <div class="config-field">
+                    <label for="tak-pli-interval">Positionsrapport var (sekunder)</label>
+                    <input type="number" id="tak-pli-interval" name="pli_interval_seconds" min="10" max="3600">
+                </div>
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
                         <input type="checkbox" id="tak-inbound-enabled" name="inbound_enabled">
                         <label for="tak-inbound-enabled">Ta emot CoT från TAK</label>
                     </div>

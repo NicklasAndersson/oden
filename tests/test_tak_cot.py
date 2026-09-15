@@ -3,6 +3,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from oden.tak.cot import (
+    UID_PREFIX,
     CotTypeMatcher,
     Report,
     cot_to_inbound,
@@ -11,7 +12,9 @@ from oden.tak.cot import (
     raw_event_type,
     report_to_cot,
     sanitize_token,
+    self_pli_cot,
 )
+from oden.tak.listener import InboundFilter
 
 _UTC = dt.timezone.utc
 
@@ -361,3 +364,53 @@ class CotTypeMatcherTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SelfPliTest(unittest.TestCase):
+    """Oden's own position report. Without it Oden is unaddressable: a directed CoT
+    reaches only the callsigns in <marti><dest>, and ATAK builds that picker from
+    position reports it has seen."""
+
+    def _pli(self, **kw):
+        defaults = {"callsign": "ODEN", "lat": 59.3293, "lon": 18.0686}
+        return ET.fromstring(self_pli_cot(**{**defaults, **kw}))
+
+    def test_it_looks_like_an_ordinary_friendly_client(self):
+        event = self._pli()
+        self.assertEqual(event.get("type"), "a-f-G-U-C")
+        self.assertEqual(event.find("detail/contact").get("callsign"), "ODEN")
+
+    def test_the_contact_carries_an_endpoint(self):
+        """Without it a client plots a marker instead of listing a reachable contact."""
+        self.assertEqual(self._pli().find("detail/contact").get("endpoint"), "*:-1:stcp")
+
+    def test_team_and_role_are_carried_so_team_traffic_arrives(self):
+        detail = self._pli(team="Orange", role="HQ").find("detail/__group")
+        self.assertEqual(detail.get("name"), "Orange")
+        self.assertEqual(detail.get("role"), "HQ")
+
+    def test_the_uid_is_stable_so_the_contact_updates_instead_of_multiplying(self):
+        first, second = self._pli().get("uid"), self._pli().get("uid")
+        self.assertEqual(first, second)
+
+    def test_our_own_pli_is_dropped_when_the_server_reflects_it_back(self):
+        """The uid must start with UID_PREFIX or Oden would import itself every minute."""
+        cot = cot_to_inbound(self_pli_cot(callsign="ODEN", lat=59.3, lon=18.0))
+        self.assertTrue(cot.uid.startswith(UID_PREFIX))
+        f = InboundFilter({"inbound_types": ["a-f-G-U-C"]})
+        self.assertFalse(f.accept(cot))
+        self.assertIn("eko", f.last_reject)
+
+    def test_stale_is_in_the_future_so_the_contact_survives_one_missed_publish(self):
+        event = self._pli(stale_seconds=120)
+        start = dt.datetime.fromisoformat(event.get("start").replace("Z", "+00:00"))
+        stale = dt.datetime.fromisoformat(event.get("stale").replace("Z", "+00:00"))
+        self.assertEqual((stale - start).total_seconds(), 120)
+
+    def test_a_missing_position_is_refused_rather_than_published_as_null_island(self):
+        with self.assertRaises(ValueError):
+            self_pli_cot(callsign="ODEN", lat=0.0, lon=0.0)
+
+    def test_a_hostile_callsign_cannot_inject_xml(self):
+        event = self._pli(callsign='x"/><script>')
+        self.assertNotIn("<script>", event.find("detail/contact").get("callsign"))
