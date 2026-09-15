@@ -65,6 +65,16 @@ _DEFAULTS: dict[str, Any] = {
     "enroll_password": "",
     "callsign": "ODEN",
     "cot_stale_seconds": 3600,
+    # Self-position, so operators can address reports *to* Oden. A directed CoT
+    # only reaches the callsigns named in <marti><dest>, and ATAK builds that
+    # picker from position reports it has seen — publish nothing and Oden is
+    # unaddressable. Off by default: it puts an icon on every operator's map.
+    "pli_enabled": False,
+    "pli_interval_seconds": 60,
+    "pli_lat": 0.0,
+    "pli_lon": 0.0,
+    "pli_team": "Cyan",
+    "pli_role": "Team Member",
     "cot_archive": True,
     # inbound defaults live in oden.tak.listener._INBOUND_DEFAULTS
 }
@@ -161,6 +171,7 @@ class TakBridge:
         self._reader: Any = None  # pytak's RXWorker reader, for the EOF watchdog
         self._run_task: asyncio.Task[Any] | None = None
         self._listener_task: asyncio.Task[None] | None = None
+        self._pli_task: asyncio.Task[None] | None = None
         self._needs_enrollment = False
         self.enrolled: EnrolledCert | None = None
         self.connected = False
@@ -179,6 +190,16 @@ class TakBridge:
     @property
     def rx_queue(self) -> asyncio.Queue[bytes] | None:
         return self._rx_queue
+
+    @property
+    def pytak_config(self) -> Any:
+        """The resolved connection config — server URL, client cert, CA.
+
+        The file-store poller authenticates with exactly what the CoT connection
+        already settled on, rather than resolving the package and cert a second
+        time. None until :meth:`start` has run.
+        """
+        return self._config
 
     @property
     def stale_seconds(self) -> int:
@@ -306,7 +327,62 @@ class TakBridge:
         from oden.tak.listener import start_tak_listener
 
         self._listener_task = start_tak_listener(self)
+        self._pli_task = self._start_self_pli()
         logger.info("TAK-bryggan startad (%s)", self._config.get("COT_URL"))
+
+    def _start_self_pli(self) -> asyncio.Task[None] | None:
+        """Start publishing Oden's own position, if configured. Returns the task, or None."""
+        s = self.settings
+        if not bool(s.get("pli_enabled")):
+            return None
+        try:
+            lat, lon = float(s.get("pli_lat") or 0.0), float(s.get("pli_lon") or 0.0)
+        except (TypeError, ValueError):
+            lat = lon = 0.0
+        if not (lat or lon):
+            logger.warning("TAK: självrapportering är på men saknar position — sätt pli_lat/pli_lon")
+            return None
+        return asyncio.create_task(self._publish_self_pli(lat, lon))
+
+    async def _publish_self_pli(self, lat: float, lon: float) -> None:
+        """Publish a PLI on a fixed cadence until cancelled.
+
+        Queued through the normal tx path, so a reconnect just delays the next one
+        rather than dropping the identity: the marker stays valid until ``stale``,
+        which is two intervals out.
+        """
+        from oden.tak.cot import self_pli_cot
+
+        s = self.settings
+        interval = max(10.0, float(s.get("pli_interval_seconds") or 60))
+        callsign = str(s.get("callsign") or "ODEN")
+        team, role = str(s.get("pli_team") or "Cyan"), str(s.get("pli_role") or "Team Member")
+        logger.info(
+            "TAK: rapporterar egen position som %s (%s/%s) var %.0f s — nu går det att adressera rapporter till Oden",
+            callsign,
+            team,
+            role,
+            interval,
+        )
+        while True:
+            try:
+                # Stale two intervals out, so one missed publish does not make the
+                # contact vanish from everyone's list.
+                await self.publish(
+                    self_pli_cot(
+                        callsign=callsign,
+                        lat=lat,
+                        lon=lon,
+                        team=team,
+                        role=role,
+                        stale_seconds=int(interval * 2),
+                    )
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("TAK: kunde inte skicka egen positionsrapport (%r)", exc)
+            await asyncio.sleep(interval)
 
     async def _watch_for_eof(self) -> None:
         """Return once the far end has closed the connection.
@@ -408,6 +484,11 @@ class TakBridge:
 
         await stop_tak_listener(self._listener_task)
         self._listener_task = None
+        if self._pli_task is not None and not self._pli_task.done():
+            self._pli_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._pli_task
+        self._pli_task = None
         if self._run_task is not None:
             self._run_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
