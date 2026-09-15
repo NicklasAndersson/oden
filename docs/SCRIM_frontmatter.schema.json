@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvss.example/SCRIM_frontmatter.schema.json",
+  "title": "SCRIM-rapport frontmatter",
+  "description": "Schema for the YAML frontmatter of a SCRIM vehicle-description note. SCRIM is Storlek, Colour, Registrering, Identifierande kännetecken, Märke — the vehicle form the ATAK 'HV Rapporter' plugin family files alongside an 8S. Applies only to files whose 'typ' is 'SCRIM-rapport'; see FORMAT_SPEC.md §0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "typ",
+    "tnr",
+    "tidpunkt",
+    "signal_tidpunkt",
+    "signal_avsandare_nummer",
+    "signal_avsandare_id"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable unique identifier, unique across the whole vault. 'SCRIM-<uuid>' as written by the application.",
+      "examples": ["SCRIM-b1f2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"]
+    },
+    "typ": {
+      "const": "SCRIM-rapport",
+      "description": "Constant discriminator. A consumer that globs TNR*.md must dispatch on this: 7S, FORS, PEDARS and SCRIM all share the TNR filename prefix."
+    },
+    "tnr": {
+      "type": "string",
+      "pattern": "^[0-9]{6}(_[0-9]+)?$",
+      "description": "Report TNR DDHHMM, optionally with a collision suffix _n. Derived from the observation time (STUND), not from when the report reached the application — reports are relayed by hand through the chain of command and can arrive months late.",
+      "examples": ["151345", "151345_2"]
+    },
+    "tidpunkt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+      "description": "ISO 8601 local datetime (no timezone offset). The authoritative timestamp of the observation.",
+      "examples": ["2026-09-15T13:45:00"]
+    },
+    "signal_tidpunkt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+      "description": "ISO 8601 local datetime (no timezone offset) for when the message reached the application. For a relayed report this is the forward time, not the observation."
+    },
+    "signal_avsandare_nummer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Sender identifier. For a TAK-sourced report this is 'tak:<device uid>'.",
+      "examples": ["tak:ANDROID-2cdcf555c0a02c42", "+46701234567"]
+    },
+    "signal_avsandare_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Sender identifier, as above."
+    },
+    "regnr": {
+      "type": "string",
+      "pattern": "^[0-9A-ZÅÄÖ-]{2,16}$",
+      "description": "Canonical registration from the R field: upper-case, spaces removed. Deliberately NOT restricted to the Swedish plate format — foreign registrations are in scope. Written in the body as a [[link]] in exactly the same canonical form seven_s uses, so a plate seen in a 7S and in a SCRIM resolves to one entity node. Omitted entirely when no plate was observed or the value could not be canonicalised; the raw text is still in the body and the raw block.",
+      "examples": ["PHS331", "TDS1891B"]
+    },
+    "plats": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Free-text place name or grid. Omitted when the report carried no position. Unlike 7S this is NOT required — three of four real samples lacked it.",
+      "examples": ["33VXF5253662139"]
+    },
+    "lat": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90,
+      "description": "WGS84 latitude in decimal degrees (~5 decimals). Omit entirely if coordinates unknown — do not use null or 0."
+    },
+    "lon": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180,
+      "description": "WGS84 longitude in decimal degrees (~5 decimals). Omit entirely if coordinates unknown."
+    },
+    "location": {
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?,-?[0-9]+(\\.[0-9]+)?$",
+      "description": "Combined coordinate for the Obsidian Map View plugin (FORMAT_SPEC.md §8). REQUIRED when lat/lon are present and must mirror them exactly."
+    },
+    "sagesman": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reporting call sign. Falls back to the sending device's callsign when the form omitted it. Not required — a real sample lacked it.",
+      "examples": ["BRGB05", "CQHC07"]
+    }
+  },
+  "dependentRequired": {
+    "lat": ["lon", "location"],
+    "lon": ["lat", "location"]
+  }
+}

@@ -60,6 +60,7 @@ def normalize_pipeline_settings(value: Any) -> dict[str, Any]:
         "seven_s": normalize_structured_report_settings(value.get("seven_s")),
         "fors": normalize_structured_report_settings(value.get("fors")),
         "pedars": normalize_structured_report_settings(value.get("pedars")),
+        "scrim": normalize_structured_report_settings(value.get("scrim")),
     }
 
 

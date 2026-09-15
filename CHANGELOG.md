@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **SCRIM-fordonsbeskrivningar blir egna noter, och fordonet blir en nod.** Observatörerna fyller i ett SCRIM-formulär i ATAK vid sidan av 8S — Storlek, Colour, Registrering, Identifierande kännetecken, Märke — men eftersom rapportblocket heter `SCRIM` och inte `8S` föll det igenom till en ostrukturerad `TAK-OBSERVATION` med råa enbokstavsnycklar och fel TNR. Nu blir det en `TNR<DDHHMM>.md` med `typ: SCRIM-rapport`, position, sägesman och registreringsnummer i frontmatter. Registreringen normaliseras (`PHS 331` → `PHS331`) och skrivs som `[[PHS331]]` i exakt samma kanoniska form som 7S-pipelinen använder, så samma plåt sedd via en 8S och via en SCRIM blir *en* nod i valvet — klickar man på fordonet når man båda rapporterna. Utländska plåtar länkas också, till skillnad från 7S-vägen: `R` är ett deklarerat registreringsfält och behöver inte matcha svenskt plåtformat. Oden skriver bara länken; entitetsnoten byggs som förut av analyssteget (FORMAT_SPEC §6.6)
+- **TNR tas ur observationstiden, inte ur ankomsttiden.** Rapporterna vidarebefordras manuellt genom ledningskedjan, så den tid de når Oden är vidarebefordringstiden — i en skarp fångst tre månader efter observationen. SCRIM härleder tiden ur `STUND` med `Skapad` och CoT-händelsetiden som reserver, och skriver i det dolda `%%`-blocket vilken källa som användes
+- **`docs/SCRIM_frontmatter.schema.json`**, plus ett nytt §0 i FORMAT_SPEC som säger att `typ` är diskriminatorn: 7S, FORS, PEDARS och SCRIM delar filnamnsprefixet `TNR`, så filnamnet identifierar inte rapporttypen
+
 ### Fixed
 
 - **TAK: varje omstart av Oden gjorde nya noter av gamla markörer.** En TAK Server återutsänder allt som är levande, och ATAK kan göra det var tionde sekund, men dedup-skyddet fanns bara i minnet. En omstart läste därför serverns lägesbild som ny: en extra not per levande markör, med kollisionssuffix i filnamnet, och dubbelräkning i analysen. Tillståndet sparas nu i tabellen `tak_inbound_seen` i `config.db` (schema 7), så en omstart känner igen det som redan blivit en not. Poster som inte setts på trettio dygn glöms, och ett databasfel kostar en återimport i stället för en lyssnare som vägrar starta

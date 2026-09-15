@@ -152,9 +152,9 @@ class TestResponsesCRUD(unittest.TestCase):
 
 
 class TestSchemaVersion(unittest.TestCase):
-    """Test that schema migration bumps version to 7."""
+    """Test that schema migration bumps version to 8."""
 
-    def test_schema_version_is_7(self):
+    def test_schema_version_is_8(self):
         import sqlite3
 
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -169,7 +169,7 @@ class TestSchemaVersion(unittest.TestCase):
         conn.close()
         db_path.unlink(missing_ok=True)
 
-        self.assertEqual(row[0], "7")
+        self.assertEqual(row[0], "8")
 
     def test_raw_messages_table_exists(self):
         import sqlite3
@@ -304,7 +304,7 @@ class TestSchemaVersion(unittest.TestCase):
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM metadata WHERE key = 'schema_version'")
-            self.assertEqual(cursor.fetchone()[0], "7")
+            self.assertEqual(cursor.fetchone()[0], "8")
 
             cursor.execute("SELECT value FROM config WHERE key = 'append_window_minutes'")
             self.assertEqual(cursor.fetchone()[0], "45")

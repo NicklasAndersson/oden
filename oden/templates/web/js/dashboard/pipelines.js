@@ -489,7 +489,7 @@ function renderEnabledPipelines() {
             ? renderGroupFilterSettings(item)
             : meta?.supports_config && item.name === 'generic_template'
             ? renderGenericTemplateSettings(item)
-            : meta?.supports_config && ['seven_s', 'fors', 'pedars'].includes(item.name)
+            : meta?.supports_config && ['seven_s', 'fors', 'pedars', 'scrim'].includes(item.name)
             ? renderStructuredSubdirSettings(item)
             : '';
 
