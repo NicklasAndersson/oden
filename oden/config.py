@@ -305,6 +305,12 @@ def _migrate_enabled_pipelines(app_config: dict) -> None:
         enabled.insert(insert_at, "pedars")
         changed = True
 
+    if "scrim" not in enabled:
+        insert_after = next((name for name in ("pedars", "fors", "seven_s") if name in enabled), "")
+        insert_at = enabled.index(insert_after) + 1 if insert_after else len(enabled)
+        enabled.insert(insert_at, "scrim")
+        changed = True
+
     if not changed:
         return
 
@@ -382,7 +388,7 @@ def reload_config() -> dict:
 
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
     ENABLED_PIPELINES = app_config.get(
-        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
     )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
@@ -551,7 +557,7 @@ try:
     AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
     DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
     ENABLED_PIPELINES = app_config.get(
-        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
     )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
@@ -586,6 +592,6 @@ except Exception as e:
     AUTO_REACTION_EMOJI = "✅"
     AUTO_READ_RECEIPT_ENABLED = False
     DB_FIRST_ENABLED = True
-    ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+    ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
     PIPELINE_SETTINGS = {"group_filter": {"mode": "blacklist", "groups": []}}
     RAW_MESSAGE_RETENTION_DAYS = 30

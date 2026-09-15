@@ -23,6 +23,7 @@ from oden.messages_db import (
 from oden.pipelines.fors import ForsPipeline
 from oden.pipelines.group_filter import GroupFilterPipeline
 from oden.pipelines.pedars import PedarsPipeline
+from oden.pipelines.scrim import ScrimPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.pipelines.tak_publish import TakPublishPipeline
 from oden.pipelines_db import (
@@ -60,13 +61,21 @@ class PipelineOrchestrator:
             "seven_s": SevenSPipeline(),
             "fors": ForsPipeline(),
             "pedars": PedarsPipeline(),
+            "scrim": ScrimPipeline(),
             "generic_template": _GenericPipeline(),
         }
         self._cached_config: tuple[list, bool] | None = None
         self._cached_pipelines: list[Any] = []
 
     def _build_pipelines(self) -> list[Any]:
-        config: list = cfg.ENABLED_PIPELINES or ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+        config: list = cfg.ENABLED_PIPELINES or [
+            "group_filter",
+            "seven_s",
+            "fors",
+            "pedars",
+            "scrim",
+            "generic_template",
+        ]
         # ponytail: rebuilds on ENABLED_PIPELINES reassignment or the TAK bridge
         # appearing/disappearing (the TAK tab reconnects it live).
         tak_active = get_tak_bridge() is not None

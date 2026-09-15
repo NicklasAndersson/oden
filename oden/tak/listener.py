@@ -49,6 +49,7 @@ from oden.tak.cot import (
     raw_event_type,
 )
 from oden.tak.eight_s import is_8s_report, to_7s_message
+from oden.tak.scrim import is_scrim_report, to_scrim_message
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ def has_structured_report(cot: InboundCot) -> bool:
     reports under exactly the same CoT type as any hand-placed hostile marker. So
     the report block is the only signal available.
     """
-    if is_8s_report(cot):
+    if is_8s_report(cot) or is_scrim_report(cot):
         return True
     return len(cot.custom_report) >= _MIN_REPORT_FIELDS
 
@@ -347,6 +348,20 @@ def render_observation(cot: InboundCot) -> str:
     return "\n".join(lines)
 
 
+def _render_message(cot: InboundCot) -> str:
+    """The note body for one accepted CoT.
+
+    A recognised report form is reshaped into the text its own pipeline parses;
+    anything else stays a ``TAK-OBSERVATION``. Forms we do not know yet (A-I,
+    METHANE) fall through to the observation note rather than being dropped.
+    """
+    if is_8s_report(cot):
+        return to_7s_message(cot)
+    if is_scrim_report(cot):
+        return to_scrim_message(cot)
+    return render_observation(cot)
+
+
 def build_envelope(
     cot: InboundCot,
     group_name: str,
@@ -354,8 +369,9 @@ def build_envelope(
 ) -> dict[str, Any]:
     """Signal-shaped envelope so inbound CoT reuses the whole existing chain.
 
-    An 8S report is reshaped into ``7S RAPPORT`` text so the seven_s pipeline
-    writes a normal 7S file; anything else stays a ``TAK-OBSERVATION`` note.
+    A recognised report form is reshaped into the text its own pipeline parses
+    (8S into ``7S RAPPORT``, SCRIM into ``SCRIM RAPPORT``); anything else stays a
+    ``TAK-OBSERVATION`` note.
     The sender is the operator's device when the CoT names one, so notes group
     per operator rather than per marker.
 
@@ -364,7 +380,7 @@ def build_envelope(
     expects, so the vault write and the ``## Bilagor`` section need no TAK-specific
     code at all.
     """
-    message = to_7s_message(cot) if is_8s_report(cot) else render_observation(cot)
+    message = _render_message(cot)
     return {
         "envelope": {
             "sourceName": cot.operator_callsign or cot.callsign,

@@ -15,7 +15,7 @@ Inkommande meddelande
 [PipelineOrchestrator]
          │
      ┌────┴────┬──────┬───────┬─────────┐
-     │ Group   │ 7S   │ FORS  │ PEDARS  │
+     │ Group   │ 7S   │ FORS  │ PEDARS  │ SCRIM │
      │ Filter  │      │       │         │
      ▼         ▼      ▼       ▼
    [Hanterat?] [Hanterat?] [Hanterat?] [Hanterat?]
@@ -32,7 +32,7 @@ Pipelines aktiveras/deaktiveras via config-nyckeln `enabled_pipelines` (JSON-lis
 
 ```json
 {
-  "enabled_pipelines": ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+  "enabled_pipelines": ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
 }
 ```
 
@@ -43,6 +43,7 @@ Nuvarande default:
 - `seven_s` — söker och hanterar 7S RAPPORT
 - `fors` — söker och hanterar FORS-RAPPORT
 - `pedars` — söker och hanterar PEDARS-underhållsrapport
+- `scrim` — söker och hanterar SCRIM-fordonsbeskrivning
 - `generic_template` — fallback; hanterar resterande meddelanden
 
 ## Befintliga Pipelines
@@ -175,6 +176,43 @@ ordnas om.
 
 ---
 
+### SCRIM-pipeline (`scrim`)
+
+**Vad den väljer:** Meddelanden som börjar med `SCRIM RAPPORT`.
+
+**Vad den gör:**
+- Parsar fordonsbeskrivningen (Storlek, Färg, Registrering, Kännetecken, Märke)
+- Skriver en `TNR<DDHHMM>.md` med `typ: SCRIM-rapport`
+- **Länkar registreringsnumret** som `[[PLÅT]]` i exakt samma kanoniska form som
+  7S-pipelinen använder, så samma plåt sedd i en 7S och i en SCRIM blir *en* nod
+
+Kommer från ATAK-formuläret med samma namn, via `oden/tak/scrim.py`.
+
+**Tid.** TNR härleds ur `STUND` (observationen), inte ur ankomsttiden. Rapporterna
+vidarebefordras manuellt genom ledningskedjan, så ankomsttiden är fel med
+vidarebefordringsfördröjningen — i en skarp fångst tre månader. Kedjan är
+`STUND → Skapad → CoT-händelsetid`, och vilken källa som användes står som
+`tnr_kalla:` i det dolda `%%`-blocket.
+
+**Registrering.** `R`-fältet normaliseras till versaler utan mellanslag, så
+`PHS 331` blir `PHS331`. Utländska plåtar länkas också — fältet är *deklarerat*
+som en registrering, så till skillnad från 7S behövs inget svenskt plåtformat.
+Saknas plåt renderas `–`: på en checklista är "tittade, ingen plåt" inte samma sak
+som "fältet utelämnat".
+
+**Begränsning att känna till.** En plåt som nämns i löptexten, t.ex. rättelsen
+`Regnr rättning TOS99218 Polsk registrerad`, länkas **inte** om den är utländsk.
+Att hitta utländska plåtar i prosa kräver antingen ett regex brett nog att länka
+`E4` och `T-72`, eller en gissning om vilket ord som är en plåt — båda är analys,
+som FORMAT_SPEC §6.2 lägger på plugin:en. Rättelsen kommer fram som text i
+`**Anmärkning:**` och ordagrant i `%%`-blocket.
+
+**Dedup vid manuell vidarebefordran.** Skickar toppnoden om en rapport med samma
+CoT-uid fångas repetitionen av dedupen. Myntas ett nytt uid blir det en ny not med
+`_2`-suffix.
+
+---
+
 ### Generic Template-pipeline (`generic_template`)
 
 **Vad den väljer:** *Alla* meddelanden som inte redan hanterats.
@@ -215,7 +253,7 @@ En ny flik **"Pipelines"** visar:
 ```sql
 -- Visa aktiva pipelines
 SELECT value FROM config WHERE key = 'enabled_pipelines';
--- Resultat: ["group_filter", "seven_s", "fors", "pedars", "generic_template"]
+-- Resultat: ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
 
 -- Ändra ordning eller aktivering
 UPDATE config 
