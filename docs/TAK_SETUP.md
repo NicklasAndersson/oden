@@ -15,7 +15,9 @@ Verifierad mot TAK Server 5.7-RELEASE-8.
 - Utgående nätåtkomst från Oden-värden till serverns CoT-port (normalt TCP
   **8089**). Inga inkommande portar behövs.
 - **NTP aktiverat** på Oden-värden. CoT-tider är i UTC; fel klocka ger markörer
-  som blir "stale" direkt eller hamnar i framtiden.
+  som blir "stale" direkt eller hamnar i framtiden. Det gäller pollningen av
+  filarkivet också: `?startTime=` räknas ut ur Odens egen klocka, så går den fel
+  frågar Oden efter fel tidsfönster och missar paket.
 
 ## Steg 1 – Skaffa klientidentitet
 

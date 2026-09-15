@@ -467,9 +467,6 @@ async def run_package_poller(bridge: Any, *, filt: InboundFilter, group_name: st
 
         seeding = not seen
         incremental = await asyncio.to_thread(marti.supports_incremental, base_url, context)
-        # Newest SubmissionDateTime seen so far. The server's own clock writes it,
-        # so using it as the query floor sidesteps any skew against ours.
-        high_water = ""
         logger.info(
             "TAK: pollar filarkivet var %.0f s (%s)%s",
             interval,
@@ -478,6 +475,9 @@ async def run_package_poller(bridge: Any, *, filt: InboundFilter, group_name: st
         )
 
         first = True
+        # The first round asks for everything: Oden may have been down for hours,
+        # and a narrow window would step straight past what arrived meanwhile.
+        full_sweep = True
         while True:
             # A short first wait so a restart does not hide a report for two full
             # intervals; after that, the configured pace.
@@ -485,12 +485,13 @@ async def run_package_poller(bridge: Any, *, filt: InboundFilter, group_name: st
             first = False
             try:
                 since = ""
-                if incremental and not seeding and high_water:
-                    # Overlap backwards: submissions can land out of order, and the
-                    # hash cache makes seeing the same package twice free.
-                    since = marti.shift_back(high_water, _POLL_OVERLAP_S)
+                if incremental and not seeding and not full_sweep:
+                    # Reach back a whole extra round plus the overlap, so a poll that
+                    # failed or ran late cannot leave a hole. Seeing the same package
+                    # twice is free — the hash cache already knows it.
+                    since = marti.utc_floor(int(interval * 2 + _POLL_OVERLAP_S))
                 files = await asyncio.to_thread(marti.search, base_url, context, since=since)
-                high_water = max([high_water, *(f.submitted_at for f in files)])
+                full_sweep = False
                 fresh = [f for f in files if f.hash not in seen and f.looks_like_mission_package]
 
                 if seeding:

@@ -372,12 +372,20 @@ class IncrementalPollTest(unittest.TestCase):
         when = dt.datetime(2026, 9, 15, 9, 0, tzinfo=dt.timezone.utc)
         self.assertEqual(marti._as_marti_time(when), "2026-09-15T09:00:00.000Z")
 
-    def test_shift_back_moves_the_floor(self):
-        self.assertEqual(marti.shift_back("2026-09-15T09:32:30.914Z", 600), "2026-09-15T09:22:30.000Z")
+    def test_the_floor_comes_from_our_clock_not_the_servers_stamps(self):
+        """The server renders SubmissionDateTime in local time with a Z suffix while
+        parsing startTime as real UTC. Feeding a rendered stamp back shifts the window
+        by the UTC offset, and every later query silently matches nothing."""
+        import datetime as dt
 
-    def test_an_unparseable_timestamp_is_passed_through_untouched(self):
-        """Better a too-wide query than a crash in the poll loop."""
-        self.assertEqual(marti.shift_back("skräp", 600), "skräp")
+        now = dt.datetime(2026, 9, 15, 11, 32, 0, tzinfo=dt.timezone.utc)
+        self.assertEqual(marti.utc_floor(600, now=now), "2026-09-15T11:22:00.000Z")
+
+    def test_a_negative_reach_back_is_clamped_to_now(self):
+        import datetime as dt
+
+        now = dt.datetime(2026, 9, 15, 11, 32, 0, tzinfo=dt.timezone.utc)
+        self.assertEqual(marti.utc_floor(-60, now=now), "2026-09-15T11:32:00.000Z")
 
     def test_support_is_claimed_only_for_an_empty_200(self):
         """A server that ignores startTime returns the whole archive, not nothing."""
@@ -405,9 +413,24 @@ class PollerIncrementalTest(PollerTest):
         remember_package(self.db, "gammal", "g.zip", "2026-01-01")  # past seeding
         files = [marti.MartiFile("h1", "a.zip", "2026-09-15T09:32:30.914Z", "", "", 10)]
         await self._poll(files, {}, rounds=2)
-        self.assertEqual(self.searches[0], "")  # nothing seen yet, so no floor
-        # Second round starts from the newest row, minus the overlap window.
-        self.assertEqual(self.searches[1], "2026-09-15T09:22:30.000Z")
+        self.assertEqual(self.searches[0], "")  # first round after a restart: full listing
+        # Later rounds narrow — and never by echoing the server's own timestamp back.
+        self.assertTrue(self.searches[1].endswith("Z"))
+        self.assertNotEqual(self.searches[1], files[0].submitted_at)
+
+    async def test_the_floor_never_echoes_a_server_rendered_timestamp(self):
+        """Regression: doing so shifted the window two hours into the future on a
+        server that renders local time with a Z suffix, and the poller then found
+        nothing at all until the next restart."""
+        from oden.tak.listener import remember_package
+
+        remember_package(self.db, "gammal", "g.zip", "2026-01-01")
+        # A stamp two hours ahead of real UTC, as the live server renders them.
+        ahead = marti.utc_floor(-7200)
+        files = [marti.MartiFile("h1", "a.zip", ahead, "", "", 10)]
+        await self._poll(files, {}, rounds=3)
+        for since in self.searches[1:]:
+            self.assertLess(since, ahead, "frågan får inte hamna i framtiden")
 
     async def test_a_server_without_start_time_keeps_asking_for_everything(self):
         from oden.tak.listener import remember_package

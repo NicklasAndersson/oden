@@ -205,13 +205,22 @@ def _search_url(base_url: str, since: str = "") -> str:
     return f"{url}?{urllib.parse.urlencode({'startTime': since})}" if since else url
 
 
-def shift_back(timestamp: str, seconds: int) -> str:
-    """``timestamp`` moved back by ``seconds``, or unchanged if it will not parse."""
-    try:
-        when = _dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-    except ValueError:
-        return timestamp
-    return _as_marti_time(when - _dt.timedelta(seconds=seconds))
+def utc_floor(seconds_back: int, *, now: _dt.datetime | None = None) -> str:
+    """A ``startTime`` value ``seconds_back`` before now, on *our* UTC clock.
+
+    Deliberately not derived from the server's own ``SubmissionDateTime``. The
+    server renders those in local time with a ``Z`` suffix — an upload at 13:32
+    local comes back as ``13:32:04Z`` where true UTC is 11:32 — while parsing
+    ``startTime`` as real UTC. Feeding a rendered stamp back therefore shifts the
+    window by the UTC offset, and the query silently matches nothing from then on:
+    every poll succeeds, returns an empty list, and no package is ever ingested
+    again until a restart happens to ask for the full listing.
+
+    This makes a correct clock on the Oden host load-bearing, which
+    docs/TAK_SETUP.md already requires for CoT times.
+    """
+    when = (now or _dt.datetime.now(_dt.timezone.utc)) - _dt.timedelta(seconds=max(0, seconds_back))
+    return _as_marti_time(when)
 
 
 def search(
