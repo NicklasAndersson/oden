@@ -999,6 +999,24 @@ td {
     border-radius: 8px;
     display: inline-block;
 }
+/* Oden running without Signal */
+.signal-off-notice {
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: var(--spacing-md);
+    color: var(--color-text-dim);
+}
+fieldset.signal-only {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+fieldset.signal-only:disabled {
+    opacity: 0.6;
+}
 /* Accounts warning */
 .accounts-warning {
     background: #4a3000;

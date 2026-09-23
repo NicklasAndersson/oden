@@ -15,6 +15,13 @@ async function loadAccounts() {
         accountsRetryTimeout = null;
     }
 
+    // Without Signal there is no signal-cli to wait for — don't spin on "Ansluter..."
+    if (!SIGNAL_ENABLED) {
+        warning.classList.add('hidden');
+        container.innerHTML = '<div class="empty-state">Signal är avstängt.</div>';
+        return;
+    }
+
     try {
         const response = await fetch('/api/accounts');
         const data = await response.json();

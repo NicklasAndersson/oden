@@ -77,6 +77,10 @@ body {
     background: var(--color-border-hover);
     color: #fff;
 }
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 .btn-secondary:hover {
     background: #666;
 }

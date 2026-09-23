@@ -108,8 +108,11 @@ def is_configured() -> tuple[bool, str | None]:
         logger.info("Configuration check: database integrity error '%s' at %s", error, CONFIG_DB)
         return False, error
 
-    # Check if Signal number is configured
+    # Check if Signal number is configured (not needed when Oden runs without Signal)
     config = get_all_config(CONFIG_DB)
+    if not config.get("signal_enabled", True):
+        logger.debug("Configuration check: OK (Signal disabled)")
+        return True, None
     number = config.get("signal_number", "")
     if not number or number == "+46XXXXXXXXX" or number.startswith("+46XXXX"):
         logger.info("Configuration check: signal_number not configured (value=%r) in %s", number, CONFIG_DB)
@@ -139,6 +142,8 @@ def validate_signal_number(
                 the existing signal-cli accounts.
     """
     config = get_all_config(CONFIG_DB)
+    if not config.get("signal_enabled", True):
+        return True, None, []
     number = config.get("signal_number", "")
     if not number or number == "+46XXXXXXXXX" or number.startswith("+46XXXX"):
         return False, "no_signal_number", []
@@ -324,7 +329,7 @@ def _migrate_enabled_pipelines(app_config: dict) -> None:
 
 def reload_config() -> dict:
     """Reload configuration from database and update module-level variables."""
-    global app_config, VAULT_PATH, SIGNAL_NUMBER, DISPLAY_NAME, SIGNAL_CLI_PATH
+    global app_config, VAULT_PATH, SIGNAL_NUMBER, SIGNAL_ENABLED, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT
     global TIMEZONE, APPEND_WINDOW_MINUTES, GROUP_SPLIT_ENABLED, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
     global FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, DIAGNOSTIC_MODE, LOG_LEVEL, LOG_FILE
@@ -349,7 +354,10 @@ def reload_config() -> dict:
 
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
-    if not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
+    SIGNAL_ENABLED = app_config.get("signal_enabled", True)
+    if not SIGNAL_ENABLED:
+        logger.info("Reload: Signal disabled")
+    elif not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
         logger.warning("SIGNAL_NUMBER is not configured after reload (value=%r, db=%s)", SIGNAL_NUMBER, CONFIG_DB)
     else:
         logger.info("Reload: SIGNAL_NUMBER=%s", SIGNAL_NUMBER)
@@ -530,6 +538,7 @@ try:
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
     if not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
         logger.debug("SIGNAL_NUMBER not yet configured")
+    SIGNAL_ENABLED = app_config.get("signal_enabled", True)
     DISPLAY_NAME = app_config.get("display_name")
     SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
     UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
@@ -568,6 +577,7 @@ except Exception as e:
     app_config = {}
     VAULT_PATH = str(DEFAULT_VAULT_PATH)
     SIGNAL_NUMBER = "+46XXXXXXXXX"
+    SIGNAL_ENABLED = True
     DISPLAY_NAME = None
     SIGNAL_CLI_PATH = None
     UNMANAGED_SIGNAL_CLI = False

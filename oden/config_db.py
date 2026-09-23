@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG = {
     "vault_path": str(Path.home() / "oden-vault"),
     "signal_number": "+46XXXXXXXXX",
+    "signal_enabled": True,
     "display_name": "oden",
     "signal_cli_path": None,
     "signal_cli_host": "127.0.0.1",
@@ -52,6 +53,7 @@ DEFAULT_CONFIG = {
 TYPE_MAP = {
     "vault_path": "str",
     "signal_number": "str",
+    "signal_enabled": "bool",
     "display_name": "str",
     "signal_cli_path": "str",
     "signal_cli_host": "str",
