@@ -50,6 +50,12 @@ _EDITABLE_KEYS = {
     "callsign": str,
     "cot_stale_seconds": int,
     "cot_archive": bool,
+    "pli_enabled": bool,
+    "pli_interval_seconds": int,
+    "pli_lat": float,
+    "pli_lon": float,
+    "pli_team": str,
+    "pli_role": str,
     "inbound_enabled": bool,
     "inbound_types": list,
     "inbound_callsign_allow": list,
@@ -57,6 +63,10 @@ _EDITABLE_KEYS = {
     "inbound_min_move_m": float,
     "inbound_max_per_minute": int,
     "inbound_group_name": str,
+    "inbound_reports_only": bool,
+    "inbound_fetch_packages": bool,
+    "inbound_package_poll_seconds": int,
+    "marti_port": int,
 }
 
 
