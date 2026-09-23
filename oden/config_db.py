@@ -283,8 +283,22 @@ def init_db(db_path: Path) -> None:
                 )
             """)
 
+        # Migration to schema version 8: mission packages already ingested. An 8S
+        # sent with an attachment never reaches the CoT stream — it goes to the
+        # Marti file store instead — so the poller needs its own memory of what it
+        # has taken, or every round re-imports the whole archive.
+        if current_version < 8:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tak_package_seen (
+                    hash TEXT PRIMARY KEY,
+                    name TEXT NOT NULL DEFAULT '',
+                    submitted_at TEXT NOT NULL DEFAULT '',
+                    seen_at REAL NOT NULL
+                )
+            """)
+
         # Store current schema version (never downgrade)
-        latest_version = max(current_version, 7)
+        latest_version = max(current_version, 8)
         cursor.execute(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
             ("schema_version", str(latest_version)),

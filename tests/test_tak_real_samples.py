@@ -8,7 +8,14 @@ import unittest
 from pathlib import Path
 
 from oden.tak.cot import cot_to_inbound, raw_event_type
-from oden.tak.listener import _INBOUND_DEFAULTS, InboundFilter, build_envelope, render_observation
+from oden.tak.eight_s import is_8s_report, to_7s_message
+from oden.tak.listener import (
+    _INBOUND_DEFAULTS,
+    InboundFilter,
+    build_envelope,
+    has_structured_report,
+    render_observation,
+)
 
 _FIX = Path(__file__).parent / "fixtures" / "tak"
 
@@ -96,3 +103,152 @@ class RealSampleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HvReportsFormatTest(unittest.TestCase):
+    """The *other* 8S. Two ATAK plugins are enabled side by side across the fleet and
+    both file an 8S: "8S" (com.atakmap.android.eights.plugin) flattens English keys
+    into attributes under ``a-h-G``, "HV Rapporter"
+    (com.atakmap.android.hvreports.plugin) nests Swedish keys as element text inside
+    ``<HVSS_DOCUMENTS>`` under ``a-x-X``. Neither is "the" format."""
+
+    def _cot(self):
+        return cot_to_inbound(_load("8s_hvreports.xml"))
+
+    def test_the_wrapper_does_not_hide_that_this_is_an_8s(self):
+        """Named after <HVSS_DOCUMENTS> it would be "Hvss Documents" and never recognised."""
+        cot = self._cot()
+        self.assertEqual(cot.cot_type, "a-x-X")
+        self.assertEqual(cot.custom_report_name, "8S")
+        self.assertTrue(is_8s_report(cot))
+
+    def test_swedish_element_fields_are_extracted(self):
+        report = self._cot().custom_report
+        self.assertEqual(report["SAGESMAN"], "AQEA01")
+        self.assertEqual(report["STYRKA_SLAG"], "4 soldater")
+        self.assertEqual(report["STÄLLE"], "33VVF6937665634")
+
+    def test_it_reaches_the_default_filter(self):
+        """a-x-X has to be in inbound_types or the report is dropped before parsing."""
+        self.assertTrue(InboundFilter(dict(_INBOUND_DEFAULTS)).accept(self._cot()))
+
+    def test_swedish_keys_map_onto_the_same_7s_fields(self):
+        message = to_7s_message(self._cot())
+        self.assertIn("Ställe: 33VVF6937665634", message)  # STÄLLE
+        self.assertIn("Händelse: 4 soldater, Lökar", message)  # STYRKA_SLAG + SYSSELSÄTTNING
+        self.assertIn("Sagesman: AQEA01", message)  # SAGESMAN
+        self.assertIn("Symbol: Hv", message)
+        self.assertIn("Sedan: Vila", message)  # SEDAN
+
+    def test_the_iso_utc_timestamp_becomes_a_local_tnr(self):
+        """STUND is ISO 8601 in UTC; read as local it would put the TNR two hours off."""
+        message = to_7s_message(self._cot())
+        self.assertIn("TNR: 121729", message)  # 2026-06-12T15:29:17Z -> 17:29 local
+        self.assertIn("Stund: 121729ZJUN2026", message)
+
+    def test_the_sender_is_the_operator_not_the_marker(self):
+        cot = self._cot()
+        self.assertEqual(cot.operator_callsign, "AQEA01")
+        self.assertEqual(cot.operator_uid, "ANDROID-3f5372c2e13e953c")
+
+    def test_the_two_plugins_produce_the_same_7s_shape(self):
+        """Whatever the vault sees must not depend on which plugin the operator used."""
+        for name in ("8s_report.xml", "8s_hvreports.xml"):
+            with self.subTest(name):
+                message = to_7s_message(cot_to_inbound(_load(name)))
+                labels = [line.split(":")[0] for line in message.split("%%")[0].strip().splitlines() if ":" in line]
+                self.assertEqual(
+                    labels,
+                    ["Till", "Från", "TNR", "Stund", "Ställe", "Händelse", "Symbol", "Sagesman", "Sedan"],
+                )
+
+
+class ReportsOnlyTest(unittest.TestCase):
+    """``a-h-G`` is both an 8S report and any hand-placed hostile marker, so the type
+    filter cannot separate them. ``inbound_reports_only`` uses the report block instead."""
+
+    # A real hostile marker off the live server: the operator typed a name, nothing else.
+    # The <targetmunitions> flag is plugin plumbing that used to surface as a "report".
+    _MARKER = (
+        b"<event version='2.0' uid='e4237546' type='a-h-G' how='h-g-i-g-o' "
+        b"time='2026-09-15T09:31:51Z' start='2026-09-15T09:31:51Z' stale='2026-09-15T10:31:51Z'>"
+        b"<point lat='59.24237' lon='14.22170' hae='9999999.0' ce='9999999.0' le='9999999.0'/>"
+        b"<detail><contact callsign='Upk 90'/>"
+        b"<targetmunitions visibility='true'/></detail></event>"
+    )
+
+    def _filter(self, **overrides):
+        return InboundFilter({**_INBOUND_DEFAULTS, **overrides})
+
+    def test_plugin_flags_are_not_mistaken_for_a_report(self):
+        cot = cot_to_inbound(self._MARKER)
+        self.assertEqual(cot.custom_report, {})  # targetmunitions is plumbing
+        self.assertFalse(has_structured_report(cot))
+
+    def test_off_by_default_nothing_changes(self):
+        self.assertTrue(self._filter().accept(cot_to_inbound(self._MARKER)))
+
+    def test_a_bare_marker_is_dropped_when_reports_only(self):
+        f = self._filter(inbound_reports_only=True)
+        self.assertFalse(f.accept(cot_to_inbound(self._MARKER)))
+        self.assertIn("ingen ifylld rapport", f.last_reject)
+
+    def test_both_8s_formats_survive_reports_only(self):
+        """The whole point: reports get through, markers do not."""
+        for name in ("8s_report.xml", "8s_hvreports.xml"):
+            with self.subTest(name):
+                self.assertTrue(self._filter(inbound_reports_only=True).accept(cot_to_inbound(_load(name))))
+
+    def test_a_dropped_marker_does_not_take_a_slot_in_the_dedup_cache(self):
+        """Otherwise it would block a real report that later reuses the same uid."""
+        f = self._filter(inbound_reports_only=True)
+        f.accept(cot_to_inbound(self._MARKER))
+        self.assertEqual(f.seen_snapshot(), {})
+
+
+class SenderCallsignFilterTest(unittest.TestCase):
+    """The callsign filter tests who *sent* the event, not what the marker is called.
+
+    Matching the marker label only ever worked by accident: an allow-list of "R"
+    passed ``8S-LarsNo-312132`` on the r in "LarsNo" while blocking the same
+    operator's ``8S-AQEA01-121729``, and a hand-placed marker is named whatever
+    the operator typed."""
+
+    def _filter(self, **overrides):
+        return InboundFilter({**_INBOUND_DEFAULTS, **overrides})
+
+    def test_the_sender_is_recovered_whatever_the_marker_is_called(self):
+        for name, marker, sender in (
+            ("8s_report.xml", "8S-LarsNo-312132", "LarsNo"),  # unwrapped, no parent_callsign
+            ("8s_hvreports.xml", "8S-AQEA01-121729", "AQEA01"),  # from parent_callsign
+            ("spi_pointer.xml", "DOWNY.DP1", "DOWNY"),  # suffix stripped
+            ("friendly_pli.xml", "DOWNY", "DOWNY"),  # already the device
+        ):
+            with self.subTest(name):
+                cot = cot_to_inbound(_load(name))
+                self.assertEqual(cot.callsign, marker)
+                self.assertEqual(cot.sender_callsign, sender)
+
+    def test_an_allow_list_is_matched_against_the_sender(self):
+        f = self._filter(inbound_callsign_allow=["R"])
+        # AQEA01 has no r anywhere, so it is blocked...
+        self.assertFalse(f.accept(cot_to_inbound(_load("8s_hvreports.xml"))))
+        self.assertIn("avsändare AQEA01", f.last_reject)
+        # ...while LarsNo does, and passes on the sender rather than the label.
+        self.assertTrue(f.accept(cot_to_inbound(_load("8s_report.xml"))))
+
+    def test_the_sender_and_not_the_label_decides(self):
+        """AQEA01 has no r, but its marker label would match an allow-list of "12"."""
+        cot = cot_to_inbound(_load("8s_hvreports.xml"))
+        self.assertIn("12", cot.callsign)  # 8S-AQEA01-121729
+        self.assertNotIn("12", cot.sender_callsign)
+        self.assertFalse(self._filter(inbound_callsign_allow=["12"]).accept(cot))
+
+    def test_matching_the_real_sender_lets_it_through(self):
+        cot = cot_to_inbound(_load("8s_hvreports.xml"))
+        self.assertTrue(self._filter(inbound_callsign_allow=["AQEA01"]).accept(cot))
+
+    def test_the_reject_reason_names_the_sender_not_the_marker(self):
+        f = self._filter(inbound_callsign_deny=["AQEA01"])
+        f.accept(cot_to_inbound(_load("8s_hvreports.xml")))
+        self.assertIn("avsändare AQEA01", f.last_reject)
