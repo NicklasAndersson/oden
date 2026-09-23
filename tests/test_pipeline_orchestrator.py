@@ -184,8 +184,31 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             [pipeline.name for pipeline in pipelines],
-            ["group_filter", "seven_s", "fors", "pedars", "generic_template"],
+            ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"],
         )
+
+    async def test_migration_inserts_new_pipelines_into_an_existing_install(self):
+        """An existing install already has a non-empty enabled_pipelines, so a new
+        built-in only ever reaches it through _migrate_enabled_pipelines."""
+        from oden.config import _migrate_enabled_pipelines
+
+        app_config = {"enabled_pipelines": ["group_filter", "seven_s", "generic_template"]}
+        with patch("oden.config_db.set_config_value"):
+            _migrate_enabled_pipelines(app_config)
+
+        self.assertEqual(
+            app_config["enabled_pipelines"],
+            ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"],
+        )
+
+    async def test_migration_leaves_an_unconfigured_install_alone(self):
+        """An empty list means "not configured yet"; the defaults handle that."""
+        from oden.config import _migrate_enabled_pipelines
+
+        app_config = {"enabled_pipelines": []}
+        with patch("oden.config_db.set_config_value"):
+            _migrate_enabled_pipelines(app_config)
+        self.assertEqual(app_config["enabled_pipelines"], [])
 
     async def test_build_pipelines_prepends_tak_publish_when_bridge_active(self):
         orchestrator = PipelineOrchestrator(self.db_path)

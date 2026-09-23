@@ -6,6 +6,24 @@
 
 ---
 
+## 0. `typ` är diskriminatorn
+
+Det här dokumentet och `7S_frontmatter.schema.json` beskriver **7S-rapporter**.
+Flera nottyper delar filnamnsprefixet `TNR` i samma katalog — 7S, FORS, PEDARS och
+SCRIM — så **filnamnet identifierar inte rapporttypen**. Frontmatter-nyckeln `typ`
+gör det, och varje schema gäller bara filer som bär sitt eget `typ`:
+
+| `typ` | schema |
+|---|---|
+| `7S-rapport` | `docs/7S_frontmatter.schema.json` |
+| `SCRIM-rapport` | `docs/SCRIM_frontmatter.schema.json` |
+| `FORS-rapport`, `PEDARS-rapport` | (inget schema ännu) |
+
+En konsument som validerar *alla* `TNR*.md` mot 7S-schemat får fel för allt utom
+7S. Dispatcha på `typ` först.
+
+---
+
 ## 1. Syfte och avgränsning
 
 Den centrala applikationen tar emot fritext-observationer (via Signal),
