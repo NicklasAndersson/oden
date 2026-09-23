@@ -43,7 +43,13 @@ SIGNAL_DATA_PATH: Path = DEFAULT_ODEN_HOME / "signal-data"
 
 
 def get_default_log_path() -> Path:
-    """Get platform-specific default log file path."""
+    """Get platform-specific default log file path.
+
+    Overridable by the ``ODEN_LOG_FILE`` env var, which is how the test suite
+    keeps from writing into the developer's real log: ``ODEN_HOME`` does not
+    cover this path, so without it a single test that configures logging sends
+    the whole session into ~/Library/Logs/Oden and rotates the real history away.
+    """
     system = platform.system()
     if system == "Darwin":
         return Path.home() / "Library" / "Logs" / "Oden" / "oden.log"
@@ -361,7 +367,7 @@ def reload_config() -> dict:
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", True)
     LOG_LEVEL = app_config["log_level"]
-    LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
+    LOG_FILE = os.environ.get("ODEN_LOG_FILE") or app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
     WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
     WEB_PORT = app_config.get("web_port", 8080)
@@ -535,7 +541,7 @@ try:
     SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
     DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", True)
     LOG_LEVEL = app_config.get("log_level", logging.INFO)
-    LOG_FILE = app_config.get("log_file") or str(get_default_log_path())
+    LOG_FILE = os.environ.get("ODEN_LOG_FILE") or app_config.get("log_file") or str(get_default_log_path())
     WEB_ENABLED = app_config.get("web_enabled", True)
     WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
     WEB_PORT = app_config.get("web_port", 8080)
@@ -571,7 +577,7 @@ except Exception as e:
     SIGNAL_CLI_LOG_FILE = None
     DIAGNOSTIC_MODE = True
     LOG_LEVEL = logging.INFO
-    LOG_FILE = str(get_default_log_path())
+    LOG_FILE = os.environ.get("ODEN_LOG_FILE") or str(get_default_log_path())
     WEB_ENABLED = True
     WEB_HOST = os.environ.get("WEB_HOST", "127.0.0.1")
     WEB_PORT = 8080

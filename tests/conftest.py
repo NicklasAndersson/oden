@@ -9,4 +9,11 @@ this the right place.
 import os
 import tempfile
 
-os.environ.setdefault("ODEN_HOME", tempfile.mkdtemp(prefix="oden-test-home-"))
+_HOME = tempfile.mkdtemp(prefix="oden-test-home-")
+os.environ.setdefault("ODEN_HOME", _HOME)
+# ODEN_HOME does not cover the log path — it is platform-fixed
+# (~/Library/Logs/Oden on macOS). tests/test_s7_watcher.py runs main(), which
+# calls configure_logging() and attaches a RotatingFileHandler to the *root*
+# logger, so from then on every record in the session lands in the developer's
+# real log — and rotates the genuine history away.
+os.environ.setdefault("ODEN_LOG_FILE", os.path.join(_HOME, "oden-test.log"))

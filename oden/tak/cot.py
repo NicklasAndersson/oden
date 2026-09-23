@@ -44,6 +44,11 @@ _TYPE_TO_AFFIL = {v[:4]: k for k, v in AFFIL_TO_TYPE.items()}  # "a-f-" -> "frie
 
 _TOKEN_OK = re.compile(r"[^A-Za-z0-9 ._-]+")
 
+# Report plugins name their marker <form>-<callsign>-<DDHHMM>, e.g.
+# "8S-AREA99-142218". The middle segment is the only place the sender's callsign
+# appears when the CoT carries no <link parent_callsign>.
+_EMBEDDED_CALLSIGN = re.compile(r"^[A-Za-z0-9]{1,8}-(?P<callsign>.+)-\d{6}$")
+
 
 def sanitize_token(value: str, *, max_len: int = 64) -> str:
     """Make a callsign/uid safe for filenames and logs. Never returns ``..``."""
@@ -188,6 +193,26 @@ class InboundCot:
         """Best stable identity for "who sent this": the operator's device, else the marker."""
         return self.operator_uid or self.uid
 
+    @property
+    def sender_callsign(self) -> str:
+        """Who sent this, as a callsign — the value shown as ``Avsändare:`` on the note.
+
+        Deliberately *not* ``callsign``, which is the marker's own label. For a
+        report that label is generated (``8S-AREA99-142218``) and for a
+        hand-placed marker it is whatever the operator typed ("Upk 90"), so
+        matching against it only ever works by accident.
+
+        When the CoT names no operator the generated label is unwrapped instead,
+        which recovers the callsign for report plugins that omit ``parent_callsign``.
+        """
+        if self.operator_callsign:
+            return self.operator_callsign
+        embedded = _EMBEDDED_CALLSIGN.match(self.callsign)
+        if embedded:
+            return embedded.group("callsign")
+        # "DOWNY.DP1" / "DOWNY.SPI1" — a pointer named after its own device.
+        return self.callsign.split(".", 1)[0]
+
 
 # Standard CoT/ATAK <detail> children that every client attaches (device status,
 # group membership, rendering hints, ...). Never treat these as report fields.
@@ -214,7 +239,6 @@ _KNOWN_DETAIL_TAGS = {
     "bloodhound",
     "routeinfo",
     "shape",
-    "fillColor",
     "strokeColor",
     "labels_on",
     "creator",
@@ -222,6 +246,10 @@ _KNOWN_DETAIL_TAGS = {
     "_flow-tags_",
     "_medevac_status_",
     "modelInfo",
+    # Rendering flags from fires/targeting plugins. Seen in the wild on ordinary
+    # hostile markers, where they would otherwise masquerade as a one-field report.
+    "targetmunitions",
+    "fillColor",
 }
 _MAX_FIELD_DEPTH = 6
 # Attribute names that are structure/plumbing, never a report field value.
@@ -283,6 +311,34 @@ def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: i
         _extract_report_fields(child, fields, depth=depth + 1)
 
 
+def _report_name_element(elem: ET.Element, *, depth: int = 0) -> ET.Element:
+    """The element whose tag actually names the report, unwrapping container tags.
+
+    Some plugins put the report straight under ``<detail>``
+    (``<_8S_ POSITION=.../>``, the "8S" plugin), others wrap it in a container
+    first (``<HVSS_DOCUMENTS><_8S_>…``, the "HV Rapporter" plugin). Naming the
+    report after the outer tag would call the second one "Hvss Documents" and it
+    would never be recognised as an 8S at all.
+
+    Unwrapping needs both halves of the test, because a container holding one
+    field looks exactly like a wrapper holding one report:
+
+    * the outer element must carry no data of its own — one child, no text, no
+      attributes;
+    * and that child must itself hold fields, so it has children or attributes.
+
+    Without the second half, ``<eight_line_report><size>3x</size></…>`` would be
+    named after its only field and called "Size".
+    """
+    children = list(elem)
+    if depth >= _MAX_FIELD_DEPTH or len(children) != 1 or elem.attrib or (elem.text or "").strip():
+        return elem
+    inner = children[0]
+    if not len(inner) and not inner.attrib:
+        return elem  # a bare leaf is a field, not a report block
+    return _report_name_element(inner, depth=depth + 1)
+
+
 def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
     """Pull operator-defined report fields out of ``<detail>``.
 
@@ -299,7 +355,8 @@ def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
         if child.tag.startswith("__") or child.tag in _KNOWN_DETAIL_TAGS:
             continue
         if not name:
-            name = sanitize_token(child.get("name", "") or _humanize_tag(child.tag), max_len=64)
+            named = _report_name_element(child)
+            name = sanitize_token(named.get("name", "") or _humanize_tag(named.tag), max_len=64)
         _extract_report_fields(child, fields)
         if len(fields) >= _MAX_CUSTOM_FIELDS:
             break
@@ -486,3 +543,83 @@ def latlon_to_mgrs(lat: float, lon: float) -> str:
     except Exception as exc:  # pragma: no cover - depends on optional native lib
         logger.debug("latlon_to_mgrs failed: %s", exc)
         return ""
+
+
+# What Oden reports itself as in <takv>. ATAK shows this in the contact's detail
+# view, so it should say plainly that this is not a handheld.
+_PLI_PLATFORM = "Oden"
+_PLI_DEVICE = "Oden S7 Watcher"
+
+
+def self_pli_cot(
+    *,
+    callsign: str,
+    lat: float,
+    lon: float,
+    team: str = "Cyan",
+    role: str = "Team Member",
+    stale_seconds: int = 120,
+    hae: float | None = None,
+    now: _dt.datetime | None = None,
+) -> bytes:
+    """Oden's own position report, so operators can address reports *to* it.
+
+    A TAK Server delivers a directed CoT only to the callsigns named in
+    ``<marti><dest>``, and ATAK builds that picker from the position reports it
+    has seen. Publishing nothing therefore makes Oden unaddressable: it is absent
+    from every contact list, and anything sent to a person or a team rather than
+    broadcast never reaches it. Verified on a live server — a sender's own PLI
+    arrived while their directed report did not.
+
+    Shaped after a real ATAK-CIV PLI (tests/fixtures/tak/friendly_pli.xml),
+    including ``endpoint`` on ``<contact>`` and ``<uid Droid=…>``, because those
+    are what make a client list it as a contact rather than draw a bare marker.
+
+    The uid starts with ``UID_PREFIX``, so the listener's own-echo guard drops it
+    when the server reflects it back.
+    """
+    if not _valid_latlon(lat, lon):
+        raise ValueError(f"self_pli_cot: invalid lat/lon {lat},{lon}")
+
+    name = sanitize_token(callsign, max_len=64) or UID_PREFIX
+    when = now or _dt.datetime.now(_dt.timezone.utc)
+    event = ET.Element(
+        "event",
+        {
+            "version": "2.0",
+            # Stable, so each report updates the same contact instead of piling up.
+            "uid": f"{UID_PREFIX}.PLI.{name}".replace(" ", ""),
+            "type": "a-f-G-U-C",  # friendly ground unit, combat — an ordinary client
+            # "m-g" like a real device: the point is to be listed as a contact, and
+            # mimicking what demonstrably works matters more here than claiming
+            # "human entered" for a position that is in fact configured once.
+            "how": "m-g",
+            "time": _fmt_time(when),
+            "start": _fmt_time(when),
+            "stale": _fmt_time(when + _dt.timedelta(seconds=max(1, stale_seconds))),
+        },
+    )
+    ET.SubElement(
+        event,
+        "point",
+        {
+            "lat": f"{lat:.7f}",
+            "lon": f"{lon:.7f}",
+            "hae": f"{hae:.1f}" if hae is not None else _UNKNOWN_VAL,
+            "ce": _UNKNOWN_VAL,
+            "le": _UNKNOWN_VAL,
+        },
+    )
+    detail = ET.SubElement(event, "detail")
+    # endpoint: "*:-1:stcp" is what a server-connected ATAK client sends, and it is
+    # what marks this as reachable rather than just plotted.
+    ET.SubElement(detail, "contact", {"callsign": name, "endpoint": "*:-1:stcp"})
+    ET.SubElement(
+        detail,
+        "__group",
+        {"name": sanitize_token(team, max_len=32) or "Cyan", "role": sanitize_token(role, max_len=32) or "Team Member"},
+    )
+    ET.SubElement(detail, "takv", {"device": _PLI_DEVICE, "platform": _PLI_PLATFORM, "os": "", "version": ""})
+    ET.SubElement(detail, "precisionlocation", {"geopointsrc": "USER", "altsrc": "USER"})
+    ET.SubElement(detail, "uid", {"Droid": name})
+    return ET.tostring(event, encoding="utf-8", xml_declaration=False)
