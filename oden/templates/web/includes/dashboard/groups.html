@@ -1,4 +1,6 @@
 {#- Groups section: group list, join group form, invitations -#}
+{% include "includes/dashboard/signal_off_notice.html" %}
+<fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
 <div class="card full-width">
     <div class="flex-header">
         <h2>👥 Grupper</h2>
@@ -52,6 +54,7 @@
     </div>
     <div class="refresh-info">Uppdateras automatiskt var 10:e sekund</div>
 </div>
+</fieldset>
 
 {#- Group edit modal -#}
 <div id="group-edit-modal" class="modal-overlay hidden">

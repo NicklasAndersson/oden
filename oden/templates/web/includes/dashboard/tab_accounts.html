@@ -1,5 +1,7 @@
 {#- Tab: Signal-konton (accounts + modal + devices) -#}
 <div id="tab-accounts" class="tab-content">
+    {% include "includes/dashboard/signal_off_notice.html" %}
+    <fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
     <div class="config-section">
         <h3>📱 Signal-konton</h3>
         <p class="help-paragraph">
@@ -49,4 +51,5 @@
             <div class="empty-state">Klicka "Uppdatera" för att hämta enhetslista</div>
         </div>
     </div>
+    </fieldset>
 </div>

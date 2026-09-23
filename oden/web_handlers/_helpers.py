@@ -44,6 +44,8 @@ def require_writer(handler):
 
     @functools.wraps(handler)
     async def wrapper(request: web.Request) -> web.Response:
+        if not cfg.SIGNAL_ENABLED:
+            return web.json_response({"success": False, "error": "Signal är avstängt"}, status=503)
         app_state = get_app_state()
         if not app_state.writer:
             return web.json_response(

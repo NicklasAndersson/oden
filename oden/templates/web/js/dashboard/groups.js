@@ -63,6 +63,7 @@ function _renderGroupMemberTree(group) {
 // ========== Group edit modal ==========
 
 function openGroupEditModal(groupId) {
+    if (!SIGNAL_ENABLED) return;
     const group = _groupsCache.find(g => g.id === groupId);
     if (!group) return;
 

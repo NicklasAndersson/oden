@@ -225,6 +225,14 @@
                 <button class="btn btn-secondary" onclick="retryLinking()">Försök igen</button>
                 <button class="btn btn-secondary" onclick="goToStep(1)">← Tillbaka</button>
             </div>
+
+            <!-- Always visible, also while existing accounts are still loading -->
+            <div id="skip-signal" style="border-top: 1px solid #333; margin-top: 25px; padding-top: 15px;">
+                <p style="color: #888; font-size: 0.85em; margin: 0 0 10px 0;">
+                    Vill du bara köra t.ex. TAK? Signal kan slås på senare via Avancerat → Kör setup för Signal.
+                </p>
+                <button class="btn btn-secondary" onclick="skipSignalSetup()">Hoppa över Signal-setup →</button>
+            </div>
         </div>
 
         <!-- Step 3: Confirmation -->

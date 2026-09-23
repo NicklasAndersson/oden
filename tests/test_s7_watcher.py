@@ -651,3 +651,49 @@ class TestResolveSignalDataPath(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRunWithoutSignal(unittest.IsolatedAsyncioTestCase):
+    @patch("oden.s7_watcher.run_startup_dependency_diagnostics")
+    @patch("oden.s7_watcher._create_tray", return_value=None)
+    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
+    @patch("oden.config.validate_signal_number", return_value=(True, None, []))
+    @patch("oden.s7_watcher.SIGNAL_ENABLED", False)
+    @patch("oden.s7_watcher.SIGNAL_NUMBER", "+46XXXXXXXXX")
+    @patch("oden.s7_watcher.SignalManager")
+    @patch("oden.s7_watcher._run_lifecycle", new_callable=AsyncMock)
+    def test_main_skips_signal_cli(self, mock_lifecycle, mock_signal_manager, *_):
+        """No number and no signal-cli is fine when Signal is disabled."""
+        with self.assertRaises(SystemExit) as cm:
+            s7_main()
+
+        self.assertEqual(cm.exception.code, 0)
+        mock_signal_manager.assert_not_called()
+        mock_lifecycle.assert_awaited_once_with(
+            host=ANY, port=ANY, signal_manager=None, tray=None, signal_enabled=False
+        )
+
+    @patch("oden.s7_watcher.WEB_ENABLED", False)
+    @patch("oden.s7_watcher.subscribe_and_listen", new_callable=AsyncMock)
+    @patch("oden.tak.bridge.stop_tak_bridge", new_callable=AsyncMock)
+    @patch("oden.tak.bridge.start_tak_bridge", new_callable=AsyncMock)
+    async def test_lifecycle_stays_up_until_quit(self, mock_start_tak, mock_stop_tak, mock_subscribe):
+        """Without Signal (and without tray) the lifecycle must keep TAK running instead of exiting."""
+        import asyncio
+
+        from oden.app_state import get_app_state
+        from oden.s7_watcher import _run_lifecycle
+
+        task = asyncio.create_task(
+            _run_lifecycle(host="127.0.0.1", port=7583, signal_manager=None, tray=None, signal_enabled=False)
+        )
+        for _ in range(20):
+            await asyncio.sleep(0)
+        self.assertFalse(task.done())
+        mock_start_tak.assert_awaited_once()
+
+        get_app_state().request_quit()
+        await asyncio.wait_for(task, timeout=2)
+
+        mock_subscribe.assert_not_called()
+        mock_stop_tak.assert_awaited_once()

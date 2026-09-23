@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from oden import config as cfg
 from oden.bundle_utils import get_bundled_java_path, is_bundled
 from oden.signal_manager import find_signal_cli_executable
 
@@ -137,7 +138,8 @@ def run_startup_dependency_diagnostics() -> None:
         platform.machine(),
         is_bundled(),
     )
-    _diagnose_java()
-    _diagnose_signal_cli()
+    if cfg.SIGNAL_ENABLED:  # Java and signal-cli are only needed for Signal
+        _diagnose_java()
+        _diagnose_signal_cli()
     _diagnose_mgrs()
     _diagnose_optional_ui_deps()

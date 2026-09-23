@@ -484,3 +484,80 @@ class TestSetupOdenHomeFullyConfigured(AioHTTPTestCase):
             data = await resp.json()
             self.assertTrue(data["success"])
             self.assertFalse(data["fully_configured"])
+
+
+class TestSetupSaveConfigWithoutSignal(AioHTTPTestCase):
+    """Skipping Signal in the setup wizard saves a config that counts as configured."""
+
+    async def get_application(self):
+        return create_app(setup_mode=True)
+
+    @unittest.mock.patch("oden.signal_manager.get_existing_accounts", side_effect=AssertionError("no Signal lookup"))
+    @unittest.mock.patch("oden.config.set_oden_home_path", return_value=True)
+    @unittest.mock.patch("oden.config.validate_oden_home", return_value=(True, None))
+    @unittest.mock.patch("oden.config.validate_path_within_home")
+    @unittest.mock.patch("oden.config.get_oden_home_path")
+    @unittest.mock.patch("oden.web_handlers.setup_handlers.get_oden_home_path")
+    async def test_skip_signal_saves_without_number(
+        self, mock_get_home, mock_cfg_home, mock_validate_path, mock_validate_home, mock_set_pointer, mock_accounts
+    ):
+        import tempfile
+
+        from oden import config as cfg
+        from oden.config_db import get_all_config, init_db
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            oden_home = Path(tmpdir)
+            init_db(oden_home / "config.db")
+            cfg._update_paths(oden_home)
+            mock_get_home.return_value = oden_home
+            mock_cfg_home.return_value = oden_home
+            mock_validate_path.return_value = (oden_home, None)
+
+            resp = await self.client.post(
+                "/api/setup/save-config",
+                json={"vault_path": str(oden_home / "vault"), "signal_number": None, "signal_enabled": False},
+            )
+            data = await resp.json()
+            self.assertEqual(resp.status, 200, data)
+            self.assertTrue(data["success"])
+
+            saved = get_all_config(oden_home / "config.db")
+            self.assertFalse(saved["signal_enabled"])
+            self.assertEqual(cfg.is_configured(), (True, None))
+            self.assertEqual(cfg.validate_signal_number(), (True, None, []))
+
+
+class TestDashboardWithoutSignal(AioHTTPTestCase):
+    """With Signal disabled, the dashboard and its Signal tabs load without errors."""
+
+    async def get_application(self):
+        return create_app(setup_mode=False)
+
+    async def asyncSetUp(self):
+        self._patch = unittest.mock.patch("oden.config.SIGNAL_ENABLED", False)
+        self._patch.start()
+        await super().asyncSetUp()
+
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
+        self._patch.stop()
+
+    async def test_index_renders_signal_off_state(self):
+        resp = await self.client.get("/")
+        self.assertEqual(resp.status, 200)
+        text = await resp.text()
+        self.assertIn("const SIGNAL_ENABLED = false;", text)
+        self.assertIn("Oden körs utan Signal", text)
+        self.assertIn('<fieldset class="signal-only" disabled>', text)
+        self.assertIn("Kör setup för Signal", text)
+
+    async def test_polled_endpoints_respond_ok(self):
+        for path in ("/api/groups", "/api/invitations", "/api/contacts", "/api/accounts", "/api/signal-config"):
+            resp = await self.client.get(path)
+            self.assertEqual(resp.status, 200, path)
+
+    async def test_signal_actions_explain_signal_is_off(self):
+        resp = await self.client.post("/api/contacts/refresh")
+        self.assertEqual(resp.status, 503)
+        self.assertEqual((await resp.json())["error"], "Signal är avstängt")
