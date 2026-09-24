@@ -1225,6 +1225,7 @@ fieldset.signal-only:disabled {
 .flow-marker-ignored { background: var(--flow-ignored); }
 .flow-marker-recv { background: var(--color-accent); }
 .flow-marker-route { background: var(--color-accent); border-radius: 2px; transform: rotate(45deg) scale(0.85); }
+.flow-marker-transform { border: 2px solid var(--color-accent); border-radius: 2px; }
 .flow-marker-running { background: var(--color-accent); opacity: 0.6; }
 .flow-marker-failed { background: var(--flow-failed); border-radius: 2px; }
 .flow-marker-skipped { border: 2px solid var(--flow-skipped); }
@@ -1313,6 +1314,7 @@ fieldset.signal-only:disabled {
 .flow-badge-side { color: var(--flow-side); background: rgba(169, 154, 245, 0.12); }
 .flow-badge-recv { color: var(--color-accent); background: rgba(79, 195, 247, 0.12); }
 .flow-badge-route { color: var(--color-accent); background: rgba(79, 195, 247, 0.12); }
+.flow-badge-transform { color: var(--color-accent); background: rgba(79, 195, 247, 0.08); }
 .flow-badge-skipped,
 .flow-badge-notrun,
 .flow-badge-running { color: var(--color-text-subtle); background: rgba(142, 160, 192, 0.12); }
@@ -1658,6 +1660,9 @@ fieldset.signal-only:disabled {
     color: var(--color-text-subtle);
 }
 .routing-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.routing-check { display: flex; gap: 8px; align-items: center; justify-content: flex-start; color: var(--color-text); }
+.routing-check input { width: auto; flex: 0 0 auto; margin: 0; }
+.routing-field select { padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-surface); color: var(--color-text); }
 .routing-danger { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--color-border-subtle); }
 .routing-bar {
     display: flex;

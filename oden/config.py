@@ -306,7 +306,9 @@ def _migrate_routing(app_config: dict) -> None:
     group filter settings are kept untouched so a downgrade still works, but
     from here on the routing is what runs and what the GUI edits.
     """
-    if isinstance(app_config.get("routing"), dict) and app_config["routing"].get("branches"):
+    stored = app_config.get("routing")
+    if isinstance(stored, dict) and stored.get("branches"):
+        _migrate_routing_version(app_config)
         return
     from oden.config_db import set_config_value
     from oden.routing import derive_from_legacy
@@ -320,6 +322,23 @@ def _migrate_routing(app_config: dict) -> None:
         routing["default"],
         len(routing["assign"]),
     )
+
+
+def _migrate_routing_version(app_config: dict) -> None:
+    """Stored routing from before TAK → text was a step: add it where TAK goes, once."""
+    from oden.config_db import set_config_value
+    from oden.routing import VERSION, add_pre_step, normalize_routing
+
+    stored = app_config["routing"]
+    if isinstance(stored.get("version"), int) and stored["version"] >= VERSION:
+        return
+    try:
+        routing = add_pre_step(normalize_routing(stored))
+    except ValueError:
+        return  # an invalid stored routing is left for load_routing to fall back from
+    app_config["routing"] = routing
+    set_config_value(CONFIG_DB, "routing", routing)
+    logger.info("Lade till steget TAK → text i grenen som TAK går till")
 
 
 def _migrate_enabled_pipelines(app_config: dict) -> None:

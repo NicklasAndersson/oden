@@ -74,6 +74,12 @@ def _trailing_comment_span(message_text: str) -> tuple[int, int] | None:
     return (opening, end) if opening >= 0 else None
 
 
+def strip_trailing_comment(message_text: str) -> str:
+    """``message_text`` without its trailing ``%% … %%`` block (unchanged if it has none)."""
+    span = _trailing_comment_span(message_text)
+    return message_text[: span[0]].rstrip() + "\n" if span else message_text
+
+
 def iter_nonempty_lines(message_text: str) -> list[str]:
     span = _trailing_comment_span(message_text)
     if span:

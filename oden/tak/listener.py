@@ -348,24 +348,56 @@ def render_observation(cot: InboundCot) -> str:
     return "\n".join(lines)
 
 
-def _render_message(cot: InboundCot) -> str:
-    """The note body for one accepted CoT.
+# How a CoT becomes text. The same settings are the "TAK → text" step's
+# (oden/pipelines/tak_text.py), which redoes this from the stored XML so the
+# conversion is visible in Flöde and adjustable per branch.
+TEXT_DEFAULTS: dict[str, Any] = {
+    "reshape_8s": True,  # 8S → "7S RAPPORT" text for the 7S step
+    "reshape_scrim": True,  # SCRIM → "SCRIM RAPPORT" text for the SCRIM step
+    "other": "observation",  # anything else: "observation" note, or "skip" (only kept in Flöde)
+    "raw_block": True,  # keep the form verbatim in a trailing %% … %% block
+}
+MAX_STORED_XML = 200_000  # characters of raw CoT kept with the message
+
+
+def render_message(cot: InboundCot, settings: dict[str, Any] | None = None) -> tuple[str | None, str]:
+    """``(text, what happened)`` for one accepted CoT; text is None when it is to be skipped.
 
     A recognised report form is reshaped into the text its own pipeline parses;
     anything else stays a ``TAK-OBSERVATION``. Forms we do not know yet (A-I,
     METHANE) fall through to the observation note rather than being dropped.
     """
-    if is_8s_report(cot):
-        return to_7s_message(cot)
-    if is_scrim_report(cot):
-        return to_scrim_message(cot)
-    return render_observation(cot)
+    opts = {**TEXT_DEFAULTS, **(settings or {})}
+    if is_8s_report(cot) and opts["reshape_8s"]:
+        text, what = to_7s_message(cot), "8S omgjord till 7S RAPPORT"
+    elif is_scrim_report(cot) and opts["reshape_scrim"]:
+        text, what = to_scrim_message(cot), "SCRIM omgjord till SCRIM RAPPORT"
+    elif opts["other"] == "skip":
+        form = f"{cot.custom_report_name} " if cot.custom_report_name else ""
+        return None, f"{form}{cot.cot_type} skrivs inte (inställning: övriga markörer hoppas över)"
+    else:
+        text = render_observation(cot)
+        form = cot.custom_report_name
+        what = f"{form} ({cot.cot_type}) som TAK-OBSERVATION" if form else f"{cot.cot_type} som TAK-OBSERVATION"
+    if not opts["raw_block"]:
+        from oden.pipelines.structured_report import strip_trailing_comment
+
+        stripped = strip_trailing_comment(text)
+        if stripped != text:
+            text, what = stripped, f"{what}, utan rådatablocket"
+    return text, what
+
+
+def _render_message(cot: InboundCot) -> str:
+    """The text stored at receipt: the default conversion (see :func:`render_message`)."""
+    return render_message(cot)[0] or ""
 
 
 def build_envelope(
     cot: InboundCot,
     group_name: str,
     attachments: Sequence[tuple[str, bytes]] = (),
+    raw_xml: bytes | str | None = None,
 ) -> dict[str, Any]:
     """Signal-shaped envelope so inbound CoT reuses the whole existing chain.
 
@@ -379,8 +411,16 @@ def build_envelope(
     base64-encoded into the shape ``attachment_handler.save_attachments`` already
     expects, so the vault write and the ``## Bilagor`` section need no TAK-specific
     code at all.
+
+    ``raw_xml`` is the CoT as received. It is stored with the message
+    (``_cot_xml``) so the "TAK → text" step can redo the conversion with its
+    own settings, and so Flöde shows what actually arrived.
     """
     message = _render_message(cot)
+    envelope_extra: dict[str, Any] = {}
+    if raw_xml is not None:
+        xml = raw_xml.decode("utf-8", errors="replace") if isinstance(raw_xml, bytes) else str(raw_xml)
+        envelope_extra["_cot_xml"] = xml[:MAX_STORED_XML]
     return {
         "envelope": {
             "sourceName": cot.operator_callsign or cot.callsign,
@@ -388,6 +428,7 @@ def build_envelope(
             "sourceUuid": f"tak:{cot.sender_id}",
             "timestamp": int(cot.event_time.timestamp() * 1000),
             "_source": "tak",
+            **envelope_extra,
             "dataMessage": {
                 "message": message,
                 "groupV2": {"id": INBOUND_GROUP_ID, "name": group_name},
@@ -434,6 +475,7 @@ async def _create_note(
     orchestrator: Any,
     *,
     attachments: Sequence[tuple[str, bytes]] = (),
+    raw_xml: bytes | str | None = None,
 ) -> None:
     """Turn one accepted CoT into a queued message and run it through the pipelines.
 
@@ -443,7 +485,7 @@ async def _create_note(
     """
     from oden.messages_db import STATUS_QUEUED, create_raw_message, update_message_status
 
-    msg_data = build_envelope(cot, group_name, attachments)
+    msg_data = build_envelope(cot, group_name, attachments, raw_xml)
     message_id = create_raw_message(cfg.CONFIG_DB, cfg.SIGNAL_NUMBER, msg_data)
     update_message_status(cfg.CONFIG_DB, message_id, STATUS_QUEUED)
     # No Signal reader/writer: a TAK message carries no quote, and any attachment
@@ -561,7 +603,9 @@ async def run_package_poller(bridge: Any, *, filt: InboundFilter, group_name: st
                         len(package.attachments),
                         group_name,
                     )
-                    await _create_note(cot, group_name, orchestrator, attachments=package.attachments)
+                    await _create_note(
+                        cot, group_name, orchestrator, attachments=package.attachments, raw_xml=package.cot
+                    )
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -648,7 +692,7 @@ async def _consume_rx(
             else:
                 bridge.received_count += 1
                 logger.info("TAK: inkommande CoT %s (%s) → not i '%s'", cot.uid, cot.cot_type, group_name)
-                await _create_note(cot, group_name, orchestrator)
+                await _create_note(cot, group_name, orchestrator, raw_xml=data)
 
             now = time.monotonic()
             if now - last_summary >= _SUMMARY_EVERY_SECONDS and bridge.rx_total:

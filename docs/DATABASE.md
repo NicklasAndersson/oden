@@ -126,7 +126,7 @@ pipelinekedjan. Det är den här tabellen fliken **Flöde** visar.
 | --- | --- | --- |
 | `account` | Kontot som tog emot meddelandet | Det konfigurerade Signal-numret (platshållaren `+46XXXXXXXXX` om Oden körs utan Signal) — säger inget om källan |
 | `source_number` | Avsändarens nummer | `tak:<enhets-id>` — så känns TAK igen |
-| `envelope_raw` | signal-cli:s JSON | `{"envelope": {..., "_source": "tak", ...}}`; bilagor ligger inbäddade som base64 |
+| `envelope_raw` | signal-cli:s JSON | `{"envelope": {..., "_source": "tak", "_cot_xml": "<event …>", ...}}`; `_cot_xml` är CoT:en som den kom (högst 200 000 tecken), `dataMessage.message` texten som gjordes vid mottagningen; bilagor ligger inbäddade som base64 |
 
 | Kolumn | Typ | Notering |
 | --- | --- | --- |

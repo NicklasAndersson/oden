@@ -12,7 +12,23 @@ const ROUTING_LABELS = {
     scrim: 'SCRIM',
     generic_template: 'Reserv (allt annat)',
     tak_publish: 'TAK-publicering',
+    tak_text: 'TAK → text',
 };
+const ROUTING_PRE_STEP = 'tak_text';
+const ROUTING_PRE_DEFAULTS = {reshape_8s: true, reshape_scrim: true, other: 'observation', raw_block: true};
+
+function routingPreSettings(step) {
+    return {...ROUTING_PRE_DEFAULTS, ...(step.config || {})};
+}
+
+function routingPreSummary(step) {
+    const s = routingPreSettings(step);
+    return [
+        s.reshape_8s ? '8S→7S' : '8S som observation',
+        s.reshape_scrim ? 'SCRIM' : 'SCRIM som observation',
+        s.other === 'skip' ? 'övriga hoppas över' : 'övriga som observation',
+    ].join(' · ');
+}
 const ROUTING_STRUCTURED = ['seven_s', 'fors', 'pedars', 'scrim'];
 
 let routingState = null;   // {routing, sources, branch_counts_24h, step_stats_24h, pipelines, publish_to_tak}
@@ -150,7 +166,8 @@ function stepCard(branch, step, index) {
     const isFallback = step.pipeline === 'generic_template';
     const subdir = (step.config || {}).vault_subdir;
     const focused = routingFocus.branch === branch.id && routingFocus.step === step.pipeline;
-    const statLine = `${stats.handled} hanterade${stats.failed ? ` · <span class="routing-fail">${stats.failed} fel</span>` : ''}`;
+    const isPre = step.pipeline === ROUTING_PRE_STEP;
+    const statLine = `${stats.handled} ${isPre ? 'omvandlade' : 'hanterade'}${stats.failed ? ` · <span class="routing-fail">${stats.failed} fel</span>` : ''}`;
     return `
         <button type="button" class="routing-step ${focused ? 'focused' : ''} ${step.enabled ? '' : 'off'}"
                 data-branch="${escapeHtml(branch.id)}" data-step="${escapeHtml(step.pipeline)}"
@@ -158,10 +175,11 @@ function stepCard(branch, step, index) {
             <span class="routing-step-head">
                 <span class="flow-marker flow-marker-${step.enabled ? 'handled' : 'skipped'}"></span>
                 <span class="routing-step-name">${escapeHtml(routingPipelineLabel(step.pipeline))}</span>
-                <span class="routing-step-order">${isFallback ? (step.enabled ? 'sist' : 'av') : (step.enabled ? index + 1 : 'av')}</span>
+                <span class="routing-step-order">${!step.enabled ? 'av' : (isFallback ? 'sist' : (isPre ? 'först' : index + 1))}</span>
             </span>
             ${routingIsReport(step.pipeline)
                 ? `<span class="routing-step-target mono">→ ${escapeHtml(subdir || 'grundinställning')}</span>` : ''}
+            ${isPre ? `<span class="routing-step-target">Bara TAK · ${escapeHtml(routingPreSummary(step))}</span>` : ''}
             ${isFallback ? `<span class="routing-step-target mono">${step.enabled
                 ? `→ ${escapeHtml(subdir ? `gruppen/${subdir}` : 'gruppens mapp')}`
                 : 'allt annat sparas bara i Flöde'}</span>` : ''}
@@ -182,8 +200,11 @@ function renderRoutingColumns() {
                 <span class="routing-step-target">Styrs i TAK-fliken</span>
             </div>` : '';
         const present = branch.steps.map(s => s.pipeline);
-        const addable = routingReportSteps().filter(name => !present.includes(name));
-        const body = takCard + branch.steps.map((step, index) => stepCard(branch, step, index)).join('') + (addable.length ? `
+        const addable = [ROUTING_PRE_STEP, ...routingReportSteps()].filter(name => !present.includes(name));
+        // TAK publishing runs after TAK → text, before the report steps.
+        const cards = branch.steps.map((step, index) => stepCard(branch, step, index));
+        cards.splice(present[0] === ROUTING_PRE_STEP ? 1 : 0, 0, takCard);
+        const body = cards.join('') + (addable.length ? `
             <div class="routing-add-step">
                 <select id="routing-add-${escapeHtml(branch.id)}" aria-label="Steg att lägga till">
                     ${addable.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(routingPipelineLabel(n))}</option>`).join('')}
@@ -254,12 +275,65 @@ function branchDetail(branch) {
         </div>`;
 }
 
+function preStepDetail(branch, step) {
+    const s = routingPreSettings(step);
+    const stats = routingStepStats(branch.id, step.pipeline);
+    const check = (key, label) => `<label class="routing-check"><input type="checkbox" id="routing-pre-${key}" ${s[key] ? 'checked' : ''}> ${label}</label>`;
+    return `
+        <div class="routing-detail-head">
+            <span class="routing-source-meta">Gren ${escapeHtml(branch.name)} · först</span>
+            <h4 class="pane-heading">TAK → text</h4>
+            <p class="routing-what">TAK skickar XML (CoT), inte text. Det här steget gör om den sparade CoT:en till text som stegen efter läser. Meddelanden från Signal går vidare orörda. Steget skriver inget självt.</p>
+        </div>
+        <div class="routing-detail-actions">
+            <button type="button" class="btn btn-small" onclick="toggleFocusedStep()">${step.enabled ? 'Stäng av' : 'Slå på'}</button>
+        </div>
+        ${step.enabled ? '' : '<p class="routing-source-meta">Avstängt: stegen efter läser texten som gjordes när meddelandet togs emot (standardinställningarna).</p>'}
+        <div class="routing-field">Omvandling
+            ${check('reshape_8s', '8S blir <b>7S RAPPORT</b> (för 7S-steget)')}
+            ${check('reshape_scrim', 'SCRIM blir <b>SCRIM RAPPORT</b> (för SCRIM-steget)')}
+            <label class="routing-field">Övriga markörer
+                <select id="routing-pre-other">
+                    <option value="observation" ${s.other === 'skip' ? '' : 'selected'}>Skriv som TAK-OBSERVATION</option>
+                    <option value="skip" ${s.other === 'skip' ? 'selected' : ''}>Hoppa över (sparas bara i Flöde)</option>
+                </select>
+            </label>
+            ${check('raw_block', 'Behåll formuläret oförändrat i ett dolt <code>%%</code>-block')}
+        </div>
+        <div class="routing-detail-actions">
+            <button type="button" class="btn btn-small btn-primary" onclick="saveFocusedPreStep()">Spara</button>
+            <button type="button" class="btn btn-small" onclick="renderRoutingDetail()">Ångra</button>
+        </div>
+        <div class="routing-field">Senaste 24 h
+            <div class="routing-source-meta">${stats.handled} omvandlade · ${stats.skipped} inte från TAK · ${stats.failed} fel</div>
+        </div>
+        <div class="routing-detail-actions">
+            <button type="button" class="btn btn-small" data-branch="${escapeHtml(branch.id)}"
+                    onclick="showFlowFiltered({branch: this.dataset.branch, pipeline: 'tak_text', outcome: 'handled'})">Visa omvandlade i Flöde</button>
+        </div>
+        <div class="routing-detail-actions routing-danger">
+            <button type="button" class="btn btn-small btn-danger-outline" onclick="removeFocusedStep()">Ta bort steg</button>
+        </div>`;
+}
+
+function saveFocusedPreStep() {
+    const config = {
+        reshape_8s: document.getElementById('routing-pre-reshape_8s').checked,
+        reshape_scrim: document.getElementById('routing-pre-reshape_scrim').checked,
+        other: document.getElementById('routing-pre-other').value,
+        raw_block: document.getElementById('routing-pre-raw_block').checked,
+    };
+    withFocusedStep((b, i) => { b.steps[i].config = config; }, 'TAK → text sparat');
+}
+
 function stepDetail(branch, step) {
+    if (step.pipeline === ROUTING_PRE_STEP) return preStepDetail(branch, step);
     const meta = routingMeta(step.pipeline);
     const stats = routingStepStats(branch.id, step.pipeline);
     const index = branch.steps.indexOf(step);
     const isFallback = step.pipeline === 'generic_template';
     const lastMovable = branch.steps.length - 2;
+    const firstMovable = branch.steps[0].pipeline === ROUTING_PRE_STEP ? 1 : 0;
     const total = Math.max(1, stats.handled + stats.skipped + stats.failed);
     const subdir = (step.config || {}).vault_subdir || '';
     return `
@@ -285,7 +359,7 @@ function stepDetail(branch, step) {
         </div>` : ''}` : `
         <div class="routing-detail-actions">
             <button type="button" class="btn btn-small" onclick="toggleFocusedStep()">${step.enabled ? 'Stäng av' : 'Slå på'}</button>
-            <button type="button" class="btn btn-small" onclick="moveFocusedStep(-1)" ${index > 0 ? '' : 'disabled'} aria-label="Flytta upp">↑ Upp</button>
+            <button type="button" class="btn btn-small" onclick="moveFocusedStep(-1)" ${index > firstMovable ? '' : 'disabled'} aria-label="Flytta upp">↑ Upp</button>
             <button type="button" class="btn btn-small" onclick="moveFocusedStep(1)" ${index < lastMovable ? '' : 'disabled'} aria-label="Flytta ner">↓ Ner</button>
         </div>`}
         ${routingIsReport(step.pipeline) ? `
@@ -395,7 +469,9 @@ function saveFocusedSubdir() {
 function addStep(branchId) {
     const name = document.getElementById(`routing-add-${branchId}`).value;
     withBranch(branchId, b => {
-        b.steps.splice(b.steps.length - 1, 0, {pipeline: name, enabled: true, config: {}});
+        const step = {pipeline: name, enabled: true, config: {}};
+        if (name === ROUTING_PRE_STEP) b.steps.unshift(step);
+        else b.steps.splice(b.steps.length - 1, 0, step);
     }, 'Steg tillagt').then(() => focusStep(branchId, name));
 }
 
@@ -442,6 +518,8 @@ const ROUTING_TEST_VERDICTS = {
     failed: 'Fel',
     notrun: 'Körs inte',
     side: 'Sidoeffekt',
+    transform: 'Omvandlad',
+    ignored: 'Skrivs inte',
 };
 
 function renderRoutingTestSources() {

@@ -27,6 +27,7 @@ from oden.pipelines.pedars import PedarsPipeline
 from oden.pipelines.scrim import ScrimPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.pipelines.tak_publish import TakPublishPipeline
+from oden.pipelines.tak_text import TakTextPipeline
 from oden.pipelines_db import (
     append_pipeline_event,
     complete_pipeline_run,
@@ -56,7 +57,7 @@ logger = logging.getLogger(__name__)
 #   last_reason       — why it handled or skipped the message (Swedish, one line)
 #   last_side_effect  — what a non-consuming pipeline did anyway (e.g. TAK publish)
 #   last_output_file  — the vault file it wrote or appended to
-_RUN_ATTRS = ("last_reason", "last_side_effect", "last_output_file")
+_RUN_ATTRS = ("last_reason", "last_side_effect", "last_output_file", "last_transformed")
 
 
 def _reset_run_attrs(pipeline: Any) -> None:
@@ -97,6 +98,7 @@ class PipelineOrchestrator:
         self._db_path = db_path
         self._pipeline_map: dict[str, Any] = {
             "tak_publish": TakPublishPipeline(),
+            "tak_text": TakTextPipeline(),
             "group_filter": GroupFilterPipeline(),
             "seven_s": SevenSPipeline(),
             "fors": ForsPipeline(),
@@ -249,6 +251,16 @@ class PipelineOrchestrator:
                         status_on_handle = STATUS_PROCESSED
                     update_message_status(self._db_path, message_id, status_on_handle)
                     return
+
+                # A pre-step (TAK → text) hands the steps after it a new text.
+                transformed = getattr(pipeline, "last_transformed", None)
+                if transformed is not None:
+                    complete_pipeline_run(self._db_path, run_id)
+                    append_pipeline_event(
+                        self._db_path, run_id, "pipeline_completed", _details(pipeline, transformed=True)
+                    )
+                    msg_data = transformed
+                    continue
 
                 skip_pipeline_run(self._db_path, run_id)
                 append_pipeline_event(

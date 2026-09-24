@@ -197,7 +197,7 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
         # group_filter is no longer a step: it became the vägval before the branch.
         self.assertEqual(
             [pipeline.name for pipeline in pipelines],
-            ["seven_s", "fors", "pedars", "scrim", "generic_template"],
+            ["tak_text", "seven_s", "fors", "pedars", "scrim", "generic_template"],
         )
 
     async def test_migration_inserts_new_pipelines_into_an_existing_install(self):
@@ -235,7 +235,7 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             [pipeline.name for pipeline in pipelines],
-            ["tak_publish", "seven_s", "generic_template"],
+            ["tak_text", "tak_publish", "seven_s", "generic_template"],
         )
 
     async def test_connected_tak_bridge_does_not_publish_by_default(self):
@@ -253,5 +253,5 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
             bridge.settings["publish_reports"] = True
             names_after_toggle = [pipeline.name for pipeline in orchestrator._build_pipelines()]
 
-        self.assertEqual(names, ["seven_s", "generic_template"])
-        self.assertEqual(names_after_toggle, ["tak_publish", "seven_s", "generic_template"])
+        self.assertEqual(names, ["tak_text", "seven_s", "generic_template"])
+        self.assertEqual(names_after_toggle, ["tak_text", "tak_publish", "seven_s", "generic_template"])

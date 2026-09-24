@@ -11,6 +11,7 @@ from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.groups_db import get_all_groups, upsert_groups_bulk
 from oden.routing import group_branch, load_routing
+from oden.tak.listener import INBOUND_GROUP_ID
 from oden.web_handlers._helpers import (
     handle_errors,
     parse_json_body,
@@ -32,7 +33,8 @@ async def groups_handler(request: web.Request) -> web.Response:
     db_groups = get_all_groups(cfg.CONFIG_DB, account=cfg.SIGNAL_NUMBER)
     merged: dict[str, dict] = {}
     for g in db_groups:
-        if g.get("isMember", True):
+        # The TAK listener's inbound "group" is not a Signal group (TAK is routed as source:tak).
+        if g.get("isMember", True) and g["id"] != INBOUND_GROUP_ID:
             merged[g["id"]] = {
                 "id": g["id"],
                 "name": g["name"],

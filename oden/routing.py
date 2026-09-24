@@ -41,9 +41,12 @@ from typing import Any
 ROUTER = "router"  # pipeline_runs.pipeline_name of the vägval step
 FALLBACK = "generic_template"
 SIDE_EFFECT = "tak_publish"  # added per branch when TAK publishing is on
+PRE_STEP = "tak_text"  # TAK → text; always first when a branch has it
 
 # Pipelines a branch can contain (group_filter is replaced by the vägval itself).
-STEP_PIPELINES = ("seven_s", "fors", "pedars", "scrim", FALLBACK)
+STEP_PIPELINES = (PRE_STEP, "seven_s", "fors", "pedars", "scrim", FALLBACK)
+# 2: branches that TAK goes to got the TAK → text pre-step (config._migrate_routing)
+VERSION = 2
 
 MAIN_ID = "main"
 IGNORE_ID = "ignore"
@@ -135,8 +138,10 @@ def normalize_routing(value: Any) -> dict[str, Any]:
                     continue
                 seen.add(step["pipeline"])
                 steps.append(step)
-            # The fallback always ends a non-ignore branch, as it always ended the chain.
-            # Switched off, whatever no step takes is only kept in Flöde (status ignored).
+            # The pre-step comes first; the fallback always ends a non-ignore branch,
+            # as it always ended the chain. Switched off, whatever no step takes
+            # is only kept in Flöde (status ignored).
+            steps = sorted(steps, key=lambda s: s["pipeline"] != PRE_STEP)
             steps = [s for s in steps if s["pipeline"] != FALLBACK] + [
                 next(
                     (s for s in steps if s["pipeline"] == FALLBACK),
@@ -168,7 +173,9 @@ def normalize_routing(value: Any) -> dict[str, Any]:
             raise ValueError(f"Källan {key!r} pekar på en gren som inte finns")
         assign[key] = branch_id
 
-    return {"version": 1, "branches": branches, "assign": assign, "default": default}
+    version = value.get("version")
+    version = version if isinstance(version, int) and 1 <= version <= VERSION else 1
+    return {"version": version, "branches": branches, "assign": assign, "default": default}
 
 
 def derive_from_legacy(enabled_pipelines: Any, pipeline_settings: Any) -> dict[str, Any]:
@@ -183,7 +190,8 @@ def derive_from_legacy(enabled_pipelines: Any, pipeline_settings: Any) -> dict[s
     it is always a vägval now, applied before any step.
     """
     chain = [n for n in (enabled_pipelines or _DEFAULT_CHAIN) if isinstance(n, str)]
-    steps = [{"pipeline": n, "enabled": True, "config": {}} for n in chain if n in STEP_PIPELINES]
+    # TAK used to be made into text before it was stored; now that is the first step.
+    steps = [{"pipeline": n, "enabled": True, "config": {}} for n in [PRE_STEP, *chain] if n in STEP_PIPELINES]
     main = {"id": MAIN_ID, "name": "Huvudgren", "ignore": False, "steps": steps}
     ignore = {"id": IGNORE_ID, "name": "Ignorera", "ignore": True, "steps": []}
 
@@ -201,7 +209,7 @@ def derive_from_legacy(enabled_pipelines: Any, pipeline_settings: Any) -> dict[s
     elif filter_on:
         assign = {f"group:{g}": IGNORE_ID for g in groups}
 
-    return normalize_routing({"branches": [main, ignore], "assign": assign, "default": default})
+    return normalize_routing({"version": VERSION, "branches": [main, ignore], "assign": assign, "default": default})
 
 
 def load_routing(config_module: Any) -> dict[str, Any]:
@@ -282,8 +290,24 @@ def branch_steps(branch: dict[str, Any], *, publish_to_tak: bool) -> list[dict[s
         return []
     steps = [s for s in branch["steps"] if s.get("enabled", True)]
     if publish_to_tak:
-        steps = [{"pipeline": SIDE_EFFECT, "enabled": True, "config": {}}, *steps]
+        # After TAK → text, so what is published is the text the steps see.
+        at = 1 if steps and steps[0]["pipeline"] == PRE_STEP else 0
+        steps = [*steps[:at], {"pipeline": SIDE_EFFECT, "enabled": True, "config": {}}, *steps[at:]]
     return steps
+
+
+def add_pre_step(routing: dict[str, Any]) -> dict[str, Any]:
+    """Version 1 → 2: the branch TAK goes to gets TAK → text first.
+
+    Before, TAK was made into text before it was stored, invisibly; with the
+    step in place nothing changes for the message, but the conversion shows.
+    """
+    branch_id = routing["assign"].get("source:tak", routing["default"])
+    branch = branch_by_id(routing, branch_id)
+    if branch and not branch["ignore"] and all(s["pipeline"] != PRE_STEP for s in branch["steps"]):
+        branch["steps"].insert(0, {"pipeline": PRE_STEP, "enabled": True, "config": {}})
+    routing["version"] = VERSION
+    return routing
 
 
 def assigned_sources(routing: dict[str, Any]) -> dict[str, list[str]]:

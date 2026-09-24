@@ -67,7 +67,7 @@ class DeriveFromLegacyTest(unittest.TestCase):
     def test_chain_order_and_fallback_are_kept(self):
         routing = derive_from_legacy(["scrim", "group_filter", "seven_s"], {})
         main = routing["branches"][0]
-        self.assertEqual([s["pipeline"] for s in main["steps"]], ["scrim", "seven_s", "generic_template"])
+        self.assertEqual([s["pipeline"] for s in main["steps"]], ["tak_text", "scrim", "seven_s", "generic_template"])
 
 
 class NormalizeRoutingTest(unittest.TestCase):

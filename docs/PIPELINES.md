@@ -146,6 +146,31 @@ Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 ---
 
+### TAK → text (`tak_text`)
+
+**Vad den väljer:** meddelanden från TAK. Signal-meddelanden går vidare orörda
+(”Inte från TAK”).
+
+**Vad den gör:** gör om den sparade CoT:en (`_cot_xml`) till den text stegen
+efter läser: 8S → `7S RAPPORT`, SCRIM → `SCRIM RAPPORT`, allt annat en
+`TAK-OBSERVATION`. Steget skriver inget självt; stegen efter får den nya texten.
+I Flöde syns steget som *Omvandlad* med skälet. Står alltid först i grenen
+(före TAK-publiceringen).
+
+**Inställningar per gren** (stegets `config`):
+- `reshape_8s` (standard på) och `reshape_scrim` (standard på) — av: formuläret
+  blir en observation i stället
+- `other`: `observation` (standard) eller `skip` — en övrig markör skrivs då
+  inte, utan sparas bara i Flöde (status `ignored`)
+- `raw_block` (standard på) — formuläret oförändrat i ett dolt `%%`-block
+
+Med standardinställningarna blir texten exakt den som gjordes vid mottagningen,
+så steget ändrar inget för befintliga flöden; det gör omvandlingen synlig och
+inställbar. Meddelanden som togs emot innan rå CoT sparades går vidare med sin
+text (”Ingen rå CoT sparad”). Vid uppgradering läggs steget en gång in först i
+grenen som TAK går till (`routing.add_pre_step`, `routing.version` 2); tar man
+bort det kommer det inte tillbaka.
+
 ### TAK-publicering (`tak_publish`)
 
 **Avstängd som standard.** Oden samlar in och skriver filer för analys; att

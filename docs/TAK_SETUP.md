@@ -266,9 +266,18 @@ anslutning först. Marti-API:t ligger normalt på 8443 (`--port` för annat).
 ### Inkommande CoT – noter i valvet
 
 En not får rubriken `TAK-OBSERVATION` (medvetet *inte* `… RAPPORT`, så den inte
-studsar tillbaka till TAK) i gruppen `TAK Inkommande`. Noterna passerar
-**gruppfiltret** som allt annat – kör du whitelist-läge måste `TAK Inkommande`
-finnas med i listan.
+studsar tillbaka till TAK) i gruppen `TAK Inkommande`. Vart TAK-meddelanden går
+väljs med källan **TAK** under Vägval i Pipelines-fliken (inte med gruppnamnet).
+
+**Steget TAK → text.** TAK skickar XML (CoT), inte text. Den råa CoT:en sparas
+med meddelandet (`_cot_xml` i kuvertet), och första steget i grenen, *TAK →
+text*, gör om den till text som stegen efter läser. Det syns i Flöde som
+*Omvandlad* med vad det blev (t.ex. ”8S omgjord till 7S RAPPORT”), och har egna
+inställningar per gren: gör om 8S till 7S (på/av), gör om SCRIM (på/av), övriga
+markörer som observation eller hoppa över (sparas då bara i Flöde), och om
+formuläret ska följa med i `%%`-blocket. Med standardinställningarna blir texten
+exakt densamma som tidigare. I Testrutan kan man klistra in en CoT (`<event …>`)
+med källan TAK och se hela vägen.
 
 **Undantag – 8S-rapporter:** bär händelsen en 8S-rapport från ATAK:s
 Reports-plugin mappas den istället till en vanlig `7S RAPPORT` och skrivs som en

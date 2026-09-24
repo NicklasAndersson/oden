@@ -22,6 +22,7 @@ from oden import config as cfg
 from oden.config_db import set_config_value
 from oden.dry_run import build_test_message, dry_run, publish_to_tak
 from oden.groups_db import get_all_groups
+from oden.pipelines.tak_text import TakTextPipeline
 from oden.report_formats import load_formats, step_name
 from oden.routing import (
     ROUTER,
@@ -29,6 +30,7 @@ from oden.routing import (
     load_routing,
     normalize_routing,
 )
+from oden.tak.listener import INBOUND_GROUP_ID
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
 logger = logging.getLogger(__name__)
@@ -144,7 +146,8 @@ def _sources(routing: dict[str, Any], by_source: dict[str, int]) -> list[dict[st
     """Every source the operator may want to route: TAK, direct messages, known and seen groups."""
     names: set[str] = set()
     for group in get_all_groups(cfg.CONFIG_DB, account=cfg.SIGNAL_NUMBER):
-        if group.get("name"):
+        # The TAK listener's inbound "group" is routed as source:tak, not as a group.
+        if group.get("name") and group.get("id") != INBOUND_GROUP_ID:
             names.add(group["name"])
     for key in list(routing["assign"]) + list(by_source):
         if key.startswith("group:"):
@@ -178,6 +181,16 @@ def _pipeline_meta() -> list[dict[str, Any]]:
     from oden.web_handlers.pipeline_handlers import _get_available_pipelines
 
     available = _get_available_pipelines()
+    pre = TakTextPipeline
+    available = {
+        **available,
+        pre.name: {
+            "name": pre.name,
+            "display_name": pre.display_name,
+            "description": pre.description,
+            "selection_criteria": pre.selection_criteria,
+        },
+    }
     builtin = [available[name] for name in STEP_PIPELINES if name in available]
     formats = [
         {

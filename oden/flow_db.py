@@ -24,6 +24,7 @@ OUTCOME_SKIPPED = "skipped"
 OUTCOME_FAILED = "failed"
 OUTCOME_RUNNING = "running"
 OUTCOME_ROUTE = "route"  # the vägval: which branch the message went to
+OUTCOME_TRANSFORM = "transform"  # a pre-step (TAK → text) that handed later steps a new text
 
 ROUTER = "router"  # same as routing.ROUTER; not imported to keep flow_db free of config
 
@@ -108,6 +109,7 @@ def _load_steps(conn: sqlite3.Connection, message_ids: list[int]) -> dict[int, l
                 "branch_name": None,
                 "ignore": False,
                 "assigned": False,  # False: not recorded (older routes); None: default branch
+                "transformed": False,
             }
             runs_by_id[row["id"]] = run
             runs_by_message.setdefault(row["message_id"], []).append(run)
@@ -126,6 +128,8 @@ def _load_steps(conn: sqlite3.Connection, message_ids: list[int]) -> dict[int, l
         else:
             if details.get("reason"):
                 run["reason"] = details["reason"]
+            if details.get("transformed"):
+                run["transformed"] = True
             if details.get("branch"):
                 run["branch"] = details["branch"]
                 run["branch_name"] = details.get("branch_name") or details["branch"]
@@ -141,6 +145,8 @@ def _to_steps(runs: list[dict[str, Any]], message_status: str) -> list[dict[str,
         outcome = _RUN_OUTCOME.get(run["status"], OUTCOME_SKIPPED)
         if run["pipeline_name"] == ROUTER:
             outcome = OUTCOME_IGNORED if run["ignore"] else OUTCOME_ROUTE
+        elif run["transformed"]:
+            outcome = OUTCOME_TRANSFORM
         elif outcome == OUTCOME_HANDLED and message_status == "ignored":
             outcome = OUTCOME_IGNORED
         steps.append(
@@ -167,7 +173,10 @@ def _row_to_item(row: sqlite3.Row, runs: list[dict[str, Any]]) -> dict[str, Any]
     item["branch"] = route["branch"] if route else None
     item["branch_name"] = route["branch_name"] if route else None
     # A group whose messages went to the default branch because nobody gave it one.
-    item["unassigned_group"] = bool(route and item.get("group_name") and route["assigned"] is None)
+    # TAK is routed as the TAK source, never by its inbound group name.
+    item["unassigned_group"] = bool(
+        route and item.get("group_name") and item["source"] != "tak" and route["assigned"] is None
+    )
     return item
 
 

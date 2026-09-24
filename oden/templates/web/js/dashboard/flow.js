@@ -13,6 +13,7 @@ const FLOW_KIND_LABELS = {
     side: 'Sidoeffekt',
     notrun: 'Kördes inte',
     route: 'Vägval',
+    transform: 'Omvandlad',
 };
 
 // Status chips: key is sent as ?status= (comma-separated for several).
