@@ -4,7 +4,11 @@
 
 **Pipelines** är moduler som processar inkommande meddelanden efter att de sparats i SQLite. Varje pipeline kan välja att hantera ett meddelande (returera `True`) eller hoppa det (`False`) så nästa pipeline i kön får en chans.
 
-### Flöde
+### Vägval och grenar
+
+Först väljs en **gren** utifrån meddelandets källa, sedan körs grenens steg
+uppifrån och ner. Första steg som hanterar meddelandet stoppar kedjan.
+
 ```
 Inkommande meddelande
          │
@@ -12,39 +16,63 @@ Inkommande meddelande
 [Spara i raw_messages]
          │
          ▼
-[PipelineOrchestrator]
-         │
-     ┌────┴────┬──────┬───────┬─────────┐
-     │ Group   │ 7S   │ FORS  │ PEDARS  │ SCRIM │
-     │ Filter  │      │       │         │
-     ▼         ▼      ▼       ▼
-   [Hanterat?] [Hanterat?] [Hanterat?] [Hanterat?]
-     │         │      │       │
-     └─────────┴──────┴───────┘
-            │
-            ▼
-        [Generic Template]
+[Vägval]  källa → gren   (sparas som körningen "router", syns i Flöde)
+   │
+   ├─▶ Spaning:   7S → SCRIM → Reserv
+   ├─▶ Underhåll: FORS → PEDARS → Reserv
+   ├─▶ Ignorera:  inga steg (status ignored, inget skrivs)
+   └─▶ Standardgren: allt som inte tilldelats
 ```
+
+- **Källor:** `source:tak` (allt från TAK-lyssnaren), `group_id:<id>`,
+  `group:<namn>` och `source:direct` (direktmeddelanden), i den ordningen. En
+  källa hör till exakt en gren; det som inte tilldelats går till standardgrenen.
+- **Ignorera-gren:** `ignore: true`, inga steg. Meddelandet sparas och syns i
+  Flöde med skälet, men skrivs aldrig till valvet.
+- **Reserven** (`generic_template`) ligger alltid sist i en vanlig gren.
+- **TAK-publicering** (`tak_publish`) läggs först i varje vanlig gren när
+  publicering är påslagen i TAK-fliken.
+- **Inställningar per steg:** ett stegs `config` gäller bara i den grenen och
+  lägger sig över pipelinens grundinställningar, t.ex. `vault_subdir`. Pipelines
+  läser dem med `routing.step_settings(name, cfg.PIPELINE_SETTINGS)`.
 
 ## Konfiguration
 
-Pipelines aktiveras/deaktiveras via config-nyckeln `enabled_pipelines` (JSON-lista):
+Grenarna ligger i config-nyckeln `routing` (JSON):
 
 ```json
 {
-  "enabled_pipelines": ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
+  "version": 1,
+  "branches": [
+    {"id": "spaning", "name": "Spaning", "ignore": false, "steps": [
+      {"pipeline": "seven_s", "enabled": true, "config": {"vault_subdir": "Spaning/7S", "vault_subdir_enabled": true}},
+      {"pipeline": "generic_template", "enabled": true, "config": {}}
+    ]},
+    {"id": "ignore", "name": "Ignorera", "ignore": true, "steps": []}
+  ],
+  "assign": {"group:Kaffe & logistik": "ignore", "source:tak": "spaning"},
+  "default": "spaning"
 }
 ```
 
-**Ordning är viktig:** Pipelines körs i den ordning de anges. Primera pipeline som hanterar meddelandet stoppar kedjan.
+Den redigeras i fliken **Pipelines** eller via `GET`/`PUT /api/routing`, som
+validerar (okända pipelines tas bort, reserven läggs sist, referenser till
+grenar som inte finns avvisas).
 
-Nuvarande default:
-- `group_filter` — kör först och kan stoppa/ignorera enligt filterregler
-- `seven_s` — söker och hanterar 7S RAPPORT
-- `fors` — söker och hanterar FORS-RAPPORT
-- `pedars` — söker och hanterar PEDARS-underhållsrapport
-- `scrim` — söker och hanterar SCRIM-fordonsbeskrivning
-- `generic_template` — fallback; hanterar resterande meddelanden
+### Migrering från den gamla kedjan
+
+Före grenarna fanns en enda kedja (`enabled_pipelines`) med `group_filter` som
+första steg. Vid första start efter uppgradering skapas `routing` med samma
+utfall (`config._migrate_routing`, `routing.derive_from_legacy`):
+
+| Förut | Blir |
+|---|---|
+| Svartlista med grupper | *Huvudgren* med den gamla kedjan (standard) + *Ignorera* med de listade grupperna |
+| Vitlista med grupper | *Huvudgren* med de listade grupperna och direktmeddelanden + *Ignorera* som standard |
+| Inget filter | *Huvudgren* för allt (och en tom *Ignorera*) |
+
+`enabled_pipelines` och gruppfiltrets inställningar lämnas orörda (för en
+nedgradering) men styr inte längre något. Gruppfiltret är inte längre ett steg.
 
 ## Befintliga Pipelines
 
@@ -118,11 +146,47 @@ Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 ---
 
+### TAK → text (`tak_text`)
+
+**Vad den väljer:** meddelanden från TAK. Signal-meddelanden går vidare orörda
+(”Inte från TAK”).
+
+**Vad den gör:** gör om den sparade CoT:en (`_cot_xml`) till den text stegen
+efter läser: 8S → `7S RAPPORT`, SCRIM → `SCRIM RAPPORT`, allt annat en
+`TAK-OBSERVATION`. Steget skriver inget självt; stegen efter får den nya texten.
+I Flöde syns steget som *Omvandlad* med skälet. Står alltid först i grenen
+(före TAK-publiceringen).
+
+**Inställningar per gren** (stegets `config`):
+- `reshape_8s` (standard på) och `reshape_scrim` (standard på) — av: formuläret
+  blir en observation i stället
+- `unknown_forms`: `observation` (standard) eller `form_header` — ett
+  ATAK-formulär som Oden inte har en egen tolkning för blir text med
+  formulärets namn som första rad (t.ex. `8-Line Spot Report`), följt av
+  fälten som `namn: värde` (namnen ATAK skickade), `Position` (MGRS),
+  `Koordinater`, `Källa`, `Tid`, `Typ`, `UID` och `Anmärkning`. Ett
+  rapportformat med den rubriken ger formuläret en egen anteckningstyp utan kod
+- `other`: `observation` (standard) eller `skip` — allt annat från TAK
+  (markörer, och formulär som inte tagits ovan) skrivs då inte, utan sparas
+  bara i Flöde (status `ignored`)
+- `raw_block` (standard på) — formuläret oförändrat i ett dolt `%%`-block
+
+Med standardinställningarna blir texten exakt den som gjordes vid mottagningen,
+så steget ändrar inget för befintliga flöden; det gör omvandlingen synlig och
+inställbar. Meddelanden som togs emot innan rå CoT sparades går vidare med sin
+text (”Ingen rå CoT sparad”). Vid uppgradering läggs steget en gång in först i
+grenen som TAK går till (`routing.add_pre_step`, `routing.version` 2); tar man
+bort det kommer det inte tillbaka.
+
 ### TAK-publicering (`tak_publish`)
 
+**Avstängd som standard.** Oden samlar in och skriver filer för analys; att
+skriva tillbaka till TAK är ett aktivt val. Slå på **Publicera 7S-rapporter från
+Signal som markörer i TAK** i TAK-fliken (`publish_reports` i `tak_settings`).
+
 **Vad den väljer:** Ingenting — den *konsumerar* aldrig ett meddelande. Körs
-alltid först när TAK-bryggan är aktiv (`[TAK] enabled`), som en sidoeffekt, och
-låter sedan resten av kedjan köra som vanligt.
+först när TAK-bryggan är ansluten *och* `publish_reports` är på, som en
+sidoeffekt, och låter sedan resten av kedjan köra som vanligt.
 
 **Vad den gör:**
 - Parsar 7S-rapporter och plockar ut MGRS → lat/lon
@@ -141,16 +205,9 @@ ordnas om.
 
 ### Gruppfilter-pipeline (`group_filter`)
 
-**Vad den väljer:** Meddelanden vars grupptitel matchar pipeline-regeln.
-
-**Vad den gör:**
-- Läser pipeline-inställningarna (`mode` + `groups`)
-- Om gruppen matchar regeln stoppas kedjan direkt
-- Meddelandet markeras som `ignored`
-
-**Inställningar:**
-- `mode`: `blacklist` eller `whitelist`
-- `groups`: lista med gruppnamn
+**Ersatt av vägvalet.** Gruppfiltret var ett steg som kunde stoppa kedjan för
+listade grupper (svart- eller vitlista). Nu tilldelas grupper en gren, och en
+ignorera-gren gör samma sak. Befintliga filter migreras automatiskt (se ovan).
 
 ---
 
@@ -231,10 +288,55 @@ CoT-uid fångas repetitionen av dedupen. Myntas ett nytt uid blir det en ny not 
 
 **Inställningar som påverkar:**
 - `vault_path` — mappsökväg för markdown-filer
-- `ignored_groups` — grupper att hoppa
-- `whitelist_groups` — whitelist-begränsning
 - `append_window_minutes` — tidsfönster för append-läge
 - `report_template` / `append_template` — Jinja2-mallar
+
+**Per gren** (stegets `config` i `routing`):
+- `vault_subdir` — mapp under gruppens mapp för allt som hamnar i reserven i
+  just den grenen, t.ex. `Övrigt`. Svar som läggs till en tidigare anteckning
+  letas också upp där.
+- `enabled: false` — reserven avstängd: det inget steg tog skrivs inte, utan
+  sparas bara i Flöde (status `ignored`). Så kan en grupp ha en gren med bara
+  PEDARS.
+
+---
+
+### Rapportformat (`format:<id>`)
+
+Rapportformat som definieras i inställningarna i stället för i kod
+(`oden/report_formats.py`, config-nyckeln `report_formats`). Ett format är data:
+
+| Del | Betydelse |
+|-----|-----------|
+| `headers` | Rubrikrader. Formatet tar meddelandet när första raden börjar med någon av dem |
+| `fields` | Fält som skrivs `Etikett: värde`. Varje fält har `key`, `label`, `aliases`, `required` och `type` (`text` eller `mgrs` — ger `lat`/`lon`/`location` i frontmatter) |
+| `sections` | Avsnitt: en rubrikrad (eller `Rubrik: text`), sedan fri text till nästa avsnitt. `key`, `label`, `aliases`, `required` |
+| `tnr_field` | Fältet som ger filnamn och rapporttid (`DDHHMM` eller lång form). Tomt = meddelandets tid |
+| `file_prefix` | Filen blir `<prefix><TNR>.md`, som för de inbyggda |
+| `report_type` | `typ:` i frontmatter |
+| `end_marker` | Valfri slutrad, t.ex. `SLUT!` |
+| `template` | Valfri Jinja-mall (sandlåda). Börjar den med `---` skriver den hela anteckningen, frontmatter också; annars bara innehållet efter Odens frontmatter. Variabler: `fields`, `sections`, `other`, `id`, `report_type`, `tnr`, `report_time`, `report_time_iso`, `signal_time`, `signal_time_iso`, `sender_name`, `sender_number`, `sender_id`, `lat`/`lon` (från första MGRS-fältet), `group`, `format`, `message`. Filter: `yaml` (citerar för frontmatter), `plate` (registreringsnummer i kanonisk form), `link_plates` (gör plåtar i text till `[[länkar]]`). Tom = fälten som **Etikett:** värde och avsnitten som rubriker |
+
+Etiketter jämförs utan skiftläge, accenter, mellanslag och skiljetecken, så
+`Förbandets position` och `FORBANDETS-POSITION` är samma etikett. Rader som inte
+är fält och ligger före första avsnittet hamnar under *Övrigt*. Saknas ett
+obligatoriskt fält eller avsnitt fallerar steget med skälet (”Anmälan saknar
+obligatoriska fält: Vad”) och meddelandet går vidare till nästa steg, precis
+som för de inbyggda.
+
+Ett sparat format blir steget `format:<id>` som en gren kan innehålla. Det
+skriver en anteckning per rapport på samma sätt som de inbyggda: samma
+frontmatter-bas, filnamn, bilagor, undermapp per gren och samma Testruta. Ett
+format som används i en gren kan inte tas bort förrän steget tagits bort.
+
+De inbyggda formaten (7S, FORS, PEDARS, SCRIM) finns kvar i kod och ändras inte
+här. Varje inbyggt format har en startpunkt (*Utgå från …*) som fyller i
+rubriker, fält, avsnitt och en mall för hela anteckningen, frontmatter
+inkluderat. Mallen skriver samma anteckning som det inbyggda formatet (utom det
+slumpade `id`): för 7S, FORS och SCRIM tecken för tecken, plåtlänkar
+inkluderade; för PEDARS med samma rubriker, listor och underrubriker, men
+personalsiffrorna i den ordning de står i meddelandet. Testerna
+(`StarterTemplateTest`) jämför startpunkterna med de inbyggda.
 
 ---
 
@@ -242,30 +344,50 @@ CoT-uid fångas repetitionen av dedupen. Myntas ett nytt uid blir det en ny not 
 
 ### I Web-gränssnitt
 
-En ny flik **"Pipelines"** visar:
-- Aktiverade pipelines i körordning
-- Knapp för att ändra ordning (drag-and-drop)
-- Toggle för att slå av/på individuella pipelines
-- Inställningsikon för pipelines med konfiguration
+Fliken **Pipelines**:
+- **Vägval:** varje källa (TAK, direktmeddelanden, varje känd grupp) med en
+  rullista för gren, antal meddelanden senaste 24 h, och en markering för
+  grupper med trafik som saknar egen gren. Standardgrenen väljs under listan.
+  *Ignorera* är ett val i rullistorna, inte en kolumn: den har inga steg.
+  Under listan står vilka källor som ignoreras, med länk till dem i Flöde.
+  Routingen har alltid en ignorera-gren (`normalize_routing` lägger till
+  den om den saknas).
+- **Grenar som kolumner:** varje gren är en kolumn med sina steg i
+  körordning (★ = standardgren, antal källor och meddelanden senaste 24 h).
+  Varje steg visar undermapp i grenen och hur många meddelanden det hanterat
+  senaste 24 h. Sist står kolumnen *Ny gren* (samma steg som standardgrenen,
+  eller bara reserven).
+- **Detaljpanelen:** klick på en gren eller ett steg visar det till höger.
+  För en gren: byt namn, gör till standardgren, ta bort, *Visa grenens
+  meddelanden i Flöde*. För ett steg: på/av, upp/ner, *Undermapp i den här
+  grenen* (Spara/Ångra), hanterade/hoppade över/fel senaste 24 h och länkar
+  till just de meddelandena i Flöde.
+- **Testruta:** klistra in ett meddelande och välj källa. Visar vägvalet,
+  vad varje steg säger (tog meddelandet, hoppade över, fel — t.ex. vilka
+  fält som saknas i en 7S), vilken fil som skulle skrivas och dess innehåll.
+  Inget skrivs till valvet, skickas till Signal/TAK eller sparas i databasen
+  (`oden/dry_run.py`, `POST /api/pipelines/test`).
+- **Rapportformat:** egna format (se ovan) med editor för rubriker, fält,
+  avsnitt, TNR-fält, filprefix och mall, och en testruta som visar vilka
+  fält som hittades och anteckningen som skulle skrivas. De inbyggda visas
+  som startpunkter. Ett sparat format läggs till i en gren med *+ Steg*.
+- **Reserven per gren:** klick på *Reserv* i en gren ger *Mapp för allt
+  annat* och *Stäng av reserven* (då sparas det inget steg tog bara i Flöde).
+- **Grundinställningar per pipeline:** det som gäller i alla grenar
+  (standardundermapp, rapportmallar m.m.).
 
 ### I config.db
 
 ```sql
--- Visa aktiva pipelines
-SELECT value FROM config WHERE key = 'enabled_pipelines';
--- Resultat: ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
-
--- Ändra ordning eller aktivering
-UPDATE config 
-SET value = '["generic_template"]'
-WHERE key = 'enabled_pipelines';
+SELECT value FROM config WHERE key = 'routing';
+SELECT value FROM config WHERE key = 'report_formats';
 ```
 
 ---
 
 ## Framtida: Pipeline-instanser med inställningar
 
-*Planerat för Oden 3.1+*
+*Delvis på plats: samma pipeline kan nu ha egen undermapp per gren (stegets `config`). Resten nedan är fortfarande planerat.*
 
 För närvarande är pipelines globala — en pipeline körs med samma inställningar för alla meddelanden. Vi vill kunna:
 
@@ -406,6 +528,9 @@ Pipelines förväntas:
 | GET | `/api/pipelines` | Lista tillgängliga pipelines, aktiva pipelines och körningsstatistik |
 | POST | `/api/pipelines/reorder` | Ändra exekveringsordning |
 | PATCH | `/api/pipelines/{name}/enabled` | Aktivera/deaktivera pipeline |
+| GET | `/api/report-formats` | Egna rapportformat, vilka grenar som använder dem, de inbyggda med startpunkt och mallvariabler |
+| PUT | `/api/report-formats` | Spara hela listan (`{"formats": [...]}`); valideras, och ett format som används i en gren kan inte tas bort |
+| POST | `/api/report-formats/test` | `{"format", "text"}` → om rubriken matchar, hittade fält och avsnitt, vad som saknas och anteckningen. Skriver inget |
 
 ---
 

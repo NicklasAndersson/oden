@@ -205,6 +205,7 @@ async def list_pipelines(request: web.Request) -> web.Response:
         {
             "available": list(available.values()),
             "enabled": enabled_pipelines,
+            "settings": pipeline_settings,
             "stats": stats,
         }
     )
@@ -213,7 +214,10 @@ async def list_pipelines(request: web.Request) -> web.Response:
 @handle_errors("toggling pipeline")
 @parse_json_body
 async def toggle_pipeline(request: web.Request) -> web.Response:
-    """Enable or disable a specific pipeline.
+    """Enable or disable a specific pipeline in the legacy ``enabled_pipelines`` list.
+
+    Superseded by the branches in ``routing`` (``PUT /api/routing``), which is what
+    runs; the legacy list only seeds the routing on the first start after upgrade.
 
     PATCH /api/pipelines/{name}/enabled
 
@@ -270,7 +274,7 @@ async def toggle_pipeline(request: web.Request) -> web.Response:
 @handle_errors("reordering pipelines")
 @parse_json_body
 async def reorder_pipelines(request: web.Request) -> web.Response:
-    """Change the execution order of pipelines.
+    """Change the order of the legacy ``enabled_pipelines`` list (see toggle_pipeline).
 
     POST /api/pipelines/reorder
 

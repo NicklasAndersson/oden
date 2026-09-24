@@ -13,6 +13,7 @@ keywords = ["signal", "obsidian", "markdown", "messaging"]
 dependencies = [
     "aiohttp>=3.14.3",
     "aiohttp-jinja2>=1.6",
+    "defusedxml>=0.7.1",
     "jinja2>=3.1.6",
     "mgrs>=1.5.4",
     "qrcode>=8.2",

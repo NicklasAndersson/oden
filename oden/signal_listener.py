@@ -20,11 +20,10 @@ from oden.messages_db import (
 )
 from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.processing import process_message
-from oden.retention_db import cleanup_old_data
+from oden.routing import group_branch, load_routing
 
 logger = logging.getLogger(__name__)
 
-RETENTION_CLEANUP_INTERVAL_SECONDS = 3600
 GROUPS_CONTACTS_REFRESH_INTERVAL_SECONDS = 900
 
 
@@ -68,8 +67,9 @@ async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] 
                 logger.warning("No groups available for startup message (startup_message=all)")
                 return
 
-            # Filter out ignored groups
-            active_groups = [g for g in groups if g.get("name") not in cfg.IGNORED_GROUPS]
+            # Groups whose messages go to an ignore branch get no startup message
+            routing = load_routing(cfg)
+            active_groups = [g for g in groups if not group_branch(routing, g.get("id"), g.get("name"))[0]["ignore"]]
             if not active_groups:
                 logger.info("No active groups to send startup message to (all groups ignored)")
                 return
@@ -149,15 +149,12 @@ async def log_groups(writer: asyncio.StreamWriter) -> list[dict]:
                 return []
 
             logger.info(f"Account is member of {len(groups)} group(s):")
+            routing = load_routing(cfg)
             for group in groups:
                 group_name = group.get("name", "Unknown")
-                is_ignored = group_name in cfg.IGNORED_GROUPS
-                status = " (IGNORED)" if is_ignored else ""
+                branch, assigned = group_branch(routing, group.get("id"), group.get("name"))
+                status = f" → {branch['name']}" + ("" if assigned else " (standardgren)")
                 logger.info(f"  • {group_name}{status}")
-
-            if cfg.IGNORED_GROUPS:
-                ignored_count = sum(1 for g in groups if g.get("name") in cfg.IGNORED_GROUPS)
-                logger.info(f"Ignored groups configured: {len(cfg.IGNORED_GROUPS)}, matched: {ignored_count}")
 
             return groups
 
@@ -296,7 +293,6 @@ async def subscribe_and_listen(host: str, port: int) -> None:
     writer = None
     app_state = get_app_state()
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
-    last_retention_cleanup_ts = 0.0
     try:
         reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100)  # 100 MB limit
         logger.info("Connection successful. Waiting for messages...")
@@ -379,24 +375,6 @@ async def subscribe_and_listen(host: str, port: int) -> None:
                             reader=reader,
                             writer=writer,
                         )
-
-                        now_ts = time.monotonic()
-                        if now_ts - last_retention_cleanup_ts >= RETENTION_CLEANUP_INTERVAL_SECONDS:
-                            summary = cleanup_old_data(cfg.CONFIG_DB, cfg.RAW_MESSAGE_RETENTION_DAYS)
-                            total_deleted = (
-                                summary["deleted_raw_messages"]
-                                + summary["deleted_pipeline_runs"]
-                                + summary["deleted_pipeline_events"]
-                            )
-                            if total_deleted:
-                                logger.info(
-                                    "Retention cleanup removed raw=%d runs=%d events=%d (days=%d)",
-                                    summary["deleted_raw_messages"],
-                                    summary["deleted_pipeline_runs"],
-                                    summary["deleted_pipeline_events"],
-                                    summary["retention_days"],
-                                )
-                            last_retention_cleanup_ts = now_ts
                     else:
                         # Fallback path if DB persistence failed.
                         await process_message(msg_data, reader, writer)

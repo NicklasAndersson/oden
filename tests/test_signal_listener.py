@@ -89,3 +89,28 @@ class TestPeriodicRefresh(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStartupMessageSkipsIgnoredBranches(unittest.IsolatedAsyncioTestCase):
+    async def test_groups_routed_to_an_ignore_branch_get_no_startup_message(self):
+        import json
+        import zoneinfo
+
+        from oden.signal_listener import send_startup_message
+
+        routing = {
+            "branches": [{"id": "main", "name": "Huvudgren"}, {"id": "ignore", "name": "Ignorera", "ignore": True}],
+            "assign": {"group:Kaffe": "ignore"},
+            "default": "main",
+        }
+        writer = unittest.mock.MagicMock()
+        writer.drain = unittest.mock.AsyncMock()
+        with (
+            unittest.mock.patch("oden.config.STARTUP_MESSAGE", "all"),
+            unittest.mock.patch("oden.config.ROUTING", routing),
+            unittest.mock.patch("oden.config.TIMEZONE", zoneinfo.ZoneInfo("Europe/Stockholm")),
+        ):
+            await send_startup_message(writer, [{"id": "g1", "name": "Kaffe"}, {"id": "g2", "name": "Spaning"}])
+
+        sent = [json.loads(call.args[0])["params"]["groupId"] for call in writer.write.call_args_list]
+        self.assertEqual(sent, ["g2"])

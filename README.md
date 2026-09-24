@@ -144,7 +144,7 @@ curl -O https://raw.githubusercontent.com/NicklasAndersson/oden/main/docker-comp
 docker compose up -d
 ```
 
-Öppna sedan `http://localhost:8080/setup` i din webbläsare för att konfigurera.
+Öppna sedan `http://localhost:8080` i din webbläsare. Valvet är `/vault` (volymen); koppla Signal under fliken **Signal**.
 
 Se [docs/FEATURES.md](./docs/FEATURES.md) för komplett funktionsdokumentation.
 
@@ -304,10 +304,10 @@ Viktigt:
 
 ### Funktioner
 
-- **Setup-wizard** - Guidar dig genom konfigurationen vid första start
-- **Web GUI** - Dashboard med config, loggar, grupphantering, template-editor och kontohantering
-- **Meddelandehantering** - Se råmeddelanden, pipeline-körningar och reprocessa enskilda meddelanden
-- **Multi-account** - Hantera flera Signal-konton via *Signal-konton*-fliken (länka, aktivera, radera)
+- **Ingen setup-guide** - Första start skapar standardinställningar; valv, Signal och TAK ställs in i sina flikar
+- **Web GUI** - Dashboard med flikarna Flöde, Grundläggande, Obsidian, Signal, TAK, Pipelines och Avancerat, plus live-loggar
+- **Flöde** - Se allt som kommer in från alla källor, vart det tog vägen och varför; rått kuvert, utdatafil och omkörning
+- **Multi-account** - Hantera flera Signal-konton under *Signal → Konton* (länka, aktivera, radera)
 - **System Tray** - Starta/stoppa, öppna GUI och avsluta Oden från systemfältet (macOS/Linux/Windows)
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` prefix** - Behandlas som vanligt meddelande (legacy append-prefix är borttaget)
@@ -319,9 +319,7 @@ Viktigt:
 
 ## Konfiguration
 
-Konfigurationen hanteras via **setup-wizarden** som öppnas automatiskt vid första start. All config sparas i en SQLite-databas (`config.db`) i din Oden-hemkatalog.
-
-Ändringar kan också göras via Web GUI:ns konfigurationssida.
+Vid första start skapar Oden standardinställningar i en SQLite-databas (`config.db`) i Oden-hemkatalogen (`~/.oden`, eller `ODEN_HOME`) och öppnar webbgränssnittet. Allt ställs in där: valvet under **Obsidian**, Signal-konto under **Signal → Konton**, TAK under **TAK**.
 
 I Oden 3.0 finns även inställningar för DB-first-flödet, aktiva pipelines och retention av råmeddelanden i den avancerade konfigurationen.
 
@@ -341,16 +339,13 @@ Om `pystray` inte är installerat körs Oden i terminalläge utan tray-ikon.
 
 Oden har ett inbyggt webbgränssnitt som startar automatiskt på `http://127.0.0.1:8080`.
 
-### Setup-wizard
+### Första start
 
-Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
-
-1. Välj Oden-hemkatalog
-2. Länka eller registrera Signal-konto (QR-kod visas i webbläsaren)
-3. Välj sökväg till Obsidian-valv
-4. Klart — Oden startar automatiskt
-
-![Web GUI - Setup](images/setup.png)
+Ingen guide: Oden startar direkt i dashboarden. Välj valv under **Obsidian**
+(och installera Odens Obsidian-inställningar där), koppla Signal under
+**Signal → Konton** — länka med QR-kod, registrera ett nummer eller använd ett
+konto som redan finns i signal-cli — och starta om Oden. Se
+[FIRST_START.md](./docs/FIRST_START.md).
 
 ### Dashboard
 
@@ -376,7 +371,7 @@ Vid första start visas en setup-wizard som guidar dig genom konfigurationen:
 ## Dokumentation
 
 - [FEATURES.md](./docs/FEATURES.md) - Komplett funktions- och kravspecifikation
-- [SETUP_FLOW.md](./docs/SETUP_FLOW.md) - Setup-wizardens alla steg
+- [FIRST_START.md](./docs/FIRST_START.md) - Första start, koppla Signal, Obsidian-fliken
 - [WEB_GUI.md](./docs/WEB_GUI.md) - Web-gränssnitt och API-referens
 - [REPORT_TEMPLATE.md](./docs/REPORT_TEMPLATE.md) - Mallsystem (Jinja2)
 - [PIPELINES.md](./docs/PIPELINES.md) - Pipeline-arkitektur, befintliga pipelines och hur man utvecklar nya

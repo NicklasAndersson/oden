@@ -1,6 +1,6 @@
 {#- Info box for Signal-dependent sections; renders nothing while Signal is enabled -#}
 {% if not signal_enabled %}
 <div class="signal-off-notice">
-    ℹ️ Oden körs utan Signal. Aktivera via <strong>Avancerat → Kör setup för Signal</strong> och starta sedan om Oden.
+    ℹ️ Oden körs utan Signal.{% if signal_off_reason %} {{ signal_off_reason }}{% endif %} Koppla ett konto under <strong>Signal → Konton</strong>.
 </div>
 {% endif %}

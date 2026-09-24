@@ -2,7 +2,7 @@
 Signal-cli listener and message processor.
 
 Main entry point that connects to signal-cli daemon and processes incoming messages.
-Supports first-run setup wizard for initial configuration.
+First start creates default settings; everything else is configured in the web GUI.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import logging
 import sys
+import threading
 import webbrowser
 from typing import TYPE_CHECKING
 
@@ -18,17 +19,14 @@ if TYPE_CHECKING:
     from oden.tray import OdenTray
 
 from oden import __version__
+from oden import config as config_module
 from oden.app_state import get_app_state
 from oden.config import (
-    SIGNAL_CLI_HOST,
-    SIGNAL_CLI_PORT,
-    SIGNAL_ENABLED,
-    SIGNAL_NUMBER,
-    UNMANAGED_SIGNAL_CLI,
     WEB_ENABLED,
     WEB_PORT,
-    is_configured,
+    bootstrap,
     reload_config,
+    signal_config_problem,
 )
 from oden.dependency_diagnostics import run_startup_dependency_diagnostics
 from oden.log_utils import apply_log_level, configure_logging, write_log_level
@@ -51,6 +49,7 @@ async def _run_lifecycle(
     asyncio events stored on AppState.  The web server persists
     across stop/start cycles so the GUI is always reachable.
     """
+    from oden.retention_db import run_retention_loop
     from oden.signal_log_monitor import monitor_signal_cli_log
     from oden.tak.bridge import start_tak_bridge, stop_tak_bridge
     from oden.web_server import start_web_server
@@ -82,6 +81,9 @@ async def _run_lifecycle(
 
     # TAK bridge — no-op unless tak_settings.enabled; runs for the whole lifetime
     await start_tak_bridge()
+
+    # Retention: at startup and hourly, whether or not Signal runs (TAK-only too)
+    retention_task = asyncio.create_task(run_retention_loop(quit_event))
 
     try:
         if not signal_enabled:
@@ -160,6 +162,10 @@ async def _run_lifecycle(
     except asyncio.CancelledError:
         logger.info("Lifecycle cancelled.")
     finally:
+        retention_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await retention_task
+
         await stop_tak_bridge()
 
         if log_monitor_task is not None and not log_monitor_task.done():
@@ -203,43 +209,24 @@ async def _wait_for_event(*events: asyncio.Event) -> None:
                 await w
 
 
-async def run_setup_mode(port: int) -> bool:
-    """Run setup wizard and wait for configuration to complete.
-
-    Args:
-        port: Web server port.
-
-    Returns:
-        True if setup completed successfully.
-    """
-    from oden.web_server import run_setup_server
-
+def _welcome_first_start(port: int) -> None:
+    """Point the operator at the dashboard on the very first start."""
+    url = f"http://127.0.0.1:{port}/"
     logger.info("=" * 60)
     logger.info("🛡️  Välkommen till Oden!")
+    logger.info("Välj valv under fliken Obsidian och koppla Signal under fliken Signal: %s", url)
     logger.info("=" * 60)
-    logger.info("")
-    logger.info("Oden är inte konfigurerad ännu.")
-    logger.info("En webbläsare öppnas nu för att guida dig genom setup.")
-    logger.info("")
-    logger.info(f"Om webbläsaren inte öppnas, gå till: http://127.0.0.1:{port}/setup")
-    logger.info("")
 
-    # Open browser after a short delay
-    async def open_browser():
-        await asyncio.sleep(1.0)
-        url = f"http://127.0.0.1:{port}/setup"
+    def _open() -> None:
         try:
             webbrowser.open(url)
-            logger.info(f"Öppnade webbläsare: {url}")
         except Exception as e:
-            logger.warning(f"Kunde inte öppna webbläsare: {e}")
+            logger.warning("Kunde inte öppna webbläsare: %s", e)
 
-    # Run web server and browser opener concurrently
-    browser_task = asyncio.create_task(open_browser())
-    result = await run_setup_server(port)
-    browser_task.cancel()
-
-    return result
+    # Give the web server a moment to come up in the lifecycle loop.
+    timer = threading.Timer(2.0, _open)
+    timer.daemon = True
+    timer.start()
 
 
 def main() -> None:
@@ -259,73 +246,32 @@ def main() -> None:
     logger.info(f"Starting Oden v{__version__}...")
     run_startup_dependency_diagnostics()
 
-    # Auto-recover pointer file if missing but config.db exists at default location
-    _is_configured, _config_error = is_configured()
-    if not _is_configured and _config_error == "no_pointer":
-        from oden.bundle_utils import DEFAULT_ODEN_HOME, set_oden_home_path, validate_oden_home
-
-        candidate_db = DEFAULT_ODEN_HOME / "config.db"
-        if candidate_db.exists():
-            is_valid, _db_err = validate_oden_home(DEFAULT_ODEN_HOME)
-            if is_valid:
-                logger.info("Pointer file missing but config.db found at %s — restoring pointer.", DEFAULT_ODEN_HOME)
-                if set_oden_home_path(DEFAULT_ODEN_HOME):
-                    _is_configured, _config_error = is_configured()
-
-    # Validate signal number against actual signal-cli accounts
-    if _is_configured:
-        from oden.config import validate_signal_number
-
-        _is_valid, _validate_error, _accts = validate_signal_number()
-        if not _is_valid:
-            _is_configured = False
-            _config_error = _validate_error
-
-    # Check if this is first run (not configured)
-    if not _is_configured:
-        logger.info(f"First run detected ({_config_error}) - starting setup wizard...")
-        try:
-            setup_complete = asyncio.run(run_setup_mode(WEB_PORT))
-            if setup_complete:
-                logger.info("Setup complete! Reloading configuration...")
-                # Reload and get fresh config values
-                new_config = reload_config()
-                new_number = new_config["signal_number"]
-                new_host = new_config["signal_cli_host"]
-                new_port = new_config["signal_cli_port"]
-                new_unmanaged = new_config["unmanaged_signal_cli"]
-                new_signal_enabled = new_config.get("signal_enabled", True)
-                logger.info(
-                    "Post-setup config: signal_number=%s, CONFIG_DB=%s",
-                    new_number,
-                    new_config.get("oden_home", "?") + "/config.db",
-                )
-                # Persist and apply the configured log level
-                log_level_str = new_config.get("log_level_str", "INFO")
-                write_log_level(log_level_str)
-                apply_log_level(new_config["log_level"])
-            else:
-                logger.error("Setup was not completed. Exiting.")
-                sys.exit(1)
-        except (KeyboardInterrupt, SystemExit):
-            logger.info("Setup cancelled by user.")
-            sys.exit(0)
-        except Exception as e:
-            logger.exception(f"Error during setup: {e}")
-            sys.exit(1)
-    else:
-        # Use existing config
-        new_number = SIGNAL_NUMBER
-        new_host = SIGNAL_CLI_HOST
-        new_port = SIGNAL_CLI_PORT
-        new_unmanaged = UNMANAGED_SIGNAL_CLI
-        new_signal_enabled = SIGNAL_ENABLED
-
-    # Validate configuration
-    if new_signal_enabled and (new_number == "+46XXXXXXXXX" or not new_number):
-        logger.error("❌ Signal number not configured!")
-        logger.error("Please run Oden again to complete setup.")
+    # No wizard: make sure a home directory and config.db exist (creating
+    # defaults on first start), then run with whatever is configured. Signal
+    # is linked from the Signal tab and the vault chosen in the Obsidian tab.
+    try:
+        fresh_install = bootstrap()
+    except RuntimeError as e:
+        logger.error("❌ %s", e)
         sys.exit(1)
+
+    new_config = reload_config()
+    if new_config.get("signal_enabled", True):
+        problem = signal_config_problem()
+        if problem:
+            logger.warning("Signal startas inte: %s Oden körs utan Signal tills ett konto är kopplat.", problem)
+            config_module.SIGNAL_OFF_REASON = problem
+            new_config = reload_config()
+
+    write_log_level(new_config.get("log_level_str", "INFO"))
+    apply_log_level(new_config["log_level"])
+    new_host = new_config["signal_cli_host"]
+    new_port = new_config["signal_cli_port"]
+    new_unmanaged = new_config["unmanaged_signal_cli"]
+    new_signal_enabled = config_module.SIGNAL_ENABLED
+
+    if fresh_install:
+        _welcome_first_start(WEB_PORT)
 
     # Set up system tray icon
     tray = _create_tray()

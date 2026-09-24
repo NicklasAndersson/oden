@@ -6,7 +6,7 @@ Oden tar emot Signal-meddelanden via `signal-cli` och sparar dem som Markdown-fi
 
 | Dokument | Beskrivning |
 |----------|-------------|
-| [SETUP_FLOW.md](SETUP_FLOW.md) | Setup-wizardens alla steg (hemkatalog, Signal-länkning, vault-sökväg) |
+| [FIRST_START.md](FIRST_START.md) | Första start, koppla Signal från Signal-fliken, Obsidian-fliken |
 | [WEB_GUI.md](WEB_GUI.md) | Web-gränssnittets alla sidor, flikar och komplett API-endpointstabell |
 | [REPORT_TEMPLATE.md](REPORT_TEMPLATE.md) | Jinja2-mallsystem — placeholders, syntax och anpassning |
 | [FORMAT_SPEC.md](FORMAT_SPEC.md) | Normativ specifikation för Oden 7S-utdata |
@@ -46,7 +46,7 @@ Oden tar emot Signal-meddelanden via `signal-cli` och sparar dem som Markdown-fi
 - **`signal_listener.py` / `pipeline_orchestrator.py`** — DB-first ingest: råmeddelanden sparas först i SQLite, därefter körs aktiva pipelines i ordning.
 - **`pipelines/`** — `generic_template` kapslar in nuvarande generiska beteende och `seven_s.py` hanterar 7S RAPPORT som specialfall enligt separat format-spec.
 - **`messages_db.py` / `pipelines_db.py`** — Lagrar råmeddelanden, pipeline-runs och pipeline-events för revision och reprocess.
-- **`web_server.py` / `web_handlers/`** — aiohttp-baserat webbgränssnitt med setup-wizard och dashboard. Kontohantering via `account_handlers.py`.
+- **`web_server.py` / `web_handlers/`** — aiohttp-baserat webbgränssnitt (dashboard). Kontohantering via `account_handlers.py`.
 - **`template_loader.py`** — Jinja2-mallmotor med LRU-cache och sandboxed rendering.
 - **`tray.py`** — System tray-ikon via pystray (valfritt beroende).
 - **`attachment_handler.py`** — Hämtar och sparar bilagor via `app_state.send_jsonrpc()` (dirigerat genom central dispatcher).
@@ -117,12 +117,11 @@ sequenceDiagram
 När ett meddelande tas emot via JSON-RPC bearbetas det i följande ordning:
 
 1. **Sync-filtrering** — Utgående meddelanden som ekas tillbaka av signal-cli ignoreras.
-2. **Whitelist-kontroll** — Om `whitelist_groups` är satt, tillåts *enbart* de grupperna (har prioritet över `ignored_groups`).
-3. **Ignore-kontroll** — Om gruppen finns i `ignored_groups`, avbryts bearbetningen.
-4. **Separator `--`** — Om meddelandet börjar med `--` ignoreras det tyst. Inget sparas.
-5. **Reply-append** — Om meddelandet är ett svar (quote), försök append inom tidsfönstret.
-6. **Kommando `#`** — Se avsnitt [Kommandon & autosvar](#kommandon--autosvar).
-7. **Nytt meddelande** — Skapar en ny Markdown-fil i valvet.
+2. **Vägval** — Källan (grupp, direktmeddelande, TAK) avgör grenen. En ignorera-gren stoppar här: meddelandet finns i Flöde men skrivs inte. Se [PIPELINES.md](PIPELINES.md#vägval-och-grenar).
+3. **Separator `--`** — Om meddelandet börjar med `--` ignoreras det tyst. Inget sparas.
+4. **Reply-append** — Om meddelandet är ett svar (quote), försök append inom tidsfönstret.
+5. **Kommando `#`** — Se avsnitt [Kommandon & autosvar](#kommandon--autosvar).
+6. **Nytt meddelande** — Skapar en ny Markdown-fil i valvet.
 
 ### DB-first och pipelines
 
@@ -225,35 +224,18 @@ Utöver standardkommandona kan egna kommandon skapas, redigeras och tas bort via
 
 ## Grupphantering
 
-### Ignorera grupper
+### Ignorera och välja grupper
 
-| Egenskap | Beskrivning |
-|----------|-------------|
-| **Konfigurationsnyckel** | `ignored_groups` |
-| **Typ** | JSON-lista med gruppnamn |
-| **Standard** | `[]` (ingen grupp ignoreras) |
-| **Effekt** | Meddelanden från ignorerade grupper sparas inte |
-| **GUI** | Knappen "Ignorera" på grupp-sidan i Web GUI |
+Varje grupp går till en gren; en *ignorera-gren* har inga steg, så gruppens
+meddelanden sparas bara i Flöde. Grenen väljs i **Signal → Grupper** eller under
+**Vägval** i Pipelines-fliken — båda ändrar config-nyckeln `routing`. Grupper
+utan egen gren följer standardgrenen och märks *ej tilldelad* (i Flöde: *ingen
+gren*). Startmeddelandet (`startup_message = all`) skickas inte till grupper i
+en ignorera-gren.
 
-### Whitelist-grupper
-
-| Egenskap | Beskrivning |
-|----------|-------------|
-| **Konfigurationsnyckel** | `whitelist_groups` |
-| **Typ** | JSON-lista med gruppnamn |
-| **Standard** | `[]` (alla grupper tillåts) |
-| **Effekt** | Om satt, sparas *enbart* meddelanden från dessa grupper |
-| **Prioritet** | **Har alltid prioritet** över `ignored_groups` |
-| **GUI** | Knappen "Whitelist" på grupp-sidan i Web GUI |
-
-### Prioritetsordning
-
-```
-Om whitelist_groups är satt och inte tom:
-  → Enbart whitelisted grupper behandlas (ignored_groups ignoreras helt)
-Annars:
-  → Alla grupper behandlas, utom de i ignored_groups
-```
+De äldre nycklarna `ignored_groups`, `whitelist_groups` och gruppfiltrets
+svart-/vitlista styr inte längre något; gruppfiltret migreras till grenar vid
+första start (se [PIPELINES.md](PIPELINES.md)).
 
 ### Gruppåtgärder via GUI
 
@@ -573,17 +555,17 @@ volumes:
 
 ---
 
-## Setup-flöde
+## Första start
 
-Vid första start (eller om konfigurationen saknas) aktiveras en setup-wizard som guidar genom all nödvändig konfiguration: val av hemkatalog, Signal-kontolänkning via QR-kod eller registrering, vault-sökväg och Obsidian-mallinstallation.
+Ingen setup-guide: vid första start skapas hemkatalog och `config.db` med standardvärden (Signal av) och dashboarden öppnas. Valvet ställs in under **Obsidian**, Signal kopplas under **Signal → Konton** (QR-länkning, registrering eller befintligt konto).
 
-→ Se [SETUP_FLOW.md](SETUP_FLOW.md) för detaljerad beskrivning av varje steg.
+→ Se [FIRST_START.md](FIRST_START.md).
 
 ---
 
 ## Web-gränssnitt
 
-Oden har ett inbyggt webbgränssnitt (aiohttp) som startar automatiskt på `http://127.0.0.1:8080`. Det har två lägen: **setup-mode** (första start) och **dashboard-mode** (normal drift). Dashboarden ger tillgång till konfiguration, live-loggar, grupphantering, template-editor och autosvar-editor.
+Oden har ett inbyggt webbgränssnitt (aiohttp) som startar automatiskt på `http://127.0.0.1:8080`. Dashboarden ger tillgång till konfiguration, live-loggar, grupphantering, template-editor och autosvar-editor.
 
 → Se [WEB_GUI.md](WEB_GUI.md) för fullständig beskrivning av alla sidor, flikar och API-endpoints.
 

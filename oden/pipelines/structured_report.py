@@ -17,6 +17,7 @@ from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.attachment_handler import save_attachments
 from oden.formatting import format_sender_display, resolve_output_dir
+from oden.routing import step_settings
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,36 @@ def yaml_quote(value: str) -> str:
 
 # A trailing "%% ... %%" block is hidden raw data, never report input — a
 # "TNR: ..." line inside it must not override the real field.
-_TRAILING_OBSIDIAN_COMMENT_RE = re.compile(r"\n%%\n.*?\n%%[ \t]*$", re.DOTALL)
+def _trailing_comment_span(message_text: str) -> tuple[int, int] | None:
+    r"""``(start, end)`` of a trailing ``\n%%\n … \n%%`` block, or None.
+
+    The block ends the text (trailing spaces/tabs and one final newline
+    allowed) and opens at the first ``\n%%\n`` before its closing line. Plain
+    string search on purpose: message text comes from outside, and the regex
+    this replaces (``\n%%\n.*?\n%%[ \t]*$``) could backtrack quadratically.
+    """
+    end = len(message_text)
+    if message_text.endswith("\n"):
+        end -= 1
+    while end > 0 and message_text[end - 1] in " \t":
+        end -= 1
+    closing = end - 3
+    if closing < 0 or message_text[closing:end] != "\n%%":
+        return None
+    opening = message_text.find("\n%%\n", 0, closing)
+    return (opening, end) if opening >= 0 else None
+
+
+def strip_trailing_comment(message_text: str) -> str:
+    """``message_text`` without its trailing ``%% … %%`` block (unchanged if it has none)."""
+    span = _trailing_comment_span(message_text)
+    return message_text[: span[0]].rstrip() + "\n" if span else message_text
 
 
 def iter_nonempty_lines(message_text: str) -> list[str]:
-    message_text = _TRAILING_OBSIDIAN_COMMENT_RE.sub("", message_text)
+    span = _trailing_comment_span(message_text)
+    if span:
+        message_text = message_text[: span[0]] + message_text[span[1] :]
     return [line.strip() for line in message_text.splitlines() if line.strip()]
 
 
@@ -155,20 +181,29 @@ def build_report_filepath(
     tnr_base: str,
     *,
     prefix: str = "TNR",
+    create: bool = True,
 ) -> tuple[str, str]:
     """Resolve a collision-free filepath inside the vault.
 
     If group split is enabled, files are written under ``VAULT_PATH/<group>/``.
     If *vault_subdir* is set, it is appended beneath that base directory.
+    With ``create=False`` (Testruta) the directory is not created.
     """
-    target_dir = resolve_output_dir(group_title, vault_subdir)
-    os.makedirs(target_dir, exist_ok=True)
+    # Group, subdir, prefix and TNR all come from message text or settings:
+    # whatever they contain, the note must land inside the vault.
+    vault_root = os.path.abspath(cfg.VAULT_PATH)
+    target_dir = os.path.abspath(resolve_output_dir(group_title, vault_subdir))
+    if target_dir != vault_root and not target_dir.startswith(vault_root + os.sep):
+        raise ValueError("Rapportens mapp hamnar utanför valvet")
+    if create:
+        os.makedirs(target_dir, exist_ok=True)
 
     tnr = tnr_base
     counter = 2
     while True:
-        filename = f"{prefix}{tnr}.md"
-        filepath = os.path.join(target_dir, filename)
+        filepath = os.path.abspath(os.path.join(target_dir, f"{prefix}{tnr}.md"))
+        if os.path.dirname(filepath) != target_dir or not filepath.startswith(vault_root + os.sep):
+            raise ValueError(f"Ogiltigt filnamn för rapporten: {prefix}{tnr}.md")
         if not os.path.exists(filepath):
             return filepath, tnr
         tnr = f"{tnr_base}_{counter}"
@@ -225,8 +260,18 @@ def trailing_obsidian_comment(message_text: str | None) -> str:
     """
     if not message_text:
         return ""
-    match = _TRAILING_OBSIDIAN_COMMENT_RE.search(message_text)
-    return match.group(0).strip() if match else ""
+    span = _trailing_comment_span(message_text)
+    return message_text[span[0] : span[1]].strip() if span else ""
+
+
+@dataclass(frozen=True)
+class _PreparedReport:
+    filepath: str
+    content: str
+    attachments: list[dict[str, Any]]
+    signal_dt: datetime.datetime
+    source_name: str | None
+    source_number: str | None
 
 
 @dataclass(frozen=True)
@@ -278,8 +323,10 @@ class StructuredReportPipeline:
     time_field_label = "TNR"
     #: Subdirectory under VAULT_PATH where reports are written.
     #: ``None`` (the default) means the vault root.
-    #: Can be overridden per-pipeline via PIPELINE_SETTINGS[name]["vault_subdir"].
+    #: Can be overridden per-pipeline via PIPELINE_SETTINGS[name]["vault_subdir"],
+    #: and per branch via the step's config (routing.step_settings).
     vault_subdir: str | None = None
+    _last_reply_target: str | None = None
 
     def matches_message(self, message_text: str | None) -> bool:
         return is_structured_report_message(message_text, self.header_prefixes)
@@ -302,11 +349,17 @@ class StructuredReportPipeline:
             field_label=f"{self.report_id_prefix} {self.time_field_label}",
         )
 
+    def report_tnr(self, fields: dict[str, Any], reference_dt: datetime.datetime) -> str:
+        """The TNR that names the file (``<file_prefix><tnr>.md``)."""
+        del reference_dt
+        return fields[self.tnr_field_name].strip()
+
     def render_report(self, context: StructuredReportContext) -> str:
         raise NotImplementedError
 
     def _resolve_effective_subdir(self) -> str | None:
-        pipeline_settings = cfg.PIPELINE_SETTINGS.get(self.name, {}) if isinstance(cfg.PIPELINE_SETTINGS, dict) else {}
+        # Global settings for this pipeline, overridden by the running branch step's config.
+        pipeline_settings = step_settings(self.name, cfg.PIPELINE_SETTINGS)
         configured_subdir = pipeline_settings.get("vault_subdir", self.vault_subdir)
         enabled_override = pipeline_settings.get("vault_subdir_enabled")
         use_subdir = enabled_override if isinstance(enabled_override, bool) else bool(configured_subdir)
@@ -363,6 +416,7 @@ class StructuredReportPipeline:
         )
         if not target_file:
             return False
+        self._last_reply_target = target_file
 
         attachment_links = await save_attachments(
             attachments,
@@ -402,13 +456,61 @@ class StructuredReportPipeline:
         writer: Any,
     ) -> bool:
         del reader, writer
+        prepared = await self._prepare(msg_data, dry_run=False)
+        if not isinstance(prepared, _PreparedReport):
+            return prepared
+
+        content = prepared.content
+        if prepared.attachments:
+            attachment_links = await save_attachments(
+                prepared.attachments,
+                os.path.dirname(prepared.filepath),
+                prepared.signal_dt,
+                prepared.source_name,
+                prepared.source_number,
+            )
+            if attachment_links:
+                content = _append_section(content, ["## Bilagor", "", *attachment_links])
+
+        with open(prepared.filepath, "w", encoding="utf-8") as handle:
+            handle.write(content)
+
+        # Same wording as the unstructured path in oden.processing, so one grep
+        # finds every written report. Without it a 7S file lands silently and the
+        # only trace is a counter saying a note was created, somewhere.
+        logger.info("WROTE: %s", prepared.filepath)
+        self.last_output_file = prepared.filepath
+        return True
+
+    async def preview(self, msg_data: dict[str, Any]) -> dict[str, Any]:
+        """What :meth:`run` would do, without writing, downloading or creating anything."""
+        try:
+            prepared = await self._prepare(msg_data, dry_run=True)
+        except Exception as exc:  # the same errors fail the step in a real run
+            return {"handled": False, "failed": True, "reason": str(exc), "warnings": self.last_warnings}
+        if not isinstance(prepared, _PreparedReport):
+            return {"handled": prepared, "reason": self.last_reason, "warnings": self.last_warnings}
+        return {
+            "handled": True,
+            "reason": self.last_reason,
+            "output_file": prepared.filepath,
+            "content": prepared.content,
+            "attachments": len(prepared.attachments or []),
+            "warnings": self.last_warnings,
+        }
+
+    async def _prepare(self, msg_data: dict[str, Any], *, dry_run: bool) -> bool | _PreparedReport:
+        """Everything up to writing: False (skipped, ``last_reason`` says why),
+        True (handled by appending a reply; never in a dry run) or the report to write."""
         self.last_warnings: list[dict[str, str]] = []
 
         envelope = msg_data.get("envelope", {})
         if not envelope:
+            self.last_reason = "Tomt kuvert"
             return False
 
         if "syncMessage" in envelope and "dataMessage" not in envelope:
+            self.last_reason = "Eget utgående meddelande (sync)"
             return False
 
         message_text, group_title, group_id, timestamp_ms, attachments, quote = extract_message_details(envelope)
@@ -430,7 +532,11 @@ class StructuredReportPipeline:
         resolved_group_title = group_title or "inbox"
         effective_vault_subdir = self._resolve_effective_subdir()
 
-        if await self._try_append_reply_attachments(
+        if dry_run:
+            if attachments and quote:
+                self.last_reason = "Citerat svar med bilagor – läggs till i den citerade rapporten (testas inte här)"
+                return False
+        elif await self._try_append_reply_attachments(
             attachments=attachments,
             quote=quote,
             group_title=resolved_group_title,
@@ -440,9 +546,14 @@ class StructuredReportPipeline:
             source_number=source_number,
             message_text=message_text,
         ):
+            self.last_reason = "Citerat svar med bilagor lades till i den citerade rapporten"
+            self.last_output_file = self._last_reply_target
             return True
 
         if not self.matches_message(message_text):
+            self.last_reason = (
+                f"Ingen rubrik ”{self.header_prefixes[0]}”" if self.header_prefixes else "Ingen känd rubrik"
+            )
             return False
 
         fields = self.parse_report(message_text or "")
@@ -453,7 +564,7 @@ class StructuredReportPipeline:
         if not source_id:
             raise ValueError(f"{self.report_id_prefix} Signal sender id is missing")
 
-        raw_tnr = fields[self.tnr_field_name].strip()
+        raw_tnr = self.report_tnr(fields, dt)
         report_dt = self.build_report_datetime(fields=fields, reference_dt=dt)
 
         filepath, resolved_tnr = build_report_filepath(
@@ -461,6 +572,7 @@ class StructuredReportPipeline:
             effective_vault_subdir,
             raw_tnr,
             prefix=self.file_prefix,
+            create=not dry_run,
         )
 
         content = self.render_report(
@@ -479,23 +591,12 @@ class StructuredReportPipeline:
             )
         )
 
-        if attachments:
-            attachment_links = await save_attachments(
-                attachments,
-                os.path.dirname(filepath),
-                signal_dt,
-                source_name,
-                source_number,
-            )
-            if attachment_links:
-                content = _append_section(content, ["## Bilagor", "", *attachment_links])
-
-        with open(filepath, "w", encoding="utf-8") as handle:
-            handle.write(content)
-
-        # Same wording as the unstructured path in oden.processing, so one grep
-        # finds every written report. Without it a 7S file lands silently and the
-        # only trace is a counter saying a note was created, somewhere.
-        logger.info("WROTE: %s", filepath)
-
-        return True
+        self.last_reason = f"Rubriken ”{self.header_prefixes[0]}” matchade – sparad som {self.report_id_prefix}-rapport"
+        return _PreparedReport(
+            filepath=filepath,
+            content=content,
+            attachments=attachments,
+            signal_dt=signal_dt,
+            source_name=source_name,
+            source_number=source_number,
+        )

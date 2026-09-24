@@ -28,6 +28,27 @@
         </div>
     </div>
 
+    <div class="config-section">
+        <h3>📷 Anslut med QR-kod</h3>
+        <p class="help-paragraph">
+            Samma QR-kod som TAK-servern visar för ATAK eller iTAK. Skanna den med mobilkameran och klistra in
+            texten, eller läs in en skärmbild av koden. Formuläret nedan fylls i — kontrollera och klicka Spara.
+        </p>
+        <div class="config-grid">
+            <div class="config-field full-width">
+                <label for="tak-qr-text">QR-kodens text</label>
+                <textarea id="tak-qr-text" rows="3" spellcheck="false" autocomplete="off"
+                          placeholder="tak://com.atakmap.app/enroll?host=…&amp;username=…&amp;token=…   eller   Namn,tak.example.org,8089,SSL"></textarea>
+                <span class="help-text">Enrollment-länken innehåller en token som fungerar som lösenord — behandla den som ett lösenord.</span>
+            </div>
+        </div>
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" onclick="applyTakQr()">Fyll i från QR</button>
+            <button type="button" class="btn btn-secondary hidden" id="tak-qr-image-btn" onclick="document.getElementById('tak-qr-file').click()">Läs från bild…</button>
+            <input type="file" id="tak-qr-file" accept="image/*" style="display: none;" onchange="readTakQrImage(this)">
+        </div>
+    </div>
+
     <form id="tak-form" class="config-form">
         <div class="config-section">
             <h3>🔌 Anslutning</h3>
@@ -68,6 +89,13 @@
                         <label for="tak-archive">Arkivera markörer på servern</label>
                     </div>
                     <span class="help-text">Sätter &lt;archive/&gt; så markören överlever att Oden kopplar ner</span>
+                </div>
+                <div class="config-field full-width">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="tak-publish-reports" name="publish_reports">
+                        <label for="tak-publish-reports">Publicera 7S-rapporter från Signal som markörer i TAK</label>
+                    </div>
+                    <span class="help-text">Av som standard: Oden samlar in och sparar till valvet, och skriver inget till TAK. Slå på bara om inkomna 7S med position ska synas på kartan i ATAK/iTAK</span>
                 </div>
             </div>
         </div>
@@ -212,11 +240,6 @@
                     <label for="tak-marti-port">Marti-API-port</label>
                     <input type="number" id="tak-marti-port" name="marti_port" min="1" max="65535">
                     <span class="help-text">Normalt 8443, inte samma port som CoT-anslutningen</span>
-                </div>
-                <div class="config-field full-width">
-                    <label for="tak-inbound-group">Gruppnamn för inkommande</label>
-                    <input type="text" id="tak-inbound-group" name="inbound_group_name" placeholder="TAK Inkommande">
-                    <span class="help-text">Kör du whitelist-läge i gruppfiltret måste detta namn finnas i listan</span>
                 </div>
             </div>
         </div>

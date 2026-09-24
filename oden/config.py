@@ -29,6 +29,7 @@ from oden.config_db import (
 )
 from oden.path_utils import (
     ensure_directory,
+    is_within_directory,
     normalize_path,
     validate_path_within_home,
 )
@@ -57,6 +58,12 @@ def get_default_log_path() -> Path:
         return Path.home() / "AppData" / "Local" / "Oden" / "Logs" / "oden.log"
     else:
         return Path.home() / ".local" / "state" / "oden" / "oden.log"
+
+
+# Set at startup when Signal is enabled in the settings but cannot be used this
+# run (no account linked, account gone). Keeps SIGNAL_ENABLED off at runtime and
+# is shown in the Signal tab.
+SIGNAL_OFF_REASON: str | None = None
 
 
 def _update_paths(oden_home: Path) -> None:
@@ -292,6 +299,48 @@ def _migrate_settings_to_pipelines(app_config: dict) -> None:
             logger.info("Migrated settings to generic_template pipeline configuration")
 
 
+def _migrate_routing(app_config: dict) -> None:
+    """Store the routing (branches) once, derived from the old chain + group filter.
+
+    Same outcome as before for every message; ``enabled_pipelines`` and the
+    group filter settings are kept untouched so a downgrade still works, but
+    from here on the routing is what runs and what the GUI edits.
+    """
+    stored = app_config.get("routing")
+    if isinstance(stored, dict) and stored.get("branches"):
+        _migrate_routing_version(app_config)
+        return
+    from oden.config_db import set_config_value
+    from oden.routing import derive_from_legacy
+
+    routing = derive_from_legacy(app_config.get("enabled_pipelines"), app_config.get("pipeline_settings"))
+    app_config["routing"] = routing
+    set_config_value(CONFIG_DB, "routing", routing)
+    logger.info(
+        "Migrerade pipelinekedjan till grenar: %s (standard: %s, %d tilldelade källor)",
+        ", ".join(b["name"] for b in routing["branches"]),
+        routing["default"],
+        len(routing["assign"]),
+    )
+
+
+def _migrate_routing_version(app_config: dict) -> None:
+    """Stored routing from before TAK → text was a step: add it where TAK goes, once."""
+    from oden.config_db import set_config_value
+    from oden.routing import VERSION, add_pre_step, normalize_routing
+
+    stored = app_config["routing"]
+    if isinstance(stored.get("version"), int) and stored["version"] >= VERSION:
+        return
+    try:
+        routing = add_pre_step(normalize_routing(stored))
+    except ValueError:
+        return  # an invalid stored routing is left for load_routing to fall back from
+    app_config["routing"] = routing
+    set_config_value(CONFIG_DB, "routing", routing)
+    logger.info("Lade till steget TAK → text i grenen som TAK går till")
+
+
 def _migrate_enabled_pipelines(app_config: dict) -> None:
     """Ensure new built-in pipelines appear in the default execution order."""
     enabled = list(app_config.get("enabled_pipelines") or [])
@@ -336,7 +385,7 @@ def reload_config() -> dict:
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
     global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
     global PIPELINE_SETTINGS
-    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS
+    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS, RAW_MESSAGE_MAX_MB, ROUTING, REPORT_FORMATS
 
     logger.info("Reloading configuration from database")
 
@@ -351,12 +400,13 @@ def reload_config() -> dict:
     # Migrate old settings to pipeline configuration if needed
     _migrate_settings_to_pipelines(app_config)
     _migrate_enabled_pipelines(app_config)
+    _migrate_routing(app_config)
 
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
-    SIGNAL_ENABLED = app_config.get("signal_enabled", True)
+    SIGNAL_ENABLED = app_config.get("signal_enabled", True) and not SIGNAL_OFF_REASON
     if not SIGNAL_ENABLED:
-        logger.info("Reload: Signal disabled")
+        logger.info("Reload: Signal disabled%s", f" ({SIGNAL_OFF_REASON})" if SIGNAL_OFF_REASON else "")
     elif not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
         logger.warning("SIGNAL_NUMBER is not configured after reload (value=%r, db=%s)", SIGNAL_NUMBER, CONFIG_DB)
     else:
@@ -400,6 +450,9 @@ def reload_config() -> dict:
     )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
+    RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
+    ROUTING = app_config.get("routing")
+    REPORT_FORMATS = app_config.get("report_formats") or []
 
     # Persist and apply the log level so it takes effect immediately
     from oden.log_utils import apply_log_level, write_log_level
@@ -430,20 +483,134 @@ def reset_config() -> bool:
     return success
 
 
-def soft_reset_config() -> bool:
+def bootstrap() -> bool:
+    """Make sure Oden has a home directory and a config database, without a wizard.
+
+    * No pointer file: use ``ODEN_HOME``/``~/.oden``. An existing ``config.db``
+      there is kept (the pointer is just restored); otherwise a new one is made.
+    * New database: default settings with Signal *off* — a Signal account is
+      linked later from the Signal tab, the vault path set in the Obsidian tab
+      (``ODEN_VAULT`` gives the first-start vault path, e.g. ``/vault`` in Docker).
+    * A corrupt database is never replaced silently: RuntimeError tells the
+      operator which file to move away.
+
+    Returns True when this was a fresh install (a new database was created).
+    Raises RuntimeError with a Swedish message when Oden cannot start.
     """
-    Clear the pointer file without deleting config.db.
+    home = get_oden_home_path() or DEFAULT_ODEN_HOME
+    fresh = not (home / "config.db").exists()
 
-    This puts Oden into setup mode while preserving all existing
-    configuration values. The setup wizard will merge its changes
-    into the existing database instead of starting from scratch.
+    success, error = setup_oden_home(home)
+    if not success:
+        raise RuntimeError(f"Kunde inte förbereda Oden-katalogen {home}: {error}")
 
-    Returns:
-        True if successful, False otherwise.
+    if fresh:
+        logger.info("Första start: skapar standardinställningar i %s (Signal av tills ett konto kopplas)", CONFIG_DB)
+        defaults = {**DEFAULT_CONFIG, "signal_enabled": False}
+        # Docker sets ODEN_VAULT=/vault so the first start writes into the volume.
+        if os.environ.get("ODEN_VAULT"):
+            defaults["vault_path"] = os.environ["ODEN_VAULT"]
+        save_config(defaults)
+
+    is_valid, db_error = check_db_integrity(CONFIG_DB)
+    if not is_valid:
+        raise RuntimeError(
+            f"Konfigurationsdatabasen {CONFIG_DB} går inte att läsa ({db_error}). "
+            "Flytta undan eller radera filen och starta Oden igen — då skapas en ny."
+        )
+    return fresh
+
+
+def oden_home_locked_by_env() -> bool:
+    """True when ODEN_HOME (Docker) decides the home directory; the pointer file is then ignored."""
+    return bool(os.environ.get("ODEN_HOME"))
+
+
+def pending_oden_home() -> Path | None:
+    """The home directory Oden will use after a restart, if it differs from the running one."""
+    target = get_oden_home_path()
+    return target if target is not None and target.resolve() != ODEN_HOME.resolve() else None
+
+
+def change_oden_home(new_path: str) -> tuple[str, str]:
+    """Point Oden at another home directory from the next start on.
+
+    * The target already holds a ``config.db``: switch to it as it is.
+    * The target is missing or empty: copy the running home there first —
+      ``config.db`` through SQLite's backup API (consistent while Oden runs),
+      everything else (signal-data, TAK certificates, logs) as files. The old
+      directory is left in place.
+
+    The running Oden keeps its current paths; the change takes effect on
+    restart. Returns ``(action, message)`` with action "switch" or "copy".
+    Raises ValueError with a Swedish message.
     """
-    from oden.bundle_utils import clear_oden_home_pointer
+    import shutil
+    import sqlite3
 
-    return clear_oden_home_pointer()
+    if oden_home_locked_by_env():
+        raise ValueError("Hemkatalogen styrs av miljövariabeln ODEN_HOME och kan inte bytas här.")
+
+    target, error = validate_path_within_home(str(new_path).strip())
+    if error or target is None:
+        raise ValueError(error or "Ogiltig sökväg")
+    current = ODEN_HOME.resolve()
+    if target == current:
+        raise ValueError("Oden använder redan den katalogen.")
+    if is_within_directory(target, current) or is_within_directory(current, target):
+        raise ValueError("Den nya katalogen kan inte ligga i den nuvarande (eller tvärtom).")
+
+    if (target / "config.db").exists():
+        valid, db_error = validate_oden_home(target)
+        if not valid:
+            raise ValueError(f"config.db i {target} går inte att använda ({db_error}).")
+        action = "switch"
+        message = f"Oden använder inställningarna som redan finns i {target} efter omstart."
+    else:
+        if target.exists() and any(target.iterdir()):
+            raise ValueError(f"{target} är inte tom och innehåller ingen config.db — välj en tom katalog.")
+        target.mkdir(parents=True, exist_ok=True, mode=0o700)
+        for entry in current.iterdir():
+            if entry.name.startswith("config.db"):
+                continue  # copied below, consistently
+            if entry.is_dir():
+                shutil.copytree(entry, target / entry.name, symlinks=True)
+            else:
+                shutil.copy2(entry, target / entry.name)
+        src = sqlite3.connect(CONFIG_DB)
+        dst = sqlite3.connect(target / "config.db")
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+        action = "copy"
+        message = (
+            f"Inställningar och Signal-data kopierade till {target}. "
+            f"Oden använder den efter omstart; {current} ligger kvar som reserv."
+        )
+
+    if not set_oden_home_path(target):
+        raise ValueError("Kunde inte spara den nya hemkatalogen (pekarfilen gick inte att skriva).")
+    logger.info("Hemkatalog ändrad till %s (%s) — gäller efter omstart", target, action)
+    return action, message
+
+
+def signal_config_problem() -> str | None:
+    """Why the configured Signal account cannot be used right now, or None.
+
+    Only meaningful when ``signal_enabled`` is on. Oden then starts without
+    Signal for this run (see ``SIGNAL_OFF_REASON``) instead of refusing to
+    start; the setting itself is left alone so a fixed account just works.
+    """
+    number = (get_all_config(CONFIG_DB).get("signal_number") or "").strip()
+    if not number or number.startswith("+46XXXX"):
+        return "Inget Signal-konto är kopplat."
+    valid, error, accounts = validate_signal_number()
+    if valid:
+        return None
+    known = ", ".join(a.get("number", "") for a in accounts) or "inga"
+    return f"Kontot {number} finns inte i signal-cli (tillgängliga konton: {known}). Koppla om under Signal → Konton."
 
 
 def setup_oden_home(path: Path) -> tuple[bool, str | None]:
@@ -570,6 +737,9 @@ try:
     )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
+    RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
+    ROUTING = app_config.get("routing")
+    REPORT_FORMATS = app_config.get("report_formats") or []
 
 except Exception as e:
     logger.error("Error loading configuration: %s", e)
@@ -605,3 +775,5 @@ except Exception as e:
     ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
     PIPELINE_SETTINGS = {"group_filter": {"mode": "blacklist", "groups": []}}
     RAW_MESSAGE_RETENTION_DAYS = 30
+    ROUTING = None
+    REPORT_FORMATS = []

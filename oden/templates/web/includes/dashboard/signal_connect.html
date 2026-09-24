@@ -1,0 +1,56 @@
+{#- Signal → Konton when Oden runs without Signal: link (QR), register, or use an existing account -#}
+{% if not signal_enabled %}
+<div class="config-section" id="signal-connect">
+    <h3>🔗 Koppla Signal</h3>
+    <p class="help-paragraph">
+        Koppla ett Signal-konto så börjar Oden ta emot
+        meddelanden efter nästa omstart. Rekommenderat: länka Oden som en enhet till ett befintligt konto.
+    </p>
+
+    <div id="signal-connect-accounts"></div>
+
+    <div class="signal-connect-options">
+        <div class="signal-connect-option">
+            <h4 class="pane-heading">Länka befintligt konto</h4>
+            <p class="help-paragraph">Skanna QR-koden i Signal-appen: <em>Inställningar → Länkade enheter → Lägg till enhet</em>.</p>
+            <button type="button" class="btn btn-primary" id="signal-link-btn" onclick="startSignalLink()">Visa QR-kod</button>
+            <div id="signal-link-area" class="hidden">
+                <div id="signal-link-qr" class="signal-qr"></div>
+                <p class="help-paragraph" id="signal-link-status">Väntar på att koden skannas…</p>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="cancelSignalLink()">Avbryt</button>
+            </div>
+        </div>
+
+        <div class="signal-connect-option">
+            <h4 class="pane-heading">Registrera nytt nummer</h4>
+            <p class="help-paragraph">Oden blir då den enda enheten på numret. Använd hellre länkning om numret redan finns i Signal på en telefon.</p>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label for="signal-register-number">Telefonnummer</label>
+                    <input type="text" id="signal-register-number" placeholder="+46701234567" autocomplete="off">
+                </div>
+                <div class="config-field">
+                    <label>&nbsp;</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="signal-register-voice">
+                        <label for="signal-register-voice">Röstsamtal i stället för SMS</label>
+                    </div>
+                </div>
+                <div class="config-field full-width hidden" id="signal-register-captcha-field">
+                    <label for="signal-register-captcha">CAPTCHA</label>
+                    <input type="text" id="signal-register-captcha" placeholder="signalcaptcha://…" autocomplete="off">
+                    <span class="help-text">Signal kräver en CAPTCHA: lös den på <a href="https://signalcaptchas.org/registration/generate.html" target="_blank" rel="noopener">signalcaptchas.org</a>, högerklicka på ”Open Signal” och kopiera länken hit.</span>
+                </div>
+                <div class="config-field hidden" id="signal-register-code-field">
+                    <label for="signal-register-code">Verifieringskod</label>
+                    <input type="text" id="signal-register-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456">
+                </div>
+            </div>
+            <div class="config-actions">
+                <button type="button" class="btn btn-primary" id="signal-register-btn" onclick="startSignalRegister()">Skicka kod</button>
+                <button type="button" class="btn btn-primary hidden" id="signal-verify-btn" onclick="verifySignalRegister()">Verifiera</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}

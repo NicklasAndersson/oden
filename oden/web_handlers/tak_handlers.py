@@ -20,6 +20,7 @@ from oden.tak.bridge import cert_expiry, get_tak_bridge, load_tak_settings
 from oden.tak.cot import Report, latlon_to_mgrs, report_to_cot, sanitize_token
 from oden.tak.listener import _INBOUND_DEFAULTS
 from oden.tak.pref_package import describe_package, read_data_package, tak_dir
+from oden.tak.qr import parse_tak_qr
 from oden.web_handlers._helpers import handle_errors, parse_json_body
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ _EDITABLE_KEYS = {
     "callsign": str,
     "cot_stale_seconds": int,
     "cot_archive": bool,
+    "publish_reports": bool,
     "pli_enabled": bool,
     "pli_interval_seconds": int,
     "pli_lat": float,
@@ -238,6 +240,26 @@ async def tak_test_handler(request: web.Request) -> web.Response:
             "message": f"Testmarkör ODEN.TEST.{tnr} skickad ({lat:.5f}, {lon:.5f})",
         }
     )
+
+
+@handle_errors("parse tak qr")
+@parse_json_body
+async def tak_qr_handler(request: web.Request) -> web.Response:
+    """Turn the text of an ATAK/iTAK connection QR code into TAK form values.
+
+    Nothing is saved: the GUI fills in the form and the operator presses Spara,
+    so the token takes the same write-only path as a typed enrollment password.
+    """
+    try:
+        qr = parse_tak_qr(str(request["json_body"].get("text") or ""))
+    except ValueError as exc:
+        return web.json_response({"success": False, "error": str(exc)}, status=400)
+
+    fields: dict[str, Any] = {"cot_url": qr.cot_url}
+    if qr.kind == "enroll":
+        fields["enroll_username"] = qr.username
+        fields["enroll_password"] = qr.token
+    return web.json_response({"success": True, "kind": qr.kind, "fields": fields, "message": qr.summary()})
 
 
 @handle_errors("upload tak package")

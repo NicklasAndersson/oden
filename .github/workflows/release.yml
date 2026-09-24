@@ -419,7 +419,7 @@ jobs:
       - name: Generate release screenshots
         continue-on-error: true
         run: |
-          pytest -q tests/test_web_screenshots.py -k "test_dashboard_screenshot or test_setup_page_screenshot"
+          pytest -q tests/test_web_screenshots.py -k "test_dashboard_screenshot"
 
       - name: Download macOS artifacts
         uses: actions/download-artifact@v8
@@ -477,12 +477,6 @@ jobs:
             cp screenshots/dashboard.png release_files/release-dashboard.png
           else
             cp images/dashboard.png release_files/release-dashboard.png
-          fi
-
-          if [ -f screenshots/setup.png ]; then
-            cp screenshots/setup.png release_files/release-setup.png
-          else
-            cp images/setup.png release_files/release-setup.png
           fi
           
           # Create source package for developers
@@ -547,9 +541,6 @@ jobs:
 
           ### Dashboard
           ![Dashboard](${SCREENSHOTS_BASE}/release-dashboard.png)
-
-          ### Setup Wizard
-          ![Setup](${SCREENSHOTS_BASE}/release-setup.png)
           EOF
 
           gh release create "$TAG" \
@@ -598,9 +589,6 @@ jobs:
 
           ### Dashboard
           ![Dashboard](${SCREENSHOTS_BASE}/release-dashboard.png)
-
-          ### Setup Wizard
-          ![Setup](${SCREENSHOTS_BASE}/release-setup.png)
           EOF
 
           gh release create "$TAG" \
@@ -652,14 +640,11 @@ jobs:
             2. Install signal-cli and Java 25+
             3. `pip install -e .` then `python -m oden`
             
-            The web-based setup wizard will guide you through configuration on first run at `http://localhost:8080/setup`.
+            Open `http://localhost:8080` — Oden starts straight in the dashboard. Choose the vault under the Obsidian tab and link Signal under the Signal tab.
             
             ## Screenshots
             
             ### Dashboard
             ![Dashboard](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/release-dashboard.png)
-            
-            ### Setup Wizard
-            ![Setup](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/release-setup.png)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

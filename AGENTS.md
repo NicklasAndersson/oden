@@ -26,15 +26,20 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 
 - **s7_watcher.py**: Entry point. Manages signal-cli subprocess, TCP connection, startup tasks, web GUI, tray icon. Starts `subscribe_and_listen()` as a background task in the lifecycle loop
 - **signal_listener.py**: Owns the TCP reader loop (`_reader_loop`) and receive-notification processing; persists raw messages first when DB-first is enabled
-- **processing.py**: Core fallback logic. Parses messages, handles commands (`#help`), reply-append, file I/O
+- **processing.py**: Core fallback logic. Parses messages, handles commands (`#help`), reply-append, file I/O. `process_message()` returns a `ProcessOutcome` (action, reason, path) that the generic pipeline reports to the Flöde view
+- **routing.py**: Vägval and branches (grenar). `resolve_branch()` picks a branch from the message's source (`source:tak`, `group_id:`, `group:`, `source:direct`, else the default); the orchestrator records it as a `router` run and then runs the branch's steps. Ignore branches have no steps (status ignored). A step's `config` overrides the pipeline's global settings for that branch only — read them with `routing.step_settings(name, cfg.PIPELINE_SETTINGS)`. Stored as config key `routing`; `config._migrate_routing()` derives it once from the legacy `enabled_pipelines` + `group_filter`
+- **report_formats.py**: Rapportformat — report formats defined as data in config key `report_formats` (headers, fields, sections, required, TNR field, file prefix, optional sandboxed Jinja body template). `FormatReportPipeline` is a `StructuredReportPipeline`, run as step `format:<id>` in a branch; `STARTERS` are the built-ins as editable starting points. API in `web_handlers/format_handlers.py`, UI in `formats.js`
+- **pipelines/tak_text.py**: TAK → text pre-step. The listener stores the raw CoT (`_cot_xml`) with the message; this step re-renders it with the branch's settings via `tak.listener.render_message()` and hands later steps the new message (`last_transformed`; orchestrator records it as outcome `transform`). Always first in a branch (`routing.PRE_STEP`); `routing.add_pre_step` migrates it in once (routing version 2)
+- **dry_run.py**: Testruta — `dry_run(msg_data)` shows the vägval, each step's outcome and reason, and the file that would be written, without writing, sending or storing anything. Report pipelines expose `preview()` (shares `_prepare()` with `run()`); the fallback uses `processing.preview_message()`. Keep these in step when a pipeline gains a new side effect
+- **flow_db.py**: Read model for the Flöde tab — joins `raw_messages` with the latest attempt of `pipeline_runs` and the reason each pipeline gave. Pipelines explain themselves by setting `last_reason` / `last_side_effect` / `last_output_file` (the orchestrator clears them before each run)
 - **config.py**: Loads config from `config_db`, exports constants like `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE`
 - **config_db.py**: SQLite config database (`config.db`). Key-value store with type-aware serialization, integrity checking
 - **app_state.py**: Singleton application state — holds references to writer, signal-cli process, web runner, tray icon. Central JSON-RPC dispatcher: `send_jsonrpc()` registers Futures by request id, `dispatch_line()` routes incoming lines (RPC responses → Futures, notifications → queue)
 - **tray.py**: System tray icon via pystray. Start/stop toggle, open web GUI, quit. Blocks main thread on macOS (NSApplication)
 - **formatting.py**: Filename sanitization, path generation, display formatting
 - **signal_manager.py**: Starts/stops the signal-cli subprocess
-- **web_server.py**: aiohttp web server with setup mode and dashboard mode
-- **web_handlers/**: Route handlers — `setup_handlers.py` (wizard, Signal linking/QR), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact)
+- **web_server.py**: aiohttp web server (dashboard only — there is no setup wizard; `config.bootstrap()` creates defaults on first start)
+- **web_handlers/**: Route handlers — `signal_connect_handlers.py` (connect Signal from the Signal tab when it is off: QR link, register, use existing account, disable), `obsidian_handlers.py` (vault status, install `.obsidian` template), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact), `message_handlers.py` (message observability, reprocess, and the Flöde API `/api/flow`)
 - **template_loader.py**: Jinja2 template engine for report formatting. Templates loaded from config_db or files, with LRU cache and validation
 - **attachment_handler.py**: Downloads and saves Signal attachments to vault subdirectories. Uses `app_state.send_jsonrpc()` for attachment fetching (routed through central dispatcher)
 - **path_utils.py**: Path validation, sanitization, directory operations. When `ODEN_HOME` env var is set (Docker), the home-directory constraint is relaxed
@@ -113,18 +118,17 @@ Before push, run `scripts/pre_push_checks.sh` (or enable repo hook with `git con
 ### Web GUI
 A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, or `0.0.0.0:8080` in Docker via `WEB_HOST` env var).
 
-**Setup mode** (first run): Wizard for choosing Oden home dir, linking Signal account (QR code), setting vault path.
+**First start** (no wizard): `config.bootstrap()` creates `ODEN_HOME`/`~/.oden` and `config.db` with defaults (Signal off; vault from `ODEN_VAULT` if set) and the browser opens the dashboard. If Signal is on but its account is missing, Oden runs without Signal for that run (`config.SIGNAL_OFF_REASON`). See `docs/FIRST_START.md`.
 
-**Dashboard mode** (normal operation):
-- Config viewer/editor (3 tabs: Grundläggande, Avancerat, Rå config)
-- Live logs (polls every 3 seconds)
-- Groups list with ignore/whitelist toggle
-- Join group via Signal invite link, accept/decline pending invitations
-- Message management tab (raw messages, detail view, reprocess)
-- Pipelines tab (enable/disable, reorder, per-pipeline config)
-- Template editor with split-screen preview
-- Signal accounts tab (list, link via QR, activate, delete, force-delete)
-- Shutdown button
+**Dashboard mode** (normal operation) — tabs:
+- **Flöde**: everything that comes in, per source, with the pipeline route, the reason for each step, raw envelope, written file, all runs/events, reprocess (replaced the old Meddelandehantering tab)
+- **Grundläggande**: timezone, append window
+- **Obsidian**: vault path, directory structure, install Oden's `.obsidian` settings
+- **Signal**: everything Signal, as sub-tabs (`showSignalPane()`): Konton (list, link via QR, activate, delete, force-delete), Grupper (branch per group, join via invite link, invitations, group admin), Kontakter, Kommandosvar, Inställningar (number, display name, startup message, signal-cli, Signal protocol, restart signal-cli, Signal on/off); when Signal is off, Konton shows *Koppla Signal*
+- **TAK**: everything TAK (status, QR connect, connection, certificates, inbound CoT, test marker)
+- **Pipelines**: vägval (source → branch, default branch), branches as columns with their steps and 24 h stats, a detail panel for the selected branch or step (rename, default, on/off, order, per-branch vault subdir, links to Flöde filtered by branch/step outcome), Rapportformat editor (`formats.js`, `/api/report-formats`), fallback per branch (folder, or off = only in Flöde), Testruta (dry run), global per-pipeline settings, template editor — `routing.js` + `GET/PUT /api/routing`, `POST /api/pipelines/test`
+- **Avancerat**: log level, storage (`raw_message_retention_days`, `raw_message_max_mb`, stats, clean now — `retention_db.run_retention_loop` runs at startup and hourly from the lifecycle, independent of Signal), Oden home directory (`config.change_oden_home()`: copy to an empty dir or switch to one with a `config.db`; applies after restart; locked when `ODEN_HOME` is set)
+- Live logs (polls every 3 seconds) and a shutdown button
 
 **Security:** The web GUI has no authentication. By default it binds to `127.0.0.1` (loopback only). Setting `WEB_HOST=0.0.0.0` (e.g. in Docker) exposes an unauthenticated admin API on all interfaces — protect it with a firewall or reverse proxy, or keep it loopback-only.
 
@@ -135,6 +139,7 @@ Oden is distributed as a multi-arch Docker image (`linux/amd64`, `linux/arm64`) 
 
 Key environment variables for Docker:
 - `ODEN_HOME=/data` — where config.db and signal-data live (volume mount)
+- `ODEN_VAULT=/vault` — vault path used on first start (volume mount)
 - `WEB_HOST=0.0.0.0` — bind web GUI to all interfaces
 
 ```bash

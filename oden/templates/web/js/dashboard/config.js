@@ -24,6 +24,7 @@ async function loadConfigForm() {
         document.getElementById('cfg-unmanaged').checked = config.unmanaged_signal_cli || false;
         document.getElementById('cfg-log-level').value = config.log_level || 'INFO';
         document.getElementById('cfg-raw-retention-days').value = config.raw_message_retention_days || 30;
+        document.getElementById('cfg-raw-max-mb').value = config.raw_message_max_mb || 0;
         document.getElementById('cfg-diagnostic-mode').checked = config.diagnostic_mode || false;
     } catch (error) {
         console.error('Error loading config:', error);
@@ -77,26 +78,6 @@ async function loadSignalCliStatus() {
         logNode.classList.remove('warning');
         versionNode.textContent = 'Kunde inte läsa signal-cli-status.';
         logNode.textContent = 'Kunde inte läsa loggövervakningsstatus.';
-    }
-}
-
-async function rerunSetup() {
-    if (!confirm('Kör setup för Signal? Du kan länka eller byta Signal-konto, eller hoppa över Signal. Befintlig konfiguration behålls tills du sparar ny.')) {
-        return;
-    }
-    try {
-        const response = await fetch('/api/setup/reset', {
-            method: 'DELETE',
-        });
-        const data = await response.json();
-        if (response.ok && data.success) {
-            showConfigMessage('Setup startar om...', 'success');
-            setTimeout(() => { window.location.href = '/setup'; }, 1500);
-        } else {
-            showConfigMessage(data.error || 'Kunde inte starta om setup', 'error');
-        }
-    } catch (error) {
-        showConfigMessage('Nätverksfel: ' + error.message, 'error');
     }
 }
 
@@ -181,4 +162,96 @@ async function restartSignalCli() {
     } catch (error) {
         showConfigMessage('Fel vid omstart: ' + error.message, 'error');
     }
+}
+
+// ========== Oden-hemkatalog (Avancerat) ==========
+
+async function loadOdenHome() {
+    const box = document.getElementById('oden-home-current');
+    try {
+        const response = await fetch('/api/oden-home');
+        const data = await response.json();
+        let html = `<span class="mono">${escapeHtml(data.current)}</span>`;
+        if (data.locked_by_env) {
+            html += '<br>Styrs av miljövariabeln <span class="mono">ODEN_HOME</span> (t.ex. i Docker) och kan inte bytas här.';
+        } else if (data.pending) {
+            html += `<br>Efter omstart: <span class="mono">${escapeHtml(data.pending)}</span>`;
+        }
+        box.innerHTML = html;
+        document.getElementById('oden-home-change-field').classList.toggle('hidden', data.locked_by_env);
+        document.getElementById('oden-home-actions').classList.toggle('hidden', data.locked_by_env);
+    } catch (error) {
+        box.textContent = 'Kunde inte läsa hemkatalogen';
+    }
+}
+
+async function changeOdenHome() {
+    const path = document.getElementById('oden-home-path').value.trim();
+    if (!path) {
+        showConfigMessage('Ange en katalog', 'error');
+        return;
+    }
+    if (!confirm(`Byta Odens hemkatalog till ${path}? Det gäller efter omstart.`)) return;
+    try {
+        const response = await fetch('/api/oden-home', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: path}),
+        });
+        const data = await response.json();
+        showConfigMessage(data.message || data.error, data.success ? 'success' : 'error');
+        if (data.success) document.getElementById('oden-home-path').value = '';
+    } catch (error) {
+        showConfigMessage('Nätverksfel: ' + error.message, 'error');
+    }
+    loadOdenHome();
+}
+
+// ========== Lagring (Avancerat) ==========
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 MB';
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} kB`;
+    const mb = bytes / (1024 * 1024);
+    return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+}
+
+async function loadStorageStatus() {
+    const box = document.getElementById('storage-status');
+    try {
+        const response = await fetch('/api/storage');
+        const data = await response.json();
+        const since = data.oldest ? new Date(data.oldest).toLocaleDateString('sv-SE') : '–';
+        const limit = data.max_mb ? ` av max ${data.max_mb} MB` : '';
+        const lines = [
+            `${data.messages} meddelanden (varav ${data.tak_messages} från TAK) sedan ${escapeHtml(since)}: `
+                + `${formatBytes(data.raw_bytes)} rådata${limit}.`,
+            `${data.pipeline_runs} pipeline-körningar, ${data.pipeline_events} händelser. `
+                + `Databasfilen: ${formatBytes(data.db_file_bytes)}.`,
+        ];
+        const last = data.last_cleanup;
+        if (last && last.at) {
+            const when = new Date(last.at).toLocaleString('sv-SE');
+            lines.push(`Senaste rensning ${escapeHtml(when)}: ${last.deleted_raw_messages} meddelanden borttagna`
+                + (last.deleted_for_size ? ` (${last.deleted_for_size} för storleksgränsen)` : '')
+                + (last.vacuumed ? ', filen komprimerad' : '') + '.');
+        }
+        box.innerHTML = lines.join('<br>');
+    } catch (error) {
+        box.textContent = 'Kunde inte läsa lagringsstatus';
+    }
+}
+
+async function runStorageCleanup() {
+    try {
+        const response = await fetch('/api/storage/cleanup', {method: 'POST'});
+        const data = await response.json();
+        const s = data.summary || {};
+        showConfigMessage(data.success
+            ? `Rensat: ${s.deleted_raw_messages || 0} meddelanden, ${s.deleted_pipeline_runs || 0} körningar`
+            : (data.error || 'Rensningen misslyckades'), data.success ? 'success' : 'error');
+    } catch (error) {
+        showConfigMessage('Nätverksfel: ' + error.message, 'error');
+    }
+    loadStorageStatus();
 }

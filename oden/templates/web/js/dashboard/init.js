@@ -16,8 +16,7 @@ loadSignalCliStatus();
 setInterval(fetchLogs, 3000);          // Logs: every 3 seconds
 setInterval(fetchInvitations, 10000);  // Invitations: every 10 seconds
 setInterval(fetchGroups, 30000);       // Groups: every 30 seconds
-setInterval(fetchMessagesIfVisible, 3000); // Messages: every 3 seconds when tab active
-setInterval(fetchPipelinesIfVisible, 3000); // Pipelines: every 3 seconds when tab active
+setInterval(fetchFlowIfVisible, 3000);     // Flöde: every 3 seconds when tab active and not paused
 setInterval(loadSignalCliStatus, 30000); // signal-cli status: every 30 seconds
 
 // ========== Form Handlers ==========
@@ -25,12 +24,12 @@ document.getElementById('join-group-form').addEventListener('submit', handleJoin
 document.getElementById('create-group-form').addEventListener('submit', handleCreateGroupSubmit);
 
 // Prevent form submission on Enter (auto-save handles saving)
-['config-form', 'config-form-advanced'].forEach(formId => {
+['config-form', 'config-form-obsidian', 'config-form-signal', 'config-form-advanced'].forEach(formId => {
     document.getElementById(formId).addEventListener('submit', e => e.preventDefault());
 });
 
 // ========== Auto-Save on Change ==========
-['config-form', 'config-form-advanced'].forEach(formId => {
+['config-form', 'config-form-obsidian', 'config-form-signal', 'config-form-advanced'].forEach(formId => {
     const form = document.getElementById(formId);
     form.addEventListener('input', autoSaveConfig);
     form.addEventListener('change', autoSaveConfig);

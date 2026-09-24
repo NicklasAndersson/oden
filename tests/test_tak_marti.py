@@ -244,7 +244,9 @@ class PollerTest(unittest.IsolatedAsyncioTestCase):
                 raise asyncio.CancelledError
             remaining -= 1
 
-        async def capture(cot, group_name, orchestrator, *, attachments=()):
+        async def capture(cot, group_name, orchestrator, *, attachments=(), raw_xml=None):
+            # The raw CoT goes along so the TAK → text step can redo the conversion.
+            assert raw_xml and b"<event" in raw_xml, raw_xml
             self.notes.append((cot.uid, tuple(name for name, _ in attachments)))
 
         filt = listener.InboundFilter({"inbound_types": ["a-h-G"]})

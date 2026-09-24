@@ -1,0 +1,139 @@
+{#- Signal → Inställningar: konto, signal-cli, protokoll, setup -#}
+<div id="signal-pane-settings" class="subtab-pane" role="tabpanel" aria-label="Inställningar">
+    <form id="config-form-signal" class="config-form">
+        <div class="config-section">
+            <h3>📱 Konto</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label for="cfg-signal-number">Telefonnummer</label>
+                    <input type="text" id="cfg-signal-number" name="signal_number" placeholder="+46...">
+                    <span class="help-text">Ditt Signal-nummer i internationellt format, t.ex. +46701234567</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-display-name">Visningsnamn</label>
+                    <input type="text" id="cfg-display-name" name="display_name" placeholder="oden">
+                    <span class="help-text">Namn som visas i rapporthuvuden och filnamn</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-startup-message">Startup-meddelande</label>
+                    <select id="cfg-startup-message" name="startup_message">
+                        <option value="self">Skicka till mig själv</option>
+                        <option value="all">Skicka till alla grupper</option>
+                        <option value="off">Av</option>
+                    </select>
+                    <span class="help-text">Skicka ett statusmeddelande när Oden startar</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🔧 signal-cli</h3>
+            <fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label for="cfg-signal-host">Host</label>
+                    <input type="text" id="cfg-signal-host" name="signal_cli_host" placeholder="127.0.0.1">
+                    <span class="help-text">IP-adress där signal-cli lyssnar (normalt 127.0.0.1)</span>
+                </div>
+                <div class="config-field">
+                    <label for="cfg-signal-port">Port</label>
+                    <input type="number" id="cfg-signal-port" name="signal_cli_port" placeholder="7583">
+                    <span class="help-text">TCP-port för JSON-RPC-anslutning till signal-cli</span>
+                </div>
+                <div class="config-field full-width">
+                    <label for="cfg-signal-path">Sökväg till signal-cli (valfritt)</label>
+                    <input type="text" id="cfg-signal-path" name="signal_cli_path" placeholder="Lämna tomt för auto">
+                    <span class="help-text">Absolut sökväg till signal-cli-binären. Lämna tomt för automatisk sökning</span>
+                </div>
+                <div class="config-field full-width">
+                    <label>signal-cli version</label>
+                    <div id="signal-cli-version-status" class="runtime-status">Laddar versionsstatus...</div>
+                    <span class="help-text">Oden förväntar sig signal-cli {{ expected_signal_cli_version }}</span>
+                </div>
+                <div class="config-field">
+                    <label>Extern signal-cli</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="cfg-unmanaged" name="unmanaged_signal_cli">
+                        <label for="cfg-unmanaged">Ohanterad (startas inte av Oden)</label>
+                    </div>
+                    <span class="help-text">Aktivera om signal-cli redan körs separat och inte ska hanteras av Oden</span>
+                </div>
+                <div class="config-field full-width">
+                    <label>Diagnostic mode</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="cfg-diagnostic-mode" name="diagnostic_mode">
+                        <label for="cfg-diagnostic-mode">Alltid signal-cli fil-loggning</label>
+                    </div>
+                    <span class="help-text">När aktiv loggar signal-cli alltid till fil (default: ~/.oden/signal-cli.log om ingen sökväg är satt)</span>
+                </div>
+                <div class="config-field full-width">
+                    <label>signal-cli loggövervakning</label>
+                    <div id="signal-cli-log-monitor-status" class="runtime-status">Laddar loggstatus...</div>
+                    <span class="help-text">När loggning är avstängd visas endast information, ingen varning</span>
+                </div>
+            </div>
+            <div class="config-actions">
+                <button type="button" class="btn btn-secondary" onclick="restartSignalCli()">↻ Starta om signal-cli</button>
+            </div>
+            </fieldset>
+        </div>
+
+    </form>
+
+    <!-- Signal Protocol Settings (separate from config form) -->
+    <div class="config-section" style="margin-top: var(--spacing-lg);">
+        <h3>📡 Signal-protokoll</h3>
+        <p class="help-paragraph">
+            Signal-protokollinställningar som styr vad kontot delar med andra. Sparas direkt i signal-cli.
+        </p>
+        <fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
+        <div class="config-grid">
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-auto-read-receipt" name="auto_read_receipt_enabled">
+                    Läskvitton
+                </label>
+                <span class="help-text">Skicka läskvitto när meddelande bearbetats</span>
+            </div>
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-signal-typing-indicators">
+                    Skrivindikator
+                </label>
+                <span class="help-text">Visa "skriver..."-indikator för andra</span>
+            </div>
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-signal-link-previews">
+                    Länkförhandsgranskning
+                </label>
+                <span class="help-text">Generera förhandsgranskning av delade länkar</span>
+            </div>
+            <div class="config-field">
+                <label>
+                    <input type="checkbox" id="cfg-signal-unidentified-delivery">
+                    Sealed sender-indikatorer
+                </label>
+                <span class="help-text">Visa sealed sender-leveransindikatorer</span>
+            </div>
+        </div>
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" onclick="saveSignalConfig()">Spara Signal-inställningar</button>
+        </div>
+        </fieldset>
+    </div>
+
+    <div class="config-section section-divider">
+        <h3>⏻ Signal på/av</h3>
+        {% if signal_enabled %}
+        <p class="help-paragraph">
+            Stäng av Signal för att köra Oden utan Signal (t.ex. bara TAK). Kontot ligger kvar i signal-cli och kan
+            kopplas på igen under Signal → Konton. Gäller efter omstart.
+        </p>
+        <button type="button" class="btn btn-danger" onclick="disableSignal()">Stäng av Signal</button>
+        {% else %}
+        <p class="help-paragraph">Signal är avstängt. Koppla ett konto under <strong>Konton</strong> för att slå på det.</p>
+        <button type="button" class="btn btn-secondary" onclick="showSignalPane('accounts')">Gå till Konton</button>
+        {% endif %}
+    </div>
+</div>

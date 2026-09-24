@@ -1,0 +1,16 @@
+{#- Tab: Signal — allt som rör Signal: konton, grupper, kontakter, kommandosvar, inställningar -#}
+<div id="tab-signal" class="tab-content">
+    {% include "includes/dashboard/signal_off_notice.html" %}
+    <div class="subtabs" role="tablist" aria-label="Signal">
+        <button type="button" role="tab" class="subtab-btn active" data-pane="accounts" onclick="showSignalPane('accounts')">Konton</button>
+        <button type="button" role="tab" class="subtab-btn" data-pane="groups" onclick="showSignalPane('groups')">Grupper</button>
+        <button type="button" role="tab" class="subtab-btn" data-pane="contacts" onclick="showSignalPane('contacts')">Kontakter</button>
+        <button type="button" role="tab" class="subtab-btn" data-pane="responses" onclick="showSignalPane('responses')">Kommandosvar</button>
+        <button type="button" role="tab" class="subtab-btn" data-pane="settings" onclick="showSignalPane('settings')">Inställningar</button>
+    </div>
+    {% include "includes/dashboard/tab_accounts.html" %}
+    {% include "includes/dashboard/tab_groups.html" %}
+    {% include "includes/dashboard/tab_contacts.html" %}
+    {% include "includes/dashboard/tab_responses.html" %}
+    {% include "includes/dashboard/tab_signal_settings.html" %}
+</div>

@@ -48,6 +48,7 @@ hiddenimports = [
     'oden.tray',
     'PIL',
     'mgrs',
+    'defusedxml.ElementTree',
 ]
 
 if sys.platform == 'darwin':

@@ -1,6 +1,8 @@
-// pipelines.js — Depends on: shared.js (escapeHtml, showConfigMessage)
+// pipelines.js — Depends on: shared.js (escapeHtml, showConfigMessage), routing.js (loadRouting)
 //
-// Pipeline management tab: list pipelines, enable/disable and reorder execution.
+// Pipelines tab, lower half: each pipeline's global settings (used by every
+// branch unless the branch's step overrides them) and the report template
+// editor. The branches themselves live in routing.js.
 
 let pipelinesState = {
     available: [],
@@ -28,14 +30,6 @@ const genericTemplateMeta = {
 // auto-refresh poll doesn't re-render the list and wipe unsaved dropdown/textarea
 // input. Reset on every full render (tab switch / post-save).
 let _pipelineSettingsDirty = false;
-
-function getEnabledNames() {
-    return pipelinesState.enabled.map(item => item.name);
-}
-
-function isPipelineEnabled(name) {
-    return getEnabledNames().includes(name);
-}
 
 function pipelineRunCount(name) {
     return pipelinesState.stats.by_pipeline?.[name] || 0;
@@ -246,47 +240,6 @@ async function previewGenericTemplateEditor() {
     }
 }
 
-function renderGroupFilterSettings(item) {
-    const cfg = item.config || {};
-    const mode = cfg.mode === 'whitelist' ? 'whitelist' : 'blacklist';
-    const groups = Array.isArray(cfg.groups) ? cfg.groups : [];
-    const knownGroups = getKnownGroupNames();
-    const suggestionsHtml = knownGroups.length
-        ? knownGroups.map(groupName => {
-            const isSelected = groups.includes(groupName);
-            return `<button type="button" class="btn btn-small ${isSelected ? 'btn-secondary' : ''}" data-group-name="${escapeHtml(groupName)}" onclick="addGroupFilterGroupFromButton(this)">${escapeHtml(groupName)}</button>`;
-        }).join('')
-        : '<span class="text-muted">Inga kända grupper ännu.</span>';
-
-    return `
-        <div class="pipeline-settings">
-            <div class="pipeline-settings-row">
-                <label for="pipeline-config-group_filter-mode">Filterläge</label>
-                <select id="pipeline-config-group_filter-mode">
-                    <option value="blacklist" ${mode === 'blacklist' ? 'selected' : ''}>Blacklist (exkludera listade grupper)</option>
-                    <option value="whitelist" ${mode === 'whitelist' ? 'selected' : ''}>Whitelist (tillåt endast listade grupper)</option>
-                </select>
-            </div>
-            <div class="pipeline-settings-row">
-                <label for="pipeline-config-group_filter-groups">Grupper (en per rad)</label>
-                <textarea id="pipeline-config-group_filter-groups" rows="4" placeholder="Exempelgrupp A\nExempelgrupp B">${escapeHtml(groups.join('\n'))}</textarea>
-                <div class="refresh-info" style="margin-top: 8px;">
-                    Förslag från befintliga grupper (klicka för att lägga till):
-                </div>
-                <div class="pipeline-suggestions" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
-                    ${suggestionsHtml}
-                </div>
-                <div class="refresh-info" style="margin-top: 6px;">
-                    Du kan också skriva egna gruppnamn som ännu inte finns.
-                </div>
-            </div>
-            <div class="pipeline-settings-actions">
-                <button class="btn btn-small" onclick="saveGroupFilterSettings()">Spara filter</button>
-            </div>
-        </div>
-    `;
-}
-
 function renderStructuredSubdirSettings(item) {
     const cfg = item.config || {};
     const enabled = !!cfg.vault_subdir_enabled;
@@ -341,36 +294,6 @@ async function saveStructuredSubdirSettings(name) {
         await loadPipelinesDashboard();
     } catch (error) {
         showConfigMessage(`Kunde inte spara inställningar: ${error.message}`, 'error');
-    }
-}
-
-function getKnownGroupNames() {
-    const source = Array.isArray(_groupsCache) ? _groupsCache : [];
-    const names = source
-        .map(group => (group?.name || '').trim())
-        .filter(Boolean);
-    return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'sv'));
-}
-
-function addGroupFilterGroupFromButton(button) {
-    addGroupFilterGroup(button?.dataset?.groupName || '');
-}
-
-function addGroupFilterGroup(groupName) {
-    const groupsEl = document.getElementById('pipeline-config-group_filter-groups');
-    const normalized = (groupName || '').trim();
-    if (!groupsEl || !normalized) {
-        return;
-    }
-
-    const groups = groupsEl.value
-        .split('\n')
-        .map(item => item.trim())
-        .filter(Boolean);
-
-    if (!groups.includes(normalized)) {
-        groups.push(normalized);
-        groupsEl.value = groups.join('\n');
     }
 }
 
@@ -467,183 +390,6 @@ async function saveGenericTemplateSettings() {
     }
 }
 
-function renderEnabledPipelines() {
-    const container = document.getElementById('pipelines-enabled-list');
-    const enabled = pipelinesState.enabled || [];
-
-    if (!enabled.length) {
-        container.innerHTML = '<div class="empty-state">Inga aktiva pipelines.</div>';
-        return;
-    }
-
-    container.innerHTML = enabled.map((item, index) => {
-        const meta = pipelinesState.available.find(p => p.name === item.name);
-        const canMoveUp = index > 0;
-        const canMoveDown = index < enabled.length - 1;
-        const displayName = meta?.display_name || item.name;
-        const criteria = meta?.selection_criteria || 'Ingen urvalsbeskrivning tillgänglig';
-        const description = meta?.description || '';
-        const runCount = pipelineRunCount(item.name);
-
-        const settingsHtml = meta?.supports_config && item.name === 'group_filter'
-            ? renderGroupFilterSettings(item)
-            : meta?.supports_config && item.name === 'generic_template'
-            ? renderGenericTemplateSettings(item)
-            : meta?.supports_config && ['seven_s', 'fors', 'pedars', 'scrim'].includes(item.name)
-            ? renderStructuredSubdirSettings(item)
-            : '';
-
-        return `
-            <div class="pipeline-card enabled">
-                <div class="pipeline-card-header">
-                    <div class="pipeline-title-wrap">
-                        <span class="pipeline-order">${index + 1}.</span>
-                        <span class="pipeline-title">${escapeHtml(displayName)}</span>
-                        <span class="pipeline-chip active">Aktiv</span>
-                    </div>
-                    <div class="pipeline-controls">
-                        <button class="btn btn-small" onclick="movePipeline('${escapeHtml(item.name)}', -1)" ${canMoveUp ? '' : 'disabled'} title="Flytta upp">↑</button>
-                        <button class="btn btn-small" onclick="movePipeline('${escapeHtml(item.name)}', 1)" ${canMoveDown ? '' : 'disabled'} title="Flytta ner">↓</button>
-                        <button class="btn btn-small btn-danger-outline" onclick="setPipelineEnabled('${escapeHtml(item.name)}', false)">Stäng av</button>
-                    </div>
-                </div>
-                <div class="pipeline-criteria"><strong>Väljer:</strong> ${escapeHtml(criteria)}</div>
-                ${description ? `<div class="pipeline-description">${escapeHtml(description)}</div>` : ''}
-                ${settingsHtml}
-                <div class="pipeline-meta">Körningar: ${runCount}</div>
-            </div>
-        `;
-    }).join('');
-
-    _pipelineSettingsDirty = false;
-    if (!container.dataset.dirtyWired) {
-        const markDirty = () => { _pipelineSettingsDirty = true; };
-        container.addEventListener('input', markDirty);
-        container.addEventListener('change', markDirty);
-        container.dataset.dirtyWired = '1';
-    }
-}
-
-function renderAvailablePipelines() {
-    const container = document.getElementById('pipelines-available-list');
-    const available = pipelinesState.available || [];
-
-    if (!available.length) {
-        container.innerHTML = '<div class="empty-state">Inga pipelines hittades.</div>';
-        return;
-    }
-
-    container.innerHTML = available.map((pipeline) => {
-        const enabled = isPipelineEnabled(pipeline.name);
-        const runCount = pipelineRunCount(pipeline.name);
-        const buttonText = enabled ? 'Aktiv' : 'Aktivera';
-
-        return `
-            <div class="pipeline-card ${enabled ? 'enabled' : 'disabled'}">
-                <div class="pipeline-card-header">
-                    <div class="pipeline-title-wrap">
-                        <span class="pipeline-title">${escapeHtml(pipeline.display_name || pipeline.name)}</span>
-                        <span class="pipeline-chip ${enabled ? 'active' : 'inactive'}">${enabled ? 'Aktiv' : 'Inaktiv'}</span>
-                    </div>
-                    <div class="pipeline-controls">
-                        <button class="btn btn-small" onclick="setPipelineEnabled('${escapeHtml(pipeline.name)}', true)" ${enabled ? 'disabled' : ''}>${buttonText}</button>
-                    </div>
-                </div>
-                <div class="pipeline-criteria"><strong>Väljer:</strong> ${escapeHtml(pipeline.selection_criteria || 'Ingen urvalsbeskrivning tillgänglig')}</div>
-                ${pipeline.description ? `<div class="pipeline-description">${escapeHtml(pipeline.description)}</div>` : ''}
-                <div class="pipeline-meta">Körningar: ${runCount}</div>
-            </div>
-        `;
-    }).join('');
-}
-
-async function loadPipelinesDashboard() {
-    const enabledContainer = document.getElementById('pipelines-enabled-list');
-    const availableContainer = document.getElementById('pipelines-available-list');
-
-    if (!enabledContainer || !availableContainer) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/pipelines');
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        const payload = await response.json();
-        pipelinesState = {
-            available: payload.available || [],
-            enabled: payload.enabled || [],
-            stats: payload.stats || { total_processed: 0, by_pipeline: {} },
-        };
-
-        renderEnabledPipelines();
-        renderAvailablePipelines();
-    } catch (error) {
-        const msg = `<div class="empty-state">Kunde inte ladda pipelines: ${escapeHtml(error.message)}</div>`;
-        enabledContainer.innerHTML = msg;
-        availableContainer.innerHTML = msg;
-    }
-}
-
-async function setPipelineEnabled(name, enabled) {
-    try {
-        const response = await fetch(`/api/pipelines/${encodeURIComponent(name)}/enabled`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ enabled }),
-        });
-
-        const payload = await response.json();
-        if (!response.ok || payload.success === false) {
-            throw new Error(payload.error || `HTTP ${response.status}`);
-        }
-
-        showConfigMessage(`Pipeline ${name} ${enabled ? 'aktiverad' : 'avaktiverad'}.`, 'success');
-        await loadPipelinesDashboard();
-    } catch (error) {
-        showConfigMessage(`Kunde inte uppdatera pipeline: ${error.message}`, 'error');
-    }
-}
-
-async function movePipeline(name, direction) {
-    const current = getEnabledNames();
-    const currentIndex = current.indexOf(name);
-    const targetIndex = currentIndex + direction;
-
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= current.length) {
-        return;
-    }
-
-    const reordered = [...current];
-    const temp = reordered[currentIndex];
-    reordered[currentIndex] = reordered[targetIndex];
-    reordered[targetIndex] = temp;
-
-    try {
-        const response = await fetch('/api/pipelines/reorder', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ order: reordered }),
-        });
-
-        const payload = await response.json();
-        if (!response.ok || payload.success === false) {
-            throw new Error(payload.error || `HTTP ${response.status}`);
-        }
-
-        showConfigMessage('Pipeline-ordning uppdaterad.', 'success');
-        await loadPipelinesDashboard();
-    } catch (error) {
-        showConfigMessage(`Kunde inte ändra ordning: ${error.message}`, 'error');
-    }
-}
-
 async function savePipelineConfig(name, config) {
     const response = await fetch(`/api/pipelines/${encodeURIComponent(name)}/config`, {
         method: 'PATCH',
@@ -659,34 +405,51 @@ async function savePipelineConfig(name, config) {
     }
 }
 
-async function saveGroupFilterSettings() {
-    const modeEl = document.getElementById('pipeline-config-group_filter-mode');
-    const groupsEl = document.getElementById('pipeline-config-group_filter-groups');
-    if (!modeEl || !groupsEl) {
+
+function renderPipelineDefaults() {
+    const container = document.getElementById('pipelines-available-list');
+    const available = (pipelinesState.available || []).filter(p => p.name !== 'group_filter');
+    if (!available.length) {
+        container.innerHTML = '<div class="empty-state">Inga pipelines hittades.</div>';
         return;
     }
-
-    const groups = groupsEl.value
-        .split('\n')
-        .map(item => item.trim())
-        .filter(Boolean);
-
-    try {
-        await savePipelineConfig('group_filter', {
-            mode: modeEl.value === 'whitelist' ? 'whitelist' : 'blacklist',
-            groups,
-        });
-        showConfigMessage('Gruppfilter sparat.', 'success');
-        await loadPipelinesDashboard();
-        await fetchGroups();
-    } catch (error) {
-        showConfigMessage(`Kunde inte spara gruppfilter: ${error.message}`, 'error');
-    }
+    const configs = Object.fromEntries((pipelinesState.enabled || []).map(item => [item.name, item.config]));
+    container.innerHTML = available.map(pipeline => {
+        const item = { name: pipeline.name, config: configs[pipeline.name] || pipelinesState.settings?.[pipeline.name] || {} };
+        const settingsHtml = pipeline.name === 'generic_template'
+            ? renderGenericTemplateSettings(item)
+            : ['seven_s', 'fors', 'pedars', 'scrim'].includes(pipeline.name)
+            ? renderStructuredSubdirSettings(item)
+            : '';
+        return `
+            <details class="pipeline-card">
+                <summary class="pipeline-card-header">
+                    <span class="pipeline-title">${escapeHtml(routingPipelineLabel(pipeline.name))}</span>
+                    <span class="pipeline-meta">Körningar totalt: ${pipelineRunCount(pipeline.name)}</span>
+                </summary>
+                <div class="pipeline-criteria"><strong>Väljer:</strong> ${escapeHtml(pipeline.selection_criteria || '')}</div>
+                ${pipeline.description ? `<div class="pipeline-description">${escapeHtml(pipeline.description)}</div>` : ''}
+                ${settingsHtml || '<div class="pipeline-meta">Inga inställningar.</div>'}
+            </details>`;
+    }).join('');
 }
 
-function fetchPipelinesIfVisible() {
-    const tab = document.getElementById('tab-pipelines');
-    if (tab && tab.classList.contains('active') && !_pipelineSettingsDirty) {
-        loadPipelinesDashboard();
+async function loadPipelinesDashboard() {
+    const container = document.getElementById('pipelines-available-list');
+    if (!container) return;
+    try {
+        const response = await fetch('/api/pipelines');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        pipelinesState = {
+            available: payload.available || [],
+            enabled: payload.enabled || [],
+            settings: payload.settings || {},
+            stats: payload.stats || { total_processed: 0, by_pipeline: {} },
+        };
+        renderPipelineDefaults();
+    } catch (error) {
+        container.innerHTML = `<div class="empty-state">Kunde inte ladda pipelines: ${escapeHtml(error.message)}</div>`;
     }
+    await Promise.all([loadRouting(), loadFormats()]);
 }

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from oden import config as cfg
@@ -15,18 +16,42 @@ from oden.formatting import (
     find_latest_file_by_fileid,
     format_sender_display,
     get_message_filepath,
-    get_safe_group_dir_path,
+    resolve_output_dir,
 )
 from oden.groups_db import upsert_group
 from oden.responses_db import get_response_by_keyword
+from oden.routing import step_settings
 from oden.template_loader import render_append, render_report
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class ProcessOutcome:
+    """What the fallback flow did with a message, for the Flöde view.
+
+    ``action`` is one of ``wrote``, ``appended``, ``command``, ``skipped`` or ``error``.
+    """
+
+    action: str
+    reason: str
+    path: str | None = None
+
+
 # ==============================================================================
 # SIGNAL CONFIRMATION HELPERS
 # ==============================================================================
+
+
+def _fallback_subdir() -> str | None:
+    """The fallback's folder under the group: the running branch step's ``vault_subdir``.
+
+    Set per branch in the Pipelines tab (e.g. everything no report step took
+    goes to ``Övrigt``); empty means the group folder, as before.
+    """
+    settings = step_settings("generic_template", cfg.PIPELINE_SETTINGS)
+    subdir = str(settings.get("vault_subdir") or "").strip()
+    return subdir if subdir and settings.get("vault_subdir_enabled", True) is not False else None
 
 
 async def _send_reaction(source_number: str | None, timestamp: int, group_id: str | None) -> None:
@@ -206,19 +231,21 @@ async def _send_reply(group_id: str, message: str, writer: asyncio.StreamWriter)
         logger.error(f"ERROR sending reply to {group_id}: {e}")
 
 
-async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+async def process_message(
+    obj: dict[str, Any], reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+) -> ProcessOutcome:
     """
     Parses a signal message object and writes it to a markdown file, including attachments.
     If a file for that sender already exists from the same minute, appends the new message.
     """
     envelope = obj.get("envelope", {})
     if not envelope:
-        return
+        return ProcessOutcome("skipped", "Tomt kuvert")
 
     # Skip syncMessages — these are our own outgoing messages echoed back by signal-cli
     if "syncMessage" in envelope and "dataMessage" not in envelope:
         logger.debug("Skipping sync message (own outgoing message)")
-        return
+        return ProcessOutcome("skipped", "Eget utgående meddelande (sync) sparas inte")
 
     msg, group_title, group_id, attachments = _extract_message_details(envelope)
 
@@ -230,7 +257,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     # If message starts with '--', ignore it.
     if msg and msg.strip().startswith("--"):
         logger.info("Skipping message: Starts with '--'.")
-        return
+        return ProcessOutcome("skipped", "Börjar med '--' och ska inte sparas")
 
     source_name = envelope.get("sourceName")
     source_number = envelope.get("sourceNumber") or envelope.get("source")
@@ -255,23 +282,24 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
     if is_reply_append:
         if not group_title:
             logger.error("Cannot append message, missing group.")
-            return
+            return ProcessOutcome("skipped", "Citerat svar utan grupp kan inte läggas till någon fil")
 
-        group_dir = get_safe_group_dir_path(group_title)
+        group_dir = resolve_output_dir(group_title, _fallback_subdir())
 
         # For replies, find the file of the quoted author.
         append_target_number = quote.get("author")
         append_target_name = None  # Name isn't available in the quote object
         if not append_target_number:
             logger.error("Cannot append reply, quote author number is missing.")
-            return
+            return ProcessOutcome("skipped", "Citerat svar saknar författare")
 
         if not (append_target_name or append_target_number):
             logger.error("Cannot append message, missing target user details.")
-            return
+            return ProcessOutcome("skipped", "Citerat svar saknar författare")
 
         latest_file = _find_latest_file_for_sender(group_dir, append_target_name, append_target_number)
         append_succeeded = False
+        append_outcome = ProcessOutcome("skipped", "Tomt svar – inget att lägga till")
 
         if latest_file:
             new_text = ""
@@ -312,6 +340,11 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                         f.write(append_content)
                     logger.info(f"APPENDED (reply) TO: {latest_file}")
                     append_succeeded = True
+                    append_outcome = ProcessOutcome(
+                        "appended",
+                        f"Citerat svar inom {cfg.APPEND_WINDOW_MINUTES} min lades till i den citerade avsändarens fil",
+                        latest_file,
+                    )
                     # Fire-and-forget confirmations
                     msg_ts = envelope.get("timestamp")
                     if msg_ts:
@@ -333,13 +366,13 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         # If the append was successful (or an empty append was intentionally consumed), we are done.
         # If the append failed, we continue on to process it as a new message.
         if append_succeeded:
-            return
+            return append_outcome
 
     # --- Handle Standard Commands (#) ---
     if msg and msg.strip().startswith("#"):
         command = msg.strip()[1:].lower()
         if not command:
-            return
+            return ProcessOutcome("skipped", "Tomt kommando ('#')")
         response_text = get_response_by_keyword(cfg.CONFIG_DB, command)
         if response_text:
             try:
@@ -349,16 +382,17 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
                 logger.error(f"Could not process #{command} command: {e}")
         else:
             logger.info(f"No response found for command: #{command}")
-        return
+            return ProcessOutcome("command", f"Kommandot #{command} saknar svar i Svar och kommandon")
+        return ProcessOutcome("command", f"Kommandot #{command} besvarades i chatten")
 
     # If no message body and no attachments, skip.
     if not msg and not attachments:
         logger.info("Skipping message: No message body and no attachments.")
-        return
+        return ProcessOutcome("skipped", "Varken text eller bilagor")
 
     if not group_title:
         logger.info("Skipping message: Not a group message.")
-        return
+        return ProcessOutcome("skipped", "Direktmeddelanden sparas inte, bara gruppmeddelanden")
 
     dt = (
         datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=cfg.TIMEZONE)
@@ -366,7 +400,7 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
         else now
     )
 
-    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True)
+    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True, subdir=_fallback_subdir())
     group_dir = os.path.dirname(path)
     os.makedirs(group_dir, exist_ok=True)
 
@@ -419,3 +453,73 @@ async def process_message(obj: dict[str, Any], reader: asyncio.StreamReader, wri
             asyncio.create_task(_send_read_receipt(source_number, msg_ts))
     except OSError as e:
         logger.error(f"Failed to write file {path}: {e}")
+        return ProcessOutcome("error", f"Kunde inte skriva filen: {e}", path)
+    return ProcessOutcome("wrote", "Nytt meddelande sparades som egen fil", path)
+
+
+def preview_message(obj: dict[str, Any]) -> tuple[ProcessOutcome, str | None]:
+    """What :func:`process_message` would do, for the Testruta.
+
+    Same decisions in the same order, but nothing is written, sent, created or
+    stored. Returns the outcome and, for a new file, the rendered content.
+    """
+    result = _preview(obj)
+    return result if isinstance(result, tuple) else (result, None)
+
+
+def _preview(obj: dict[str, Any]) -> ProcessOutcome | tuple[ProcessOutcome, str]:
+    envelope = obj.get("envelope", {})
+    if not envelope:
+        return ProcessOutcome("skipped", "Tomt kuvert")
+    if "syncMessage" in envelope and "dataMessage" not in envelope:
+        return ProcessOutcome("skipped", "Eget utgående meddelande (sync) sparas inte")
+
+    msg, group_title, group_id, attachments = _extract_message_details(envelope)
+    if msg and msg.strip().startswith("--"):
+        return ProcessOutcome("skipped", "Börjar med '--' och ska inte sparas")
+
+    source_name = envelope.get("sourceName")
+    source_number = envelope.get("sourceNumber") or envelope.get("source")
+    quote = (envelope.get("dataMessage") or {}).get("quote")
+    if quote:
+        return ProcessOutcome(
+            "skipped",
+            "Citerat svar – läggs till i en befintlig fil inom tidsfönstret, annars som nytt meddelande (testas inte här)",
+        )
+
+    if msg and msg.strip().startswith("#"):
+        command = msg.strip()[1:].lower()
+        if not command:
+            return ProcessOutcome("skipped", "Tomt kommando ('#')")
+        if get_response_by_keyword(cfg.CONFIG_DB, command):
+            return ProcessOutcome("command", f"Kommandot #{command} skulle besvaras i chatten")
+        return ProcessOutcome("command", f"Kommandot #{command} saknar svar i Svar och kommandon")
+
+    if not msg and not attachments:
+        return ProcessOutcome("skipped", "Varken text eller bilagor")
+    if not group_title:
+        return ProcessOutcome("skipped", "Direktmeddelanden sparas inte, bara gruppmeddelanden")
+
+    dt = (
+        datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=cfg.TIMEZONE)
+        if envelope.get("timestamp")
+        else datetime.datetime.now(cfg.TIMEZONE)
+    )
+    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True, subdir=_fallback_subdir())
+    coords = extract_coordinates(msg) if msg else None
+    content = render_report(
+        fileid=create_fileid(dt, source_name, source_number),
+        group_title=group_title,
+        group_id=group_id,
+        tnr=dt.strftime("%d%H%M"),
+        timestamp_iso=dt.isoformat(),
+        sender_display=format_sender_display(source_name, source_number),
+        sender_name=source_name,
+        sender_number=source_number,
+        lat=coords[0] if coords else None,
+        lon=coords[1] if coords else None,
+        quote_formatted=None,
+        message=msg.strip() if msg else None,
+        attachments=None,
+    )
+    return ProcessOutcome("wrote", "Nytt meddelande skulle sparas som egen fil", path), content

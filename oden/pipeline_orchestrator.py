@@ -7,6 +7,7 @@ pipeline while recording pipeline run status and events in SQLite.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ from oden.pipelines.pedars import PedarsPipeline
 from oden.pipelines.scrim import ScrimPipeline
 from oden.pipelines.seven_s import SevenSPipeline
 from oden.pipelines.tak_publish import TakPublishPipeline
+from oden.pipelines.tak_text import TakTextPipeline
 from oden.pipelines_db import (
     append_pipeline_event,
     complete_pipeline_run,
@@ -34,9 +36,42 @@ from oden.pipelines_db import (
     start_pipeline_run,
 )
 from oden.processing import process_message
+from oden.report_formats import is_format_step, load_formats, pipeline_for
+from oden.routing import (
+    FALLBACK,
+    ROUTER,
+    branch_by_id,
+    branch_steps,
+    load_routing,
+    reset_step_config,
+    resolve_branch_detail,
+    set_step_config,
+)
 from oden.tak.bridge import get_tak_bridge
 
 logger = logging.getLogger(__name__)
+
+# Per-run attributes a pipeline may set to explain itself in the Flöde view.
+# The orchestrator clears them before every run so a reused pipeline instance
+# never reports the previous message's reason.
+#   last_reason       — why it handled or skipped the message (Swedish, one line)
+#   last_side_effect  — what a non-consuming pipeline did anyway (e.g. TAK publish)
+#   last_output_file  — the vault file it wrote or appended to
+_RUN_ATTRS = ("last_reason", "last_side_effect", "last_output_file", "last_transformed")
+
+
+def _reset_run_attrs(pipeline: Any) -> None:
+    for attr in _RUN_ATTRS:
+        with contextlib.suppress(AttributeError):
+            setattr(pipeline, attr, None)
+
+
+def _details(pipeline: Any, **extra: Any) -> dict[str, Any]:
+    details: dict[str, Any] = {"pipeline": pipeline.name, **extra}
+    reason = getattr(pipeline, "last_reason", None)
+    if reason:
+        details["reason"] = reason
+    return details
 
 
 class _GenericPipeline:
@@ -46,7 +81,13 @@ class _GenericPipeline:
     selection_criteria = "Fallback: körs för alla meddelanden som inte redan hanterats av tidigare pipeline."
 
     async def run(self, *, msg_data: dict, reader: Any, writer: Any) -> bool:
-        await process_message(msg_data, reader, writer)
+        outcome = await process_message(msg_data, reader, writer)
+        if outcome is None:
+            return True
+        if outcome.action == "error":
+            raise OSError(outcome.reason)
+        self.last_reason = outcome.reason
+        self.last_output_file = outcome.path
         return True
 
 
@@ -57,6 +98,7 @@ class PipelineOrchestrator:
         self._db_path = db_path
         self._pipeline_map: dict[str, Any] = {
             "tak_publish": TakPublishPipeline(),
+            "tak_text": TakTextPipeline(),
             "group_filter": GroupFilterPipeline(),
             "seven_s": SevenSPipeline(),
             "fors": ForsPipeline(),
@@ -64,35 +106,52 @@ class PipelineOrchestrator:
             "scrim": ScrimPipeline(),
             "generic_template": _GenericPipeline(),
         }
-        self._cached_config: tuple[list, bool] | None = None
-        self._cached_pipelines: list[Any] = []
+        self._step_configs: dict[str, dict[str, Any]] = {}
 
-    def _build_pipelines(self) -> list[Any]:
-        config: list = cfg.ENABLED_PIPELINES or [
-            "group_filter",
-            "seven_s",
-            "fors",
-            "pedars",
-            "scrim",
-            "generic_template",
-        ]
-        # ponytail: rebuilds on ENABLED_PIPELINES reassignment or the TAK bridge
-        # appearing/disappearing (the TAK tab reconnects it live).
-        tak_active = get_tak_bridge() is not None
-        cache_key = (config, tak_active)
-        if cache_key != self._cached_config:
-            names = list(config)
-            # tak_publish is a non-consuming side-effect pipeline; run it first
-            # when the TAK bridge is up. generic_template is the fallback at the end.
-            names = [n for n in names if n != "tak_publish"]
-            if tak_active:
-                names.insert(0, "tak_publish")
-            if "generic_template" not in names:
-                names.append("generic_template")
-            selected = [self._pipeline_map[n] for n in names if n in self._pipeline_map]
-            self._cached_pipelines = selected or [self._pipeline_map["generic_template"]]
-            self._cached_config = cache_key
-        return self._cached_pipelines
+    def _publish_to_tak(self) -> bool:
+        # tak_publish writes to TAK; Oden collects by default, so it only runs
+        # when the operator turned on publish_reports in the TAK tab.
+        bridge = get_tak_bridge()
+        return bridge is not None and bool(getattr(bridge, "settings", {}).get("publish_reports"))
+
+    def _build_pipelines(self, branch: dict[str, Any] | None = None) -> list[Any]:
+        """The pipelines that run in ``branch`` (default: the routing's standard branch), in order.
+
+        Also records each step's config overrides in ``self._step_configs`` for run_message.
+        """
+        if branch is None:
+            routing = load_routing(cfg)
+            branch = branch_by_id(routing, routing["default"]) or routing["branches"][0]
+        steps = branch_steps(branch, publish_to_tak=self._publish_to_tak())
+        self._step_configs = {s["pipeline"]: s.get("config") or {} for s in steps}
+        formats = load_formats() if any(is_format_step(s["pipeline"]) for s in steps) else []
+        pipelines = []
+        for step in steps:
+            name = step["pipeline"]
+            pipeline = self._pipeline_map.get(name) or pipeline_for(name, formats)
+            if pipeline is None:
+                logger.warning("Steget %s finns inte (borttaget rapportformat?) – hoppas över", name)
+                continue
+            pipelines.append(pipeline)
+        return pipelines
+
+    def _record_route(self, message_id: int, branch: dict[str, Any], reason: str, key: str | None) -> None:
+        """The vägval as the first run of the attempt, so Flöde and stats see it like any step."""
+        run_id = start_pipeline_run(self._db_path, message_id, ROUTER)
+        complete_pipeline_run(self._db_path, run_id)
+        append_pipeline_event(
+            self._db_path,
+            run_id,
+            "pipeline_completed",
+            {
+                "pipeline": ROUTER,
+                "reason": reason,
+                "branch": branch["id"],
+                "branch_name": branch["name"],
+                "ignore": bool(branch.get("ignore")),
+                "assigned": key,
+            },
+        )
 
     async def run_message(
         self,
@@ -105,14 +164,44 @@ class PipelineOrchestrator:
         """Run configured pipelines for one message.
 
         Current behavior:
-        - Runs configured pipelines in order from ENABLED_PIPELINES
-        - First pipeline that handles the message ends the chain
+        - Vägval first: the message's source picks a branch (recorded as a
+          ``router`` run); an ignore branch stops here with status ignored
+        - Then the branch's enabled steps in order, each with its own config
+          overrides (routing.step_settings); first pipeline that handles it wins
         - Tracks run state/events in pipeline tables
         - Updates raw message status to processed/failed
         """
         update_message_status(self._db_path, message_id, STATUS_PROCESSING)
+
+        routing = load_routing(cfg)
+        branch, route_reason, route_key = resolve_branch_detail(routing, msg_data)
+        self._record_route(message_id, branch, route_reason, route_key)
+        if branch.get("ignore"):
+            update_message_status(self._db_path, message_id, STATUS_IGNORED)
+            return
+
+        # Each step sets its own config overrides; the outer token puts the
+        # caller's context back however the steps end.
+        token = set_step_config({})
+        try:
+            await self._run_steps(message_id, msg_data, reader, writer, branch)
+        finally:
+            reset_step_config(token)
+
+    async def _run_steps(
+        self,
+        message_id: int,
+        msg_data: dict[str, Any],
+        reader: Any,
+        writer: Any,
+        branch: dict[str, Any],
+    ) -> None:
+        """Run the branch's steps; first one that handles the message wins."""
         had_pipeline_failure = False
-        for pipeline in self._build_pipelines():
+        self._step_configs: dict[str, dict[str, Any]] = {}
+        for pipeline in self._build_pipelines(branch):
+            _reset_run_attrs(pipeline)
+            set_step_config(self._step_configs.get(pipeline.name))
             run_id = start_pipeline_run(self._db_path, message_id, pipeline.name)
             append_pipeline_event(
                 self._db_path,
@@ -139,13 +228,23 @@ class PipelineOrchestrator:
                         },
                     )
 
+                side_effect = getattr(pipeline, "last_side_effect", None)
+                if side_effect:
+                    append_pipeline_event(
+                        self._db_path,
+                        run_id,
+                        "pipeline_side_effect",
+                        {"pipeline": pipeline.name, "message": side_effect},
+                    )
+
+                output_file = getattr(pipeline, "last_output_file", None)
                 if handled:
-                    complete_pipeline_run(self._db_path, run_id)
+                    complete_pipeline_run(self._db_path, run_id, output_file=output_file)
                     append_pipeline_event(
                         self._db_path,
                         run_id,
                         "pipeline_completed",
-                        {"pipeline": pipeline.name},
+                        _details(pipeline, output_file=output_file) if output_file else _details(pipeline),
                     )
                     status_on_handle = getattr(pipeline, "status_on_handle", STATUS_PROCESSED)
                     if status_on_handle not in {STATUS_PROCESSED, STATUS_IGNORED}:
@@ -153,12 +252,22 @@ class PipelineOrchestrator:
                     update_message_status(self._db_path, message_id, status_on_handle)
                     return
 
+                # A pre-step (TAK → text) hands the steps after it a new text.
+                transformed = getattr(pipeline, "last_transformed", None)
+                if transformed is not None:
+                    complete_pipeline_run(self._db_path, run_id)
+                    append_pipeline_event(
+                        self._db_path, run_id, "pipeline_completed", _details(pipeline, transformed=True)
+                    )
+                    msg_data = transformed
+                    continue
+
                 skip_pipeline_run(self._db_path, run_id)
                 append_pipeline_event(
                     self._db_path,
                     run_id,
                     "pipeline_skipped",
-                    {"pipeline": pipeline.name},
+                    _details(pipeline),
                 )
             except Exception as exc:
                 had_pipeline_failure = True
@@ -191,7 +300,9 @@ class PipelineOrchestrator:
             update_message_status(self._db_path, message_id, STATUS_FAILED)
             return
 
-        update_message_status(self._db_path, message_id, STATUS_PROCESSED)
+        # A branch whose fallback is off keeps what no step took only in Flöde.
+        fallback_off = any(s["pipeline"] == FALLBACK and not s.get("enabled", True) for s in branch.get("steps", []))
+        update_message_status(self._db_path, message_id, STATUS_IGNORED if fallback_off else STATUS_PROCESSED)
 
     async def reprocess(
         self,

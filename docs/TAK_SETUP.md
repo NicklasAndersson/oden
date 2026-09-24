@@ -49,6 +49,20 @@ Fråga TAK-admin om **ett av** följande (enklast först):
    lös PEM-fil.
 3. **Lösa filer** – klientcertifikat (`.p12` eller PEM) + lösenord + serverns
    CA-cert (PEM).
+4. **QR-kod för ATAK eller iTAK** – t.ex. den OpenTAKServer visar under
+   användarens profil. Skanna koden med mobilkameran, kopiera texten och klistra
+   in den under **Anslut med QR-kod** i TAK-fliken (i Chrome/Edge går det också
+   att läsa in en skärmbild av koden). Två format stöds:
+   - `tak://com.atakmap.app/enroll?host=…&username=…&token=…` (ATAK, nyare iTAK):
+     fyller i `cot_url` (`tls://<host>:8089`), `enroll_username` och
+     `enroll_password` (token fungerar som enrollment-lösenord). Resten är som
+     punkt 2. Serverns CA skickas med certet vid enrollment, och Oden verifierar
+     servern mot den när inget `tls_ca_cert` är satt, precis som ATAK.
+     **Token är ett lösenord** — dela inte skärmbilder av koden.
+   - `namn,server,port,protokoll` (iTAK:s serverkod): fyller bara i `cot_url`;
+     användarnamn och lösenord (eller ett data-paket) behövs fortfarande.
+
+   Ingenting sparas förrän du klickar **Spara**.
 
 Lägg filerna där bara Oden-användaren kan läsa dem:
 
@@ -118,7 +132,7 @@ set_config_value(
 | `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på **avsändarens** callsign — samma värde som står som `Avsändare:` på noten, inte markörens namn. Delsträngsmatchning, skiftlägesokänslig |
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
-| `inbound_group_name` | `TAK Inkommande` | Gruppnamn noterna hamnar under |
+| `inbound_group_name` | `TAK Inkommande` | Mappen i valvet som TAK-noterna hamnar i (och kanalen Flöde visar). Visas inte längre i TAK-fliken: vart TAK går styrs med källan TAK under Vägval, och mappar under den med grenens steg. Ett tidigare sparat namn gäller fortfarande |
 | `inbound_reports_only` | `false` | Bara händelser som bär ett ifyllt rapportblock. Typfiltret kan inte skilja en 8S från en lös fiendemarkör — båda är `a-h-G` |
 | **Uppdragspaket (rapporter med bilaga)** | | |
 | `inbound_fetch_packages` | `false` | Hämta *mission packages* ur serverns filarkiv. **Utan det tappas hela rapporten** när en 8S skickas med bild – inte bara bilden |
@@ -210,6 +224,9 @@ En TAK Server signerar sina egna certifikat:
 - `pref_package` innehåller serverns CA – Oden konverterar den till PEM åt dig.
   Har paketet även ett klientcert behövs inget mer; är det ett enrollment-paket
   behövs dessutom `enroll_username` + `enroll_password`.
+- Enrollment (konto eller QR-kod) utan `tls_ca_cert`: servern skickar sin CA
+  tillsammans med klientcertet, Oden sparar den som `enrolled-*-ca.pem` bredvid
+  certet och verifierar servern mot den.
 - Lösa filer utan `tls_ca_cert` → `self-signed certificate in certificate chain`.
   Exportera CA:t från TAK-admin/CloudTAK, eller `tls_verify = false` i labb.
 - Serverns cert-namn är ofta inte DNS-namnet du ringer →
@@ -249,9 +266,33 @@ anslutning först. Marti-API:t ligger normalt på 8443 (`--port` för annat).
 ### Inkommande CoT – noter i valvet
 
 En not får rubriken `TAK-OBSERVATION` (medvetet *inte* `… RAPPORT`, så den inte
-studsar tillbaka till TAK) i gruppen `TAK Inkommande`. Noterna passerar
-**gruppfiltret** som allt annat – kör du whitelist-läge måste `TAK Inkommande`
-finnas med i listan.
+studsar tillbaka till TAK) i gruppen `TAK Inkommande`. Vart TAK-meddelanden går
+väljs med källan **TAK** under Vägval i Pipelines-fliken (inte med gruppnamnet).
+
+**Steget TAK → text.** TAK skickar XML (CoT), inte text. Den råa CoT:en sparas
+med meddelandet (`_cot_xml` i kuvertet), och första steget i grenen, *TAK →
+text*, gör om den till text som stegen efter läser. Det syns i Flöde som
+*Omvandlad* med vad det blev (t.ex. ”8S omgjord till 7S RAPPORT”), och har egna
+inställningar per gren: gör om 8S till 7S (på/av), gör om SCRIM (på/av), övriga
+markörer som observation eller hoppa över (sparas då bara i Flöde), och om
+formuläret ska följa med i `%%`-blocket. Med standardinställningarna blir texten
+exakt densamma som tidigare. I Testrutan kan man klistra in en CoT (`<event …>`)
+och se hela vägen (källan sätts till TAK).
+
+**Nödlarm.** Ett `<emergency>` (911, In Contact m.fl.) läses som formuläret
+*Nödlarm* med fälten Larmtyp, Beskrivning, Avbrutet (ja/nej, `cancel="true"`
+när larmet dras tillbaka) och Larmat av. Det syns i observationen, och med
+*formulärets namn som rubrik* börjar texten med `Nödlarm`. Larm släpps igenom av
+`inbound_reports_only` och av standardtyperna (`b-a-*`).
+
+**Andra ATAK-formulär än 8S och SCRIM.** Fälten läses generellt, oavsett hur
+formuläret är uppbyggt. Som standard blir ett okänt formulär en
+`TAK-OBSERVATION` med alla fält. Välj *Formulärets namn som rubrik* i steget TAK
+→ text så blir första raden formulärets namn; skapa sedan ett rapportformat med
+den rubriken (Pipelines → Rapportformat). Klistra in formulärets CoT i
+rapportformatets testruta och klicka *Fyll i rubrik och fält från formuläret*
+så fylls rubrik och fält i åt dig. Kontrollera att CoT-typen släpps igenom av
+`inbound_types`.
 
 **Undantag – 8S-rapporter:** bär händelsen en 8S-rapport från ATAK:s
 Reports-plugin mappas den istället till en vanlig `7S RAPPORT` och skrivs som en

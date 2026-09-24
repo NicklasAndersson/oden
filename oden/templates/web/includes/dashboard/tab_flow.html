@@ -1,0 +1,55 @@
+{#- Tab: Flöde — everything that comes in, where it went and why -#}
+<div id="tab-flow" class="tab-content">
+    <div class="flow-header">
+        <div>
+            <h3 class="flow-title">Flöde</h3>
+            <p class="flow-subtitle">Allt som kommer in, i ankomstordning – och vart det tog vägen.</p>
+        </div>
+        <span class="flow-live" id="flow-live"><span class="flow-live-dot"></span><span id="flow-live-text">Live</span></span>
+        <button type="button" class="btn btn-secondary btn-sm" id="flow-pause-btn" onclick="toggleFlowPaused()">Pausa</button>
+    </div>
+
+    <div class="flow-filters">
+        <div class="flow-chip-group" id="flow-source-chips" role="group" aria-label="Källa"></div>
+        <span class="flow-filter-sep"></span>
+        <div class="flow-chip-group" id="flow-status-chips" role="group" aria-label="Status"></div>
+        <span class="flow-filter-sep"></span>
+        <div class="flow-chip-group" id="flow-branch-chips" role="group" aria-label="Gren"></div>
+        <div class="flow-chip-group" id="flow-step-filter"></div>
+        <label class="flow-search">
+            <span class="visually-hidden">Sök i flödet</span>
+            <input type="search" id="flow-search" placeholder="Avsändare, grupp, text…" oninput="renderFlowList()">
+        </label>
+    </div>
+
+    <div class="flow-grid">
+        <section class="flow-stream" aria-label="Inkommande flöde">
+            <div class="flow-stream-head">
+                <span class="flow-col-time">Tid</span>
+                <span class="flow-col-main">Källa · avsändare → kanal</span>
+                <span class="flow-col-route">Resultat · väg</span>
+            </div>
+            <div class="flow-list" id="flow-list">
+                <div class="empty-state">Laddar flödet...</div>
+            </div>
+            <div class="flow-hidden-note" id="flow-hidden-note"></div>
+        </section>
+
+        <aside class="flow-inspector" aria-label="Meddelandedetalj">
+            <div id="flow-detail-head" class="flow-detail-head">
+                <div class="empty-state">Välj ett meddelande i flödet.</div>
+            </div>
+            <div class="flow-tabs" role="tablist" aria-label="Visa">
+                <button type="button" role="tab" class="flow-tab active" data-flow-tab="trace" onclick="showFlowTab('trace')">Spår</button>
+                <button type="button" role="tab" class="flow-tab" data-flow-tab="raw" onclick="showFlowTab('raw')">Rått</button>
+                <button type="button" role="tab" class="flow-tab" data-flow-tab="out" onclick="showFlowTab('out')">Utdata</button>
+                <button type="button" role="tab" class="flow-tab" data-flow-tab="events" onclick="showFlowTab('events')">Händelser</button>
+            </div>
+            <div class="flow-detail-body" id="flow-detail-body"></div>
+            <div class="flow-detail-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="flow-reprocess-btn" onclick="reprocessFlowMessage()" disabled>↻ Kör om</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="flow-copy-btn" onclick="copyFlowJson()" disabled>Kopiera JSON</button>
+            </div>
+        </aside>
+    </div>
+</div>

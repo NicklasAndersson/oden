@@ -297,6 +297,7 @@ def get_message_filepath(
     source_name: str | None,
     source_number: str | None,
     unique: bool = True,
+    subdir: str | None = None,
 ) -> str:
     """
     Constructs the full, safe path for a new message file.
@@ -307,11 +308,12 @@ def get_message_filepath(
         source_name: Sender's name
         source_number: Sender's phone number
         unique: If True, ensures filename is unique by adding suffix if needed
+        subdir: Optional subdirectory under the group (the branch's fallback folder)
 
     Returns:
         Full path to the message file
     """
-    group_dir = resolve_output_dir(group_title)
+    group_dir = resolve_output_dir(group_title, subdir)
     filename = create_message_filename(dt, source_name, source_number)
     if unique:
         filename = get_unique_filename(group_dir, filename)

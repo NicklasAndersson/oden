@@ -2,6 +2,7 @@
 Configuration-related handlers for Oden web GUI.
 """
 
+import asyncio
 import logging
 
 from aiohttp import web
@@ -72,6 +73,7 @@ async def config_handler(request: web.Request) -> web.Response:
         "auto_read_receipt_enabled": config.get("auto_read_receipt_enabled", False),
         "db_first_enabled": config.get("db_first_enabled", True),
         "raw_message_retention_days": _as_int(config.get("raw_message_retention_days", 30), 30),
+        "raw_message_max_mb": _as_int(config.get("raw_message_max_mb", 0), 0),
         "oden_home": str(cfg.ODEN_HOME),
         "config_db_path": str(cfg.CONFIG_DB),
     }
@@ -111,12 +113,20 @@ async def config_save_handler(request: web.Request) -> web.Response:
         "filename_format": data.get("filename_format", "classic"),
         "db_first_enabled": data.get("db_first_enabled", True),
         "raw_message_retention_days": data.get("raw_message_retention_days", 30),
+        "raw_message_max_mb": data.get("raw_message_max_mb", existing.get("raw_message_max_mb", 0)),
     }
 
     retention_days = form_updates["raw_message_retention_days"]
     if not isinstance(retention_days, int) or retention_days < 1 or retention_days > 3650:
         return web.json_response(
             {"success": False, "error": "raw_message_retention_days måste vara ett heltal mellan 1 och 3650"},
+            status=400,
+        )
+
+    max_mb = form_updates["raw_message_max_mb"]
+    if not isinstance(max_mb, int) or max_mb < 0 or max_mb > 1_000_000:
+        return web.json_response(
+            {"success": False, "error": "raw_message_max_mb måste vara ett heltal mellan 0 (ingen gräns) och 1000000"},
             status=400,
         )
 
@@ -212,3 +222,53 @@ async def signal_config_save_handler(request: web.Request) -> web.Response:
         set_config_value(cfg.CONFIG_DB, db_key, value)
 
     return web.json_response({"success": True, "message": "Signal-inställningar sparade"})
+
+
+@handle_errors("oden home")
+async def oden_home_handler(request: web.Request) -> web.Response:
+    """The running home directory, and the one that applies after a restart."""
+    pending = cfg.pending_oden_home()
+    return web.json_response(
+        {
+            "current": str(cfg.ODEN_HOME),
+            "pending": str(pending) if pending else None,
+            "locked_by_env": cfg.oden_home_locked_by_env(),
+        }
+    )
+
+
+@handle_errors("change oden home")
+@parse_json_body
+async def oden_home_change_handler(request: web.Request) -> web.Response:
+    """Move Oden to another home directory (copy or switch); applies after restart."""
+    try:
+        action, message = cfg.change_oden_home(str(request["json_body"].get("path") or ""))
+    except ValueError as exc:
+        return web.json_response({"success": False, "error": str(exc)}, status=400)
+    return web.json_response({"success": True, "action": action, "message": message, "restart_required": True})
+
+
+@handle_errors("storage stats")
+async def storage_handler(request: web.Request) -> web.Response:
+    """How much the message database holds, the limits, and the latest cleanup."""
+    from oden import retention_db
+
+    stats = await asyncio.to_thread(retention_db.storage_stats, cfg.CONFIG_DB)
+    return web.json_response(
+        {
+            **stats,
+            "retention_days": cfg.RAW_MESSAGE_RETENTION_DAYS,
+            "max_mb": cfg.RAW_MESSAGE_MAX_MB,
+            "interval_seconds": retention_db.RETENTION_INTERVAL_SECONDS,
+            "last_cleanup": retention_db.last_cleanup,
+        }
+    )
+
+
+@handle_errors("storage cleanup")
+async def storage_cleanup_handler(request: web.Request) -> web.Response:
+    """Run the cleanup now with the saved settings instead of waiting for the hourly run."""
+    from oden import retention_db
+
+    summary = await asyncio.to_thread(retention_db.run_cleanup_now)
+    return web.json_response({"success": True, "summary": summary})

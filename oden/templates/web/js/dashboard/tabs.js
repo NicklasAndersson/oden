@@ -1,38 +1,62 @@
-// tabs.js — Depends on: responses.js (loadResponses), accounts.js (loadAccounts)
+// tabs.js — Depends on: responses.js (loadResponses), accounts.js (loadAccounts),
+// contacts.js (loadContacts), pipelines.js (loadPipelinesDashboard),
+// flow.js (loadFlowDashboard), tak.js (loadTakStatus), obsidian.js (loadObsidianStatus),
+// signal_connect.js (loadSignalConnect)
 //
-// Tab switching with lazy-loading of tab content on first visit.
+// Tab switching with lazy-loading of tab content on first visit. The Signal
+// tab has its own row of sub-tabs (panes), each lazy-loaded the same way.
+
+let signalPane = 'accounts';
 
 function showTab(tabName) {
-    // Hide all tabs
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
-    // Show selected tab
     document.getElementById('tab-' + tabName).classList.add('active');
-    event.target.classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.getAttribute('onclick') === `showTab('${tabName}')`) btn.classList.add('active');
+    });
 
-    // Load responses when switching to responses tab
-    if (tabName === 'responses') {
-        loadResponses();
+    if (tabName === 'flow') {
+        loadFlowDashboard();
     }
-    // Load pipelines when switching to pipelines tab
+    if (tabName === 'signal') {
+        showSignalPane(signalPane);
+    }
+    if (tabName === 'obsidian') {
+        loadObsidianStatus();
+    }
     if (tabName === 'pipelines') {
         loadPipelinesDashboard();
     }
-    // Load accounts when switching to accounts tab
-    if (tabName === 'accounts') {
-        loadAccounts();
+    if (tabName === 'advanced') {
+        loadOdenHome();
+        loadStorageStatus();
     }
-    // Load contacts when switching to contacts tab
-    if (tabName === 'contacts') {
-        loadContacts();
-    }
-    // Load message observability dashboard when switching to messages tab
-    if (tabName === 'messages') {
-        loadMessagesDashboard();
-    }
-    // Load TAK status and settings when switching to the TAK tab
     if (tabName === 'tak') {
         loadTakStatus();
+    }
+}
+
+function showSignalPane(pane) {
+    signalPane = pane;
+    document.querySelectorAll('#tab-signal .subtab-pane').forEach(el => {
+        el.classList.toggle('active', el.id === 'signal-pane-' + pane);
+    });
+    document.querySelectorAll('#tab-signal .subtab-btn').forEach(btn => {
+        const on = btn.dataset.pane === pane;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-selected', on);
+    });
+
+    if (pane === 'accounts') {
+        loadAccounts();
+        loadSignalConnect();
+    }
+    if (pane === 'contacts') {
+        loadContacts();
+    }
+    if (pane === 'responses') {
+        loadResponses();
     }
 }

@@ -15,7 +15,7 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     """Test the full CRUD lifecycle for /api/responses endpoints."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     # ------------------------------------------------------------------
     # GET /api/responses — list
@@ -184,7 +184,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     """Test /api/templates endpoints (list, get, save, preview, reset, export)."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     # --- list ---
 
@@ -378,15 +378,17 @@ class TestTemplateEndpoints(AioHTTPTestCase):
 
 
 class TestGroupsHandlerResponse(AioHTTPTestCase):
-    """Test that groups_handler exposes group filter lists from pipeline settings."""
+    """groups_handler tells which branch each group's messages go to."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_all_groups", return_value=[])
     @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
-    async def test_groups_response_includes_whitelist(self, mock_cfg, _mock_db):
-        """groups_handler returns whitelistGroups from group_filter settings."""
+    async def test_groups_response_includes_branch_per_group(self, mock_cfg, _mock_db):
+        """A legacy whitelist becomes branches: listed groups → main, the rest → ignore (default)."""
+        mock_cfg.ROUTING = None
+        mock_cfg.ENABLED_PIPELINES = ["group_filter", "seven_s", "generic_template"]
         mock_cfg.PIPELINE_SETTINGS = {"group_filter": {"mode": "whitelist", "groups": ["Alpha", "Bravo"]}}
         mock_cfg.SIGNAL_NUMBER = "+460000"
         from oden.app_state import get_app_state
@@ -402,8 +404,11 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
 
         resp = await self.client.get("/api/groups")
         data = await resp.json()
-        self.assertEqual(data["whitelistGroups"], ["Alpha", "Bravo"])
-        self.assertEqual(data["ignoredGroups"], [])
+        self.assertEqual(data["ignoredGroups"], ["Charlie"])
+        self.assertEqual(data["defaultBranch"], "ignore")
+        by_name = {g["name"]: g for g in data["groups"]}
+        self.assertEqual((by_name["Alpha"]["branch"], by_name["Alpha"]["branchAssigned"]), ("main", True))
+        self.assertEqual((by_name["Charlie"]["branch"], by_name["Charlie"]["branchAssigned"]), ("ignore", False))
         # All 3 groups should be in the list regardless of whitelist
         group_names = [g["name"] for g in data["groups"]]
         self.assertIn("Alpha", group_names)
@@ -452,7 +457,7 @@ class TestCreateGroupHandler(AioHTTPTestCase):
     """Test POST /api/groups/create."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def test_create_group_requires_name(self):
         """Missing name returns 400 without touching signal-cli."""

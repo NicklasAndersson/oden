@@ -1,0 +1,36 @@
+{#- Tab: Obsidian — valvet rapporterna skrivs till, katalogstruktur, Odens Obsidian-inställningar -#}
+<div id="tab-obsidian" class="tab-content">
+    <form id="config-form-obsidian" class="config-form">
+        <div class="config-section">
+            <h3>📁 Valv</h3>
+            <div class="config-grid">
+                <div class="config-field full-width">
+                    <label for="cfg-vault-path">Sökväg till vault</label>
+                    <input type="text" id="cfg-vault-path" name="vault_path" placeholder="~/oden-vault">
+                    <span class="help-text">Mapp där rapporter sparas som Markdown-filer (Obsidian vault)</span>
+                </div>
+                <div class="config-field full-width">
+                    <label>Katalogstruktur</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="cfg-group-split-enabled" name="group_split_enabled">
+                        <label for="cfg-group-split-enabled">Grupp uppdelning</label>
+                    </div>
+                    <span class="help-text">När aktiv sparas rapporter under vault/gruppnamn/. När av sparas de direkt i vault (eller pipeline-undermapp).</span>
+                </div>
+            </div>
+        </div>
+
+    </form>
+
+    <div class="config-section">
+        <h3>🧩 Obsidian-inställningar i valvet</h3>
+        <p class="help-paragraph">
+            Installerar Odens <code>.obsidian</code>-mapp i valvet: kartvy (Map View) och inställningar som passar
+            rapporterna. Finns redan en <code>.obsidian</code>-mapp rörs den inte.
+        </p>
+        <div id="obsidian-status" class="runtime-status">Laddar…</div>
+        <div class="config-actions">
+            <button type="button" class="btn btn-primary" id="obsidian-install-btn" onclick="installObsidianTemplate()">Installera Obsidian-inställningar</button>
+        </div>
+    </div>
+</div>
