@@ -29,6 +29,9 @@ function showTab(tabName) {
     if (tabName === 'pipelines') {
         loadPipelinesDashboard();
     }
+    if (tabName === 'advanced') {
+        loadOdenHome();
+    }
     if (tabName === 'tak') {
         loadTakStatus();
     }

@@ -184,3 +184,87 @@ class ObsidianApiTest(AioHTTPTestCase):
         self.assertIn('id="tab-obsidian"', text)
         self.assertIn('id="config-form-obsidian"', text)
         self.assertIn('id="cfg-vault-path"', text)
+
+
+class ChangeOdenHomeTest(unittest.TestCase):
+    """Advanced → Oden-hemkatalog: copy to an empty directory, or switch to one with a config.db."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.old = root / "old"
+        (self.old / "signal-data" / "data").mkdir(parents=True)
+        (self.old / "signal-data" / "data" / "accounts.json").write_text('{"accounts": []}')
+        init_db(self.old / "config.db")
+        save_all_config(self.old / "config.db", {"vault_path": "/v", "signal_number": "+46701234567"})
+        self.new = root / "new"
+        self.pointer: list[Path] = []
+        patches = [
+            unittest.mock.patch("oden.config.ODEN_HOME", self.old),
+            unittest.mock.patch("oden.config.CONFIG_DB", self.old / "config.db"),
+            unittest.mock.patch("oden.config.validate_path_within_home", side_effect=lambda p, **_: (Path(p), None)),
+            unittest.mock.patch("oden.config.set_oden_home_path", side_effect=lambda p: self.pointer.append(p) or True),
+            unittest.mock.patch.dict("os.environ", {}, clear=False),
+        ]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        import os
+
+        os.environ.pop("ODEN_HOME", None)
+
+    def test_copy_to_empty_directory(self):
+        action, message = cfg.change_oden_home(str(self.new))
+        self.assertEqual(action, "copy")
+        self.assertEqual(get_all_config(self.new / "config.db")["signal_number"], "+46701234567")
+        self.assertTrue((self.new / "signal-data" / "data" / "accounts.json").is_file())
+        self.assertTrue((self.old / "config.db").is_file(), "the old home stays as a fallback")
+        self.assertEqual(self.pointer, [self.new])
+        self.assertIn("efter omstart", message)
+
+    def test_switch_to_existing_home(self):
+        self.new.mkdir()
+        init_db(self.new / "config.db")
+        save_all_config(self.new / "config.db", {"signal_number": "+46709999999"})
+        action, _ = cfg.change_oden_home(str(self.new))
+        self.assertEqual(action, "switch")
+        self.assertEqual(get_all_config(self.new / "config.db")["signal_number"], "+46709999999")
+
+    def test_refuses_non_empty_directory_without_config(self):
+        self.new.mkdir()
+        (self.new / "something.txt").write_text("x")
+        with self.assertRaisesRegex(ValueError, "inte tom"):
+            cfg.change_oden_home(str(self.new))
+        self.assertEqual(self.pointer, [])
+
+    def test_refuses_nested_and_same(self):
+        for path in (self.old, self.old / "sub"):
+            with self.assertRaises(ValueError):
+                cfg.change_oden_home(str(path))
+
+    def test_locked_by_oden_home_env(self):
+        with (
+            unittest.mock.patch.dict("os.environ", {"ODEN_HOME": "/data"}),
+            self.assertRaisesRegex(ValueError, "ODEN_HOME"),
+        ):
+            cfg.change_oden_home(str(self.new))
+
+
+class OdenHomeApiTest(AioHTTPTestCase):
+    async def get_application(self):
+        return create_app()
+
+    async def test_get_and_error(self):
+        with unittest.mock.patch("oden.config.oden_home_locked_by_env", return_value=True):
+            data = await (await self.client.get("/api/oden-home")).json()
+            resp = await self.client.post("/api/oden-home", json={"path": "/x"})
+        self.assertTrue(data["locked_by_env"])
+        self.assertIn("current", data)
+        self.assertEqual(resp.status, 400)
+        self.assertIn("ODEN_HOME", (await resp.json())["error"])
+
+    async def test_advanced_tab_has_home_section(self):
+        text = await (await self.client.get("/")).text()
+        self.assertIn('id="oden-home-path"', text)
+        self.assertIn("function changeOdenHome", text)

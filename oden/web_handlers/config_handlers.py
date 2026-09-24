@@ -212,3 +212,27 @@ async def signal_config_save_handler(request: web.Request) -> web.Response:
         set_config_value(cfg.CONFIG_DB, db_key, value)
 
     return web.json_response({"success": True, "message": "Signal-inställningar sparade"})
+
+
+@handle_errors("oden home")
+async def oden_home_handler(request: web.Request) -> web.Response:
+    """The running home directory, and the one that applies after a restart."""
+    pending = cfg.pending_oden_home()
+    return web.json_response(
+        {
+            "current": str(cfg.ODEN_HOME),
+            "pending": str(pending) if pending else None,
+            "locked_by_env": cfg.oden_home_locked_by_env(),
+        }
+    )
+
+
+@handle_errors("change oden home")
+@parse_json_body
+async def oden_home_change_handler(request: web.Request) -> web.Response:
+    """Move Oden to another home directory (copy or switch); applies after restart."""
+    try:
+        action, message = cfg.change_oden_home(str(request["json_body"].get("path") or ""))
+    except ValueError as exc:
+        return web.json_response({"success": False, "error": str(exc)}, status=400)
+    return web.json_response({"success": True, "action": action, "message": message, "restart_required": True})

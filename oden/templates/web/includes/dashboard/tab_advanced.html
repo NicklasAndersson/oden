@@ -24,4 +24,27 @@
 
     </form>
 
+    <div class="config-section section-divider">
+        <h3>🏠 Oden-hemkatalog</h3>
+        <p class="help-paragraph">
+            Här ligger <code>config.db</code>, Signal-data (<code>signal-data/</code>), TAK-certifikat och loggar.
+            Välj en <strong>tom</strong> katalog så kopieras allt dit, eller en katalog som redan har en
+            <code>config.db</code> för att använda den. Den gamla katalogen ligger kvar. Gäller efter omstart —
+            stoppa gärna Signal (tray-ikonen) innan du kopierar.
+        </p>
+        <div class="config-grid">
+            <div class="config-field full-width">
+                <label>Nuvarande</label>
+                <div id="oden-home-current" class="runtime-status">Laddar…</div>
+            </div>
+            <div class="config-field full-width" id="oden-home-change-field">
+                <label for="oden-home-path">Ny hemkatalog</label>
+                <input type="text" id="oden-home-path" placeholder="~/.oden" autocomplete="off">
+                <span class="help-text">Måste ligga under din hemkatalog.</span>
+            </div>
+        </div>
+        <div class="config-actions" id="oden-home-actions">
+            <button type="button" class="btn btn-secondary" onclick="changeOdenHome()">Byt hemkatalog</button>
+        </div>
+    </div>
 </div>

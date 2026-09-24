@@ -23,12 +23,26 @@ flowchart TD
 
 | Vad | Hur |
 |-----|-----|
-| **Hemkatalog** | `ODEN_HOME` om den är satt (Docker: `/data`), annars `~/.oden`. Innehåller `config.db`, `signal-data/` och loggar. En befintlig `config.db` där används som den är. |
+| **Hemkatalog** | `ODEN_HOME` om den är satt (Docker: `/data`), annars `~/.oden`. Innehåller `config.db`, `signal-data/` och loggar. En befintlig `config.db` där används som den är. Kan bytas under Avancerat (se nedan). |
 | **Pekarfil** | Sökvägen sparas i en pekarfil så att Oden hittar tillbaka; saknas den men `~/.oden/config.db` finns återskapas den automatiskt. |
 | **Standardvärden** | Samma som `DEFAULT_CONFIG` i `config_db.py`, men med `signal_enabled = false` — det finns inget konto att lyssna på än. |
 | **Valv** | `ODEN_VAULT` om den är satt (Docker: `/vault`), annars `~/oden-vault`. Byts under fliken **Obsidian**. |
 | **Webbläsare** | Öppnas mot dashboarden vid första start. |
 | **Korrupt databas** | Ersätts aldrig tyst: Oden avslutar med ett felmeddelande som säger vilken fil som ska flyttas undan. |
+
+## Byta hemkatalog (Avancerat)
+
+Under **Avancerat → Oden-hemkatalog** visas katalogen Oden kör från och den som
+gäller efter omstart. Ange en ny:
+
+| Katalogen | Då |
+|-----------|----|
+| **finns inte eller är tom** | Allt kopieras dit: `config.db` (via SQLite:s backup, konsistent medan Oden kör), `signal-data/`, TAK-certifikat, loggar. Stoppa gärna Signal först. |
+| **har en `config.db`** | Den används som den är — t.ex. för att gå tillbaka till en tidigare installation. |
+| **är inte tom men saknar `config.db`** | Nekas. |
+
+Den gamla katalogen ligger kvar som reserv. Bytet sparas i pekarfilen och gäller
+efter omstart. Är `ODEN_HOME` satt (Docker) styr den, och fältet är låst.
 
 ## När Signal inte kan startas
 
@@ -90,5 +104,7 @@ skrivs aldrig över.
 | POST | `/api/signal/connect/verify` | Verifiera registreringskod (`code`) |
 | POST | `/api/signal/connect/use` | Använd ett signal-cli-konto (`signal_number`) och slå på Signal |
 | POST | `/api/signal/connect/disable` | Stäng av Signal |
+| GET | `/api/oden-home` | Nuvarande hemkatalog, den som gäller efter omstart, om `ODEN_HOME` styr |
+| POST | `/api/oden-home` | Byt hemkatalog (`path`) — kopiera eller byt, gäller efter omstart |
 | GET | `/api/obsidian/status` | Valvets sökväg och om Obsidian-inställningarna finns |
 | POST | `/api/obsidian/install-template` | Installera Odens `.obsidian` i valvet |

@@ -34,7 +34,7 @@ Dashboard-mode aktiveras när konfigurationen är komplett. Alla funktioner besk
 | **Signal** | Allt som rör Signal, i underflikar: Konton (inkl. koppla Signal), Grupper, Kontakter, Kommandosvar, Inställningar |
 | **TAK** | Allt som rör TAK: status, QR-anslutning, anslutning, certifikat, inkommande CoT, testmarkör |
 | **Pipelines** | Körordning, aktivering och inställningar per pipeline, mallar |
-| **Avancerat** | Loggnivå och retention |
+| **Avancerat** | Loggnivå, retention och Oden-hemkatalog |
 
 Varje fält har en hjälptext som förklarar vad inställningen gör. Inställningarna sparas automatiskt.
 
@@ -161,7 +161,11 @@ Pipelines-fliken visar hur meddelanden routas i DB-first-flödet och låter dig 
 
 #### Avancerat
 
-Loggnivå och retention för råmeddelanden och pipeline-händelser.
+Loggnivå och retention för råmeddelanden och pipeline-händelser, och
+**Oden-hemkatalog**: byt katalog för `config.db`, Signal-data och loggar —
+en tom katalog får en kopia av allt, en med `config.db` används som den är.
+Gäller efter omstart; låst när `ODEN_HOME` är satt. Se
+[FIRST_START.md](FIRST_START.md#byta-hemkatalog-avancerat).
 
 #### Live-loggar
 

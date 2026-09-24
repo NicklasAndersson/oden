@@ -29,6 +29,7 @@ from oden.config_db import (
 )
 from oden.path_utils import (
     ensure_directory,
+    is_within_directory,
     normalize_path,
     validate_path_within_home,
 )
@@ -472,6 +473,81 @@ def bootstrap() -> bool:
             "Flytta undan eller radera filen och starta Oden igen — då skapas en ny."
         )
     return fresh
+
+
+def oden_home_locked_by_env() -> bool:
+    """True when ODEN_HOME (Docker) decides the home directory; the pointer file is then ignored."""
+    return bool(os.environ.get("ODEN_HOME"))
+
+
+def pending_oden_home() -> Path | None:
+    """The home directory Oden will use after a restart, if it differs from the running one."""
+    target = get_oden_home_path()
+    return target if target is not None and target.resolve() != ODEN_HOME.resolve() else None
+
+
+def change_oden_home(new_path: str) -> tuple[str, str]:
+    """Point Oden at another home directory from the next start on.
+
+    * The target already holds a ``config.db``: switch to it as it is.
+    * The target is missing or empty: copy the running home there first —
+      ``config.db`` through SQLite's backup API (consistent while Oden runs),
+      everything else (signal-data, TAK certificates, logs) as files. The old
+      directory is left in place.
+
+    The running Oden keeps its current paths; the change takes effect on
+    restart. Returns ``(action, message)`` with action "switch" or "copy".
+    Raises ValueError with a Swedish message.
+    """
+    import shutil
+    import sqlite3
+
+    if oden_home_locked_by_env():
+        raise ValueError("Hemkatalogen styrs av miljövariabeln ODEN_HOME och kan inte bytas här.")
+
+    target, error = validate_path_within_home(str(new_path).strip())
+    if error or target is None:
+        raise ValueError(error or "Ogiltig sökväg")
+    current = ODEN_HOME.resolve()
+    if target == current:
+        raise ValueError("Oden använder redan den katalogen.")
+    if is_within_directory(target, current) or is_within_directory(current, target):
+        raise ValueError("Den nya katalogen kan inte ligga i den nuvarande (eller tvärtom).")
+
+    if (target / "config.db").exists():
+        valid, db_error = validate_oden_home(target)
+        if not valid:
+            raise ValueError(f"config.db i {target} går inte att använda ({db_error}).")
+        action = "switch"
+        message = f"Oden använder inställningarna som redan finns i {target} efter omstart."
+    else:
+        if target.exists() and any(target.iterdir()):
+            raise ValueError(f"{target} är inte tom och innehåller ingen config.db — välj en tom katalog.")
+        target.mkdir(parents=True, exist_ok=True, mode=0o700)
+        for entry in current.iterdir():
+            if entry.name.startswith("config.db"):
+                continue  # copied below, consistently
+            if entry.is_dir():
+                shutil.copytree(entry, target / entry.name, symlinks=True)
+            else:
+                shutil.copy2(entry, target / entry.name)
+        src = sqlite3.connect(CONFIG_DB)
+        dst = sqlite3.connect(target / "config.db")
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+        action = "copy"
+        message = (
+            f"Inställningar och Signal-data kopierade till {target}. "
+            f"Oden använder den efter omstart; {current} ligger kvar som reserv."
+        )
+
+    if not set_oden_home_path(target):
+        raise ValueError("Kunde inte spara den nya hemkatalogen (pekarfilen gick inte att skriva).")
+    logger.info("Hemkatalog ändrad till %s (%s) — gäller efter omstart", target, action)
+    return action, message
 
 
 def signal_config_problem() -> str | None:

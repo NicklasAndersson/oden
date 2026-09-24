@@ -162,3 +162,46 @@ async function restartSignalCli() {
         showConfigMessage('Fel vid omstart: ' + error.message, 'error');
     }
 }
+
+// ========== Oden-hemkatalog (Avancerat) ==========
+
+async function loadOdenHome() {
+    const box = document.getElementById('oden-home-current');
+    try {
+        const response = await fetch('/api/oden-home');
+        const data = await response.json();
+        let html = `<span class="mono">${escapeHtml(data.current)}</span>`;
+        if (data.locked_by_env) {
+            html += '<br>Styrs av miljövariabeln <span class="mono">ODEN_HOME</span> (t.ex. i Docker) och kan inte bytas här.';
+        } else if (data.pending) {
+            html += `<br>Efter omstart: <span class="mono">${escapeHtml(data.pending)}</span>`;
+        }
+        box.innerHTML = html;
+        document.getElementById('oden-home-change-field').classList.toggle('hidden', data.locked_by_env);
+        document.getElementById('oden-home-actions').classList.toggle('hidden', data.locked_by_env);
+    } catch (error) {
+        box.textContent = 'Kunde inte läsa hemkatalogen';
+    }
+}
+
+async function changeOdenHome() {
+    const path = document.getElementById('oden-home-path').value.trim();
+    if (!path) {
+        showConfigMessage('Ange en katalog', 'error');
+        return;
+    }
+    if (!confirm(`Byta Odens hemkatalog till ${path}? Det gäller efter omstart.`)) return;
+    try {
+        const response = await fetch('/api/oden-home', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: path}),
+        });
+        const data = await response.json();
+        showConfigMessage(data.message || data.error, data.success ? 'success' : 'error');
+        if (data.success) document.getElementById('oden-home-path').value = '';
+    } catch (error) {
+        showConfigMessage('Nätverksfel: ' + error.message, 'error');
+    }
+    loadOdenHome();
+}

@@ -123,7 +123,7 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 - **Signal**: everything Signal, as sub-tabs (`showSignalPane()`): Konton (list, link via QR, activate, delete, force-delete), Grupper (ignore/whitelist, join via invite link, invitations, group admin), Kontakter, Kommandosvar, Inställningar (number, display name, startup message, signal-cli, Signal protocol, restart signal-cli, Signal on/off); when Signal is off, Konton shows *Koppla Signal*
 - **TAK**: everything TAK (status, QR connect, connection, certificates, inbound CoT, test marker)
 - **Pipelines**: enable/disable, reorder, per-pipeline config, template editor
-- **Avancerat**: log level, retention
+- **Avancerat**: log level, retention, Oden home directory (`config.change_oden_home()`: copy to an empty dir or switch to one with a `config.db`; applies after restart; locked when `ODEN_HOME` is set)
 - Live logs (polls every 3 seconds) and a shutdown button
 
 **Security:** The web GUI has no authentication. By default it binds to `127.0.0.1` (loopback only). Setting `WEB_HOST=0.0.0.0` (e.g. in Docker) exposes an unauthenticated admin API on all interfaces — protect it with a firewall or reverse proxy, or keep it loopback-only.
