@@ -120,9 +120,13 @@ Full normativ specifikation finns i [FORMAT_SPEC.md](FORMAT_SPEC.md).
 
 ### TAK-publicering (`tak_publish`)
 
+**Avstängd som standard.** Oden samlar in och skriver filer för analys; att
+skriva tillbaka till TAK är ett aktivt val. Slå på **Publicera 7S-rapporter från
+Signal som markörer i TAK** i TAK-fliken (`publish_reports` i `tak_settings`).
+
 **Vad den väljer:** Ingenting — den *konsumerar* aldrig ett meddelande. Körs
-alltid först när TAK-bryggan är aktiv (`[TAK] enabled`), som en sidoeffekt, och
-låter sedan resten av kedjan köra som vanligt.
+först när TAK-bryggan är ansluten *och* `publish_reports` är på, som en
+sidoeffekt, och låter sedan resten av kedjan köra som vanligt.
 
 **Vad den gör:**
 - Parsar 7S-rapporter och plockar ut MGRS → lat/lon

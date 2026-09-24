@@ -1,7 +1,8 @@
 """TAK publish pipeline — pushes positioned reports to a TAK Server as CoT markers.
 
 Non-consuming: it always returns ``False`` so the normal report pipelines still
-run. It only does anything when the TAK bridge is up (``[TAK] enabled``).
+run. Opt-in: the orchestrator only adds it when the TAK bridge is up *and*
+``publish_reports`` is on — Oden collects by default and writes nothing to TAK.
 
 Phase 2 handles 7S reports (the only report type that carries a position).
 """
@@ -30,7 +31,8 @@ class TakPublishPipeline:
     display_name = "TAK-publicering"
     description = "Skickar positionsförsedda rapporter till TAK Server som CoT-markörer. Konsumerar inte meddelandet."
     selection_criteria = (
-        "Sidoeffekt: körs alltid först. Publicerar 7S-rapporter med koordinater när [TAK] är aktiverat."
+        "Sidoeffekt, avstängd som standard: körs först bara när ”Publicera 7S-rapporter” är påslaget i "
+        "TAK-fliken. Publicerar då 7S-rapporter med koordinater."
     )
 
     async def run(self, *, msg_data: dict[str, Any], reader: Any, writer: Any) -> bool:

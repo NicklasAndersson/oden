@@ -106,15 +106,18 @@ class PipelineOrchestrator:
             "generic_template",
         ]
         # ponytail: rebuilds on ENABLED_PIPELINES reassignment or the TAK bridge
-        # appearing/disappearing (the TAK tab reconnects it live).
-        tak_active = get_tak_bridge() is not None
-        cache_key = (config, tak_active)
+        # appearing/disappearing (the TAK tab reconnects it live, with new settings).
+        bridge = get_tak_bridge()
+        publish_to_tak = bridge is not None and bool(getattr(bridge, "settings", {}).get("publish_reports"))
+        cache_key = (config, publish_to_tak)
         if cache_key != self._cached_config:
             names = list(config)
-            # tak_publish is a non-consuming side-effect pipeline; run it first
-            # when the TAK bridge is up. generic_template is the fallback at the end.
+            # tak_publish is a non-consuming side-effect pipeline that writes to
+            # TAK. Oden collects by default, so it only runs when the operator has
+            # turned on publish_reports in the TAK tab — then first in the chain.
+            # generic_template is the fallback at the end.
             names = [n for n in names if n != "tak_publish"]
-            if tak_active:
+            if publish_to_tak:
                 names.insert(0, "tak_publish")
             if "generic_template" not in names:
                 names.append("generic_template")

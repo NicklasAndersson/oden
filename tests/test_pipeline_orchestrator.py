@@ -2,6 +2,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from oden.config_db import init_db
@@ -210,12 +211,13 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
             _migrate_enabled_pipelines(app_config)
         self.assertEqual(app_config["enabled_pipelines"], [])
 
-    async def test_build_pipelines_prepends_tak_publish_when_bridge_active(self):
+    async def test_build_pipelines_prepends_tak_publish_when_publishing_is_on(self):
         orchestrator = PipelineOrchestrator(self.db_path)
+        bridge = SimpleNamespace(settings={"publish_reports": True})
 
         with (
             patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", ["seven_s"]),
-            patch("oden.pipeline_orchestrator.get_tak_bridge", return_value=object()),
+            patch("oden.pipeline_orchestrator.get_tak_bridge", return_value=bridge),
         ):
             pipelines = orchestrator._build_pipelines()
 
@@ -223,3 +225,21 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
             [pipeline.name for pipeline in pipelines],
             ["tak_publish", "seven_s", "generic_template"],
         )
+
+    async def test_connected_tak_bridge_does_not_publish_by_default(self):
+        """Oden collects from TAK; writing to TAK is opt-in (publish_reports)."""
+        from oden.tak.bridge import _DEFAULTS
+
+        orchestrator = PipelineOrchestrator(self.db_path)
+        bridge = SimpleNamespace(settings=dict(_DEFAULTS))
+
+        with (
+            patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", ["seven_s"]),
+            patch("oden.pipeline_orchestrator.get_tak_bridge", return_value=bridge),
+        ):
+            names = [pipeline.name for pipeline in orchestrator._build_pipelines()]
+            bridge.settings["publish_reports"] = True
+            names_after_toggle = [pipeline.name for pipeline in orchestrator._build_pipelines()]
+
+        self.assertEqual(names, ["seven_s", "generic_template"])
+        self.assertEqual(names_after_toggle, ["tak_publish", "seven_s", "generic_template"])

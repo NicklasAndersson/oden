@@ -76,6 +76,9 @@ _DEFAULTS: dict[str, Any] = {
     "pli_team": "Cyan",
     "pli_role": "Team Member",
     "cot_archive": True,
+    # Oden's job is to collect: read from TAK, write files for analysis. Pushing
+    # our own 7S reports back to TAK as markers (tak_publish) is opt-in.
+    "publish_reports": False,
     # inbound defaults live in oden.tak.listener._INBOUND_DEFAULTS
 }
 

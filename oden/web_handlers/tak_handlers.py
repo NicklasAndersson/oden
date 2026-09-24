@@ -51,6 +51,7 @@ _EDITABLE_KEYS = {
     "callsign": str,
     "cot_stale_seconds": int,
     "cot_archive": bool,
+    "publish_reports": bool,
     "pli_enabled": bool,
     "pli_interval_seconds": int,
     "pli_lat": float,

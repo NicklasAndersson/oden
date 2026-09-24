@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TNR tas ur observationstiden, inte ur ankomsttiden.** Rapporterna vidarebefordras manuellt genom ledningskedjan, så den tid de når Oden är vidarebefordringstiden — i en skarp fångst tre månader efter observationen. SCRIM härleder tiden ur `STUND` med `Skapad` och CoT-händelsetiden som reserver, och skriver i det dolda `%%`-blocket vilken källa som användes
 - **`docs/SCRIM_frontmatter.schema.json`**, plus ett nytt §0 i FORMAT_SPEC som säger att `typ` är diskriminatorn: 7S, FORS, PEDARS och SCRIM delar filnamnsprefixet `TNR`, så filnamnet identifierar inte rapporttypen
 
+### Changed
+
+- **TAK: Oden skriver inte längre till TAK om man inte ber om det.** Tidigare publicerades varje 7S med position från Signal automatiskt som markör i TAK så fort TAK-bryggan var ansluten. Oden är en insamlare — den läser från TAK och skriver filer för analys — så publiceringen (`tak_publish`) är nu ett eget val i TAK-fliken, *Publicera 7S-rapporter från Signal som markörer i TAK* (`publish_reports`), avstängt som standard. **Den som vill behålla markörerna i ATAK/iTAK måste slå på det efter uppgraderingen.** Testmarkören och Odens egen position (`pli_enabled`) är oförändrade: båda skickas bara när man själv begär det
+
 ### Fixed
 
 - **Ett meddelande som inte kunde skrivas till valvet markerades som `processed`.** Reservflödet loggade skrivfelet men rapporterade framgång, så meddelandet gick inte att hitta bland felen och kördes aldrig om. Nu blir körningen `failed` med felet som orsak, och meddelandet kan köras om från Flöde
