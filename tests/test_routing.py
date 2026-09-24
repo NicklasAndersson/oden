@@ -132,6 +132,22 @@ class ResolveBranchTest(unittest.TestCase):
         self.assertIn("standardgrenen", reason)
 
 
+class GroupBranchTest(unittest.TestCase):
+    def test_group_branch_by_id_then_name_else_default(self):
+        from oden.routing import group_branch
+
+        routing = normalize_routing(
+            {
+                "branches": [{"id": "a", "name": "A"}, {"id": "ign", "name": "Ignorera", "ignore": True}],
+                "assign": {"group_id:g1": "ign", "group:Kaffe": "ign"},
+                "default": "a",
+            }
+        )
+        self.assertEqual(group_branch(routing, "g1", "Annat namn")[0]["id"], "ign")
+        self.assertEqual(group_branch(routing, "g2", "Kaffe"), (routing["branches"][1], True))
+        self.assertEqual(group_branch(routing, "g3", "Spaning"), (routing["branches"][0], False))
+
+
 class _SubdirProbe:
     """Handles every message and remembers the vault_subdir it saw."""
 
@@ -205,6 +221,14 @@ class OrchestratorRoutingTest(unittest.IsolatedAsyncioTestCase):
 
         await self._run(_msg("Spaning Norr"))
         self.assertEqual(step_settings("seven_s", cfg.PIPELINE_SETTINGS).get("vault_subdir"), "Global")
+
+    async def test_unassigned_group_is_marked_in_flow(self):
+        assigned = await self._run(_msg("Spaning Norr"))
+        unassigned = await self._run(_msg("Annan grupp"))
+        direct = await self._run(_msg())
+        self.assertFalse(assigned["unassigned_group"])
+        self.assertTrue(unassigned["unassigned_group"])
+        self.assertFalse(direct["unassigned_group"])
 
     async def test_flow_filters_and_step_stats_follow_the_branch(self):
         from oden.flow_db import list_flow

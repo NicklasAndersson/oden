@@ -182,6 +182,7 @@ function renderFlowList() {
                         <span class="flow-sender">${escapeHtml(sender)}</span>
                         <span class="flow-arrow">→</span>
                         <span class="flow-channel">${escapeHtml(channel)}</span>
+                        ${item.unassigned_group ? `<span class="routing-flag" title="Gruppen har ingen egen gren – gick till standardgrenen ${escapeHtml(item.branch_name || '')}">ingen gren</span>` : ''}
                     </span>
                     <span class="flow-preview mono">${escapeHtml(body)}</span>
                 </span>
@@ -230,6 +231,8 @@ function renderFlowDetail() {
         </div>
         <h4 class="flow-detail-sender">${escapeHtml(item.source_name || item.source_number || 'Okänd')}</h4>
         <div class="flow-detail-sub"><span class="mono">${escapeHtml(item.source_number || '')}</span> → ${escapeHtml(item.group_name || 'Direktmeddelande')}</div>
+        ${item.unassigned_group ? `<div class="flow-hidden-note">Gruppen har ingen egen gren och gick till standardgrenen.
+            <button type="button" class="flow-link" onclick="showTab('pipelines')">Ge den en gren</button></div>` : ''}
         <div class="flow-dest-box">
             <span class="flow-label">Hamnade i</span>
             ${destHtml.join('') || '<div class="flow-dest"><span>Inget sparat</span></div>'}

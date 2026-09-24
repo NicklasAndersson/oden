@@ -4,6 +4,8 @@
 
 // Cache full group data for the edit modal
 let _groupsCache = [];
+let _groupBranches = [];      // [{id, name, ignore}] from the routing
+let _groupDefaultBranch = '';
 
 async function fetchGroups() {
     try {
@@ -11,6 +13,8 @@ async function fetchGroups() {
         const data = await response.json();
         const container = document.getElementById('groups-container');
         _groupsCache = data.groups || [];
+        _groupBranches = data.branches || [];
+        _groupDefaultBranch = data.defaultBranch || '';
 
         if (_groupsCache.length === 0) {
             container.innerHTML = '<div class="empty-state">Inga grupper hittades</div>';
@@ -25,7 +29,7 @@ async function fetchGroups() {
                 <div class="group-item" data-group-name="${escapeHtml(group.name)}">
                     <div class="group-header">
                         <div class="group-name">${escapeHtml(group.name)}</div>
-                        <div class="group-buttons">${editBtn}</div>
+                        <div class="group-buttons">${_renderGroupBranchSelect(group)}${editBtn}</div>
                     </div>
                     ${_renderGroupMemberTree(group)}
                 </div>
@@ -34,6 +38,43 @@ async function fetchGroups() {
     } catch (error) {
         console.error('Error fetching groups:', error);
     }
+}
+
+function _renderGroupBranchSelect(group) {
+    if (!_groupBranches.length) return '';
+    const fallback = _groupBranches.find(b => b.id === _groupDefaultBranch);
+    const options = [`<option value="" ${group.branchAssigned ? '' : 'selected'}>Standard (${escapeHtml(fallback ? fallback.name : '–')})</option>`]
+        .concat(_groupBranches.map(b => `<option value="${escapeHtml(b.id)}" ${group.branchAssigned && group.branch === b.id ? 'selected' : ''}>${escapeHtml(b.name)}${b.ignore ? ' (ignorera)' : ''}</option>`));
+    const flag = group.branchAssigned ? '' : '<span class="routing-flag" title="Gruppen har ingen egen gren och följer standardgrenen">ej tilldelad</span>';
+    return `
+        <label class="group-branch">${flag}<span>Gren</span>
+            <select data-id="${escapeHtml(group.id)}" data-name="${escapeHtml(group.name)}"
+                    onchange="setGroupBranch(this.dataset.id, this.dataset.name, this.value)">${options.join('')}</select>
+        </label>`;
+}
+
+// One source of truth: the routing. A group assigned by id keeps its id key.
+async function setGroupBranch(groupId, groupName, branchId) {
+    try {
+        const current = await (await fetch('/api/routing')).json();
+        const routing = current.routing;
+        const idKey = `group_id:${groupId}`;
+        const key = idKey in routing.assign ? idKey : `group:${groupName}`;
+        delete routing.assign[idKey];
+        delete routing.assign[`group:${groupName}`];
+        if (branchId) routing.assign[key] = branchId;
+        const response = await fetch('/api/routing', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({routing}),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || `HTTP ${response.status}`);
+        showConfigMessage(`”${groupName}” går nu till ${branchId ? 'grenen ' + (_groupBranches.find(b => b.id === branchId) || {}).name : 'standardgrenen'}`, 'success');
+    } catch (error) {
+        showConfigMessage(`Kunde inte byta gren: ${error.message}`, 'error');
+    }
+    fetchGroups();
 }
 
 function _renderGroupMemberTree(group) {

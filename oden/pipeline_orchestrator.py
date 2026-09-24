@@ -41,7 +41,7 @@ from oden.routing import (
     branch_steps,
     load_routing,
     reset_step_config,
-    resolve_branch,
+    resolve_branch_detail,
     set_step_config,
 )
 from oden.tak.bridge import get_tak_bridge
@@ -122,7 +122,7 @@ class PipelineOrchestrator:
         self._step_configs = {s["pipeline"]: s.get("config") or {} for s in steps}
         return [self._pipeline_map[s["pipeline"]] for s in steps if s["pipeline"] in self._pipeline_map]
 
-    def _record_route(self, message_id: int, branch: dict[str, Any], reason: str) -> None:
+    def _record_route(self, message_id: int, branch: dict[str, Any], reason: str, key: str | None) -> None:
         """The vägval as the first run of the attempt, so Flöde and stats see it like any step."""
         run_id = start_pipeline_run(self._db_path, message_id, ROUTER)
         complete_pipeline_run(self._db_path, run_id)
@@ -136,6 +136,7 @@ class PipelineOrchestrator:
                 "branch": branch["id"],
                 "branch_name": branch["name"],
                 "ignore": bool(branch.get("ignore")),
+                "assigned": key,
             },
         )
 
@@ -160,8 +161,8 @@ class PipelineOrchestrator:
         update_message_status(self._db_path, message_id, STATUS_PROCESSING)
 
         routing = load_routing(cfg)
-        branch, route_reason = resolve_branch(routing, msg_data)
-        self._record_route(message_id, branch, route_reason)
+        branch, route_reason, route_key = resolve_branch_detail(routing, msg_data)
+        self._record_route(message_id, branch, route_reason, route_key)
         if branch.get("ignore"):
             update_message_status(self._db_path, message_id, STATUS_IGNORED)
             return

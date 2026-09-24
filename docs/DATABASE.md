@@ -54,8 +54,8 @@ Läsningar faller tillbaka till `DEFAULT_CONFIG` i [config_db.py](../oden/config
 | `append_window_minutes` | int | `30` | Reply-fönster för append till befintlig rapport |
 | `group_split_enabled` | bool | `true` | Spara utdata under `vault/<group>/` när aktiverat |
 | `startup_message` | str | `self` | Vem som får startmeddelandet |
-| `ignored_groups` | json | `[]` | Grupp-ID:n som ignoreras tyst |
-| `whitelist_groups` | json | `[]` | Om icke-tom: processa endast dessa grupper |
+| `ignored_groups` | json | `[]` | Äldre, används inte — ersatt av ignorera-grenar i `routing` |
+| `whitelist_groups` | json | `[]` | Äldre, används inte — ersatt av `routing` |
 | `filename_format` | str | `classic` | |
 | `log_level` | str | `INFO` | |
 | `log_file` | str | — | Plattformens standard om ej satt |

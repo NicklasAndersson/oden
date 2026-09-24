@@ -256,8 +256,6 @@ CoT-uid fångas repetitionen av dedupen. Myntas ett nytt uid blir det en ny not 
 
 **Inställningar som påverkar:**
 - `vault_path` — mappsökväg för markdown-filer
-- `ignored_groups` — grupper att hoppa
-- `whitelist_groups` — whitelist-begränsning
 - `append_window_minutes` — tidsfönster för append-läge
 - `report_template` / `append_template` — Jinja2-mallar
 

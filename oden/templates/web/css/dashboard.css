@@ -251,6 +251,22 @@ td {
 .group-buttons {
     display: flex;
     gap: 5px;
+    align-items: center;
+}
+.group-branch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85em;
+    color: var(--color-text-subtle);
+}
+.group-branch select {
+    padding: 4px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    max-width: 200px;
 }
 .toggle-btn {
     padding: 4px 10px;
@@ -1550,6 +1566,8 @@ fieldset.signal-only:disabled {
 .routing-source-meta { font-size: 0.78em; color: var(--color-text-subtle); }
 .routing-flag {
     display: inline-block;
+    white-space: nowrap;
+    flex-shrink: 0;
     padding: 1px 7px;
     border-radius: 3px;
     font-size: 0.75em;

@@ -117,12 +117,11 @@ sequenceDiagram
 När ett meddelande tas emot via JSON-RPC bearbetas det i följande ordning:
 
 1. **Sync-filtrering** — Utgående meddelanden som ekas tillbaka av signal-cli ignoreras.
-2. **Whitelist-kontroll** — Om `whitelist_groups` är satt, tillåts *enbart* de grupperna (har prioritet över `ignored_groups`).
-3. **Ignore-kontroll** — Om gruppen finns i `ignored_groups`, avbryts bearbetningen.
-4. **Separator `--`** — Om meddelandet börjar med `--` ignoreras det tyst. Inget sparas.
-5. **Reply-append** — Om meddelandet är ett svar (quote), försök append inom tidsfönstret.
-6. **Kommando `#`** — Se avsnitt [Kommandon & autosvar](#kommandon--autosvar).
-7. **Nytt meddelande** — Skapar en ny Markdown-fil i valvet.
+2. **Vägval** — Källan (grupp, direktmeddelande, TAK) avgör grenen. En ignorera-gren stoppar här: meddelandet finns i Flöde men skrivs inte. Se [PIPELINES.md](PIPELINES.md#vägval-och-grenar).
+3. **Separator `--`** — Om meddelandet börjar med `--` ignoreras det tyst. Inget sparas.
+4. **Reply-append** — Om meddelandet är ett svar (quote), försök append inom tidsfönstret.
+5. **Kommando `#`** — Se avsnitt [Kommandon & autosvar](#kommandon--autosvar).
+6. **Nytt meddelande** — Skapar en ny Markdown-fil i valvet.
 
 ### DB-first och pipelines
 
@@ -225,35 +224,18 @@ Utöver standardkommandona kan egna kommandon skapas, redigeras och tas bort via
 
 ## Grupphantering
 
-### Ignorera grupper
+### Ignorera och välja grupper
 
-| Egenskap | Beskrivning |
-|----------|-------------|
-| **Konfigurationsnyckel** | `ignored_groups` |
-| **Typ** | JSON-lista med gruppnamn |
-| **Standard** | `[]` (ingen grupp ignoreras) |
-| **Effekt** | Meddelanden från ignorerade grupper sparas inte |
-| **GUI** | Knappen "Ignorera" på grupp-sidan i Web GUI |
+Varje grupp går till en gren; en *ignorera-gren* har inga steg, så gruppens
+meddelanden sparas bara i Flöde. Grenen väljs i **Signal → Grupper** eller under
+**Vägval** i Pipelines-fliken — båda ändrar config-nyckeln `routing`. Grupper
+utan egen gren följer standardgrenen och märks *ej tilldelad* (i Flöde: *ingen
+gren*). Startmeddelandet (`startup_message = all`) skickas inte till grupper i
+en ignorera-gren.
 
-### Whitelist-grupper
-
-| Egenskap | Beskrivning |
-|----------|-------------|
-| **Konfigurationsnyckel** | `whitelist_groups` |
-| **Typ** | JSON-lista med gruppnamn |
-| **Standard** | `[]` (alla grupper tillåts) |
-| **Effekt** | Om satt, sparas *enbart* meddelanden från dessa grupper |
-| **Prioritet** | **Har alltid prioritet** över `ignored_groups` |
-| **GUI** | Knappen "Whitelist" på grupp-sidan i Web GUI |
-
-### Prioritetsordning
-
-```
-Om whitelist_groups är satt och inte tom:
-  → Enbart whitelisted grupper behandlas (ignored_groups ignoreras helt)
-Annars:
-  → Alla grupper behandlas, utom de i ignored_groups
-```
+De äldre nycklarna `ignored_groups`, `whitelist_groups` och gruppfiltrets
+svart-/vitlista styr inte längre något; gruppfiltret migreras till grenar vid
+första start (se [PIPELINES.md](PIPELINES.md)).
 
 ### Gruppåtgärder via GUI
 

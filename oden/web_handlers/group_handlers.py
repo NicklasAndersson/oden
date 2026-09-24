@@ -10,7 +10,7 @@ from aiohttp import web
 from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.groups_db import get_all_groups, upsert_groups_bulk
-from oden.pipeline_settings import normalize_group_filter_settings, normalize_pipeline_settings
+from oden.routing import group_branch, load_routing
 from oden.web_handlers._helpers import (
     handle_errors,
     parse_json_body,
@@ -18,11 +18,6 @@ from oden.web_handlers._helpers import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _get_group_filter_settings() -> dict:
-    settings = normalize_pipeline_settings(cfg.PIPELINE_SETTINGS)
-    return normalize_group_filter_settings(settings.get("group_filter"))
 
 
 async def groups_handler(request: web.Request) -> web.Response:
@@ -96,15 +91,25 @@ async def groups_handler(request: web.Request) -> web.Response:
                     "isAdmin": is_admin,
                 }
 
-    group_filter_settings = _get_group_filter_settings()
-    mode = group_filter_settings.get("mode", "blacklist")
-    configured_groups = group_filter_settings.get("groups", [])
-
-    ignored_groups = configured_groups if mode == "blacklist" else []
-    whitelist_groups = configured_groups if mode == "whitelist" else []
+    # The branch each group's messages go to — the routing is the one source of truth.
+    routing = load_routing(cfg)
+    ignored_groups = []
+    for group in merged.values():
+        branch, assigned = group_branch(routing, group["id"], group["name"])
+        group["branch"] = branch["id"]
+        group["branchAssigned"] = assigned
+        if branch["ignore"]:
+            ignored_groups.append(group["name"])
 
     groups = sorted(merged.values(), key=lambda g: g.get("name", ""))
-    return web.json_response({"groups": groups, "ignoredGroups": ignored_groups, "whitelistGroups": whitelist_groups})
+    return web.json_response(
+        {
+            "groups": groups,
+            "ignoredGroups": ignored_groups,
+            "branches": [{"id": b["id"], "name": b["name"], "ignore": b["ignore"]} for b in routing["branches"]],
+            "defaultBranch": routing["default"],
+        }
+    )
 
 
 @handle_errors("join group")

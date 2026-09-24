@@ -226,6 +226,12 @@ def message_source(msg_data: dict[str, Any]) -> dict[str, str | None]:
 
 def resolve_branch(routing: dict[str, Any], msg_data: dict[str, Any]) -> tuple[dict[str, Any], str]:
     """``(branch, reason)`` for a message. The reason is shown in Flöde."""
+    branch, reason, _ = resolve_branch_detail(routing, msg_data)
+    return branch, reason
+
+
+def resolve_branch_detail(routing: dict[str, Any], msg_data: dict[str, Any]) -> tuple[dict[str, Any], str, str | None]:
+    """``(branch, reason, assignment key)``; the key is None when the default branch was used."""
     src = message_source(msg_data)
     assign = routing["assign"]
     candidates: list[tuple[str, str]] = []
@@ -241,11 +247,18 @@ def resolve_branch(routing: dict[str, Any], msg_data: dict[str, Any]) -> tuple[d
     for key, label in candidates:
         branch = branch_by_id(routing, assign.get(key, ""))
         if branch is not None:
-            return branch, f"{label} är tilldelad grenen ”{branch['name']}”"
+            return branch, f"{label} är tilldelad grenen ”{branch['name']}”", key
 
     branch = branch_by_id(routing, routing["default"]) or routing["branches"][0]
     what = candidates[0][1] if candidates else "Källan"
-    return branch, f"{what} har ingen egen gren → standardgrenen ”{branch['name']}”"
+    return branch, f"{what} har ingen egen gren → standardgrenen ”{branch['name']}”", None
+
+
+def group_branch(routing: dict[str, Any], group_id: str | None, group_name: str | None) -> tuple[dict[str, Any], bool]:
+    """``(branch, assigned)`` for a Signal group — what its messages would get."""
+    group = {k: v for k, v in (("id", group_id), ("name", group_name)) if v}
+    branch, _, key = resolve_branch_detail(routing, {"envelope": {"dataMessage": {"groupV2": group}}})
+    return branch, key is not None
 
 
 def branch_steps(branch: dict[str, Any], *, publish_to_tak: bool) -> list[dict[str, Any]]:

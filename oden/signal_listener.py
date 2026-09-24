@@ -20,6 +20,7 @@ from oden.messages_db import (
 )
 from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.processing import process_message
+from oden.routing import group_branch, load_routing
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,9 @@ async def send_startup_message(writer: asyncio.StreamWriter, groups: list[dict] 
                 logger.warning("No groups available for startup message (startup_message=all)")
                 return
 
-            # Filter out ignored groups
-            active_groups = [g for g in groups if g.get("name") not in cfg.IGNORED_GROUPS]
+            # Groups whose messages go to an ignore branch get no startup message
+            routing = load_routing(cfg)
+            active_groups = [g for g in groups if not group_branch(routing, g.get("id"), g.get("name"))[0]["ignore"]]
             if not active_groups:
                 logger.info("No active groups to send startup message to (all groups ignored)")
                 return
@@ -147,15 +149,12 @@ async def log_groups(writer: asyncio.StreamWriter) -> list[dict]:
                 return []
 
             logger.info(f"Account is member of {len(groups)} group(s):")
+            routing = load_routing(cfg)
             for group in groups:
                 group_name = group.get("name", "Unknown")
-                is_ignored = group_name in cfg.IGNORED_GROUPS
-                status = " (IGNORED)" if is_ignored else ""
+                branch, assigned = group_branch(routing, group.get("id"), group.get("name"))
+                status = f" → {branch['name']}" + ("" if assigned else " (standardgren)")
                 logger.info(f"  • {group_name}{status}")
-
-            if cfg.IGNORED_GROUPS:
-                ignored_count = sum(1 for g in groups if g.get("name") in cfg.IGNORED_GROUPS)
-                logger.info(f"Ignored groups configured: {len(cfg.IGNORED_GROUPS)}, matched: {ignored_count}")
 
             return groups
 

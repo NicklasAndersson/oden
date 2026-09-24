@@ -88,8 +88,7 @@ Listar alla Signal-grupper som kontot är medlem i.
 
 | Funktion | Beskrivning |
 |----------|-------------|
-| **Ignorera-knapp** | Lägger till/tar bort gruppen i `ignored_groups` |
-| **Whitelist-knapp** | Lägger till/tar bort gruppen i `whitelist_groups` |
+| **Gren** | Vilken gren gruppens meddelanden går till (samma val som Vägval i Pipelines-fliken). *Standard* följer standardgrenen; grupper utan egen gren märks *ej tilldelad* |
 | **Gå med via länk** | Textfält för att klistra in en `https://signal.group/…`-inbjudningslänk |
 | **Väntande inbjudningar** | Listar grupper som Oden har blivit inbjuden till, med Acceptera/Avböj-knappar |
 | **Redigera grupp** | Modal för gruppadministration (namn, beskrivning, medlemmar, behörigheter, grupplänk, försvinnande meddelanden). Visas bara för grupper där Oden är administratör |
@@ -252,7 +251,7 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
-| GET | `/api/groups` | Lista alla grupper |
+| GET | `/api/groups` | Lista alla grupper, med gren per grupp (`branch`, `branchAssigned`) och grenarna |
 | POST | `/api/join-group` | Gå med i grupp via inbjudningslänk |
 | POST | `/api/toggle-ignore-group` | Toggla ignorera-status för en grupp |
 | POST | `/api/toggle-whitelist-group` | Toggla whitelist-status för en grupp |

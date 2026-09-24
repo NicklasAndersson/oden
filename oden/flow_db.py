@@ -107,6 +107,7 @@ def _load_steps(conn: sqlite3.Connection, message_ids: list[int]) -> dict[int, l
                 "branch": None,
                 "branch_name": None,
                 "ignore": False,
+                "assigned": False,  # False: not recorded (older routes); None: default branch
             }
             runs_by_id[row["id"]] = run
             runs_by_message.setdefault(row["message_id"], []).append(run)
@@ -129,6 +130,8 @@ def _load_steps(conn: sqlite3.Connection, message_ids: list[int]) -> dict[int, l
                 run["branch"] = details["branch"]
                 run["branch_name"] = details.get("branch_name") or details["branch"]
                 run["ignore"] = bool(details.get("ignore"))
+                if "assigned" in details:
+                    run["assigned"] = details["assigned"]
     return runs_by_message
 
 
@@ -163,6 +166,8 @@ def _row_to_item(row: sqlite3.Row, runs: list[dict[str, Any]]) -> dict[str, Any]
     route = next((r for r in latest if r["pipeline_name"] == ROUTER), None)
     item["branch"] = route["branch"] if route else None
     item["branch_name"] = route["branch_name"] if route else None
+    # A group whose messages went to the default branch because nobody gave it one.
+    item["unassigned_group"] = bool(route and item.get("group_name") and route["assigned"] is None)
     return item
 
 
