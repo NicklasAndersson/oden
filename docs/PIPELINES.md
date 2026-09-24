@@ -279,6 +279,11 @@ Fliken **Pipelines**:
   meddelanden i Flöde*. För ett steg: på/av, upp/ner, *Undermapp i den här
   grenen* (Spara/Ångra), hanterade/hoppade över/fel senaste 24 h och länkar
   till just de meddelandena i Flöde.
+- **Testruta:** klistra in ett meddelande och välj källa. Visar vägvalet,
+  vad varje steg säger (tog meddelandet, hoppade över, fel — t.ex. vilka
+  fält som saknas i en 7S), vilken fil som skulle skrivas och dess innehåll.
+  Inget skrivs till valvet, skickas till Signal/TAK eller sparas i databasen
+  (`oden/dry_run.py`, `POST /api/pipelines/test`).
 - **Grundinställningar per pipeline:** det som gäller i alla grenar
   (standardundermapp, rapportmallar m.m.).
 

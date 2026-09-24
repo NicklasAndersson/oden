@@ -1674,6 +1674,52 @@ fieldset.signal-only:disabled {
 }
 .routing-bar-handled { background: #6fcf97; }
 .routing-bar-failed { background: #f28b82; }
+.routing-test {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+}
+@media (max-width: 900px) {
+    .routing-test { grid-template-columns: 1fr; }
+}
+.routing-test textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.85em;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    resize: vertical;
+}
+.routing-test select {
+    padding: 5px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    max-width: 260px;
+}
+.routing-test-result { min-width: 0; }
+.routing-test-content {
+    max-height: 320px;
+    overflow: auto;
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    color: var(--color-text);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 4px;
+}
 .pipelines-defaults summary {
     cursor: pointer;
     color: var(--color-accent);

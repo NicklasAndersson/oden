@@ -83,7 +83,7 @@ from oden.web_handlers.response_handlers import (
     response_save_handler,
     responses_list_handler,
 )
-from oden.web_handlers.routing_handlers import routing_handler, routing_save_handler
+from oden.web_handlers.routing_handlers import routing_handler, routing_save_handler, routing_test_handler
 from oden.web_handlers.signal_connect_handlers import (
     signal_connect_status_handler,
     signal_disable_handler,
@@ -262,6 +262,7 @@ def create_app() -> web.Application:
     app.router.add_get("/api/storage", storage_handler)
     app.router.add_get("/api/routing", routing_handler)
     app.router.add_put("/api/routing", routing_save_handler)
+    app.router.add_post("/api/pipelines/test", routing_test_handler)
     app.router.add_post("/api/storage/cleanup", storage_cleanup_handler)
     app.router.add_post("/api/oden-home", oden_home_change_handler)
     app.router.add_post("/api/signal-cli/restart", restart_signal_cli_handler)

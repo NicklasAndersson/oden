@@ -20,6 +20,7 @@ from aiohttp import web
 
 from oden import config as cfg
 from oden.config_db import set_config_value
+from oden.dry_run import build_test_message, dry_run, publish_to_tak
 from oden.groups_db import get_all_groups
 from oden.routing import (
     ROUTER,
@@ -172,14 +173,6 @@ def _sources(routing: dict[str, Any], by_source: dict[str, int]) -> list[dict[st
     return result
 
 
-def _publish_to_tak() -> bool:
-    """Whether TAK publishing runs first in every branch (switched on in the TAK tab)."""
-    from oden.tak.bridge import get_tak_bridge
-
-    bridge = get_tak_bridge()
-    return bridge is not None and bool(getattr(bridge, "settings", {}).get("publish_reports"))
-
-
 def _pipeline_meta() -> list[dict[str, Any]]:
     from oden.web_handlers.pipeline_handlers import _get_available_pipelines
 
@@ -199,7 +192,7 @@ async def routing_handler(request: web.Request) -> web.Response:
             "branch_counts_24h": by_branch,
             "step_stats_24h": step_stats,
             "pipelines": _pipeline_meta(),
-            "publish_to_tak": _publish_to_tak(),
+            "publish_to_tak": publish_to_tak(),
         }
     )
 
@@ -221,3 +214,27 @@ async def routing_save_handler(request: web.Request) -> web.Response:
         routing["default"],
     )
     return web.json_response({"success": True, "routing": routing})
+
+
+@handle_errors("test message")
+@parse_json_body
+async def routing_test_handler(request: web.Request) -> web.Response:
+    """Testruta: the route a pasted message would take now. Writes and sends nothing."""
+    body = request["json_body"]
+    text = str(body.get("text") or "")
+    source = str(body.get("source") or "source:direct")
+    if not text.strip():
+        return web.json_response({"success": False, "error": "Skriv eller klistra in ett meddelande"}, status=400)
+    if len(text) > 20000:
+        return web.json_response({"success": False, "error": "Meddelandet är för långt för Testrutan"}, status=400)
+    if source not in ("source:tak", "source:direct") and not (source.startswith("group:") and len(source) > 6):
+        return web.json_response({"success": False, "error": f"Okänd källa: {source!r}"}, status=400)
+
+    group_id = None
+    if source.startswith("group:"):
+        name = source.removeprefix("group:")
+        known = get_all_groups(cfg.CONFIG_DB, account=cfg.SIGNAL_NUMBER)
+        group_id = next((g.get("id") for g in known if g.get("name") == name), None)
+
+    result = await dry_run(build_test_message(text, source, group_id=group_id))
+    return web.json_response({"success": True, **result})

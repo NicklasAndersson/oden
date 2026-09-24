@@ -443,3 +443,71 @@ async def process_message(
         logger.error(f"Failed to write file {path}: {e}")
         return ProcessOutcome("error", f"Kunde inte skriva filen: {e}", path)
     return ProcessOutcome("wrote", "Nytt meddelande sparades som egen fil", path)
+
+
+def preview_message(obj: dict[str, Any]) -> tuple[ProcessOutcome, str | None]:
+    """What :func:`process_message` would do, for the Testruta.
+
+    Same decisions in the same order, but nothing is written, sent, created or
+    stored. Returns the outcome and, for a new file, the rendered content.
+    """
+    result = _preview(obj)
+    return result if isinstance(result, tuple) else (result, None)
+
+
+def _preview(obj: dict[str, Any]) -> ProcessOutcome | tuple[ProcessOutcome, str]:
+    envelope = obj.get("envelope", {})
+    if not envelope:
+        return ProcessOutcome("skipped", "Tomt kuvert")
+    if "syncMessage" in envelope and "dataMessage" not in envelope:
+        return ProcessOutcome("skipped", "Eget utgående meddelande (sync) sparas inte")
+
+    msg, group_title, group_id, attachments = _extract_message_details(envelope)
+    if msg and msg.strip().startswith("--"):
+        return ProcessOutcome("skipped", "Börjar med '--' och ska inte sparas")
+
+    source_name = envelope.get("sourceName")
+    source_number = envelope.get("sourceNumber") or envelope.get("source")
+    quote = (envelope.get("dataMessage") or {}).get("quote")
+    if quote:
+        return ProcessOutcome(
+            "skipped",
+            "Citerat svar – läggs till i en befintlig fil inom tidsfönstret, annars som nytt meddelande (testas inte här)",
+        )
+
+    if msg and msg.strip().startswith("#"):
+        command = msg.strip()[1:].lower()
+        if not command:
+            return ProcessOutcome("skipped", "Tomt kommando ('#')")
+        if get_response_by_keyword(cfg.CONFIG_DB, command):
+            return ProcessOutcome("command", f"Kommandot #{command} skulle besvaras i chatten")
+        return ProcessOutcome("command", f"Kommandot #{command} saknar svar i Svar och kommandon")
+
+    if not msg and not attachments:
+        return ProcessOutcome("skipped", "Varken text eller bilagor")
+    if not group_title:
+        return ProcessOutcome("skipped", "Direktmeddelanden sparas inte, bara gruppmeddelanden")
+
+    dt = (
+        datetime.datetime.fromtimestamp(envelope.get("timestamp") / 1000.0, tz=cfg.TIMEZONE)
+        if envelope.get("timestamp")
+        else datetime.datetime.now(cfg.TIMEZONE)
+    )
+    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True)
+    coords = extract_coordinates(msg) if msg else None
+    content = render_report(
+        fileid=create_fileid(dt, source_name, source_number),
+        group_title=group_title,
+        group_id=group_id,
+        tnr=dt.strftime("%d%H%M"),
+        timestamp_iso=dt.isoformat(),
+        sender_display=format_sender_display(source_name, source_number),
+        sender_name=source_name,
+        sender_number=source_number,
+        lat=coords[0] if coords else None,
+        lon=coords[1] if coords else None,
+        quote_formatted=None,
+        message=msg.strip() if msg else None,
+        attachments=None,
+    )
+    return ProcessOutcome("wrote", "Nytt meddelande skulle sparas som egen fil", path), content

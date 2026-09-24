@@ -83,6 +83,7 @@ function renderRouting() {
     renderRoutingSources();
     renderRoutingColumns();
     renderRoutingDetail();
+    renderRoutingTestSources();
 }
 
 function renderRoutingSources() {
@@ -391,4 +392,82 @@ function deleteFocusedBranch() {
     }
     routingFocus = {branch: routing.default};
     saveRouting(routing, `Grenen ”${branch.name}” borttagen`);
+}
+
+// ---------- Testruta ----------
+
+const ROUTING_TEST_VERDICTS = {
+    handled: 'Tog meddelandet',
+    skipped: 'Hoppade över',
+    failed: 'Fel',
+    notrun: 'Körs inte',
+    side: 'Sidoeffekt',
+};
+
+function renderRoutingTestSources() {
+    const select = document.getElementById('routing-test-source');
+    if (!select) return;
+    const previous = select.value;
+    select.innerHTML = routingState.sources.map(source =>
+        `<option value="${escapeHtml(source.key)}">${escapeHtml(source.kind === 'group' ? `Grupp: ${source.label}` : source.label)}</option>`
+    ).join('');
+    const firstGroup = routingState.sources.find(s => s.kind === 'group');
+    select.value = previous || (firstGroup ? firstGroup.key : 'source:direct');
+}
+
+async function runRoutingTest() {
+    const box = document.getElementById('routing-test-result');
+    const text = document.getElementById('routing-test-text').value;
+    const source = document.getElementById('routing-test-source').value;
+    box.innerHTML = '<div class="empty-state">Testar…</div>';
+    try {
+        const response = await fetch('/api/pipelines/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({text, source}),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || `HTTP ${response.status}`);
+        box.innerHTML = renderRoutingTestResult(data);
+    } catch (error) {
+        box.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function renderRoutingTestResult(data) {
+    const trace = [{
+        kind: data.ignore ? 'ignored' : 'route',
+        name: 'vägval',
+        verdict: `Gren: ${data.branch_name}`,
+        why: data.route_reason,
+    }];
+    if (data.ignore) {
+        trace.push({kind: 'ignored', name: '∅', verdict: 'Inga steg', why: 'Ignorera-gren: sparas bara i Flöde, skrivs aldrig.'});
+    }
+    for (const step of data.steps) {
+        trace.push({
+            kind: step.outcome,
+            name: routingPipelineLabel(step.pipeline),
+            verdict: ROUTING_TEST_VERDICTS[step.outcome] || step.outcome,
+            why: step.reason,
+            warnings: step.warnings || [],
+            out: step.outcome === 'handled' ? step.output_file : null,
+        });
+    }
+    const steps = trace.map(step => `
+        <li class="flow-trace-step">
+            <span class="flow-trace-rail">${flowMarker(step.kind, step.name)}<span class="flow-trace-line"></span></span>
+            <span class="flow-trace-body">
+                <span class="flow-trace-title"><span class="mono">${escapeHtml(step.name)}</span>
+                    <span class="flow-badge flow-badge-${step.kind}">${escapeHtml(step.verdict)}</span></span>
+                ${step.why ? `<span class="flow-trace-why">${escapeHtml(step.why)}</span>` : ''}
+                ${(step.warnings || []).map(w => `<span class="flow-trace-warn">⚠ ${escapeHtml(w)}</span>`).join('')}
+                ${step.out ? `<span class="flow-trace-out mono">→ ${escapeHtml(step.out)}</span>` : ''}
+            </span>
+        </li>`).join('');
+    const file = data.content
+        ? `<div class="routing-field">Skulle skrivas till <span class="mono">${escapeHtml(data.output_file || '')}</span>
+               <pre class="routing-test-content">${escapeHtml(data.content)}</pre></div>`
+        : '<p class="routing-source-meta">Ingen fil skulle skrivas.</p>';
+    return `<ol class="flow-trace">${steps}</ol>${file}`;
 }

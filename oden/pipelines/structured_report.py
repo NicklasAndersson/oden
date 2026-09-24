@@ -156,14 +156,17 @@ def build_report_filepath(
     tnr_base: str,
     *,
     prefix: str = "TNR",
+    create: bool = True,
 ) -> tuple[str, str]:
     """Resolve a collision-free filepath inside the vault.
 
     If group split is enabled, files are written under ``VAULT_PATH/<group>/``.
     If *vault_subdir* is set, it is appended beneath that base directory.
+    With ``create=False`` (Testruta) the directory is not created.
     """
     target_dir = resolve_output_dir(group_title, vault_subdir)
-    os.makedirs(target_dir, exist_ok=True)
+    if create:
+        os.makedirs(target_dir, exist_ok=True)
 
     tnr = tnr_base
     counter = 2
@@ -228,6 +231,16 @@ def trailing_obsidian_comment(message_text: str | None) -> str:
         return ""
     match = _TRAILING_OBSIDIAN_COMMENT_RE.search(message_text)
     return match.group(0).strip() if match else ""
+
+
+@dataclass(frozen=True)
+class _PreparedReport:
+    filepath: str
+    content: str
+    attachments: list[dict[str, Any]]
+    signal_dt: datetime.datetime
+    source_name: str | None
+    source_number: str | None
 
 
 @dataclass(frozen=True)
@@ -407,6 +420,52 @@ class StructuredReportPipeline:
         writer: Any,
     ) -> bool:
         del reader, writer
+        prepared = await self._prepare(msg_data, dry_run=False)
+        if not isinstance(prepared, _PreparedReport):
+            return prepared
+
+        content = prepared.content
+        if prepared.attachments:
+            attachment_links = await save_attachments(
+                prepared.attachments,
+                os.path.dirname(prepared.filepath),
+                prepared.signal_dt,
+                prepared.source_name,
+                prepared.source_number,
+            )
+            if attachment_links:
+                content = _append_section(content, ["## Bilagor", "", *attachment_links])
+
+        with open(prepared.filepath, "w", encoding="utf-8") as handle:
+            handle.write(content)
+
+        # Same wording as the unstructured path in oden.processing, so one grep
+        # finds every written report. Without it a 7S file lands silently and the
+        # only trace is a counter saying a note was created, somewhere.
+        logger.info("WROTE: %s", prepared.filepath)
+        self.last_output_file = prepared.filepath
+        return True
+
+    async def preview(self, msg_data: dict[str, Any]) -> dict[str, Any]:
+        """What :meth:`run` would do, without writing, downloading or creating anything."""
+        try:
+            prepared = await self._prepare(msg_data, dry_run=True)
+        except Exception as exc:  # the same errors fail the step in a real run
+            return {"handled": False, "failed": True, "reason": str(exc), "warnings": self.last_warnings}
+        if not isinstance(prepared, _PreparedReport):
+            return {"handled": prepared, "reason": self.last_reason, "warnings": self.last_warnings}
+        return {
+            "handled": True,
+            "reason": self.last_reason,
+            "output_file": prepared.filepath,
+            "content": prepared.content,
+            "attachments": len(prepared.attachments or []),
+            "warnings": self.last_warnings,
+        }
+
+    async def _prepare(self, msg_data: dict[str, Any], *, dry_run: bool) -> bool | _PreparedReport:
+        """Everything up to writing: False (skipped, ``last_reason`` says why),
+        True (handled by appending a reply; never in a dry run) or the report to write."""
         self.last_warnings: list[dict[str, str]] = []
 
         envelope = msg_data.get("envelope", {})
@@ -437,7 +496,11 @@ class StructuredReportPipeline:
         resolved_group_title = group_title or "inbox"
         effective_vault_subdir = self._resolve_effective_subdir()
 
-        if await self._try_append_reply_attachments(
+        if dry_run:
+            if attachments and quote:
+                self.last_reason = "Citerat svar med bilagor – läggs till i den citerade rapporten (testas inte här)"
+                return False
+        elif await self._try_append_reply_attachments(
             attachments=attachments,
             quote=quote,
             group_title=resolved_group_title,
@@ -473,6 +536,7 @@ class StructuredReportPipeline:
             effective_vault_subdir,
             raw_tnr,
             prefix=self.file_prefix,
+            create=not dry_run,
         )
 
         content = self.render_report(
@@ -491,25 +555,12 @@ class StructuredReportPipeline:
             )
         )
 
-        if attachments:
-            attachment_links = await save_attachments(
-                attachments,
-                os.path.dirname(filepath),
-                signal_dt,
-                source_name,
-                source_number,
-            )
-            if attachment_links:
-                content = _append_section(content, ["## Bilagor", "", *attachment_links])
-
-        with open(filepath, "w", encoding="utf-8") as handle:
-            handle.write(content)
-
-        # Same wording as the unstructured path in oden.processing, so one grep
-        # finds every written report. Without it a 7S file lands silently and the
-        # only trace is a counter saying a note was created, somewhere.
-        logger.info("WROTE: %s", filepath)
         self.last_reason = f"Rubriken ”{self.header_prefixes[0]}” matchade – sparad som {self.report_id_prefix}-rapport"
-        self.last_output_file = filepath
-
-        return True
+        return _PreparedReport(
+            filepath=filepath,
+            content=content,
+            attachments=attachments,
+            signal_dt=signal_dt,
+            source_name=source_name,
+            source_number=source_number,
+        )

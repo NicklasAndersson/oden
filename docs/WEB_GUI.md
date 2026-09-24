@@ -142,6 +142,7 @@ Pipelines-fliken styr vart meddelandena tar vägen: varje källa går till en
 | **Standardgren** | Dit allt som inte tilldelats går |
 | **Grenar** | En kolumn per gren med stegen i körordning och antal hanterade senaste 24 h; kolumnen *Ny gren* skapar en (samma steg som standardgrenen, bara reserven, eller ignorera) |
 | **Detaljpanel** | Vald gren: namn, standardgren, ta bort, visa i Flöde. Valt steg: på/av, ordning, egen undermapp i grenen, statistik och länk till hanterade/fel i Flöde |
+| **Testruta** | Klistra in ett meddelande, välj källa: se gren, varje stegs besked och filen som skulle skrivas — utan att något skrivs eller skickas |
 | **Grundinställningar** | Det som gäller i alla grenar: standardundermapp, rapportmallar, bekräftelser |
 
 
@@ -285,6 +286,7 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
 | GET | `/api/routing` | Vägval och grenar, källor med gren och antal senaste 24 h, utfall per gren och steg senaste 24 h, möjliga steg, om TAK-publicering är på |
+| POST | `/api/pipelines/test` | Testruta: `{"text", "source"}` (`group:<namn>`, `source:direct`, `source:tak`) → gren, steg med utfall och skäl, fil och innehåll som skulle skrivas. Skriver och skickar inget |
 | PUT | `/api/routing` | Spara vägval och grenar (`{"routing": {...}}`), valideras |
 | GET | `/api/pipelines` | Lista pipelines, grundinställningar och körningsstatistik |
 | PATCH | `/api/pipelines/{name}/enabled` | Den gamla kedjan (`enabled_pipelines`); styr inte längre vad som körs |
