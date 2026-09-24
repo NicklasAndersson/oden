@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Ny flikindelning: Flöde, Grundläggande, Signal, TAK, Pipelines, Avancerat.** Fliken *Meddelandehantering* är borttagen — allt den gjorde finns i Flöde, som också fått statusfiltret *Väntar* (mottaget/köat/bearbetas), *Visa dem också* för kvitton och skrivindikatorer utan innehåll, och en flik *Händelser* med alla pipeline-körningar och deras händelser, även tidigare försök. All Signal-funktionalitet ligger nu under **Signal**, i underflikarna Konton, Grupper, Kontakter, Kommandosvar och Inställningar; den sista samlar telefonnummer, visningsnamn och startup-meddelande (förut Grundläggande), signal-cli, diagnostikloggning och Signal-protokoll (förut Avancerat), *Starta om signal-cli* (förut i sidhuvudet) och *Kör setup för Signal*. TAK var redan samlat under **TAK**. `GET /api/flow` tar nu flera statusar kommaseparerade
 - **TAK: Oden skriver inte längre till TAK om man inte ber om det.** Tidigare publicerades varje 7S med position från Signal automatiskt som markör i TAK så fort TAK-bryggan var ansluten. Oden är en insamlare — den läser från TAK och skriver filer för analys — så publiceringen (`tak_publish`) är nu ett eget val i TAK-fliken, *Publicera 7S-rapporter från Signal som markörer i TAK* (`publish_reports`), avstängt som standard. **Den som vill behålla markörerna i ATAK/iTAK måste slå på det efter uppgraderingen.** Testmarkören och Odens egen position (`pli_enabled`) är oförändrade: båda skickas bara när man själv begär det
 
 ### Fixed
