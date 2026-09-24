@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **TAK: fält med samma namn tappas inte längre.** Ett formulär med flera värden under samma namn behöll bara det första; nu numreras de (`vehicle`, `vehicle 2`, …). Ett upprepat identiskt värde tas bara med en gång
+- **TAK: rutter (`b-m-r`) blir formuläret *Rutt* med alla punkter.** Waypointerna samlas i ordning som `Punkter: START POINT → CP 1 → OBJ BRAVO`, oavsett om de ligger i `<route>` eller direkt under `<detail>`. Tidigare fick rutten namnet ”Strokeweight” (linjetjockleken togs för rapporten), bara den första punkten kom med, och en waypoint kunde tas för ruttens skapare. Visningstaggar (`strokeWeight`, `strokeStyle` m.fl.) kan inte längre bli ett formulärs namn. Rutter släpps inte igenom av standardfiltret — lägg till `b-m-r` i `inbound_types` för att ta emot dem
+
 ## [4.1.0] - 2026-09-24
 
 ### Added

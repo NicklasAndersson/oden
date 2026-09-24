@@ -414,3 +414,68 @@ class SelfPliTest(unittest.TestCase):
     def test_a_hostile_callsign_cannot_inject_xml(self):
         event = self._pli(callsign='x"/><script>')
         self.assertNotIn("<script>", event.find("detail/contact").get("callsign"))
+
+
+# Constructed routes (not captured from a device): waypoints nested in <route>, and
+# directly under <detail> with <link_attr>, the two shapes clients use.
+_ROUTE_NESTED = """<event version="2.0" uid="ROUTE-ALPHA-PATROL-01" type="b-m-r" time="2026-09-24T14:00:00Z">
+  <point lat="59.329300" lon="18.068600" hae="45.0" ce="10.0" le="10.0" />
+  <detail>
+    <contact callsign="RUTT ALPHA PATRULL"/>
+    <strokeColor value="-65536"/>
+    <strokeWeight value="3.0"/>
+    <route routetype="Infiltration" method="Driving" order="Ascending">
+      <link uid="WP-01-START" type="b-m-p-s-p-loc" relation="p-p" callsign="START POINT"/>
+      <link uid="WP-02-CHECKPOINT" type="b-m-p-s-p-loc" relation="p-p" callsign="CP 1"/>
+      <link uid="WP-03-OBJECTIVE" type="b-m-p-s-p-loc" relation="p-p" callsign="OBJ BRAVO"/>
+    </route>
+    <remarks>Primär framryckningsväg för fordon.</remarks>
+  </detail>
+</event>"""
+
+_ROUTE_FLAT = (
+    '<event uid="r1" type="b-m-r" time="2026-09-24T14:00:00Z"><point lat="59.3" lon="18.0"/><detail>'
+    '<link uid="w1" callsign="SP" type="b-m-p-w" point="59.30,18.00" relation="c"/>'
+    '<link uid="w2" callsign="CP1" type="b-m-p-c" point="59.31,18.01" relation="c"/>'
+    '<link uid="w3" callsign="OBJ" type="b-m-p-w" point="59.32,18.02" relation="c"/>'
+    '<link_attr method="Driving" routetype="Primary" direction="Infil"/>'
+    '<strokeColor value="-1"/><strokeWeight value="3.0"/>'
+    '<contact callsign="Route 1"/><link type="a-f-G-U-C" uid="ANDROID-x" parent_callsign="ALPHA" relation="p-p"/>'
+    "</detail></event>"
+)
+
+
+class RouteAndDuplicateFieldTest(unittest.TestCase):
+    def test_a_route_is_named_route_and_keeps_every_waypoint(self):
+        route = cot_to_inbound(_ROUTE_NESTED)
+        self.assertEqual(route.custom_report_name, "Rutt")
+        self.assertEqual(route.custom_report["Punkter"], "START POINT → CP 1 → OBJ BRAVO")
+        self.assertEqual(route.custom_report["Routetype"], "Infiltration")
+        self.assertNotIn("strokeWeight", route.custom_report)
+        # A waypoint link is not the route's creator.
+        self.assertEqual(route.operator_uid, "")
+
+    def test_flat_route_with_link_attr(self):
+        route = cot_to_inbound(_ROUTE_FLAT)
+        self.assertEqual(route.custom_report_name, "Rutt")
+        self.assertEqual(route.custom_report["Punkter"], "SP → CP1 → OBJ")
+        self.assertEqual(route.custom_report["Method"], "Driving")
+        self.assertEqual((route.operator_uid, route.operator_callsign), ("ANDROID-x", "ALPHA"))
+
+    def test_style_tags_never_name_a_report(self):
+        xml = (
+            "<event uid='a' type='a-h-G'><point lat='1' lon='1'/><detail>"
+            "<strokeWeight value='3.0'/><strokeStyle value='solid'/>"
+            "<spot_report><size>3</size><activity>gräver</activity></spot_report></detail></event>"
+        )
+        self.assertEqual(cot_to_inbound(xml).custom_report_name, "Spot Report")
+
+    def test_repeated_fields_are_numbered_not_dropped(self):
+        xml = (
+            "<event uid='a' type='a-h-G'><point lat='1' lon='1'/><detail><vehicles>"
+            "<vehicle>BTR-80</vehicle><vehicle>T-72</vehicle><vehicle>BTR-80</vehicle><vehicle>Ural</vehicle>"
+            "</vehicles></detail></event>"
+        )
+        fields = cot_to_inbound(xml).custom_report
+        # A repeated identical value is not repeated.
+        self.assertEqual(fields, {"vehicle": "BTR-80", "vehicle 2": "T-72", "vehicle 3": "Ural"})

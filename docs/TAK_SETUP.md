@@ -285,6 +285,14 @@ när larmet dras tillbaka) och Larmat av. Det syns i observationen, och med
 *formulärets namn som rubrik* börjar texten med `Nödlarm`. Larm släpps igenom av
 `inbound_reports_only` och av standardtyperna (`b-a-*`).
 
+**Rutter.** En rutt (`b-m-r`) blir formuläret *Rutt* med waypointerna i ordning
+som `Punkter: A → B → C` och ruttens egna uppgifter (typ, metod, riktning).
+Waypointernas koordinater finns inte i rutten (de är egna CoT:er). Rutter
+släpps inte igenom av standardtyperna; lägg till `b-m-r` i `inbound_types`.
+
+Fält med samma namn i ett formulär numreras (`namn`, `namn 2`, …) i stället för
+att bara det första behålls.
+
 **Andra ATAK-formulär än 8S och SCRIM.** Fälten läses generellt, oavsett hur
 formuläret är uppbyggt. Som standard blir ett okänt formulär en
 `TAK-OBSERVATION` med alla fält. Välj *Formulärets namn som rubrik* i steget TAK
