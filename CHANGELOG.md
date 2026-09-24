@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-09-24
+
 ### Added
 
 - **SCRIM-fordonsbeskrivningar blir egna noter, och fordonet blir en nod.** Observatörerna fyller i ett SCRIM-formulär i ATAK vid sidan av 8S — Storlek, Colour, Registrering, Identifierande kännetecken, Märke — men eftersom rapportblocket heter `SCRIM` och inte `8S` föll det igenom till en ostrukturerad `TAK-OBSERVATION` med råa enbokstavsnycklar och fel TNR. Nu blir det en `TNR<DDHHMM>.md` med `typ: SCRIM-rapport`, position, sägesman och registreringsnummer i frontmatter. Registreringen normaliseras (`PHS 331` → `PHS331`) och skrivs som `[[PHS331]]` i exakt samma kanoniska form som 7S-pipelinen använder, så samma plåt sedd via en 8S och via en SCRIM blir *en* nod i valvet — klickar man på fordonet når man båda rapporterna. Utländska plåtar länkas också, till skillnad från 7S-vägen: `R` är ett deklarerat registreringsfält och behöver inte matcha svenskt plåtformat. Oden skriver bara länken; entitetsnoten byggs som förut av analyssteget (FORMAT_SPEC §6.6)
