@@ -24,6 +24,9 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
+from defusedxml import DefusedXmlException
+from defusedxml.ElementTree import fromstring as _safe_fromstring
+
 logger = logging.getLogger(__name__)
 
 UID_PREFIX = "ODEN"
@@ -368,10 +371,14 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
 
     Returns ``None`` for anything without a usable position (pings, malformed,
     (0,0), out-of-range). Text fields are sanitized/truncated here.
+
+    Parsed with defusedxml: the XML comes from a TAK server or is pasted into
+    the Testruta, so entity declarations (billion laughs, external entities)
+    are refused rather than expanded. CoT never uses them.
     """
     try:
-        root = ET.fromstring(xml)
-    except ET.ParseError as exc:
+        root = _safe_fromstring(xml)
+    except (ET.ParseError, DefusedXmlException) as exc:
         logger.debug("cot_to_inbound: parse error: %s", exc)
         return None
     if root.tag != "event":

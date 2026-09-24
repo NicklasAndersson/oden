@@ -214,3 +214,22 @@ class TakIsNotASignalGroupTest(_Env):
             keys = [s["key"] for s in _sources(self.routing, {})]
         self.assertIn("group:Spaning", keys)
         self.assertNotIn("group:TAK Inkommande", keys)
+
+
+class HostileXmlTest(unittest.TestCase):
+    def test_entity_declarations_are_refused(self):
+        bomb = (
+            '<?xml version="1.0"?><!DOCTYPE e [<!ENTITY a "aaaaaaaaaa">'
+            '<!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]>'
+            '<event uid="x" type="a-h-G" time="2026-01-01T00:00:00Z"><point lat="59" lon="18"/>'
+            "<detail><remarks>&b;</remarks></detail></event>"
+        )
+        self.assertIsNone(cot_to_inbound(bomb))
+        external = (
+            '<?xml version="1.0"?><!DOCTYPE e [<!ENTITY x SYSTEM "file:///etc/passwd">]>'
+            '<event uid="x" type="a-h-G"><point lat="59" lon="18"/><detail><remarks>&x;</remarks></detail></event>'
+        )
+        self.assertIsNone(cot_to_inbound(external))
+
+    def test_real_cot_still_parses(self):
+        self.assertIsNotNone(cot_to_inbound(EIGHT_S))
