@@ -14,11 +14,13 @@ const FLOW_KIND_LABELS = {
     notrun: 'Kördes inte',
 };
 
+// Status chips: key is sent as ?status= (comma-separated for several).
 const FLOW_STATUS_FILTERS = [
     ['', 'Alla'],
     ['processed', 'Hanterade'],
     ['ignored', 'Ignorerade'],
     ['failed', 'Fel'],
+    ['received,queued,processing', 'Väntar'],
 ];
 
 let flowItems = [];
@@ -30,6 +32,7 @@ let flowPaused = false;
 let flowSelectedId = null;
 let flowDetail = null;
 let flowTab = 'trace';
+let flowIncludeEmpty = false;
 
 function flowSourceLabel(source) {
     if (source === 'tak') return 'TAK';
@@ -106,16 +109,25 @@ function renderFlowChips() {
     `).join('');
 
     document.getElementById('flow-status-chips').innerHTML = FLOW_STATUS_FILTERS.map(([key, label]) => {
-        const count = key ? (summary.statuses[key] || 0) : summary.total;
-        const dot = key ? `<span class="flow-chip-dot flow-dot-${key}"></span>` : '';
+        const count = key
+            ? key.split(',').reduce((sum, status) => sum + (summary.statuses[status] || 0), 0)
+            : summary.total;
+        const dot = key ? `<span class="flow-chip-dot flow-dot-${key.split(',')[0]}"></span>` : '';
         return `<button type="button" class="flow-chip${flowStatus === key ? ' active' : ''}" aria-pressed="${flowStatus === key}"
                 onclick="setFlowStatus('${key}')">${dot}${label}<span class="flow-chip-count">${count}</span></button>`;
     }).join('');
 
     const hidden = summary.hidden_without_content || 0;
-    document.getElementById('flow-hidden-note').textContent = hidden
-        ? `${hidden} kvitton och skrivindikatorer utan innehåll är dolda.`
-        : '';
+    const note = document.getElementById('flow-hidden-note');
+    if (!hidden) {
+        note.innerHTML = '';
+    } else if (flowIncludeEmpty) {
+        note.innerHTML = `Visar även ${hidden} kvitton och skrivindikatorer utan innehåll. `
+            + '<button type="button" class="flow-link" onclick="toggleFlowEmpty()">Dölj dem</button>';
+    } else {
+        note.innerHTML = `${hidden} kvitton och skrivindikatorer utan innehåll är dolda. `
+            + '<button type="button" class="flow-link" onclick="toggleFlowEmpty()">Visa dem också</button>';
+    }
 }
 
 function renderFlowList() {
@@ -208,6 +220,27 @@ function renderFlowDetail() {
             <pre class="flow-pre">${escapeHtml(JSON.stringify(item.envelope_raw || {}, null, 2))}</pre>`;
         return;
     }
+    if (flowTab === 'events') {
+        const runs = flowDetail.runs || [];
+        body.innerHTML = runs.length ? `
+            <p class="flow-hint">Alla pipeline-körningar för meddelandet${item.attempts > 1 ? `, ${item.attempts} försök` : ''}, äldst först.</p>
+            ${runs.map(run => `
+                <div class="flow-run">
+                    <div class="flow-run-head">
+                        <span class="mono">${escapeHtml(run.pipeline_name)}</span>
+                        <span class="flow-badge flow-badge-${run.status === 'done' ? 'handled' : (run.status === 'failed' ? 'failed' : 'skipped')}">${escapeHtml(run.status)}</span>
+                    </div>
+                    <div class="flow-run-meta mono">${escapeHtml(flowDate(run.started_at))} → ${escapeHtml(flowDate(run.completed_at) || '–')}</div>
+                    ${run.error_message ? `<div class="flow-trace-warn">${escapeHtml(run.error_message)}</div>` : ''}
+                    <ul class="flow-run-events">${(run.events || []).map(event => {
+                        const details = event.details && typeof event.details === 'object' ? event.details : {};
+                        const text = details.reason || details.message || details.error || details.value || '';
+                        return `<li><span class="mono">${escapeHtml(event.event_type)}</span>${text ? ` – ${escapeHtml(text)}` : ''}</li>`;
+                    }).join('') || '<li>Inga händelser</li>'}</ul>
+                </div>`).join('')}`
+            : '<p class="flow-hint">Meddelandet har inte körts genom någon pipeline än.</p>';
+        return;
+    }
     if (flowTab === 'out') {
         const out = flowDetail.output;
         body.innerHTML = out
@@ -251,6 +284,7 @@ function renderFlowDetail() {
 
 async function fetchFlow() {
     const params = new URLSearchParams({ limit: '200' });
+    if (flowIncludeEmpty) params.set('include_empty', '1');
     if (flowSource) params.set('source', flowSource);
     if (flowStatus) params.set('status', flowStatus);
     try {
@@ -316,6 +350,11 @@ function setFlowStatus(key) {
 function showFlowTab(tab) {
     flowTab = tab;
     renderFlowDetail();
+}
+
+function toggleFlowEmpty() {
+    flowIncludeEmpty = !flowIncludeEmpty;
+    fetchFlow();
 }
 
 function toggleFlowPaused() {

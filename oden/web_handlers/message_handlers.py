@@ -199,7 +199,7 @@ async def flow_list_handler(request: web.Request) -> web.Response:
         {
             "messages": items,
             "chain": _pipeline_chain(),
-            "summary": flow_summary(cfg.CONFIG_DB),
+            "summary": flow_summary(cfg.CONFIG_DB, has_content_only=not include_empty),
             "limit": limit,
         }
     )
@@ -220,4 +220,9 @@ async def flow_detail_handler(request: web.Request) -> web.Response:
             break
     _relativize_steps(item)
 
-    return web.json_response({"message": item, "chain": _pipeline_chain(), "output": output})
+    # Every run of every attempt with its raw events, for the Händelser tab.
+    runs = get_runs_for_message(cfg.CONFIG_DB, message_id)
+    for run in runs:
+        run["events"] = get_events_for_run(cfg.CONFIG_DB, run["id"])
+
+    return web.json_response({"message": item, "chain": _pipeline_chain(), "output": output, "runs": runs})

@@ -305,9 +305,9 @@ Viktigt:
 ### Funktioner
 
 - **Setup-wizard** - Guidar dig genom konfigurationen vid första start
-- **Web GUI** - Dashboard med config, loggar, grupphantering, template-editor och kontohantering
-- **Meddelandehantering** - Se råmeddelanden, pipeline-körningar och reprocessa enskilda meddelanden
-- **Multi-account** - Hantera flera Signal-konton via *Signal-konton*-fliken (länka, aktivera, radera)
+- **Web GUI** - Dashboard med flikarna Flöde, Grundläggande, Signal, TAK, Pipelines och Avancerat, plus live-loggar
+- **Flöde** - Se allt som kommer in från alla källor, vart det tog vägen och varför; rått kuvert, utdatafil och omkörning
+- **Multi-account** - Hantera flera Signal-konton under *Signal → Konton* (länka, aktivera, radera)
 - **System Tray** - Starta/stoppa, öppna GUI och avsluta Oden från systemfältet (macOS/Linux/Windows)
 - **Svara på meddelande** - Svaret läggs till i din senaste rapport (inom 30 min)
 - **`++` prefix** - Behandlas som vanligt meddelande (legacy append-prefix är borttaget)

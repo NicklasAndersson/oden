@@ -18,9 +18,6 @@
                     <div class="status-dot"></div>
                     <span>Lyssnar</span>
                 </div>
-                <button class="btn btn-secondary" onclick="restartSignalCli()" title="Starta om signal-cli"{% if not signal_enabled %} disabled{% endif %}>
-                    ↻ Starta om signal-cli
-                </button>
                 <button class="btn btn-danger" onclick="shutdownApp()" title="Stäng av Oden">
                     ⏻ Stäng av
                 </button>
@@ -38,26 +35,18 @@
                 <div class="tabs">
                     <button class="tab-btn" onclick="showTab('flow')">Flöde</button>
                     <button class="tab-btn active" onclick="showTab('basic')">Grundläggande</button>
-                    <button class="tab-btn" onclick="showTab('groups')">Grupper</button>
-                    <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
-                    <button class="tab-btn" onclick="showTab('responses')">Svar</button>
-                    <button class="tab-btn" onclick="showTab('pipelines')">Pipelines</button>
-                    <button class="tab-btn" onclick="showTab('accounts')">Signal-konton</button>
-                    <button class="tab-btn" onclick="showTab('contacts')">Kontakter</button>
-                    <button class="tab-btn" onclick="showTab('messages')">Meddelandehantering</button>
+                    <button class="tab-btn" onclick="showTab('signal')">Signal</button>
                     <button class="tab-btn" onclick="showTab('tak')">TAK</button>
+                    <button class="tab-btn" onclick="showTab('pipelines')">Pipelines</button>
+                    <button class="tab-btn" onclick="showTab('advanced')">Avancerat</button>
                 </div>
 
                 {% include "includes/dashboard/tab_flow.html" %}
                 {% include "includes/dashboard/tab_basic.html" %}
-                {% include "includes/dashboard/tab_groups.html" %}
-                {% include "includes/dashboard/tab_advanced.html" %}
-                {% include "includes/dashboard/tab_responses.html" %}
-                {% include "includes/dashboard/tab_pipelines.html" %}
-                {% include "includes/dashboard/tab_accounts.html" %}
-                {% include "includes/dashboard/tab_contacts.html" %}
-                {% include "includes/dashboard/tab_messages.html" %}
+                {% include "includes/dashboard/tab_signal.html" %}
                 {% include "includes/dashboard/tab_tak.html" %}
+                {% include "includes/dashboard/tab_pipelines.html" %}
+                {% include "includes/dashboard/tab_advanced.html" %}
 
             </div>
 
@@ -86,7 +75,6 @@
     {% include "js/dashboard/pipelines.js" %}
     {% include "js/dashboard/accounts.js" %}
     {% include "js/dashboard/contacts.js" %}
-    {% include "js/dashboard/message_queue.js" %}
     {% include "js/dashboard/flow.js" %}
     {% include "js/dashboard/tak.js" %}
     {% include "js/dashboard/tabs.js" %}

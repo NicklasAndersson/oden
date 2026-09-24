@@ -32,35 +32,56 @@ Dashboard-mode aktiveras när konfigurationen är komplett. Alla funktioner besk
 
 ### Flikar
 
-#### Konfiguration
+| Flik | Innehåll |
+|------|----------|
+| **Flöde** | Allt som kommer in från alla källor, vart det tog vägen och varför |
+| **Grundläggande** | Vault-sökväg, katalogstruktur, tidszon, append-fönster |
+| **Signal** | Allt som rör Signal, i underflikar: Konton, Grupper, Kontakter, Kommandosvar, Inställningar |
+| **TAK** | Allt som rör TAK: status, QR-anslutning, anslutning, certifikat, inkommande CoT, testmarkör |
+| **Pipelines** | Körordning, aktivering och inställningar per pipeline, mallar |
+| **Avancerat** | Loggnivå och retention |
 
-Konfigurationssidan har tre underflikar:
+Varje fält har en hjälptext som förklarar vad inställningen gör. Inställningarna sparas automatiskt.
 
-| Flik | Beskrivning |
-|------|-------------|
-| **Grundläggande** | Vanliga inställningar: vault-sökväg, telefonnummer, tidszon, filnamnsformat, loggnivå |
-| **Avancerat** | signal-cli-inställningar, append-fönster, startup-meddelande, webbport |
-| **Rå config** | Alla konfigurationsnycklar i rått format (key-value) |
+#### Flöde
 
-Varje fält har en hjälptext som förklarar vad inställningen gör.
+Varje inkommet meddelande i ankomstordning — från alla Signal-konton och TAK —
+med källa, avsändare, kanal, en rå förhandsvisning och en markör per pipeline i
+den ordning de kördes. Ersätter den tidigare fliken *Meddelandehantering*.
 
-**Osparade ändringar:** Om ändringar har gjorts utan att spara visas en amber-färgad banner högst upp och en punkt på fliken.
-
-#### TAK
-
-Finns bara om Oden är installerad med `oden[tak]`. Visar anslutningsstatus,
-antal skickade/mottagna CoT-händelser, cert-utgångsvarning, ett konfigformulär
-och en knapp för att skicka en testmarkör. Detaljer i [TAK_SETUP.md](TAK_SETUP.md).
-
-#### Live-loggar
-
-| Egenskap | Beskrivning |
+| Funktion | Beskrivning |
 |----------|-------------|
-| **Uppdateringsintervall** | Var 3:e sekund (automatisk polling av `/api/logs`) |
-| **Buffert** | 500-post cirkulärbuffert i minnet |
-| **Innehåll** | Tidsstämpel, loggnivå och meddelande per rad |
+| **Filter** | Källa (varje Signal-konto, TAK), status (hanterade, ignorerade, fel, väntar) och fritextsök |
+| **Utan innehåll** | Kvitton och skrivindikatorer är dolda; *Visa dem också* tar med dem |
+| **Live** | Uppdateras var 3:e sekund när fliken är öppen; kan pausas |
+| **Spår** | Vad varje pipeline gjorde med meddelandet och varför |
+| **Rått** | Kuvertet exakt som det lagrades (`raw_messages.envelope_raw`) |
+| **Utdata** | Filen som skrevs i valvet (läses bara om den ligger inuti valvet) |
+| **Händelser** | Alla pipeline-körningar och deras händelser, även tidigare försök |
+| **Kör om** | Kör meddelandet genom pipelinekedjan igen |
 
-#### Grupper
+#### Grundläggande
+
+Vault-sökväg, grupp-uppdelning av katalogstrukturen, tidszon och append-fönster.
+
+#### Signal
+
+Underflikar:
+
+##### Konton
+
+Hantera signal-cli-konton (multi-account daemon-läge).
+
+| Funktion | Beskrivning |
+|----------|-------------|
+| **Lista konton** | Visar alla länkade signal-cli-konton med aktivt konto markerat |
+| **Lägg till konto** | Starta QR-kodlänkning för att lägga till ett nytt Signal-konto |
+| **Aktivera konto** | Växla aktivt konto — meddelanden behandlas för det valda kontot |
+| **Radera konto** | Ta bort kontodata från signal-cli (avregistrerar inte från Signal) |
+| **Tvångsradera** | Radera kontodatan direkt från filsystemet (för korrupta konton) |
+
+
+##### Grupper
 
 Listar alla Signal-grupper som kontot är medlem i.
 
@@ -72,7 +93,8 @@ Listar alla Signal-grupper som kontot är medlem i.
 | **Väntande inbjudningar** | Listar grupper som Oden har blivit inbjuden till, med Acceptera/Avböj-knappar |
 | **Redigera grupp** | Modal för gruppadministration (namn, beskrivning, medlemmar, behörigheter, grupplänk, försvinnande meddelanden). Visas bara för grupper där Oden är administratör |
 
-#### Kontakter
+
+##### Kontakter
 
 Listar alla kontakter från signal-cli med namn, nummer och profilnamn.
 
@@ -80,6 +102,47 @@ Listar alla kontakter från signal-cli med namn, nummer och profilnamn.
 |----------|-----------|
 | **Uppdatera från Signal** | Hämtar kontakter på nytt från signal-cli |
 | **Redigera kontakt** | Modal för att ändra förnamn, efternamn, smeknamn, anteckning och försvinnande-timer |
+
+##### Kommandosvar
+
+| Funktion | Beskrivning |
+|----------|-------------|
+| **Lista** | Visar alla konfigurerade autosvar med nyckelord och svarstext |
+| **Skapa** | Lägg till nytt autosvar med ett eller flera nyckelord |
+| **Redigera** | Ändra nyckelord och/eller svarstext |
+| **Ta bort** | Radera ett autosvar |
+
+Nyckelord anges som kommaseparerad lista. Varje nyckelord triggar samma svar när en användare skickar `#nyckelord` i en Signal-grupp.
+
+
+##### Inställningar
+
+Telefonnummer, visningsnamn och startup-meddelande; signal-cli (host, port,
+sökväg, version, extern/ohanterad, diagnostikloggning, loggövervakning och
+*Starta om signal-cli*); Signal-protokollinställningar (läskvitton,
+skrivindikator, länkförhandsgranskning, sealed sender); och *Kör setup för
+Signal* för att länka om eller slå på Signal.
+
+#### TAK
+
+Finns bara om Oden är installerad med `oden[tak]`. Visar anslutningsstatus,
+antal skickade/mottagna CoT-händelser, cert-utgångsvarning, anslutning med
+ATAK/iTAK-QR-kod, ett konfigformulär och en knapp för att skicka en testmarkör. Detaljer i [TAK_SETUP.md](TAK_SETUP.md).
+
+
+#### Pipelines
+
+Pipelines-fliken visar hur meddelanden routas i DB-first-flödet och låter dig styra vilka pipelines som körs.
+
+| Funktion | Beskrivning |
+|----------|-------------|
+| **Aktiva pipelines** | Visar nuvarande körordning för aktiva pipelines |
+| **Urvalslogik** | Visar textbeskrivning av hur varje pipeline väljer meddelanden |
+| **Aktivera/Inaktivera** | Slå av/på en pipeline direkt från GUI |
+| **Ändra ordning** | Flytta pipeline upp/ner i körordning |
+| **Körningsräknare** | Visar antal historiska körningar per pipeline |
+
+
 #### Mallar (Template-editor)
 
 | Funktion | Beskrivning |
@@ -93,51 +156,19 @@ Listar alla kontakter från signal-cli med namn, nummer och profilnamn.
 
 → Se [REPORT_TEMPLATE.md](REPORT_TEMPLATE.md) för komplett mallreferens.
 
-#### Autosvar
 
-| Funktion | Beskrivning |
+#### Avancerat
+
+Loggnivå och retention för råmeddelanden och pipeline-händelser.
+
+#### Live-loggar
+
+| Egenskap | Beskrivning |
 |----------|-------------|
-| **Lista** | Visar alla konfigurerade autosvar med nyckelord och svarstext |
-| **Skapa** | Lägg till nytt autosvar med ett eller flera nyckelord |
-| **Redigera** | Ändra nyckelord och/eller svarstext |
-| **Ta bort** | Radera ett autosvar |
+| **Uppdateringsintervall** | Var 3:e sekund (automatisk polling av `/api/logs`) |
+| **Buffert** | 500-post cirkulärbuffert i minnet |
+| **Innehåll** | Tidsstämpel, loggnivå och meddelande per rad |
 
-Nyckelord anges som kommaseparerad lista. Varje nyckelord triggar samma svar när en användare skickar `#nyckelord` i en Signal-grupp.
-
-#### Signal-konton
-
-Hantera signal-cli-konton (multi-account daemon-läge).
-
-| Funktion | Beskrivning |
-|----------|-------------|
-| **Lista konton** | Visar alla länkade signal-cli-konton med aktivt konto markerat |
-| **Lägg till konto** | Starta QR-kodlänkning för att lägga till ett nytt Signal-konto |
-| **Aktivera konto** | Växla aktivt konto — meddelanden behandlas för det valda kontot |
-| **Radera konto** | Ta bort kontodata från signal-cli (avregistrerar inte från Signal) |
-| **Tvångsradera** | Radera kontodatan direkt från filsystemet (för korrupta konton) |
-
-#### Meddelandehantering
-
-Meddelandehantering visar råmeddelanden, pipelinehistorik och reprocess-funktionalitet för Oden 3.0.
-
-| Funktion | Beskrivning |
-|----------|-------------|
-| **Lista meddelanden** | Visar råmeddelanden med status, konto, grupp och avsändare |
-| **Detaljvy** | Visar raw envelope, pipeline-runs och pipeline-events |
-| **Reprocess** | Kör om ett valt meddelande via orchestratorn |
-| **Filter** | Filtrera på status, grupp, konto och pipeline |
-
-#### Pipelines
-
-Pipelines-fliken visar hur meddelanden routas i DB-first-flödet och låter dig styra vilka pipelines som körs.
-
-| Funktion | Beskrivning |
-|----------|-------------|
-| **Aktiva pipelines** | Visar nuvarande körordning för aktiva pipelines |
-| **Urvalslogik** | Visar textbeskrivning av hur varje pipeline väljer meddelanden |
-| **Aktivera/Inaktivera** | Slå av/på en pipeline direkt från GUI |
-| **Ändra ordning** | Flytta pipeline upp/ner i körordning |
-| **Körningsräknare** | Visar antal historiska körningar per pipeline |
 
 ### Övriga funktioner
 
@@ -243,10 +274,12 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 | POST | `/api/contacts/refresh` | Hämta kontakter från signal-cli |
 | PUT | `/api/contacts/{number}` | Uppdatera kontaktuppgifter (namn, smeknamn, anteckning, timer) |
 
-#### Meddelandehantering
+#### Flöde och meddelanden
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
+| GET | `/api/flow` | Flödet: meddelanden med väg och skäl per pipeline (`source`, `status` — kommaseparerad, `include_empty`, `limit`, `before_id`) |
+| GET | `/api/flow/{id}` | Ett meddelande: spår, rått kuvert, utdatafil och alla pipeline-körningar |
 | GET | `/api/messages` | Lista råmeddelanden med filter och paginering |
 | GET | `/api/messages/{id}` | Hämta meddelandedetaljer inklusive raw envelope och pipeline-runs |
 | GET | `/api/messages/stats` | Hämta aggregat per status/konto/grupp |

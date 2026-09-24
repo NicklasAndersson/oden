@@ -168,6 +168,7 @@ class TestFlowReadModel(unittest.TestCase):
         update_message_status(self.db_path, a, "failed")
         update_message_status(self.db_path, b, "processed")
         self.assertEqual([m["id"] for m in list_flow(self.db_path, status="failed")], [a])
+        self.assertEqual([m["id"] for m in list_flow(self.db_path, status="failed, processed")], [b, a])
 
 
 class TestGenericPipelineOutcome(unittest.IsolatedAsyncioTestCase):
@@ -240,6 +241,8 @@ class TestFlowAPI(AioHTTPTestCase):
             self.assertEqual(detail.status, 200)
             data = await detail.json()
             self.assertEqual(data["output"]["content"], "# 7S RAPPORT 1\n")
+            self.assertEqual(data["runs"][0]["pipeline_name"], "seven_s")
+            self.assertEqual(data["runs"][0]["events"][0]["event_type"], "pipeline_completed")
             self.assertEqual(data["message"]["envelope_raw"]["envelope"]["sourceName"], "Test")
             self.assertEqual(missing.status, 404)
 

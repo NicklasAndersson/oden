@@ -159,7 +159,10 @@ def list_flow(
     limit: int = 100,
     before_id: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Newest-first messages with the steps of their latest pipeline attempt."""
+    """Newest-first messages with the steps of their latest pipeline attempt.
+
+    ``status`` may name several statuses, comma-separated (``received,queued``).
+    """
     conditions: list[str] = []
     params: list[Any] = []
 
@@ -167,9 +170,10 @@ def list_flow(
     if src_sql:
         conditions.append(src_sql)
         params.extend(src_params)
-    if status:
-        conditions.append("status = ?")
-        params.append(status)
+    statuses = [s.strip() for s in (status or "").split(",") if s.strip()]
+    if statuses:
+        conditions.append(f"status IN ({','.join('?' for _ in statuses)})")
+        params.extend(statuses)
     if has_content_only:
         conditions.append(_HAS_CONTENT)
     if before_id:
@@ -225,15 +229,20 @@ def get_flow_item(db_path: Path, message_id: int) -> dict[str, Any] | None:
         conn.close()
 
 
-def flow_summary(db_path: Path) -> dict[str, Any]:
-    """Counts per source and per status, plus how many content-less rows are hidden."""
+def flow_summary(db_path: Path, *, has_content_only: bool = True) -> dict[str, Any]:
+    """Counts per source and per status, plus how many content-less rows there are.
+
+    With ``has_content_only`` (the Flöde default) the counts cover what the list
+    shows; ``hidden_without_content`` is always the number of content-less rows.
+    """
+    shown = _HAS_CONTENT if has_content_only else "1"
     conn = sqlite3.connect(db_path)
     try:
         by_source: dict[str, int] = {}
         for account, is_tak, count in conn.execute(
             f"""
             SELECT account, COALESCE(source_number, '') LIKE 'tak:%' AS is_tak, COUNT(*)
-            FROM raw_messages WHERE {_HAS_CONTENT}
+            FROM raw_messages WHERE {shown}
             GROUP BY account, is_tak
             """
         ):
@@ -241,7 +250,7 @@ def flow_summary(db_path: Path) -> dict[str, Any]:
             by_source[key] = by_source.get(key, 0) + count
 
         by_status = dict(
-            conn.execute(f"SELECT status, COUNT(*) FROM raw_messages WHERE {_HAS_CONTENT} GROUP BY status").fetchall()
+            conn.execute(f"SELECT status, COUNT(*) FROM raw_messages WHERE {shown} GROUP BY status").fetchall()
         )
         hidden = conn.execute(f"SELECT COUNT(*) FROM raw_messages WHERE NOT {_HAS_CONTENT}").fetchone()[0]
         return {

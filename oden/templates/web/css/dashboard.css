@@ -439,170 +439,36 @@ td {
 .tab-content.active {
     display: block;
 }
-
-/* Message observability tab */
-.messages-toolbar {
+/* Sub-tabs inside a tab (Signal: Konton, Grupper, …) */
+.subtabs {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: var(--spacing-md);
 }
-.messages-filters {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.messages-filters select {
-    padding: 6px 10px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background: var(--color-bg-surface);
-    color: #fff;
-}
-.messages-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-@media (max-width: 900px) {
-    .messages-grid {
-        grid-template-columns: 1fr;
-    }
-}
-.messages-list,
-.messages-detail {
-    background: var(--color-bg-inset);
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    padding: 10px;
-    max-height: 380px;
-    overflow-y: auto;
-}
-.message-row {
-    width: 100%;
-    text-align: left;
+.subtab-btn {
+    height: 32px;
+    padding: 0 14px;
     border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
-    color: #fff;
-    border-radius: 6px;
-    padding: 10px;
-    margin-bottom: 8px;
+    border-radius: 16px;
+    background: transparent;
+    color: var(--color-text-dim);
+    font-size: 0.85em;
     cursor: pointer;
 }
-.message-row:hover {
+.subtab-btn:hover {
+    border-color: var(--color-border-hover);
+}
+.subtab-btn.active {
     border-color: var(--color-accent);
+    background: rgba(79, 195, 247, 0.15);
+    color: #fff;
 }
-.message-row.selected {
-    border-color: var(--color-accent);
-    background: #1c2b4f;
+.subtab-pane {
+    display: none;
 }
-.message-row-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-}
-.message-row-title {
-    font-weight: 600;
-}
-.message-row-meta {
-    color: var(--color-text-subtle);
-    font-size: 0.8em;
-    margin-top: 4px;
-}
-.message-row-body {
-    color: var(--color-text-dim);
-    font-size: 0.85em;
-    margin-top: 6px;
-}
-.message-status {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0.75em;
-    font-weight: 600;
-    border: 1px solid var(--color-border-hover);
-}
-.status-received,
-.status-queued,
-.status-processing {
-    color: var(--color-warning);
-    border-color: var(--color-warning);
-}
-.status-processed,
-.status-done {
-    color: var(--color-success);
-    border-color: var(--color-success);
-}
-.status-failed {
-    color: var(--color-error);
-    border-color: var(--color-error);
-}
-.status-ignored,
-.status-skipped {
-    color: #9e9e9e;
-    border-color: #9e9e9e;
-}
-.message-detail-meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 10px;
-    font-size: 0.9em;
-}
-.pipeline-run {
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 6px;
-    padding: 8px;
-    margin-bottom: 8px;
-    background: var(--color-bg-raised);
-}
-.pipeline-run-meta {
-    color: var(--color-text-subtle);
-    font-size: 0.8em;
-    margin-top: 4px;
-}
-.pipeline-run-error {
-    color: var(--color-error);
-    margin-top: 6px;
-}
-.pipeline-events {
-    margin: 8px 0 0 16px;
-    color: #ced8ea;
-    font-size: 0.85em;
-}
-.pipeline-event-warning {
-    color: var(--color-warning);
-}
-.pipeline-event-details {
-    color: var(--color-text-subtle);
-}
-.message-raw-json {
-    background: #0a101d;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 6px;
-    padding: 8px;
-    font-size: 0.8em;
-    color: var(--color-text-dim);
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-.messages-actions {
-    margin-top: 10px;
-}
-.messages-stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 14px;
-    color: var(--color-text-dim);
-}
-.checkbox-inline {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-text-subtle);
+.subtab-pane.active {
+    display: block;
 }
 
 /* Pipeline management tab */
@@ -1148,6 +1014,7 @@ fieldset.signal-only:disabled {
 .flow-dot-processed { background: var(--flow-handled); }
 .flow-dot-ignored { background: var(--flow-ignored); }
 .flow-dot-failed { background: var(--flow-failed); }
+.flow-dot-received { background: var(--color-accent); }
 .flow-filter-sep {
     width: 1px;
     height: 22px;
@@ -1535,4 +1402,44 @@ fieldset.signal-only:disabled {
     gap: 8px;
     padding: 12px 20px;
     border-top: 1px solid var(--flow-line);
+}
+.flow-link {
+    border: 0;
+    background: transparent;
+    color: var(--color-accent);
+    font: inherit;
+    padding: 4px 0;
+    cursor: pointer;
+}
+.flow-link:hover {
+    text-decoration: underline;
+}
+.flow-run {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--flow-line);
+}
+.flow-run:last-child {
+    border-bottom: 0;
+}
+.flow-run-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.87em;
+    font-weight: 600;
+    color: var(--color-text);
+}
+.flow-run-meta {
+    margin-top: 4px;
+    font-size: 0.75em;
+    color: var(--color-text-subtle);
+}
+.flow-run-events {
+    margin: 6px 0 0 16px;
+    padding: 0;
+    font-size: 0.8em;
+    color: var(--color-text-dim);
+}
+.flow-run-events li {
+    padding: 2px 0;
 }

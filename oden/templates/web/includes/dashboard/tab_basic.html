@@ -1,22 +1,6 @@
-{#- Tab: Grundläggande (basic config) -#}
+{#- Tab: Grundläggande (vault, tidszon, append) — Signal-inställningar ligger i Signal-fliken -#}
 <div id="tab-basic" class="tab-content active">
     <form id="config-form" class="config-form">
-        <div class="config-section">
-            <h3>📱 Signal</h3>
-            <div class="config-grid">
-                <div class="config-field">
-                    <label for="cfg-signal-number">Telefonnummer</label>
-                    <input type="text" id="cfg-signal-number" name="signal_number" placeholder="+46...">
-                    <span class="help-text">Ditt Signal-nummer i internationellt format, t.ex. +46701234567</span>
-                </div>
-                <div class="config-field">
-                    <label for="cfg-display-name">Visningsnamn</label>
-                    <input type="text" id="cfg-display-name" name="display_name" placeholder="oden">
-                    <span class="help-text">Namn som visas i rapporthuvuden och filnamn</span>
-                </div>
-            </div>
-        </div>
-
         <div class="config-section">
             <h3>📁 Vault</h3>
             <div class="config-grid">
@@ -48,15 +32,6 @@
                     <label for="cfg-append-window">Append-fönster (minuter)</label>
                     <input type="number" id="cfg-append-window" name="append_window_minutes" min="1" max="1440">
                     <span class="help-text">Svar inom detta antal minuter läggs till i samma rapport</span>
-                </div>
-                <div class="config-field">
-                    <label for="cfg-startup-message">Startup-meddelande</label>
-                    <select id="cfg-startup-message" name="startup_message">
-                        <option value="self">Skicka till mig själv</option>
-                        <option value="all">Skicka till alla grupper</option>
-                        <option value="off">Av</option>
-                    </select>
-                    <span class="help-text">Skicka ett statusmeddelande när Oden startar</span>
                 </div>
             </div>
         </div>

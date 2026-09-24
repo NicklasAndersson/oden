@@ -116,17 +116,14 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 
 **Setup mode** (first run): Wizard for choosing Oden home dir, linking Signal account (QR code), setting vault path.
 
-**Dashboard mode** (normal operation):
-- Config viewer/editor (3 tabs: Grundläggande, Avancerat, Rå config)
-- Live logs (polls every 3 seconds)
-- Groups list with ignore/whitelist toggle
-- Join group via Signal invite link, accept/decline pending invitations
-- Flöde tab (everything that comes in, per source, with the pipeline route, the reason for each step, raw envelope and written file)
-- Message management tab (raw messages, detail view, reprocess)
-- Pipelines tab (enable/disable, reorder, per-pipeline config)
-- Template editor with split-screen preview
-- Signal accounts tab (list, link via QR, activate, delete, force-delete)
-- Shutdown button
+**Dashboard mode** (normal operation) — tabs:
+- **Flöde**: everything that comes in, per source, with the pipeline route, the reason for each step, raw envelope, written file, all runs/events, reprocess (replaced the old Meddelandehantering tab)
+- **Grundläggande**: vault path, directory structure, timezone, append window
+- **Signal**: everything Signal, as sub-tabs (`showSignalPane()`): Konton (list, link via QR, activate, delete, force-delete), Grupper (ignore/whitelist, join via invite link, invitations, group admin), Kontakter, Kommandosvar, Inställningar (number, display name, startup message, signal-cli, Signal protocol, restart signal-cli, re-run Signal setup)
+- **TAK**: everything TAK (status, QR connect, connection, certificates, inbound CoT, test marker)
+- **Pipelines**: enable/disable, reorder, per-pipeline config, template editor
+- **Avancerat**: log level, retention
+- Live logs (polls every 3 seconds) and a shutdown button
 
 **Security:** The web GUI has no authentication. By default it binds to `127.0.0.1` (loopback only). Setting `WEB_HOST=0.0.0.0` (e.g. in Docker) exposes an unauthenticated admin API on all interfaces — protect it with a firewall or reverse proxy, or keep it loopback-only.
 
