@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-09-24
+
 ### Added
 
 - **Grenar i stället för en enda pipelinekedja.** Första steget är ett *vägval*: varje källa — en Signal-grupp, direktmeddelanden eller TAK — går till exakt en gren, och i grenen körs stegen som förut (första som tar meddelandet vinner). En *ignorera-gren* har inga steg: meddelandet sparas och syns i Flöde men skrivs aldrig. Allt som inte tilldelats går till standardgrenen. Samma pipeline kan ha olika inställningar per gren, till att börja med egen undermapp (7S från Spaning i `Spaning/7S`, från Övning någon annanstans). Pipelines-fliken visar vägvalet med antal meddelanden per källa och gren, markerar grupper med trafik som saknar gren, och visar grenarna som kolumner (*Ignorera* har inga steg och är ett val i rullistorna, inte en kolumn; vilka källor som ignoreras står under vägvalet) med stegen i körordning och hur många varje steg hanterat senaste 24 h. Klick på en gren eller ett steg öppnar en detaljpanel (namn, standardgren, på/av, ordning, undermapp med Spara/Ångra) med länk till just de meddelandena i Flöde. Flöde kan filtreras på gren och på ett stegs utfall. Flöde visar vägvalet som första steg med skäl (”Gruppen ”Kaffe & logistik” är tilldelad grenen ”Ignorera””). Nytt: `oden/routing.py`, config-nyckeln `routing`, `GET/PUT /api/routing`
