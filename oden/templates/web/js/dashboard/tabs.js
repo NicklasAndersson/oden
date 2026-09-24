@@ -1,4 +1,4 @@
-// tabs.js — Depends on: responses.js (loadResponses), accounts.js (loadAccounts)
+// tabs.js — Depends on: responses.js (loadResponses), accounts.js (loadAccounts), flow.js (loadFlowDashboard)
 //
 // Tab switching with lazy-loading of tab content on first visit.
 
@@ -30,6 +30,10 @@ function showTab(tabName) {
     // Load message observability dashboard when switching to messages tab
     if (tabName === 'messages') {
         loadMessagesDashboard();
+    }
+    // Load the live flow when switching to the Flöde tab
+    if (tabName === 'flow') {
+        loadFlowDashboard();
     }
     // Load TAK status and settings when switching to the TAK tab
     if (tabName === 'tak') {

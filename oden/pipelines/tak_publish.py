@@ -39,14 +39,17 @@ class TakPublishPipeline:
 
         bridge = get_tak_bridge()
         if bridge is None or not bridge.is_running:
+            self.last_reason = "TAK-bryggan är inte igång"
             return False
 
         envelope = msg_data.get("envelope", {}) or {}
         if envelope.get("_source") == "tak":
+            self.last_reason = "Kom från TAK – skickas inte tillbaka (ekoskydd)"
             return False  # eko-skydd: skicka inte tillbaka det vi tog emot från TAK
 
         message_text, _group, _gid, ts_ms, _att, _quote = extract_message_details(envelope)
         if not is_7s_message(message_text):
+            self.last_reason = "Inte en 7S – bara 7S publiceras till TAK"
             return False
 
         try:
@@ -93,3 +96,6 @@ class TakPublishPipeline:
         published = await bridge.publish(cot)
         if published:
             logger.info("tak_publish: skickade 7S TNR %s till TAK", fields["tnr"].strip())
+            self.last_side_effect = f"7S TNR {fields['tnr'].strip()} publicerad till TAK som CoT-markör"
+        else:
+            self.last_reason = "TAK-bryggan tog inte emot markören"

@@ -280,6 +280,7 @@ class StructuredReportPipeline:
     #: ``None`` (the default) means the vault root.
     #: Can be overridden per-pipeline via PIPELINE_SETTINGS[name]["vault_subdir"].
     vault_subdir: str | None = None
+    _last_reply_target: str | None = None
 
     def matches_message(self, message_text: str | None) -> bool:
         return is_structured_report_message(message_text, self.header_prefixes)
@@ -363,6 +364,7 @@ class StructuredReportPipeline:
         )
         if not target_file:
             return False
+        self._last_reply_target = target_file
 
         attachment_links = await save_attachments(
             attachments,
@@ -406,9 +408,11 @@ class StructuredReportPipeline:
 
         envelope = msg_data.get("envelope", {})
         if not envelope:
+            self.last_reason = "Tomt kuvert"
             return False
 
         if "syncMessage" in envelope and "dataMessage" not in envelope:
+            self.last_reason = "Eget utgående meddelande (sync)"
             return False
 
         message_text, group_title, group_id, timestamp_ms, attachments, quote = extract_message_details(envelope)
@@ -440,9 +444,14 @@ class StructuredReportPipeline:
             source_number=source_number,
             message_text=message_text,
         ):
+            self.last_reason = "Citerat svar med bilagor lades till i den citerade rapporten"
+            self.last_output_file = self._last_reply_target
             return True
 
         if not self.matches_message(message_text):
+            self.last_reason = (
+                f"Ingen rubrik ”{self.header_prefixes[0]}”" if self.header_prefixes else "Ingen känd rubrik"
+            )
             return False
 
         fields = self.parse_report(message_text or "")
@@ -497,5 +506,7 @@ class StructuredReportPipeline:
         # finds every written report. Without it a 7S file lands silently and the
         # only trace is a counter saying a note was created, somewhere.
         logger.info("WROTE: %s", filepath)
+        self.last_reason = f"Rubriken ”{self.header_prefixes[0]}” matchade – sparad som {self.report_id_prefix}-rapport"
+        self.last_output_file = filepath
 
         return True

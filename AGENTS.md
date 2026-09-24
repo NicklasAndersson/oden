@@ -26,7 +26,8 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 
 - **s7_watcher.py**: Entry point. Manages signal-cli subprocess, TCP connection, startup tasks, web GUI, tray icon. Starts `subscribe_and_listen()` as a background task in the lifecycle loop
 - **signal_listener.py**: Owns the TCP reader loop (`_reader_loop`) and receive-notification processing; persists raw messages first when DB-first is enabled
-- **processing.py**: Core fallback logic. Parses messages, handles commands (`#help`), reply-append, file I/O
+- **processing.py**: Core fallback logic. Parses messages, handles commands (`#help`), reply-append, file I/O. `process_message()` returns a `ProcessOutcome` (action, reason, path) that the generic pipeline reports to the Flöde view
+- **flow_db.py**: Read model for the Flöde tab — joins `raw_messages` with the latest attempt of `pipeline_runs` and the reason each pipeline gave. Pipelines explain themselves by setting `last_reason` / `last_side_effect` / `last_output_file` (the orchestrator clears them before each run)
 - **config.py**: Loads config from `config_db`, exports constants like `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE`
 - **config_db.py**: SQLite config database (`config.db`). Key-value store with type-aware serialization, integrity checking
 - **app_state.py**: Singleton application state — holds references to writer, signal-cli process, web runner, tray icon. Central JSON-RPC dispatcher: `send_jsonrpc()` registers Futures by request id, `dispatch_line()` routes incoming lines (RPC responses → Futures, notifications → queue)
@@ -34,7 +35,7 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 - **formatting.py**: Filename sanitization, path generation, display formatting
 - **signal_manager.py**: Starts/stops the signal-cli subprocess
 - **web_server.py**: aiohttp web server with setup mode and dashboard mode
-- **web_handlers/**: Route handlers — `setup_handlers.py` (wizard, Signal linking/QR), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact)
+- **web_handlers/**: Route handlers — `setup_handlers.py` (wizard, Signal linking/QR), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact), `message_handlers.py` (message observability, reprocess, and the Flöde API `/api/flow`)
 - **template_loader.py**: Jinja2 template engine for report formatting. Templates loaded from config_db or files, with LRU cache and validation
 - **attachment_handler.py**: Downloads and saves Signal attachments to vault subdirectories. Uses `app_state.send_jsonrpc()` for attachment fetching (routed through central dispatcher)
 - **path_utils.py**: Path validation, sanitization, directory operations. When `ODEN_HOME` env var is set (Docker), the home-directory constraint is relaxed
@@ -120,6 +121,7 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 - Live logs (polls every 3 seconds)
 - Groups list with ignore/whitelist toggle
 - Join group via Signal invite link, accept/decline pending invitations
+- Flöde tab (everything that comes in, per source, with the pipeline route, the reason for each step, raw envelope and written file)
 - Message management tab (raw messages, detail view, reprocess)
 - Pipelines tab (enable/disable, reorder, per-pipeline config)
 - Template editor with split-screen preview

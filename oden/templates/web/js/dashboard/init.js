@@ -17,6 +17,7 @@ setInterval(fetchLogs, 3000);          // Logs: every 3 seconds
 setInterval(fetchInvitations, 10000);  // Invitations: every 10 seconds
 setInterval(fetchGroups, 30000);       // Groups: every 30 seconds
 setInterval(fetchMessagesIfVisible, 3000); // Messages: every 3 seconds when tab active
+setInterval(fetchFlowIfVisible, 3000);     // Flöde: every 3 seconds when tab active and not paused
 setInterval(fetchPipelinesIfVisible, 3000); // Pipelines: every 3 seconds when tab active
 setInterval(loadSignalCliStatus, 30000); // signal-cli status: every 30 seconds
 

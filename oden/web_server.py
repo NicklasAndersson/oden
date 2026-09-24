@@ -58,6 +58,8 @@ from oden.web_handlers.group_handlers import (
     update_group_handler,
 )
 from oden.web_handlers.message_handlers import (
+    flow_detail_handler,
+    flow_list_handler,
     message_detail_handler,
     message_reprocess_handler,
     message_stats_handler,
@@ -282,6 +284,8 @@ def create_app(setup_mode: bool = False) -> web.Application:
 
         # Message observability routes
         app.router.add_get("/api/messages", messages_list_handler)
+        app.router.add_get("/api/flow", flow_list_handler)
+        app.router.add_get("/api/flow/{id:\\d+}", flow_detail_handler)
         app.router.add_get("/api/messages/stats", message_stats_handler)
         app.router.add_get("/api/messages/{id:\\d+}", message_detail_handler)
         app.router.add_post("/api/messages/{id:\\d+}/reprocess", message_reprocess_handler)

@@ -7,6 +7,7 @@ pipeline while recording pipeline run status and events in SQLite.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,28 @@ from oden.tak.bridge import get_tak_bridge
 
 logger = logging.getLogger(__name__)
 
+# Per-run attributes a pipeline may set to explain itself in the Flöde view.
+# The orchestrator clears them before every run so a reused pipeline instance
+# never reports the previous message's reason.
+#   last_reason       — why it handled or skipped the message (Swedish, one line)
+#   last_side_effect  — what a non-consuming pipeline did anyway (e.g. TAK publish)
+#   last_output_file  — the vault file it wrote or appended to
+_RUN_ATTRS = ("last_reason", "last_side_effect", "last_output_file")
+
+
+def _reset_run_attrs(pipeline: Any) -> None:
+    for attr in _RUN_ATTRS:
+        with contextlib.suppress(AttributeError):
+            setattr(pipeline, attr, None)
+
+
+def _details(pipeline: Any, **extra: Any) -> dict[str, Any]:
+    details: dict[str, Any] = {"pipeline": pipeline.name, **extra}
+    reason = getattr(pipeline, "last_reason", None)
+    if reason:
+        details["reason"] = reason
+    return details
+
 
 class _GenericPipeline:
     name = "generic_template"
@@ -46,7 +69,13 @@ class _GenericPipeline:
     selection_criteria = "Fallback: körs för alla meddelanden som inte redan hanterats av tidigare pipeline."
 
     async def run(self, *, msg_data: dict, reader: Any, writer: Any) -> bool:
-        await process_message(msg_data, reader, writer)
+        outcome = await process_message(msg_data, reader, writer)
+        if outcome is None:
+            return True
+        if outcome.action == "error":
+            raise OSError(outcome.reason)
+        self.last_reason = outcome.reason
+        self.last_output_file = outcome.path
         return True
 
 
@@ -113,6 +142,7 @@ class PipelineOrchestrator:
         update_message_status(self._db_path, message_id, STATUS_PROCESSING)
         had_pipeline_failure = False
         for pipeline in self._build_pipelines():
+            _reset_run_attrs(pipeline)
             run_id = start_pipeline_run(self._db_path, message_id, pipeline.name)
             append_pipeline_event(
                 self._db_path,
@@ -139,13 +169,23 @@ class PipelineOrchestrator:
                         },
                     )
 
+                side_effect = getattr(pipeline, "last_side_effect", None)
+                if side_effect:
+                    append_pipeline_event(
+                        self._db_path,
+                        run_id,
+                        "pipeline_side_effect",
+                        {"pipeline": pipeline.name, "message": side_effect},
+                    )
+
+                output_file = getattr(pipeline, "last_output_file", None)
                 if handled:
-                    complete_pipeline_run(self._db_path, run_id)
+                    complete_pipeline_run(self._db_path, run_id, output_file=output_file)
                     append_pipeline_event(
                         self._db_path,
                         run_id,
                         "pipeline_completed",
-                        {"pipeline": pipeline.name},
+                        _details(pipeline, output_file=output_file) if output_file else _details(pipeline),
                     )
                     status_on_handle = getattr(pipeline, "status_on_handle", STATUS_PROCESSED)
                     if status_on_handle not in {STATUS_PROCESSED, STATUS_IGNORED}:
@@ -158,7 +198,7 @@ class PipelineOrchestrator:
                     self._db_path,
                     run_id,
                     "pipeline_skipped",
-                    {"pipeline": pipeline.name},
+                    _details(pipeline),
                 )
             except Exception as exc:
                 had_pipeline_failure = True
