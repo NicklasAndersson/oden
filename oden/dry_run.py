@@ -14,6 +14,7 @@ from typing import Any
 
 from oden import config as cfg
 from oden.processing import preview_message
+from oden.report_formats import load_formats, pipeline_for
 from oden.routing import (
     FALLBACK,
     SIDE_EFFECT,
@@ -92,6 +93,7 @@ async def dry_run(msg_data: dict[str, Any], routing: dict[str, Any] | None = Non
         return result
 
     pipelines = _fresh_pipelines()
+    formats = load_formats()
     for step in branch_steps(branch, publish_to_tak=publish_to_tak()):
         name = step["pipeline"]
         if result["handled_by"]:
@@ -115,8 +117,8 @@ async def dry_run(msg_data: dict[str, Any], routing: dict[str, Any] | None = Non
                     "reason": outcome.reason,
                     "output_file": _relative(outcome.path),
                 }
-            elif name in pipelines:
-                preview = await pipelines[name].preview(msg_data)
+            elif name in pipelines or pipeline_for(name, formats):
+                preview = await (pipelines.get(name) or pipeline_for(name, formats)).preview(msg_data)
                 content = preview.get("content")
                 entry = {
                     "pipeline": name,
@@ -136,4 +138,12 @@ async def dry_run(msg_data: dict[str, Any], routing: dict[str, Any] | None = Non
             result["handled_by"] = name
             result["output_file"] = entry.get("output_file")
             result["content"] = content
+    if not result["handled_by"]:
+        result["steps"].append(
+            {
+                "pipeline": FALLBACK,
+                "outcome": "ignored",
+                "reason": "Reserven är avstängd i grenen – det inget steg tog sparas bara i Flöde",
+            }
+        )
     return result

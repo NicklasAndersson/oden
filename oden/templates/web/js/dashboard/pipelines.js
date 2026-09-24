@@ -451,5 +451,5 @@ async function loadPipelinesDashboard() {
     } catch (error) {
         container.innerHTML = `<div class="empty-state">Kunde inte ladda pipelines: ${escapeHtml(error.message)}</div>`;
     }
-    await loadRouting();
+    await Promise.all([loadRouting(), loadFormats()]);
 }

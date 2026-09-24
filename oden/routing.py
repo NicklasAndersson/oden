@@ -49,6 +49,9 @@ MAIN_ID = "main"
 IGNORE_ID = "ignore"
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+# Steps from Rapportformat (report_formats.py): "format:<id>". Checked here by
+# shape only; a step whose format was deleted is skipped when the branch runs.
+_FORMAT_STEP_RE = re.compile(r"^format:[a-z0-9][a-z0-9_-]{0,39}$")
 _DEFAULT_CHAIN = ["seven_s", "fors", "pedars", "scrim", FALLBACK]
 
 _step_config: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("oden_step_config", default=None)
@@ -88,10 +91,15 @@ def _slug(name: str, taken: set[str]) -> str:
     return candidate
 
 
+def is_step_name(name: Any) -> bool:
+    """A built-in step pipeline or a Rapportformat step (``format:<id>``)."""
+    return isinstance(name, str) and (name in STEP_PIPELINES or bool(_FORMAT_STEP_RE.match(name)))
+
+
 def _normalize_step(value: Any) -> dict[str, Any] | None:
     if isinstance(value, str):
         value = {"pipeline": value}
-    if not isinstance(value, dict) or value.get("pipeline") not in STEP_PIPELINES:
+    if not isinstance(value, dict) or not is_step_name(value.get("pipeline")):
         return None
     config = value.get("config") if isinstance(value.get("config"), dict) else {}
     return {"pipeline": value["pipeline"], "enabled": value.get("enabled", True) is not False, "config": config}
@@ -128,13 +136,13 @@ def normalize_routing(value: Any) -> dict[str, Any]:
                 seen.add(step["pipeline"])
                 steps.append(step)
             # The fallback always ends a non-ignore branch, as it always ended the chain.
+            # Switched off, whatever no step takes is only kept in Flöde (status ignored).
             steps = [s for s in steps if s["pipeline"] != FALLBACK] + [
                 next(
                     (s for s in steps if s["pipeline"] == FALLBACK),
                     {"pipeline": FALLBACK, "enabled": True, "config": {}},
                 )
             ]
-            steps[-1]["enabled"] = True
         branches.append({"id": branch_id, "name": name[:60], "ignore": ignore, "steps": steps})
 
     default = str(value.get("default") or "")

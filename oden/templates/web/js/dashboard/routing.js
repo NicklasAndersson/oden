@@ -19,7 +19,19 @@ let routingState = null;   // {routing, sources, branch_counts_24h, step_stats_2
 let routingFocus = null;   // {branch: id} or {branch: id, step: pipeline}
 
 function routingPipelineLabel(name) {
-    return ROUTING_LABELS[name] || name;
+    if (ROUTING_LABELS[name]) return ROUTING_LABELS[name];
+    const meta = routingState && (routingState.pipelines || []).find(p => p.name === name);
+    return meta ? meta.display_name : name.replace(/^format:/, '');
+}
+
+// Report steps write one note per report and have a folder per branch:
+// the built-ins and the formats from Rapportformat (format:<id>).
+function routingIsReport(name) {
+    return ROUTING_STRUCTURED.includes(name) || name.startsWith('format:');
+}
+
+function routingReportSteps() {
+    return ROUTING_STRUCTURED.concat((routingState.pipelines || []).filter(p => p.format).map(p => p.name));
 }
 
 function routingBranch(id) {
@@ -129,10 +141,13 @@ function stepCard(branch, step, index) {
             <span class="routing-step-head">
                 <span class="flow-marker flow-marker-${step.enabled ? 'handled' : 'skipped'}"></span>
                 <span class="routing-step-name">${escapeHtml(routingPipelineLabel(step.pipeline))}</span>
-                <span class="routing-step-order">${isFallback ? 'sist' : (step.enabled ? index + 1 : 'av')}</span>
+                <span class="routing-step-order">${isFallback ? (step.enabled ? 'sist' : 'av') : (step.enabled ? index + 1 : 'av')}</span>
             </span>
-            ${ROUTING_STRUCTURED.includes(step.pipeline)
+            ${routingIsReport(step.pipeline)
                 ? `<span class="routing-step-target mono">→ ${escapeHtml(subdir || 'grundinställning')}</span>` : ''}
+            ${isFallback ? `<span class="routing-step-target mono">${step.enabled
+                ? `→ ${escapeHtml(subdir ? `gruppen/${subdir}` : 'gruppens mapp')}`
+                : 'allt annat sparas bara i Flöde'}</span>` : ''}
             <span class="routing-step-stat">${statLine}</span>
         </button>`;
 }
@@ -154,11 +169,11 @@ function renderRoutingColumns() {
                     <span class="routing-step-target">Styrs i TAK-fliken</span>
                 </div>` : '';
             const present = branch.steps.map(s => s.pipeline);
-            const addable = ROUTING_STRUCTURED.filter(name => !present.includes(name));
+            const addable = routingReportSteps().filter(name => !present.includes(name));
             body = takCard + branch.steps.map((step, index) => stepCard(branch, step, index)).join('') + (addable.length ? `
                 <div class="routing-add-step">
                     <select id="routing-add-${escapeHtml(branch.id)}" aria-label="Steg att lägga till">
-                        ${addable.map(n => `<option value="${n}">${escapeHtml(routingPipelineLabel(n))}</option>`).join('')}
+                        ${addable.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(routingPipelineLabel(n))}</option>`).join('')}
                     </select>
                     <button type="button" class="btn btn-small" data-branch="${escapeHtml(branch.id)}"
                             onclick="addStep(this.dataset.branch)">+ Steg</button>
@@ -242,20 +257,35 @@ function stepDetail(branch, step) {
             <h4 class="pane-heading">${escapeHtml(routingPipelineLabel(step.pipeline))}</h4>
             <p class="routing-what">${escapeHtml(meta.selection_criteria || '')}</p>
         </div>
-        ${isFallback ? '' : `
+        ${isFallback ? `
+        <p class="routing-source-meta">Tar det som inget steg ovanför tog. ${step.enabled
+            ? 'Skrivs som en anteckning per meddelande i gruppens mapp, eller i mappen nedan.'
+            : 'Avstängd: det inget steg tog sparas bara i Flöde (status ignorerad) och skrivs aldrig.'}</p>
+        <div class="routing-detail-actions">
+            <button type="button" class="btn btn-small" onclick="toggleFocusedStep()">${step.enabled ? 'Stäng av reserven' : 'Slå på reserven'}</button>
+        </div>
+        ${step.enabled ? `
+        <label class="routing-field">Mapp för allt annat i den här grenen
+            <input type="text" id="routing-step-subdir" value="${escapeHtml(subdir)}" placeholder="tom = gruppens mapp, t.ex. Övrigt">
+        </label>
+        <div class="routing-detail-actions">
+            <button type="button" class="btn btn-small btn-primary" onclick="saveFocusedSubdir()">Spara</button>
+            <button type="button" class="btn btn-small" onclick="renderRoutingDetail()">Ångra</button>
+        </div>` : ''}` : `
         <div class="routing-detail-actions">
             <button type="button" class="btn btn-small" onclick="toggleFocusedStep()">${step.enabled ? 'Stäng av' : 'Slå på'}</button>
             <button type="button" class="btn btn-small" onclick="moveFocusedStep(-1)" ${index > 0 ? '' : 'disabled'} aria-label="Flytta upp">↑ Upp</button>
             <button type="button" class="btn btn-small" onclick="moveFocusedStep(1)" ${index < lastMovable ? '' : 'disabled'} aria-label="Flytta ner">↓ Ner</button>
         </div>`}
-        ${ROUTING_STRUCTURED.includes(step.pipeline) ? `
+        ${routingIsReport(step.pipeline) ? `
         <label class="routing-field">Undermapp i den här grenen
             <input type="text" id="routing-step-subdir" value="${escapeHtml(subdir)}" placeholder="tom = grundinställningen">
         </label>
         <div class="routing-detail-actions">
             <button type="button" class="btn btn-small btn-primary" onclick="saveFocusedSubdir()">Spara</button>
             <button type="button" class="btn btn-small" onclick="renderRoutingDetail()">Ångra</button>
-        </div>` : '<p class="routing-source-meta">Mallar och bekräftelser för reserven ställs in under Grundinställningar nedan.</p>'}
+        </div>` : ''}
+        ${isFallback ? '<p class="routing-source-meta">Mallar och bekräftelser för reserven ställs in under Grundinställningar nedan.</p>' : ''}
         <div class="routing-field">Senaste 24 h
             <div class="routing-bar">
                 <span style="width:${stats.handled / total * 100}%" class="routing-bar-handled"></span>

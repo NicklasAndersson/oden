@@ -259,6 +259,50 @@ CoT-uid fångas repetitionen av dedupen. Myntas ett nytt uid blir det en ny not 
 - `append_window_minutes` — tidsfönster för append-läge
 - `report_template` / `append_template` — Jinja2-mallar
 
+**Per gren** (stegets `config` i `routing`):
+- `vault_subdir` — mapp under gruppens mapp för allt som hamnar i reserven i
+  just den grenen, t.ex. `Övrigt`. Svar som läggs till en tidigare anteckning
+  letas också upp där.
+- `enabled: false` — reserven avstängd: det inget steg tog skrivs inte, utan
+  sparas bara i Flöde (status `ignored`). Så kan en grupp ha en gren med bara
+  PEDARS.
+
+---
+
+### Rapportformat (`format:<id>`)
+
+Rapportformat som definieras i inställningarna i stället för i kod
+(`oden/report_formats.py`, config-nyckeln `report_formats`). Ett format är data:
+
+| Del | Betydelse |
+|-----|-----------|
+| `headers` | Rubrikrader. Formatet tar meddelandet när första raden börjar med någon av dem |
+| `fields` | Fält som skrivs `Etikett: värde`. Varje fält har `key`, `label`, `aliases`, `required` och `type` (`text` eller `mgrs` — ger `lat`/`lon`/`location` i frontmatter) |
+| `sections` | Avsnitt: en rubrikrad (eller `Rubrik: text`), sedan fri text till nästa avsnitt. `key`, `label`, `aliases`, `required` |
+| `tnr_field` | Fältet som ger filnamn och rapporttid (`DDHHMM` eller lång form). Tomt = meddelandets tid |
+| `file_prefix` | Filen blir `<prefix><TNR>.md`, som för de inbyggda |
+| `report_type` | `typ:` i frontmatter |
+| `end_marker` | Valfri slutrad, t.ex. `SLUT!` |
+| `template` | Valfri Jinja-mall (sandlåda) för anteckningens innehåll. Variabler: `fields`, `sections`, `other`, `tnr`, `report_time`, `signal_time`, `sender_name`, `sender_number`, `group`, `format`, `message`. Tom = fälten som **Etikett:** värde och avsnitten som rubriker |
+
+Etiketter jämförs utan skiftläge, accenter, mellanslag och skiljetecken, så
+`Förbandets position` och `FORBANDETS-POSITION` är samma etikett. Rader som inte
+är fält och ligger före första avsnittet hamnar under *Övrigt*. Saknas ett
+obligatoriskt fält eller avsnitt fallerar steget med skälet (”Anmälan saknar
+obligatoriska fält: Vad”) och meddelandet går vidare till nästa steg, precis
+som för de inbyggda.
+
+Ett sparat format blir steget `format:<id>` som en gren kan innehålla. Det
+skriver en anteckning per rapport på samma sätt som de inbyggda: samma
+frontmatter-bas, filnamn, bilagor, undermapp per gren och samma Testruta. Ett
+format som används i en gren kan inte tas bort förrän steget tagits bort.
+
+De inbyggda formaten (7S, FORS, PEDARS, SCRIM) finns kvar i kod och ändras inte
+här. Varje inbyggt format har en startpunkt (*Utgå från …*) som fyller i
+rubriker, fält och avsnitt som ett eget format att justera. Det egna formatet
+gör inte de inbyggdas specialbehandling (t.ex. 7S-plåtlänkar eller PEDARS
+underrubriker), men läser samma fält.
+
 ---
 
 ## Administrering
@@ -284,6 +328,12 @@ Fliken **Pipelines**:
   fält som saknas i en 7S), vilken fil som skulle skrivas och dess innehåll.
   Inget skrivs till valvet, skickas till Signal/TAK eller sparas i databasen
   (`oden/dry_run.py`, `POST /api/pipelines/test`).
+- **Rapportformat:** egna format (se ovan) med editor för rubriker, fält,
+  avsnitt, TNR-fält, filprefix och mall, och en testruta som visar vilka
+  fält som hittades och anteckningen som skulle skrivas. De inbyggda visas
+  som startpunkter. Ett sparat format läggs till i en gren med *+ Steg*.
+- **Reserven per gren:** klick på *Reserv* i en gren ger *Mapp för allt
+  annat* och *Stäng av reserven* (då sparas det inget steg tog bara i Flöde).
 - **Grundinställningar per pipeline:** det som gäller i alla grenar
   (standardundermapp, rapportmallar m.m.).
 
@@ -291,6 +341,7 @@ Fliken **Pipelines**:
 
 ```sql
 SELECT value FROM config WHERE key = 'routing';
+SELECT value FROM config WHERE key = 'report_formats';
 ```
 
 ---
@@ -438,6 +489,9 @@ Pipelines förväntas:
 | GET | `/api/pipelines` | Lista tillgängliga pipelines, aktiva pipelines och körningsstatistik |
 | POST | `/api/pipelines/reorder` | Ändra exekveringsordning |
 | PATCH | `/api/pipelines/{name}/enabled` | Aktivera/deaktivera pipeline |
+| GET | `/api/report-formats` | Egna rapportformat, vilka grenar som använder dem, de inbyggda med startpunkt och mallvariabler |
+| PUT | `/api/report-formats` | Spara hela listan (`{"formats": [...]}`); valideras, och ett format som används i en gren kan inte tas bort |
+| POST | `/api/report-formats/test` | `{"format", "text"}` → om rubriken matchar, hittade fält och avsnitt, vad som saknas och anteckningen. Skriver inget |
 
 ---
 

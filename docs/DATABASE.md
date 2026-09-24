@@ -66,6 +66,7 @@ Läsningar faller tillbaka till `DEFAULT_CONFIG` i [config_db.py](../oden/config
 | `auto_reaction_emoji` | str | `✅` | |
 | `auto_read_receipt_enabled` | bool | `false` | |
 | `db_first_enabled` | bool | `true` | Persista råmeddelanden före bearbetning |
+| `report_formats` | json | `[]` | Egna rapportformat (rubriker, fält, avsnitt, TNR-fält, mall); varje format blir steget `format:<id>`. Se [PIPELINES.md](PIPELINES.md#rapportformat-formatid) |
 | `routing` | json | se källa | Vägval och grenar: källa → gren, stegen per gren. Det som körs — se [PIPELINES.md](PIPELINES.md) |
 | `enabled_pipelines` | json | se källa | Den gamla kedjan; används bara för att skapa `routing` vid uppgradering |
 | `pipeline_settings` | json | se källa | Per-pipeline-konfiguration |

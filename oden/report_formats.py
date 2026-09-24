@@ -1,0 +1,496 @@
+"""Rapportformat as settings: report formats defined in the GUI, not in code.
+
+The built-in pipelines (7S, FORS, PEDARS, SCRIM) have hand-written parsers.
+A format defined here is data: which header lines select it, which labelled
+fields and which sections it has, which are required, which field is the TNR,
+and optionally a Jinja template for the note body. Each format becomes a step
+named ``format:<id>`` that a branch can contain like any built-in step, and it
+writes one note per report exactly like the built-ins (same frontmatter base,
+same file naming, same attachments, same Testruta).
+
+Stored as the config key ``report_formats`` (a JSON list)::
+
+    {
+      "id": "fors-v2", "name": "FORS v2",
+      "headers": ["FORS-RAPPORT"],
+      "fields": [{"key": "till", "label": "Till", "aliases": [], "required": true, "type": "text"}],
+      "sections": [{"key": "orientering", "label": "O – Orientering", "aliases": ["O"], "required": true}],
+      "tnr_field": "tnr", "file_prefix": "FORS", "report_type": "FORS-rapport",
+      "end_marker": "SLUT!", "template": ""
+    }
+
+Parsing, line by line after the header: ``Etikett: värde`` whose label (or an
+alias) is a field sets that field; a line that is a section heading (or
+``Rubrik: text``) starts that section; other lines belong to the current
+section, or to *Övrigt* before the first section. ``end_marker`` stops it.
+Labels are compared without case, accents, spaces or punctuation, so
+``Förbandets position`` and ``FORBANDETS-POSITION`` are the same label.
+"""
+
+from __future__ import annotations
+
+import datetime
+import logging
+import re
+from typing import Any
+
+from oden import config as cfg
+from oden.pipelines.structured_report import (
+    StructuredReportContext,
+    StructuredReportPipeline,
+    build_base_frontmatter,
+    iter_nonempty_lines,
+    normalize_label,
+    resolve_report_datetime,
+    trailing_obsidian_comment,
+    yaml_quote,
+)
+
+logger = logging.getLogger(__name__)
+
+STEP_PREFIX = "format:"
+FIELD_TYPES = ("text", "mgrs")
+_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,20}$")
+# Frontmatter keys the base already writes; a field with one of these keys is body-only.
+_RESERVED_KEYS = {"id", "typ", "tnr", "tidpunkt", "signal_tidpunkt", "signal_avsandare_nummer", "signal_avsandare_id"}
+_MAX_TEMPLATE = 20000
+
+
+def _slug(text: str, sep: str = "-") -> str:
+    base = text.lower().translate(str.maketrans("åäöé", "aaoe"))
+    return re.sub(r"[^a-z0-9]+", sep, base).strip(sep)
+
+
+def _clean_list(value: Any, limit: int = 20) -> list[str]:
+    if isinstance(value, str):
+        value = value.splitlines()
+    if not isinstance(value, list):
+        return []
+    seen: list[str] = []
+    for item in value:
+        text = str(item).strip()
+        if text and text not in seen:
+            seen.append(text)
+    return seen[:limit]
+
+
+def _normalize_items(raw: Any, kind: str, taken: set[str], *, with_type: bool) -> list[dict[str, Any]]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"{kind} måste vara en lista")
+    items = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            raise ValueError(f"Varje {kind[:-2].lower() or kind} måste vara ett objekt")
+        label = str(entry.get("label") or "").strip()
+        if not label:
+            raise ValueError(f"{kind}: varje rad behöver en etikett")
+        key = str(entry.get("key") or "").strip() or _slug(label, "_")[:40]
+        if not key or not key[0].isalpha():
+            key = f"f_{key}"[:40]
+        if not _KEY_RE.match(key):
+            raise ValueError(f"{kind}: ogiltig nyckel {key!r} (a–z, 0–9, _)")
+        if key in taken:
+            raise ValueError(f"Nyckeln {key!r} används två gånger")
+        taken.add(key)
+        item: dict[str, Any] = {
+            "key": key,
+            "label": label[:80],
+            "aliases": _clean_list(entry.get("aliases")),
+            "required": bool(entry.get("required")),
+        }
+        if with_type:
+            item["type"] = entry.get("type") if entry.get("type") in FIELD_TYPES else "text"
+        items.append(item)
+    return items
+
+
+def normalize_format(value: Any, taken_ids: set[str] | None = None) -> dict[str, Any]:
+    """Validate one format definition. Raises ValueError with a Swedish message."""
+    from oden.template_loader import validate_template
+
+    if not isinstance(value, dict):
+        raise ValueError("Formatet måste vara ett objekt")
+    taken_ids = taken_ids or set()
+    name = str(value.get("name") or "").strip()
+    if not name:
+        raise ValueError("Formatet behöver ett namn")
+    format_id = str(value.get("id") or "").strip() or _slug(name)[:32] or "format"
+    if not value.get("id"):
+        base, n = format_id, 2
+        while format_id in taken_ids:
+            format_id, n = f"{base}-{n}", n + 1
+    if not _ID_RE.match(format_id):
+        raise ValueError(f"Ogiltigt format-id: {format_id!r}")
+    if format_id in taken_ids:
+        raise ValueError(f"Det finns redan ett format med id {format_id!r}")
+
+    headers = _clean_list(value.get("headers"), 10)
+    if not headers:
+        raise ValueError("Ange minst en rubrikrad som formatet känns igen på")
+
+    keys: set[str] = set()
+    fields = _normalize_items(value.get("fields"), "Fält", keys, with_type=True)
+    sections = _normalize_items(value.get("sections"), "Avsnitt", keys, with_type=False)
+    if not fields and not sections:
+        raise ValueError("Formatet behöver minst ett fält eller avsnitt")
+
+    tnr_field = str(value.get("tnr_field") or "").strip()
+    if tnr_field and tnr_field not in {f["key"] for f in fields}:
+        raise ValueError("TNR-fältet måste vara ett av formatets fält")
+
+    file_prefix = str(value.get("file_prefix") or "").strip() or re.sub(r"[^A-Za-z0-9_-]", "", name.upper())[:20]
+    if not _PREFIX_RE.match(file_prefix or ""):
+        raise ValueError("Filprefixet får bara innehålla A–Z, 0–9, - och _ (högst 20 tecken)")
+
+    template = str(value.get("template") or "")
+    if len(template) > _MAX_TEMPLATE:
+        raise ValueError("Mallen är för lång")
+    if template.strip():
+        ok, error = validate_template(template)
+        if not ok:
+            raise ValueError(f"Mallen: {error}")
+
+    return {
+        "id": format_id,
+        "name": name[:60],
+        "headers": headers,
+        "fields": fields,
+        "sections": sections,
+        "tnr_field": tnr_field,
+        "file_prefix": file_prefix,
+        "report_type": str(value.get("report_type") or "").strip()[:60] or f"{name[:50]}-rapport",
+        "end_marker": str(value.get("end_marker") or "").strip()[:40],
+        "template": template,
+    }
+
+
+def normalize_formats(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise ValueError("Rapportformaten måste vara en lista")
+    result: list[dict[str, Any]] = []
+    ids: set[str] = set()
+    for raw in value:
+        fmt = normalize_format(raw, ids)
+        ids.add(fmt["id"])
+        result.append(fmt)
+    return result
+
+
+def load_formats(config_module: Any = cfg) -> list[dict[str, Any]]:
+    """The stored formats; an invalid one is skipped (and logged), never fatal."""
+    result: list[dict[str, Any]] = []
+    ids: set[str] = set()
+    for raw in getattr(config_module, "REPORT_FORMATS", None) or []:
+        try:
+            fmt = normalize_format(raw, ids)
+        except ValueError as exc:
+            logger.warning("Rapportformat hoppas över: %s", exc)
+            continue
+        ids.add(fmt["id"])
+        result.append(fmt)
+    return result
+
+
+def step_name(format_id: str) -> str:
+    return f"{STEP_PREFIX}{format_id}"
+
+
+def is_format_step(name: str) -> bool:
+    return isinstance(name, str) and name.startswith(STEP_PREFIX) and bool(_ID_RE.match(name[len(STEP_PREFIX) :]))
+
+
+def pipeline_for(name: str, formats: list[dict[str, Any]] | None = None) -> FormatReportPipeline | None:
+    """A fresh pipeline for step ``format:<id>``, or None if that format no longer exists."""
+    if not is_format_step(name):
+        return None
+    format_id = name[len(STEP_PREFIX) :]
+    for fmt in load_formats() if formats is None else formats:
+        if fmt["id"] == format_id:
+            return FormatReportPipeline(fmt)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Parsing
+# ---------------------------------------------------------------------------
+
+
+def _lookup(items: list[dict[str, Any]]) -> dict[str, str]:
+    table: dict[str, str] = {}
+    for item in items:
+        for label in [item["label"], item["key"], *item["aliases"]]:
+            table.setdefault(normalize_label(label.rstrip(":")), item["key"])
+    return table
+
+
+def matches_header(fmt: dict[str, Any], message_text: str | None) -> bool:
+    for line in (message_text or "").splitlines():
+        if line.strip():
+            first = line.strip().upper()
+            return any(first.startswith(h.upper()) for h in fmt["headers"])
+    return False
+
+
+def parse(fmt: dict[str, Any], message_text: str) -> dict[str, Any]:
+    """``{"fields", "sections", "other", "missing"}``; never raises on content."""
+    lines = iter_nonempty_lines(message_text or "")
+    field_of = _lookup(fmt["fields"])
+    section_of = _lookup(fmt["sections"])
+    end = normalize_label(fmt["end_marker"]) if fmt["end_marker"] else None
+
+    fields: dict[str, str] = {}
+    sections: dict[str, list[str]] = {}
+    other: list[str] = []
+    current: str | None = None
+    for line in lines[1:]:
+        normalized = normalize_label(line.rstrip(":"))
+        if end and normalized == end:
+            break
+        if normalized in section_of:
+            current = section_of[normalized]
+            sections.setdefault(current, [])
+            continue
+        if ":" in line:
+            label, value = line.split(":", 1)
+            key = normalize_label(label)
+            if key in field_of:
+                fields[field_of[key]] = value.strip()
+                continue
+            if key in section_of:
+                current = section_of[key]
+                sections.setdefault(current, [])
+                if value.strip():
+                    sections[current].append(value.strip())
+                continue
+        (sections[current] if current else other).append(line)
+
+    section_text = {key: "\n".join(body).strip() for key, body in sections.items()}
+    missing = [f["label"] for f in fmt["fields"] if f["required"] and not fields.get(f["key"])]
+    missing += [s["label"] for s in fmt["sections"] if s["required"] and not section_text.get(s["key"])]
+    return {"fields": fields, "sections": section_text, "other": other, "missing": missing}
+
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
+
+
+def _mgrs_extra(value: str) -> list[str]:
+    from oden.pipelines.seven_s import _mgrs_to_latlon
+
+    coords = _mgrs_to_latlon(value.split(",", 1)[0])
+    if coords is None:
+        return []
+    lat, lon = f"{coords[0]:.5f}", f"{coords[1]:.5f}"
+    return [f"lat: {lat}", f"lon: {lon}", f"location: {yaml_quote(f'{lat},{lon}')}"]
+
+
+class FormatReportPipeline(StructuredReportPipeline):
+    """A report step built from a format definition instead of code."""
+
+    def __init__(self, fmt: dict[str, Any]) -> None:
+        self.format = fmt
+        self.name = step_name(fmt["id"])
+        self.display_name = fmt["name"]
+        self.description = f"Rapportformat ”{fmt['name']}” (definierat i inställningarna)."
+        self.selection_criteria = "Körs när första icke-tomma raden börjar med " + " eller ".join(
+            f"'{h}'" for h in fmt["headers"]
+        )
+        self.header_prefixes = tuple(fmt["headers"])
+        self.report_id_prefix = fmt["file_prefix"]
+        self.file_prefix = fmt["file_prefix"]
+        self.report_type = fmt["report_type"]
+        self.tnr_field_name = fmt["tnr_field"] or "tnr"
+
+    def matches_message(self, message_text: str | None) -> bool:
+        return matches_header(self.format, message_text)
+
+    def parse_report(self, message_text: str) -> dict[str, Any]:
+        parsed = parse(self.format, message_text)
+        if parsed["missing"]:
+            raise ValueError(f"{self.format['name']} saknar obligatoriska fält: {', '.join(parsed['missing'])}")
+        return {**parsed["fields"], "_parsed": parsed}
+
+    def report_tnr(self, fields: dict[str, Any], reference_dt: datetime.datetime) -> str:
+        if self.format["tnr_field"]:
+            return str(fields.get(self.format["tnr_field"]) or "").strip() or reference_dt.strftime("%d%H%M")
+        return reference_dt.strftime("%d%H%M")
+
+    def build_report_datetime(self, *, fields: dict[str, Any], reference_dt: datetime.datetime) -> datetime.datetime:
+        raw = str(fields.get(self.format["tnr_field"]) or "").strip() if self.format["tnr_field"] else ""
+        if not raw:
+            return reference_dt
+        label = next(f["label"] for f in self.format["fields"] if f["key"] == self.format["tnr_field"])
+        return resolve_report_datetime(raw, reference_dt, field_label=f"{self.format['name']} {label}")
+
+    def render_report(self, context: StructuredReportContext) -> str:
+        fmt = self.format
+        parsed = context.fields["_parsed"]
+        values, sections = parsed["fields"], parsed["sections"]
+
+        extra: list[str] = []
+        for field in fmt["fields"]:
+            value = values.get(field["key"])
+            if not value or field["key"] in _RESERVED_KEYS:
+                continue
+            extra.append(f"{field['key']}: {yaml_quote(value)}")
+            if field["type"] == "mgrs" and not any(line.startswith("lat:") for line in extra):
+                extra.extend(_mgrs_extra(value))
+        frontmatter = build_base_frontmatter(
+            report_id_prefix=self.report_id_prefix,
+            report_type=self.report_type,
+            context=context,
+            extra_fields=extra,
+        )
+
+        raw_message = (context.envelope.get("dataMessage") or {}).get("message") or ""
+        if fmt["template"].strip():
+            body = self._render_template(context, values, sections, parsed["other"], raw_message)
+        else:
+            body = self._default_body(values, sections, parsed["other"])
+        report = "\n".join(frontmatter) + body.rstrip() + "\n"
+        comment = trailing_obsidian_comment(raw_message)
+        return f"{report.rstrip()}\n\n{comment}\n" if comment else report
+
+    def _default_body(self, values: dict[str, str], sections: dict[str, str], other: list[str]) -> str:
+        lines: list[str] = []
+        for field in self.format["fields"]:
+            if values.get(field["key"]):
+                lines.extend([f"**{field['label']}:** {values[field['key']]}", ""])
+        for section in self.format["sections"]:
+            if section["key"] in sections:
+                lines.extend([f"## {section['label']}", "", sections[section["key"]] or "-", ""])
+        if other:
+            lines.extend(["## Övrigt", "", *other, ""])
+        return "\n".join(lines)
+
+    def _render_template(
+        self,
+        context: StructuredReportContext,
+        values: dict[str, str],
+        sections: dict[str, str],
+        other: list[str],
+        raw_message: str,
+    ) -> str:
+        from oden.template_loader import _get_sandboxed_env
+
+        template = _get_sandboxed_env().from_string(self.format["template"])
+        return template.render(
+            format=self.format["name"],
+            fields=values,
+            sections=sections,
+            other="\n".join(other),
+            tnr=context.resolved_tnr,
+            report_time=context.report_dt.strftime("%Y-%m-%d %H:%M"),
+            signal_time=context.signal_dt.strftime("%Y-%m-%d %H:%M"),
+            sender_name=context.source_name or "",
+            sender_number=context.source_number,
+            group=context.group_title,
+            message=raw_message,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Starting points: the built-ins as editable definitions
+# ---------------------------------------------------------------------------
+
+
+def _f(label: str, *, key: str = "", required: bool = False, aliases: tuple[str, ...] = (), type_: str = "text"):
+    return {"key": key, "label": label, "aliases": list(aliases), "required": required, "type": type_}
+
+
+def _s(label: str, *, key: str, required: bool = False, aliases: tuple[str, ...] = ()):
+    return {"key": key, "label": label, "aliases": list(aliases), "required": required}
+
+
+STARTERS: dict[str, dict[str, Any]] = {
+    "seven_s": {
+        "name": "7S (eget)",
+        "headers": ["7S RAPPORT"],
+        "fields": [
+            _f("Till", required=True),
+            _f("Från", key="fran", required=True),
+            _f("TNR", key="tnr", required=True),
+            _f("Stund", required=True),
+            _f("Ställe", key="stalle", required=True, type_="mgrs"),
+            _f("Styrka"),
+            _f("Slag"),
+            _f("Sysselsättning", key="sysselsattning"),
+            _f("Symbol"),
+            _f("Händelse", key="handelse"),
+            _f("Sagesman", required=True, aliases=("Sagesmän",)),
+            _f("Sedan"),
+        ],
+        "sections": [],
+        "tnr_field": "tnr",
+        "file_prefix": "TNR",
+        "report_type": "7S-rapport",
+    },
+    "fors": {
+        "name": "FORS (eget)",
+        "headers": ["FORS-RAPPORT", "FORS RAPPORT"],
+        "fields": [
+            _f("Till", required=True),
+            _f("Från", key="fran", required=True),
+            _f("TNR", key="tnr", required=True),
+            _f("Genomförd", key="genomford", aliases=("Genomförd verksamhet",)),
+            _f("Pågående", key="pagaende", aliases=("Pågående verksamhet",)),
+            _f("Planerad", aliases=("Planerad verksamhet",)),
+        ],
+        "sections": [
+            _s("F – Förbandets position", key="forbandets_position", required=True),
+            _s("O – Orientering", key="orientering", required=True),
+            _s("R – Redogörelse för vht", key="redogorelse", aliases=("R – Redogörelse för verksamhet",)),
+            _s("S – Slutsatser", key="slutsatser"),
+        ],
+        "tnr_field": "tnr",
+        "file_prefix": "FORS",
+        "report_type": "FORS-rapport",
+        "end_marker": "SLUT!",
+    },
+    "pedars": {
+        "name": "PEDARS (eget)",
+        "headers": ["PEDARS"],
+        "fields": [
+            _f("Till", required=True),
+            _f("Från", key="fran", required=True),
+            _f("TNR", key="tnr", required=True),
+        ],
+        "sections": [
+            _s("P – Personal", key="personal", required=True),
+            _s("E – Ersättning av förnödenheter", key="ersattning", required=True),
+            _s("D – Drivmedel", key="drivmedel", required=True),
+            _s("A – Ammunition", key="ammunition", required=True),
+            _s("R – Reparationer", key="reparationer", required=True),
+            _s("S – Samlad förmåga", key="samlad_formaga", required=True),
+        ],
+        "tnr_field": "tnr",
+        "file_prefix": "PEDARS",
+        "report_type": "PEDARS-rapport",
+        "end_marker": "SLUT!",
+    },
+    "scrim": {
+        "name": "SCRIM (eget)",
+        "headers": ["SCRIM RAPPORT"],
+        "fields": [
+            _f("TNR", key="tnr", required=True),
+            _f("Stund", required=True),
+            _f("Ställe", key="stalle", type_="mgrs"),
+            _f("Storlek"),
+            _f("Färg", key="farg"),
+            _f("Registrering", aliases=("Regnr",)),
+            _f("Kännetecken", key="kannetecken"),
+            _f("Märke", key="marke", aliases=("Märke/modell",)),
+            _f("Sagesman"),
+            _f("Anmärkning", key="anmarkning"),
+        ],
+        "sections": [],
+        "tnr_field": "tnr",
+        "file_prefix": "SCRIM",
+        "report_type": "SCRIM-rapport",
+    },
+}

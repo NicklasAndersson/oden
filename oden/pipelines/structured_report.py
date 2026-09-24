@@ -318,6 +318,11 @@ class StructuredReportPipeline:
             field_label=f"{self.report_id_prefix} {self.time_field_label}",
         )
 
+    def report_tnr(self, fields: dict[str, Any], reference_dt: datetime.datetime) -> str:
+        """The TNR that names the file (``<file_prefix><tnr>.md``)."""
+        del reference_dt
+        return fields[self.tnr_field_name].strip()
+
     def render_report(self, context: StructuredReportContext) -> str:
         raise NotImplementedError
 
@@ -528,7 +533,7 @@ class StructuredReportPipeline:
         if not source_id:
             raise ValueError(f"{self.report_id_prefix} Signal sender id is missing")
 
-        raw_tnr = fields[self.tnr_field_name].strip()
+        raw_tnr = self.report_tnr(fields, dt)
         report_dt = self.build_report_datetime(fields=fields, reference_dt=dt)
 
         filepath, resolved_tnr = build_report_filepath(

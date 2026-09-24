@@ -35,7 +35,9 @@ from oden.pipelines_db import (
     start_pipeline_run,
 )
 from oden.processing import process_message
+from oden.report_formats import is_format_step, load_formats, pipeline_for
 from oden.routing import (
+    FALLBACK,
     ROUTER,
     branch_by_id,
     branch_steps,
@@ -120,7 +122,16 @@ class PipelineOrchestrator:
             branch = branch_by_id(routing, routing["default"]) or routing["branches"][0]
         steps = branch_steps(branch, publish_to_tak=self._publish_to_tak())
         self._step_configs = {s["pipeline"]: s.get("config") or {} for s in steps}
-        return [self._pipeline_map[s["pipeline"]] for s in steps if s["pipeline"] in self._pipeline_map]
+        formats = load_formats() if any(is_format_step(s["pipeline"]) for s in steps) else []
+        pipelines = []
+        for step in steps:
+            name = step["pipeline"]
+            pipeline = self._pipeline_map.get(name) or pipeline_for(name, formats)
+            if pipeline is None:
+                logger.warning("Steget %s finns inte (borttaget rapportformat?) – hoppas över", name)
+                continue
+            pipelines.append(pipeline)
+        return pipelines
 
     def _record_route(self, message_id: int, branch: dict[str, Any], reason: str, key: str | None) -> None:
         """The vägval as the first run of the attempt, so Flöde and stats see it like any step."""
@@ -277,7 +288,9 @@ class PipelineOrchestrator:
             update_message_status(self._db_path, message_id, STATUS_FAILED)
             return
 
-        update_message_status(self._db_path, message_id, STATUS_PROCESSED)
+        # A branch whose fallback is off keeps what no step took only in Flöde.
+        fallback_off = any(s["pipeline"] == FALLBACK and not s.get("enabled", True) for s in branch.get("steps", []))
+        update_message_status(self._db_path, message_id, STATUS_IGNORED if fallback_off else STATUS_PROCESSED)
 
     async def reprocess(
         self,

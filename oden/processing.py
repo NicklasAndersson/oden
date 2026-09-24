@@ -16,10 +16,11 @@ from oden.formatting import (
     find_latest_file_by_fileid,
     format_sender_display,
     get_message_filepath,
-    get_safe_group_dir_path,
+    resolve_output_dir,
 )
 from oden.groups_db import upsert_group
 from oden.responses_db import get_response_by_keyword
+from oden.routing import step_settings
 from oden.template_loader import render_append, render_report
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,17 @@ class ProcessOutcome:
 # ==============================================================================
 # SIGNAL CONFIRMATION HELPERS
 # ==============================================================================
+
+
+def _fallback_subdir() -> str | None:
+    """The fallback's folder under the group: the running branch step's ``vault_subdir``.
+
+    Set per branch in the Pipelines tab (e.g. everything no report step took
+    goes to ``Övrigt``); empty means the group folder, as before.
+    """
+    settings = step_settings("generic_template", cfg.PIPELINE_SETTINGS)
+    subdir = str(settings.get("vault_subdir") or "").strip()
+    return subdir if subdir and settings.get("vault_subdir_enabled", True) is not False else None
 
 
 async def _send_reaction(source_number: str | None, timestamp: int, group_id: str | None) -> None:
@@ -272,7 +284,7 @@ async def process_message(
             logger.error("Cannot append message, missing group.")
             return ProcessOutcome("skipped", "Citerat svar utan grupp kan inte läggas till någon fil")
 
-        group_dir = get_safe_group_dir_path(group_title)
+        group_dir = resolve_output_dir(group_title, _fallback_subdir())
 
         # For replies, find the file of the quoted author.
         append_target_number = quote.get("author")
@@ -388,7 +400,7 @@ async def process_message(
         else now
     )
 
-    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True)
+    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True, subdir=_fallback_subdir())
     group_dir = os.path.dirname(path)
     os.makedirs(group_dir, exist_ok=True)
 
@@ -493,7 +505,7 @@ def _preview(obj: dict[str, Any]) -> ProcessOutcome | tuple[ProcessOutcome, str]
         if envelope.get("timestamp")
         else datetime.datetime.now(cfg.TIMEZONE)
     )
-    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True)
+    path = get_message_filepath(group_title, dt, source_name, source_number, unique=True, subdir=_fallback_subdir())
     coords = extract_coordinates(msg) if msg else None
     content = render_report(
         fileid=create_fileid(dt, source_name, source_number),

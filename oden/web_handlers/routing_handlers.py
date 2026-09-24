@@ -22,6 +22,7 @@ from oden import config as cfg
 from oden.config_db import set_config_value
 from oden.dry_run import build_test_message, dry_run, publish_to_tak
 from oden.groups_db import get_all_groups
+from oden.report_formats import load_formats, step_name
 from oden.routing import (
     ROUTER,
     STEP_PIPELINES,
@@ -177,7 +178,19 @@ def _pipeline_meta() -> list[dict[str, Any]]:
     from oden.web_handlers.pipeline_handlers import _get_available_pipelines
 
     available = _get_available_pipelines()
-    return [available[name] for name in STEP_PIPELINES if name in available]
+    builtin = [available[name] for name in STEP_PIPELINES if name in available]
+    formats = [
+        {
+            "name": step_name(fmt["id"]),
+            "display_name": fmt["name"],
+            "description": f"Rapportformat från inställningarna ({fmt['report_type']})",
+            "selection_criteria": "Rubrik: " + " / ".join(fmt["headers"]),
+            "format": True,
+        }
+        for fmt in load_formats(cfg)
+    ]
+    # Report steps first, the fallback last — the order they are offered in.
+    return builtin[:-1] + formats + builtin[-1:]
 
 
 @handle_errors("routing")

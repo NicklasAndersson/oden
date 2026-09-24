@@ -51,6 +51,7 @@ from oden.web_handlers.contact_handlers import (
     contacts_refresh_handler,
     update_contact_handler,
 )
+from oden.web_handlers.format_handlers import format_test_handler, formats_handler, formats_save_handler
 from oden.web_handlers.group_handlers import (
     accept_invitation_handler,
     create_group_handler,
@@ -263,6 +264,9 @@ def create_app() -> web.Application:
     app.router.add_get("/api/routing", routing_handler)
     app.router.add_put("/api/routing", routing_save_handler)
     app.router.add_post("/api/pipelines/test", routing_test_handler)
+    app.router.add_get("/api/report-formats", formats_handler)
+    app.router.add_put("/api/report-formats", formats_save_handler)
+    app.router.add_post("/api/report-formats/test", format_test_handler)
     app.router.add_post("/api/storage/cleanup", storage_cleanup_handler)
     app.router.add_post("/api/oden-home", oden_home_change_handler)
     app.router.add_post("/api/signal-cli/restart", restart_signal_cli_handler)
