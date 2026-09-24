@@ -8,6 +8,8 @@ from __future__ import annotations
 import datetime as dt
 import io
 import logging
+import os
+import re
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -264,12 +266,18 @@ async def tak_qr_handler(request: web.Request) -> web.Response:
 
 MAX_CERT_BYTES = 256 * 1024  # a cert, key or CA chain is a few KB
 
-# kind → (settings field it fills, accepted extensions, what the content must look like)
-_CERT_KINDS: dict[str, tuple[str, tuple[str, ...], str]] = {
-    "client_cert": ("tls_client_cert", (".p12", ".pfx", ".pem", ".crt"), "ett klientcertifikat (.p12 eller PEM)"),
-    "client_key": ("tls_client_key", (".pem", ".key"), "en privat nyckel i PEM"),
-    "ca_cert": ("tls_ca_cert", (".pem", ".crt", ".cer"), "ett CA-certifikat i PEM"),
+# kind → (settings field it fills, file name prefix, accepted extensions, what the content must be)
+_CERT_KINDS: dict[str, tuple[str, str, tuple[str, ...], str]] = {
+    "client_cert": (
+        "tls_client_cert",
+        "client-cert",
+        (".p12", ".pfx", ".pem", ".crt"),
+        "ett klientcertifikat (.p12 eller PEM)",
+    ),
+    "client_key": ("tls_client_key", "client-key", (".pem", ".key"), "en privat nyckel i PEM"),
+    "ca_cert": ("tls_ca_cert", "ca-cert", (".pem", ".crt", ".cer"), "ett CA-certifikat i PEM"),
 }
+_SAFE_STEM = re.compile(r"[^A-Za-z0-9_-]+")
 
 
 def _looks_like(kind: str, filename: str, blob: bytes) -> bool:
@@ -293,7 +301,7 @@ async def tak_upload_cert_handler(request: web.Request) -> web.Response:
     kind = request.query.get("kind", "")
     if kind not in _CERT_KINDS:
         return web.json_response({"success": False, "error": "Okänd filtyp"}, status=400)
-    setting, extensions, what = _CERT_KINDS[kind]
+    setting, prefix, extensions, what = _CERT_KINDS[kind]
 
     reader = await request.multipart()
     field = await reader.next()
@@ -301,9 +309,10 @@ async def tak_upload_cert_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Ingen fil skickades"}, status=400)
 
     filename = Path(field.filename or "").name
-    stem, dot, ext = filename.rpartition(".")
-    ext = f".{ext.lower()}" if dot else ""
-    if ext not in extensions:
+    # The stored name is built from our own constants plus a stem reduced to
+    # [A-Za-z0-9_-]; nothing else from the request reaches the path.
+    ext = next((e for e in extensions if filename.lower().endswith(e)), None)
+    if ext is None:
         return web.json_response(
             {"success": False, "error": f"Filen ska vara {' / '.join(extensions)} – {what}"}, status=400
         )
@@ -316,14 +325,19 @@ async def tak_upload_cert_handler(request: web.Request) -> web.Response:
     if not _looks_like(kind, filename, blob):
         return web.json_response({"success": False, "error": f"Filen ser inte ut som {what}"}, status=400)
 
+    stem = _SAFE_STEM.sub("_", filename[: -len(ext)]).strip("_")[:64] or "fil"
     dest_dir = tak_dir()
     dest_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    dest = dest_dir / f"{kind.replace('_', '-')}-{sanitize_token(stem, max_len=64)}{ext}"
-    dest.write_bytes(blob)
-    dest.chmod(0o600)
+    root = os.path.normpath(os.path.abspath(dest_dir))
+    dest = os.path.normpath(os.path.join(root, f"{prefix}-{stem}{ext}"))
+    if not dest.startswith(root + os.sep):
+        return web.json_response({"success": False, "error": "Ogiltigt filnamn"}, status=400)
+    with open(dest, "wb") as handle:
+        handle.write(blob)
+    os.chmod(dest, 0o600)
 
     logger.info("TAK: %s sparad till %s (%d bytes)", kind, dest, len(blob))
-    return web.json_response({"success": True, "path": str(dest), "field": setting})
+    return web.json_response({"success": True, "path": dest, "field": setting})
 
 
 @handle_errors("upload tak package")
