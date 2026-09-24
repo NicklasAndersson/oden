@@ -107,6 +107,22 @@ class TestTakEndpoints(AioHTTPTestCase):
         self.assertEqual(get_config_value(self.db_path, "tak_settings")["enroll_password"], "")
         self.assertFalse((await (await self.client.get("/api/tak/settings")).json())["enroll_password_set"])
 
+    async def test_cert_password_is_stored_but_never_sent_back(self):
+        """The .p12 password can be typed in the TAK tab; like enroll_password it is write-only."""
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "tls_client_password": "atakatak"})
+        resp = await self.client.get("/api/tak/settings")
+        data = await resp.json()
+        self.assertNotIn("tls_client_password", data)
+        self.assertTrue(data["tls_client_password_set"])
+        self.assertNotIn("atakatak", await resp.text())
+
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "tls_client_password": ""})
+        self.assertEqual(get_config_value(self.db_path, "tak_settings")["tls_client_password"], "atakatak")
+
+        await self.client.post("/api/tak/settings", json={"tls_client_password": None})
+        self.assertEqual(get_config_value(self.db_path, "tak_settings")["tls_client_password"], "")
+        self.assertFalse((await (await self.client.get("/api/tak/settings")).json())["tls_client_password_set"])
+
     async def test_save_roundtrips_and_splits_comma_lists(self):
         resp = await self.client.post(
             "/api/tak/settings",
@@ -218,6 +234,51 @@ class TestTakEndpoints(AioHTTPTestCase):
         self.assertTrue(body["needs_enrollment"])
         self.assertEqual(body["cot_url"], "ssl://tak.example.mil:8089")
         self.assertIn("enrollment-användarnamn", body["message"])
+
+    async def _upload_cert(self, kind, filename, content):
+        form = FormData()
+        form.add_field("file", content, filename=filename, content_type="application/octet-stream")
+        return await self.client.post(f"/api/tak/upload-cert?kind={kind}", data=form)
+
+    async def test_upload_cert_stores_each_kind_and_returns_its_path(self):
+        pem_cert = b"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+        pem_key = b"-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n"
+        for kind, filename, content, field in (
+            ("client_cert", "oden.p12", b"\x30\x82\x0a\x00rest", "tls_client_cert"),
+            ("client_cert", "oden.pem", pem_cert, "tls_client_cert"),
+            ("client_key", "oden.key", pem_key, "tls_client_key"),
+            ("ca_cert", "truststore-root.pem", pem_cert, "tls_ca_cert"),
+        ):
+            with self.subTest(kind=kind, filename=filename):
+                resp = await self._upload_cert(kind, filename, content)
+                body = await resp.json()
+                self.assertEqual(resp.status, 200, body)
+                self.assertEqual(body["field"], field)
+                saved = Path(body["path"])
+                self.assertEqual(saved.parent, self.oden_home / "tak")
+                self.assertEqual(saved.read_bytes(), content)
+                self.assertTrue(saved.name.startswith(kind.replace("_", "-") + "-"))
+                if os.name == "posix":
+                    self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+
+    async def test_upload_cert_rejects_the_wrong_file(self):
+        pem_cert = b"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+        for kind, filename, content in (
+            ("ca_cert", "notes.txt", pem_cert),  # wrong extension
+            ("client_key", "oden.pem", pem_cert),  # a cert, not a key
+            ("ca_cert", "ca.pem", b"hello"),  # not PEM at all
+            ("client_cert", "oden.p12", b"PK\x03\x04 a zip"),  # not PKCS#12
+            ("nope", "ca.pem", pem_cert),  # unknown kind
+        ):
+            with self.subTest(kind=kind, filename=filename):
+                resp = await self._upload_cert(kind, filename, content)
+                self.assertEqual(resp.status, 400)
+        self.assertFalse((self.oden_home / "tak").exists() and any((self.oden_home / "tak").iterdir()))
+
+    async def test_upload_cert_name_cannot_escape_the_tak_directory(self):
+        pem_cert = b"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+        body = await (await self._upload_cert("ca_cert", "../../etc/evil.pem", pem_cert)).json()
+        self.assertEqual(Path(body["path"]).parent, self.oden_home / "tak")
 
     async def test_upload_package_rejects_non_zip(self):
         resp = await self.client.post("/api/tak/upload-package", data=_upload_form("notes.txt", b"hello"))

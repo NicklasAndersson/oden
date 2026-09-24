@@ -8,6 +8,8 @@ from __future__ import annotations
 import datetime as dt
 import io
 import logging
+import os
+import re
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -28,13 +30,13 @@ logger = logging.getLogger(__name__)
 CERT_WARN_DAYS = 30
 MAX_PACKAGE_BYTES = 5 * 1024 * 1024  # data packages are ~30 KB; 5 MB is generous
 
-# Settings the form may write. tls_client_password is deliberately absent — the
-# password comes from the environment variable named by tls_client_password_env,
-# so it never lands in the config db or in an HTTP response.
+# Settings the form may write.
 #
-# enroll_password is the exception: enrollment is the only way to connect with a
-# trust-only data package, and an env var is awkward to set for a desktop app, so
-# the TAK tab accepts one directly. It is write-only over HTTP — see _SECRET_KEYS.
+# The two passwords (tls_client_password for a .p12, enroll_password for
+# enrollment) can be typed into the TAK tab, because an environment variable is
+# awkward to set for a desktop app. Both are write-only over HTTP — see
+# _SECRET_KEYS — and a set environment variable (tls_client_password_env,
+# enroll_password_env) still wins over the stored value.
 _EDITABLE_KEYS = {
     "enabled": bool,
     "cot_url": str,
@@ -42,6 +44,7 @@ _EDITABLE_KEYS = {
     "tls_client_cert": str,
     "tls_client_key": str,
     "tls_client_password_env": str,
+    "tls_client_password": str,
     "tls_ca_cert": str,
     "tls_verify": bool,
     "tls_check_hostname": bool,
@@ -73,7 +76,7 @@ _EDITABLE_KEYS = {
 
 
 # Written by the form, never read back out of it.
-_SECRET_KEYS = {"enroll_password"}
+_SECRET_KEYS = {"enroll_password", "tls_client_password"}
 
 
 def _coerce(value: Any, kind: type) -> Any:
@@ -100,7 +103,8 @@ async def tak_settings_handler(request: web.Request) -> web.Response:
     """
     settings = {**_INBOUND_DEFAULTS, **load_tak_settings()}
     payload: dict[str, Any] = {key: settings.get(key) for key in _EDITABLE_KEYS if key not in _SECRET_KEYS}
-    payload["enroll_password_set"] = bool(str(settings.get("enroll_password") or "").strip())
+    for key in _SECRET_KEYS:
+        payload[f"{key}_set"] = bool(str(settings.get(key) or "").strip())
     return web.json_response(payload)
 
 
@@ -260,6 +264,82 @@ async def tak_qr_handler(request: web.Request) -> web.Response:
         fields["enroll_username"] = qr.username
         fields["enroll_password"] = qr.token
     return web.json_response({"success": True, "kind": qr.kind, "fields": fields, "message": qr.summary()})
+
+
+MAX_CERT_BYTES = 256 * 1024  # a cert, key or CA chain is a few KB
+
+# kind → (settings field it fills, file name prefix, accepted extensions, what the content must be)
+_CERT_KINDS: dict[str, tuple[str, str, tuple[str, ...], str]] = {
+    "client_cert": (
+        "tls_client_cert",
+        "client-cert",
+        (".p12", ".pfx", ".pem", ".crt"),
+        "ett klientcertifikat (.p12 eller PEM)",
+    ),
+    "client_key": ("tls_client_key", "client-key", (".pem", ".key"), "en privat nyckel i PEM"),
+    "ca_cert": ("tls_ca_cert", "ca-cert", (".pem", ".crt", ".cer"), "ett CA-certifikat i PEM"),
+}
+_SAFE_STEM = re.compile(r"[^A-Za-z0-9_-]+")
+
+
+def _looks_like(kind: str, filename: str, blob: bytes) -> bool:
+    """Cheap sanity check, so a wrong file is caught at upload rather than as a failed connect."""
+    if kind == "client_cert" and filename.lower().endswith((".p12", ".pfx")):
+        return blob[:1] == b"\x30"  # PKCS#12 is DER: an ASN.1 SEQUENCE
+    if kind == "client_key":
+        return b"PRIVATE KEY-----" in blob
+    return b"-----BEGIN CERTIFICATE-----" in blob
+
+
+@handle_errors("upload TAK certificate")
+async def tak_upload_cert_handler(request: web.Request) -> web.Response:
+    """Store an uploaded client certificate, key or server CA under ODEN_HOME/tak.
+
+    The browser cannot hand over a file's real path, so "Välj fil…" uploads the
+    file and the field gets the stored path, exactly like the data package.
+    Private key material: the file lands 0600 in the 0700 TAK directory.
+    ``?kind=`` is ``client_cert``, ``client_key`` or ``ca_cert``.
+    """
+    kind = request.query.get("kind", "")
+    if kind not in _CERT_KINDS:
+        return web.json_response({"success": False, "error": "Okänd filtyp"}, status=400)
+    setting, prefix, extensions, what = _CERT_KINDS[kind]
+
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "file":
+        return web.json_response({"success": False, "error": "Ingen fil skickades"}, status=400)
+
+    filename = Path(field.filename or "").name
+    # The stored name is built from our own constants plus a stem reduced to
+    # [A-Za-z0-9_-]; nothing else from the request reaches the path.
+    ext = next((e for e in extensions if filename.lower().endswith(e)), None)
+    if ext is None:
+        return web.json_response(
+            {"success": False, "error": f"Filen ska vara {' / '.join(extensions)} – {what}"}, status=400
+        )
+
+    blob = b""
+    while chunk := await field.read_chunk():
+        blob += chunk
+        if len(blob) > MAX_CERT_BYTES:
+            return web.json_response({"success": False, "error": "Filen är för stor (max 256 KB)"}, status=413)
+    if not _looks_like(kind, filename, blob):
+        return web.json_response({"success": False, "error": f"Filen ser inte ut som {what}"}, status=400)
+
+    stem = _SAFE_STEM.sub("_", filename[: -len(ext)]).strip("_")[:64] or "fil"
+    dest_dir = tak_dir()
+    dest_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root = os.path.normpath(os.path.abspath(dest_dir))
+    dest = os.path.normpath(os.path.join(root, f"{prefix}-{stem}{ext}"))
+    if not dest.startswith(root + os.sep):
+        return web.json_response({"success": False, "error": "Ogiltigt filnamn"}, status=400)
+    with open(dest, "wb") as handle:
+        handle.write(blob)
+    os.chmod(dest, 0o600)
+
+    logger.info("TAK: %s sparad till %s (%d bytes)", kind, dest, len(blob))
+    return web.json_response({"success": True, "path": dest, "field": setting})
 
 
 @handle_errors("upload tak package")

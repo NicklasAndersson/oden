@@ -81,6 +81,18 @@ Har du en data package: klicka **Välj fil…** vid `pref_package`. Zip:en ladda
 upp till `ODEN_HOME/tak/` (rättigheter `0600`) och sökvägen fylls i automatiskt.
 Du kan också skriva sökvägen direkt om filen redan ligger på Oden-värden.
 
+Har du lösa filer i stället: **Välj fil…** finns också vid klientcertifikat
+(`.p12`/`.pfx` eller PEM), separat nyckelfil (PEM) och server-CA (PEM). Filen
+laddas upp till `ODEN_HOME/tak/` (`0600`), kontrolleras (ett cert ska vara ett
+cert, en nyckel en nyckel) och fältet fylls i med sökvägen; klicka **Spara**.
+
+En `.p12` utan lösenord fungerar direkt (Oden gör om den till PEM åt pytak). Är
+den lösenordsskyddad: skriv lösenordet i **Certlösenord** (från ATAK ofta
+`atakatak`) och klicka **Spara**, eller sätt miljövariabeln under
+**Miljövariabel för certlösenord** (standard `ODEN_TAK_CERT_PASSWORD`), som har
+företräde när den är satt. Saknas lösenordet säger TAK-fliken det under
+*Senaste fel*.
+
 Alternativt från skript (inställningarna lagras som `tak_settings` i config-db):
 
 ```python
@@ -109,7 +121,8 @@ set_config_value(
 | `cot_url` | – | `tls://host:8089` (mTLS) eller `tcp://host:8087` (plain, betrott nät) |
 | `enroll_username` | – | Enrollment: användarnamn |
 | `enroll_password` | – | Enrollment: lösenord, skrivs i TAK-fliken. Skickas aldrig tillbaka av API:t |
-| `tls_client_cert` | – | `.p12` eller PEM (lösa filer). Lösenord ur env-var enligt `tls_client_password_env` |
+| `tls_client_cert` | – | `.p12` eller PEM (lösa filer). Lösenord i `tls_client_password` eller env-var enligt `tls_client_password_env` |
+| `tls_client_password` | – | Certlösenord, skrivs i TAK-fliken. Skickas aldrig tillbaka av API:t |
 | `tls_client_key` | – | Separat PEM-nyckel om certet saknar den |
 | `tls_ca_cert` | – | Serverns CA (PEM). Behövs inte med `pref_package` |
 | **TLS** | | |
@@ -201,9 +214,10 @@ avsändarna adresserar lag snarare än enskilda.
 Priset är att Oden syns som en ikon på allas karta. Vill du undvika det är
 alternativet att avsändarna använder Broadcast.
 
-**Lösenord.** Enrollment-lösenordet kan skrivas direkt i TAK-fliken — det är den
-enkla vägen, och det är enda sättet att komma igång med ett enrollment-paket utan
-att pilla med miljövariabler. API:t returnerar det aldrig; GUI:t visar bara att
+**Lösenord.** Enrollment-lösenordet och certlösenordet kan skrivas direkt i
+TAK-fliken — det är den enkla vägen, och det är enda sättet att komma igång utan
+att pilla med miljövariabler. Tomt fält vid Spara behåller det sparade; **Rensa**
+tar bort det. API:t returnerar det aldrig; GUI:t visar bara att
 ett lösenord finns sparat.
 
 Vill du hellre hålla det utanför config-db går miljövariabeln fortfarande att
@@ -284,6 +298,14 @@ och se hela vägen (källan sätts till TAK).
 när larmet dras tillbaka) och Larmat av. Det syns i observationen, och med
 *formulärets namn som rubrik* börjar texten med `Nödlarm`. Larm släpps igenom av
 `inbound_reports_only` och av standardtyperna (`b-a-*`).
+
+**Rutter.** En rutt (`b-m-r`) blir formuläret *Rutt* med waypointerna i ordning
+som `Punkter: A → B → C` och ruttens egna uppgifter (typ, metod, riktning).
+Waypointernas koordinater finns inte i rutten (de är egna CoT:er). Rutter
+släpps inte igenom av standardtyperna; lägg till `b-m-r` i `inbound_types`.
+
+Fält med samma namn i ett formulär numreras (`namn`, `namn 2`, …) i stället för
+att bara det första behålls.
 
 **Andra ATAK-formulär än 8S och SCRIM.** Fälten läses generellt, oavsett hur
 formuläret är uppbyggt. Som standard blir ett okänt formulär en
@@ -381,8 +403,9 @@ Utpackade certifikat hamnar i en temporärkatalog som tas bort när skriptet slu
 ## Säkerhet
 
 - Cert-filer och data package: `chmod 600`, ägs av Oden-användaren.
-- Cert-/enrollment-lösenord i miljövariabel eller OS-nyckelring – aldrig i
-  config-db (den visas i GUI:t).
+- Cert-/enrollment-lösenord sparade i TAK-fliken ligger i klartext i config-db
+  (skickas aldrig tillbaka av API:t). Vill du inte det: miljövariabel eller
+  OS-nyckelring.
 - `tls_verify = false` bara i labb.
 - Enrollment-anropet mot port 8446 görs av `pytak`, som stänger av
   TLS-verifieringen för just det anropet (`trust_all` är hårdkodat i

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Välj fil… för TAK-certifikaten.** Klientcertifikat (`.p12`/`.pfx`/PEM), separat nyckelfil och server-CA har nu en filväljare, som data package-fältet redan hade. Filen laddas upp till `ODEN_HOME/tak/` (`0600`), kontrolleras så att t.ex. ett certifikat inte läggs i nyckelfältet, och fältet fylls i med sökvägen. Nytt anrop `POST /api/tak/upload-cert?kind=client_cert|client_key|ca_cert`
+- **Certlösenord i TAK-fliken.** Lösenordet till en lösenordsskyddad `.p12` kan nu skrivas direkt i TAK-fliken, som enrollment-lösenordet redan kunde, i stället för att bara läsas ur en miljövariabel. Det sparas som `tls_client_password`, skickas aldrig tillbaka av API:t (fliken visar bara att ett är sparat), tomt fält behåller det och **Rensa** tar bort det. En satt miljövariabel har fortfarande företräde
+
+### Fixed
+
+- **TAK: `.p12` utan lösenord.** Var klientcertifikatet en `.p12` och inget certlösenord satt kraschade anslutningen i pytak med `TypeError: descriptor 'encode' for 'str' objects doesn't apply to a 'NoneType' object`. Nu öppnar Oden en `.p12` utan lösenord själv och ger pytak cert och nyckel som PEM (i `ODEN_HOME/tak/`, `0600`); är den lösenordsskyddad och inget lösenord satt blir felet i klartext och pekar på fältet Certlösenord
+- **TAK: fält med samma namn tappas inte längre.** Ett formulär med flera värden under samma namn behöll bara det första; nu numreras de (`vehicle`, `vehicle 2`, …). Ett upprepat identiskt värde tas bara med en gång
+- **TAK: rutter (`b-m-r`) blir formuläret *Rutt* med alla punkter.** Waypointerna samlas i ordning som `Punkter: START POINT → CP 1 → OBJ BRAVO`, oavsett om de ligger i `<route>` eller direkt under `<detail>`. Tidigare fick rutten namnet ”Strokeweight” (linjetjockleken togs för rapporten), bara den första punkten kom med, och en waypoint kunde tas för ruttens skapare. Visningstaggar (`strokeWeight`, `strokeStyle` m.fl.) kan inte längre bli ett formulärs namn. Rutter släpps inte igenom av standardfiltret — lägg till `b-m-r` i `inbound_types` för att ta emot dem
+
 ## [4.1.0] - 2026-09-24
 
 ### Added

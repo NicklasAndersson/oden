@@ -370,3 +370,101 @@ class DroppedLinkTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _p12(password: bytes | None) -> bytes:
+    """A throwaway client cert + key as PKCS#12, optionally password-protected."""
+    import datetime as _dt
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.serialization import BestAvailableEncryption, NoEncryption, pkcs12
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "oden-test")])
+    now = _dt.datetime.now(_dt.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(1)
+        .not_valid_before(now)
+        .not_valid_after(now + _dt.timedelta(days=30))
+        .sign(key, hashes.SHA256())
+    )
+    encryption = BestAvailableEncryption(password) if password else NoEncryption()
+    return pkcs12.serialize_key_and_certificates(b"oden", key, cert, None, encryption)
+
+
+class P12WithoutPasswordTest(unittest.TestCase):
+    """A .p12 with no password configured used to reach pytak as str.encode(None)."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+        home = patch("oden.config.ODEN_HOME", str(self.dir / "home"))
+        home.start()
+        self.addCleanup(home.stop)
+
+    def _config(self, blob, env=None):
+        import os
+
+        cert = self.dir / "client-cert-oden.p12"
+        cert.write_bytes(blob)
+        settings = {**_DEFAULTS, "cot_url": "tls://tak.example:8089", "tls_client_cert": str(cert)}
+        with patch.dict("os.environ", env or {}, clear=False):
+            if not env:  # the password variable must really be unset
+                os.environ.pop(_DEFAULTS["tls_client_password_env"], None)
+            return TakBridge(settings)._build_config()
+
+    def test_a_p12_without_password_is_handed_to_pytak_as_pem(self):
+        import os
+
+        cfg = self._config(_p12(None))
+        self.assertTrue(cfg["PYTAK_TLS_CLIENT_CERT"].endswith(".cert.pem"))
+        self.assertTrue(cfg["PYTAK_TLS_CLIENT_KEY"].endswith(".key.pem"))
+        self.assertNotIn("PYTAK_TLS_CLIENT_PASSWORD", cfg)
+        with open(cfg["PYTAK_TLS_CLIENT_KEY"], "rb") as handle:
+            self.assertIn(b"PRIVATE KEY", handle.read())
+        if os.name == "posix":
+            self.assertEqual(os.stat(cfg["PYTAK_TLS_CLIENT_KEY"]).st_mode & 0o777, 0o600)
+
+    def test_a_protected_p12_without_password_says_what_to_set(self):
+        with self.assertRaises(ValueError) as caught:
+            self._config(_p12(b"atakatak"))
+        self.assertIn("lösenordsskyddat", str(caught.exception))
+        self.assertIn(_DEFAULTS["tls_client_password_env"], str(caught.exception))
+
+    def test_a_password_typed_in_the_tak_tab_is_used(self):
+        import os
+
+        cert = self.dir / "client-cert-oden.p12"
+        cert.write_bytes(_p12(b"atakatak"))
+        settings = {
+            **_DEFAULTS,
+            "cot_url": "tls://tak.example:8089",
+            "tls_client_cert": str(cert),
+            "tls_client_password": "atakatak",
+        }
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop(_DEFAULTS["tls_client_password_env"], None)
+            cfg = TakBridge(settings)._build_config()
+        self.assertEqual(cfg["PYTAK_TLS_CLIENT_PASSWORD"], "atakatak")
+        self.assertTrue(cfg["PYTAK_TLS_CLIENT_CERT"].endswith(".p12"))
+
+    def test_the_error_points_to_the_field(self):
+        with self.assertRaises(ValueError) as caught:
+            self._config(_p12(b"atakatak"))
+        self.assertIn("Certlösenord i TAK-fliken", str(caught.exception))
+
+    def test_with_the_password_set_the_p12_goes_to_pytak_unchanged(self):
+        cfg = self._config(_p12(b"atakatak"), env={_DEFAULTS["tls_client_password_env"]: "atakatak"})
+        self.assertTrue(cfg["PYTAK_TLS_CLIENT_CERT"].endswith(".p12"))
+        self.assertEqual(cfg["PYTAK_TLS_CLIENT_PASSWORD"], "atakatak")

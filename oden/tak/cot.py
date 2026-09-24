@@ -253,6 +253,12 @@ _KNOWN_DETAIL_TAGS = {
     # hostile markers, where they would otherwise masquerade as a one-field report.
     "targetmunitions",
     "fillColor",
+    # Drawing style of shapes and routes: never the report, so never its name.
+    "strokeWeight",
+    "strokeStyle",
+    "height_unit",
+    "tog",
+    "ce_human_input",
 }
 _MAX_FIELD_DEPTH = 6
 # Attribute names that are structure/plumbing, never a report field value.
@@ -278,6 +284,24 @@ def _humanize_tag(tag: str) -> str:
     return tag.replace("_", " ").replace("-", " ").strip().title() or tag
 
 
+def _put_field(fields: dict[str, str], key: str, value: str) -> None:
+    """Add a field; a second, different value under the same name becomes ``<name> 2``, ``3`` …
+
+    A route's waypoints all arrive as ``callsign``; keeping only the first
+    lost the rest of the route.
+    """
+    value = value[:_MAX_CUSTOM_FIELD_LEN]
+    if key not in fields:
+        fields[key] = value
+        return
+    if value in (v for k, v in fields.items() if k == key or k.startswith(f"{key} ")):
+        return
+    n = 2
+    while f"{key} {n}" in fields:
+        n += 1
+    fields[f"{key} {n}"] = value
+
+
 def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: int = 0) -> None:
     """Walk one report block and collect its fields, whatever shape it turns out to be.
 
@@ -290,7 +314,7 @@ def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: i
     attr_value = (elem.get("value") or "").strip()
     if attr_value:
         key = elem.get("label") or elem.get("name") or elem.tag
-        fields.setdefault(key, attr_value[:_MAX_CUSTOM_FIELD_LEN])
+        _put_field(fields, key, attr_value)
 
     # Many templates (e.g. the 8S form) flatten every field into attributes on
     # one wrapper element: <_8S_ POSITION="..." STRENGTH_TYPE="..." .../>
@@ -300,13 +324,13 @@ def _extract_report_fields(elem: ET.Element, fields: dict[str, str], *, depth: i
         val = (attr_val or "").strip()
         if not val or attr_name in _STRUCTURAL_ATTRS or _ATTR_NAME_JUNK.search(attr_name):
             continue
-        fields.setdefault(_humanize_tag(attr_name), val[:_MAX_CUSTOM_FIELD_LEN])
+        _put_field(fields, _humanize_tag(attr_name), val)
 
     children = list(elem)
     if not children:
         text = (elem.text or "").strip()
         if text and not attr_value:
-            fields.setdefault(elem.tag, text[:_MAX_CUSTOM_FIELD_LEN])
+            _put_field(fields, elem.tag, text)
         return
     for child in children:
         if len(fields) >= _MAX_CUSTOM_FIELDS:
@@ -343,6 +367,27 @@ def _report_name_element(elem: ET.Element, *, depth: int = 0) -> ET.Element:
 
 
 EMERGENCY_FORM = "Nödlarm"
+ROUTE_FORM = "Rutt"
+ROUTE_TYPE_PREFIX = "b-m-r"
+
+
+def _route_report(detail: ET.Element, fields: dict[str, str]) -> tuple[str, dict[str, str]]:
+    """A route (``b-m-r``) as the form "Rutt" with its waypoints in order.
+
+    The waypoints are ``<link>``s, directly under ``<detail>`` or inside a
+    ``<route>`` element depending on the client, each with its ``callsign``.
+    They become one ``Punkter: A → B → C`` field; the route's own attributes
+    (``routetype``, ``method``, …) stay as they were read.
+    """
+    points = [
+        sanitize_token(link.get("callsign", ""), max_len=64)
+        for link in detail.iter("link")
+        if link.get("callsign", "").strip() and not link.get("parent_callsign")
+    ]
+    kept = {k: v for k, v in fields.items() if k != "Callsign" and not k.startswith("Callsign ")}
+    if points:
+        kept = {"Punkter": " → ".join(points)[:_MAX_CUSTOM_FIELD_LEN], **kept}
+    return ROUTE_FORM, kept
 
 
 def _parse_emergency(detail: ET.Element) -> dict[str, str]:
@@ -448,12 +493,24 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
             remarks = remarks_el.text
         is_chat = detail.find("__chat") is not None or root.get("type", "").startswith("b-t-f")
         custom_report_name, custom_report = _parse_custom_report(detail)
+        if root.get("type", "").startswith(ROUTE_TYPE_PREFIX):
+            custom_report_name, custom_report = _route_report(detail, custom_report)
         emergency = _parse_emergency(detail)
         if emergency:
             # An alarm outranks whatever else rides along: it names the form.
             custom_report_name, custom_report = EMERGENCY_FORM, {**emergency, **custom_report}
         creator = detail.find("creator")
-        parent = next((el for el in detail.findall("link") if el.get("relation") == "p-p"), None)
+        # A route's waypoints are links too (sometimes "p-p"); only a link naming
+        # its parent's callsign says who made the route.
+        is_route = root.get("type", "").startswith(ROUTE_TYPE_PREFIX)
+        parent = next(
+            (
+                el
+                for el in detail.findall("link")
+                if el.get("relation") == "p-p" and (not is_route or el.get("parent_callsign"))
+            ),
+            None,
+        )
         raw_uid = (creator.get("uid", "") if creator is not None else "") or (
             parent.get("uid", "") if parent is not None else ""
         )

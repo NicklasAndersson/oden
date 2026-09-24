@@ -132,6 +132,54 @@ def safe_error(exc: BaseException, settings: dict[str, Any]) -> str:
     return redact(repr(exc), *(_secret(settings, env_key, value_key) for env_key, value_key in _SECRET_SETTINGS))
 
 
+def p12_as_pem(path: str, env_name: str) -> tuple[str, str] | None:
+    """A ``.p12`` handed over without a password, as ``(cert.pem, key.pem)`` for pytak.
+
+    pytak calls ``str.encode(password)``, so a missing password surfaces as
+    ``TypeError: descriptor 'encode' for 'str' objects doesn't apply to a
+    'NoneType' object``. A .p12 without a password is opened here instead and
+    written as PEM next to the other TAK files (0600); one that has a password
+    is a readable error naming the variable to set. Returns None when the file
+    cannot be read or ``cryptography`` is missing — pytak reports those itself.
+    """
+    try:
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            NoEncryption,
+            PrivateFormat,
+            pkcs12,
+        )
+    except ImportError:
+        return None
+    try:
+        blob = Path(path).read_bytes()
+    except OSError:
+        return None
+    try:
+        key, cert, _chain = pkcs12.load_key_and_certificates(blob, None)
+    except ValueError:
+        env_hint = f" (eller sätt miljövariabeln {env_name})" if env_name else ""
+        raise ValueError(
+            f"TAK: klientcertifikatet {Path(path).name} är lösenordsskyddat (eller trasigt) och inget lösenord är satt. "
+            f"Fyll i Certlösenord i TAK-fliken{env_hint} och spara."
+        ) from None
+    if key is None or cert is None:
+        raise ValueError(f"TAK: {Path(path).name} innehåller inget klientcertifikat med nyckel")
+
+    dest_dir = tak_dir()
+    dest_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    stem = Path(path).stem
+    cert_pem = dest_dir / f"{stem}.cert.pem"
+    key_pem = dest_dir / f"{stem}.key.pem"
+    for target, data in (
+        (cert_pem, cert.public_bytes(Encoding.PEM)),
+        (key_pem, key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())),
+    ):
+        target.write_bytes(data)
+        target.chmod(0o600)
+    return str(cert_pem), str(key_pem)
+
+
 def cert_expiry(settings: dict[str, Any]) -> datetime | None:
     """Best-effort expiry date of the configured client cert.
 
@@ -246,6 +294,11 @@ class TakBridge:
         password = _secret(s, "tls_client_password_env", "tls_client_password")
         if password:
             section["PYTAK_TLS_CLIENT_PASSWORD"] = password
+        client_cert = section.get("PYTAK_TLS_CLIENT_CERT", "")
+        if client_cert.lower().endswith((".p12", ".pfx")) and not section.get("PYTAK_TLS_CLIENT_PASSWORD"):
+            pem = p12_as_pem(client_cert, str(s.get("tls_client_password_env") or "").strip())
+            if pem is not None:
+                section["PYTAK_TLS_CLIENT_CERT"], section["PYTAK_TLS_CLIENT_KEY"] = pem
         if not bool(s.get("tls_verify", True)):
             section["PYTAK_TLS_DONT_VERIFY"] = "1"
         if not bool(s.get("tls_check_hostname", False)):

@@ -321,6 +321,7 @@ Kräver att Oden är installerad med `oden[tak]`. Se [TAK_SETUP.md](TAK_SETUP.md
 | POST | `/api/tak/settings` | Spara TAK-inställningar (återansluter bryggan direkt) |
 | POST | `/api/tak/test` | Skicka en testmarkör från en MGRS-position |
 | POST | `/api/tak/upload-package` | Ladda upp en ATAK-data-package-`.zip` till `ODEN_HOME/tak/` |
+| POST | `/api/tak/upload-cert?kind=` | Ladda upp klientcertifikat (`client_cert`), nyckelfil (`client_key`) eller server-CA (`ca_cert`) till `ODEN_HOME/tak/`; innehållet kontrolleras |
 
 #### Autosvar
 
