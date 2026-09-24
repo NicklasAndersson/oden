@@ -910,7 +910,8 @@ fieldset.signal-only:disabled {
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
-#tab-flow {
+#tab-flow,
+#tab-pipelines {
     --flow-handled: #5cc28f;
     --flow-ignored: #e0a84a;
     --flow-failed: #ff7b72;
@@ -1486,15 +1487,20 @@ fieldset.signal-only:disabled {
 /* ========== Pipelines: vägval och grenar ========== */
 .routing-layout {
     display: grid;
-    grid-template-columns: 340px minmax(0, 1fr);
-    gap: 16px;
+    grid-template-columns: 300px minmax(0, 1fr) 320px;
+    gap: 14px;
     margin-bottom: 16px;
+    align-items: start;
 }
-@media (max-width: 1000px) {
+@media (max-width: 1500px) {
+    .routing-layout { grid-template-columns: 280px minmax(0, 1fr); }
+    .routing-detail { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
     .routing-layout { grid-template-columns: 1fr; }
 }
 .routing-sources-pane,
-.routing-branches-pane {
+.routing-detail {
     padding: 12px 14px;
     background: var(--color-bg-inset);
     border: 1px solid var(--color-border);
@@ -1558,41 +1564,98 @@ fieldset.signal-only:disabled {
     font-size: 0.85em;
     color: var(--color-text-subtle);
 }
-.routing-branch-bar {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    justify-content: space-between;
-}
-.routing-branch-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 10px;
-}
-.routing-step-setting {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-}
-.routing-step-setting input {
-    flex: 1;
-    min-width: 180px;
-    padding: 6px 8px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background: var(--color-bg-surface);
-    color: var(--color-text);
-}
 .routing-add-step {
     display: flex;
     gap: 8px;
     align-items: center;
     margin-top: 10px;
 }
+.routing-columns {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    min-width: 0;
+}
+.routing-column {
+    flex: 0 0 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+}
+.routing-column.ignore { border-style: dashed; }
+.routing-column.new { gap: 8px; }
+.routing-column.new input,
+.routing-column.new select,
+.routing-field input {
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    width: 100%;
+    box-sizing: border-box;
+}
+.routing-column-head,
+.routing-step {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    padding: 7px 9px;
+    text-align: left;
+    font: inherit;
+    color: var(--color-text);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 5px;
+    cursor: pointer;
+}
+.routing-column-head { background: transparent; border-color: transparent; }
+.routing-column-name { font-weight: 600; }
+.routing-column-head.focused,
+.routing-step.focused { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent) inset; }
+.routing-step.off { opacity: 0.55; }
+.routing-step.locked { cursor: default; border-style: dashed; }
+.routing-step-head { display: flex; align-items: center; gap: 6px; }
+.routing-step-name { flex: 1; font-size: 0.9em; font-weight: 600; }
+.routing-step-order { font-size: 0.72em; color: var(--color-text-subtle); }
+.routing-step-target { font-size: 0.78em; color: var(--color-text-subtle); overflow-wrap: anywhere; }
+.routing-step-stat { font-size: 0.75em; color: var(--color-text-subtle); }
+.routing-fail { color: #f28b82; }
+.routing-ignore {
+    padding: 10px 8px;
+    font-size: 0.82em;
+    color: var(--color-text-subtle);
+    text-align: center;
+}
+.routing-add-step select { flex: 1; min-width: 0; }
+.routing-detail-head { margin-bottom: 8px; }
+.routing-detail-head .pane-heading { margin: 2px 0 4px; }
+.routing-what { margin: 0; font-size: 0.85em; color: var(--color-text-subtle); }
+.routing-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 10px 0 6px;
+    font-size: 0.85em;
+    color: var(--color-text-subtle);
+}
+.routing-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.routing-danger { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--color-border-subtle); }
+.routing-bar {
+    display: flex;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--color-border-subtle);
+}
+.routing-bar-handled { background: #6fcf97; }
+.routing-bar-failed { background: #f28b82; }
 .pipelines-defaults summary {
     cursor: pointer;
     color: var(--color-accent);

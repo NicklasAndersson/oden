@@ -271,11 +271,16 @@ Fliken **Pipelines**:
 - **Vägval:** varje källa (TAK, direktmeddelanden, varje känd grupp) med en
   rullista för gren, antal meddelanden senaste 24 h, och en markering för
   grupper med trafik som saknar egen gren. Standardgrenen väljs under listan.
-- **Grenar:** en knapp per gren (★ = standardgren, antal senaste 24 h), *+ Ny
-  gren* (vanlig gren med samma steg som standardgrenen, eller ignorera-gren),
-  byt namn, ta bort.
-- **Stegen i vald gren:** på/av, ordning, ta bort, lägg till, och *Undermapp i
-  den här grenen* för rapportpipelines.
+- **Grenar som kolumner:** varje gren är en kolumn med sina steg i
+  körordning (★ = standardgren, antal källor och meddelanden senaste 24 h).
+  Varje steg visar undermapp i grenen och hur många meddelanden det hanterat
+  senaste 24 h. Sist står kolumnen *Ny gren* (samma steg som standardgrenen,
+  bara reserven, eller ignorera).
+- **Detaljpanelen:** klick på en gren eller ett steg visar det till höger.
+  För en gren: byt namn, gör till standardgren, ta bort, *Visa grenens
+  meddelanden i Flöde*. För ett steg: på/av, upp/ner, *Undermapp i den här
+  grenen* (Spara/Ångra), hanterade/hoppade över/fel senaste 24 h och länkar
+  till just de meddelandena i Flöde.
 - **Grundinställningar per pipeline:** det som gäller i alla grenar
   (standardundermapp, rapportmallar m.m.).
 

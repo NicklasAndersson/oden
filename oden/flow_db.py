@@ -174,8 +174,15 @@ def list_flow(
     has_content_only: bool = True,
     limit: int = 100,
     before_id: int | None = None,
+    branch: str | None = None,
+    pipeline: str | None = None,
+    outcome: str | None = None,
 ) -> list[dict[str, Any]]:
     """Newest-first messages with the steps of their latest pipeline attempt.
+
+    ``branch`` keeps messages whose vägval went to that branch; ``pipeline``
+    those a pipeline ran on — with ``outcome`` (handled/skipped/failed) only
+    those where it ended that way.
 
     ``status`` may name several statuses, comma-separated (``received,queued``).
     """
@@ -195,6 +202,20 @@ def list_flow(
     if before_id:
         conditions.append("id < ?")
         params.append(before_id)
+    if branch:
+        conditions.append(
+            "EXISTS (SELECT 1 FROM pipeline_runs r JOIN pipeline_events e ON e.run_id = r.id"
+            " WHERE r.message_id = raw_messages.id AND r.pipeline_name = ?"
+            " AND e.event_type = 'pipeline_completed' AND json_extract(e.details, '$.branch') = ?)"
+        )
+        params.extend([ROUTER, branch])
+    if pipeline:
+        run_status = {"handled": "done", "failed": "failed", "skipped": "skipped"}.get(outcome or "")
+        conditions.append(
+            "EXISTS (SELECT 1 FROM pipeline_runs r WHERE r.message_id = raw_messages.id AND r.pipeline_name = ?"
+            + (" AND r.status = ?)" if run_status else ")")
+        )
+        params.extend([pipeline, run_status] if run_status else [pipeline])
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     params.append(limit)

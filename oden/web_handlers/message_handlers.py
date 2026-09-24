@@ -143,6 +143,14 @@ def _pipeline_chain() -> list[str]:
         return []
 
 
+def _branch_names() -> list[dict[str, str]]:
+    """``[{id, name}]`` of the branches, for the Flöde branch filter."""
+    try:
+        return [{"id": b["id"], "name": b["name"]} for b in load_routing(cfg)["branches"]]
+    except Exception:
+        return []
+
+
 def _branch_chains() -> dict[str, list[str]]:
     """Branch id → the step names that run there now, for the "not run" markers in Flöde."""
     try:
@@ -202,6 +210,9 @@ async def flow_list_handler(request: web.Request) -> web.Response:
         has_content_only=not include_empty,
         limit=limit,
         before_id=before_id,
+        branch=request.query.get("branch") or None,
+        pipeline=request.query.get("pipeline") or None,
+        outcome=request.query.get("outcome") or None,
     )
     for item in items:
         _relativize_steps(item)
@@ -211,6 +222,7 @@ async def flow_list_handler(request: web.Request) -> web.Response:
             "messages": items,
             "chain": _pipeline_chain(),
             "chains": _branch_chains(),
+            "branches": _branch_names(),
             "summary": flow_summary(cfg.CONFIG_DB, has_content_only=not include_empty),
             "limit": limit,
         }

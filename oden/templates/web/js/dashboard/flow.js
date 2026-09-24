@@ -24,6 +24,8 @@ const FLOW_STATUS_FILTERS = [
     ['received,queued,processing', 'Väntar'],
 ];
 
+const FLOW_OUTCOME_FILTER_LABELS = { handled: 'hanterade', skipped: 'hoppade över', failed: 'fel' };
+
 let flowItems = [];
 let flowChain = [];
 let flowChains = {};  // branch id → steps that run there (for "not run" markers)
@@ -39,6 +41,9 @@ let flowSelectedId = null;
 let flowDetail = null;
 let flowTab = 'trace';
 let flowIncludeEmpty = false;
+let flowBranch = '';
+let flowBranches = [];              // [{id, name}]
+let flowStepFilter = null;          // {pipeline, outcome} from the Pipelines tab
 
 function flowSourceLabel(source) {
     if (source === 'tak') return 'TAK';
@@ -122,6 +127,22 @@ function renderFlowChips() {
         return `<button type="button" class="flow-chip${flowStatus === key ? ' active' : ''}" aria-pressed="${flowStatus === key}"
                 onclick="setFlowStatus('${key}')">${dot}${label}<span class="flow-chip-count">${count}</span></button>`;
     }).join('');
+
+    const branchBox = document.getElementById('flow-branch-chips');
+    branchBox.innerHTML = flowBranches.length > 1
+        ? [{id: '', name: 'Alla grenar'}].concat(flowBranches).map(b => `
+            <button type="button" class="flow-chip${flowBranch === b.id ? ' active' : ''}" aria-pressed="${flowBranch === b.id}"
+                    data-branch="${escapeHtml(b.id)}" onclick="setFlowBranch(this.dataset.branch)">${escapeHtml(b.name)}</button>`).join('')
+        : '';
+
+    const stepBox = document.getElementById('flow-step-filter');
+    if (flowStepFilter) {
+        const outcome = FLOW_OUTCOME_FILTER_LABELS[flowStepFilter.outcome] || '';
+        stepBox.innerHTML = `<button type="button" class="flow-chip active" onclick="clearFlowStepFilter()"
+                title="Ta bort filtret">${escapeHtml(routingPipelineLabel(flowStepFilter.pipeline))}${outcome ? ` · ${outcome}` : ''} ✕</button>`;
+    } else {
+        stepBox.innerHTML = '';
+    }
 
     const hidden = summary.hidden_without_content || 0;
     const note = document.getElementById('flow-hidden-note');
@@ -297,6 +318,11 @@ async function fetchFlow() {
     if (flowIncludeEmpty) params.set('include_empty', '1');
     if (flowSource) params.set('source', flowSource);
     if (flowStatus) params.set('status', flowStatus);
+    if (flowBranch) params.set('branch', flowBranch);
+    if (flowStepFilter) {
+        params.set('pipeline', flowStepFilter.pipeline);
+        if (flowStepFilter.outcome) params.set('outcome', flowStepFilter.outcome);
+    }
     try {
         const response = await fetch('/api/flow?' + params.toString());
         const data = await response.json();
@@ -304,6 +330,7 @@ async function fetchFlow() {
         flowItems = data.messages || [];
         flowChain = data.chain || [];
         flowChains = data.chains || {};
+        flowBranches = data.branches || [];
         flowSummary = data.summary || null;
         const newest = flowItems[0];
         document.getElementById('flow-live-text').textContent = flowPaused
@@ -357,6 +384,25 @@ function setFlowSource(key) {
 function setFlowStatus(key) {
     flowStatus = key;
     fetchFlow();
+}
+
+function setFlowBranch(id) {
+    flowBranch = id;
+    fetchFlow();
+}
+
+function clearFlowStepFilter() {
+    flowStepFilter = null;
+    fetchFlow();
+}
+
+// Opened from the Pipelines tab: a branch, optionally one step's outcome there.
+function showFlowFiltered({branch = '', pipeline = '', outcome = ''} = {}) {
+    flowSource = '';
+    flowStatus = '';
+    flowBranch = branch;
+    flowStepFilter = pipeline ? {pipeline, outcome} : null;
+    showTab('flow');
 }
 
 function showFlowTab(tab) {

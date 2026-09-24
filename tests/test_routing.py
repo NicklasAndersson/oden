@@ -206,6 +206,24 @@ class OrchestratorRoutingTest(unittest.IsolatedAsyncioTestCase):
         await self._run(_msg("Spaning Norr"))
         self.assertEqual(step_settings("seven_s", cfg.PIPELINE_SETTINGS).get("vault_subdir"), "Global")
 
+    async def test_flow_filters_and_step_stats_follow_the_branch(self):
+        from oden.flow_db import list_flow
+        from oden.web_handlers.routing_handlers import _step_stats
+
+        spaning = await self._run(_msg("Spaning Norr"))
+        await self._run(_msg("Annan grupp"))
+        await self._run(_msg("Kaffe"))
+
+        self.assertEqual([m["id"] for m in list_flow(self.db, branch="spaning")], [spaning["id"]])
+        self.assertEqual(len(list_flow(self.db, branch="ign")), 1)
+        self.assertEqual(len(list_flow(self.db, pipeline="seven_s", outcome="handled")), 2)
+        self.assertEqual(list_flow(self.db, pipeline="seven_s", outcome="failed"), [])
+
+        stats = _step_stats(self.db)
+        self.assertEqual(stats["spaning"]["seven_s"]["handled"], 1)
+        self.assertEqual(stats["ovning"]["seven_s"]["handled"], 1)
+        self.assertNotIn("ign", stats)
+
 
 class MigrateRoutingTest(unittest.TestCase):
     def test_stores_derived_routing_once(self):
@@ -255,10 +273,14 @@ class RoutingApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kaffe["branch"], "ignore")
         self.assertTrue(kaffe["assigned"])
         self.assertIn("seven_s", [p["name"] for p in data["pipelines"]])
+        self.assertFalse(data["publish_to_tak"])
+        self.assertIn("step_stats_24h", data)
         self.assertNotIn("group_filter", [p["name"] for p in data["pipelines"]])
         self.assertEqual(saved.status, 200)
         self.assertEqual(stored["assign"]["source:tak"], "spaning")
         self.assertEqual(bad.status, 400)
         self.assertIn("Standardgrenen", bad_error)
         self.assertIn('id="routing-sources"', page)
+        self.assertIn('id="routing-columns"', page)
+        self.assertIn("function showFlowFiltered", page)
         self.assertIn("function assignSource", page)

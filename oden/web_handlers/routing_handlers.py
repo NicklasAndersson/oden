@@ -79,6 +79,65 @@ def _counts(db_path: Path) -> tuple[dict[str, int], dict[str, int]]:
     return by_source, by_branch
 
 
+def _step_stats(db_path: Path) -> dict[str, dict[str, dict[str, int]]]:
+    """Branch id → pipeline → {handled, skipped, failed, side} over the last 24 hours.
+
+    A run belongs to the branch of the latest vägval (router run) before it for
+    the same message — reprocessing may have routed an old message differently.
+    """
+    stats: dict[str, dict[str, dict[str, int]]] = {}
+    if not db_path.exists():
+        return stats
+    since = _since_24h()
+    conn = sqlite3.connect(db_path)
+    try:
+        try:
+            routes = conn.execute(
+                """
+                SELECT r.message_id, r.id, json_extract(e.details, '$.branch')
+                FROM pipeline_runs r JOIN pipeline_events e ON e.run_id = r.id
+                WHERE r.pipeline_name = ? AND e.event_type = 'pipeline_completed' AND r.started_at >= ?
+                ORDER BY r.id
+                """,
+                (ROUTER, since),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return stats
+        runs = conn.execute(
+            """
+            SELECT r.message_id, r.id, r.pipeline_name, r.status,
+                   EXISTS(SELECT 1 FROM pipeline_events e WHERE e.run_id = r.id AND e.event_type = 'pipeline_side_effect')
+            FROM pipeline_runs r
+            WHERE r.pipeline_name != ? AND r.started_at >= ?
+            ORDER BY r.id
+            """,
+            (ROUTER, since),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    routes_by_message: dict[int, list[tuple[int, str]]] = {}
+    for message_id, run_id, branch in routes:
+        routes_by_message.setdefault(message_id, []).append((run_id, branch))
+    for message_id, run_id, pipeline, status, side in runs:
+        branch = None
+        for route_id, route_branch in routes_by_message.get(message_id, []):
+            if route_id < run_id:
+                branch = route_branch
+        if not branch:
+            continue
+        counts = stats.setdefault(branch, {}).setdefault(pipeline, {"handled": 0, "skipped": 0, "failed": 0, "side": 0})
+        if side:
+            counts["side"] += 1
+        elif status == "done":
+            counts["handled"] += 1
+        elif status == "failed":
+            counts["failed"] += 1
+        else:
+            counts["skipped"] += 1
+    return stats
+
+
 def _sources(routing: dict[str, Any], by_source: dict[str, int]) -> list[dict[str, Any]]:
     """Every source the operator may want to route: TAK, direct messages, known and seen groups."""
     names: set[str] = set()
@@ -113,6 +172,14 @@ def _sources(routing: dict[str, Any], by_source: dict[str, int]) -> list[dict[st
     return result
 
 
+def _publish_to_tak() -> bool:
+    """Whether TAK publishing runs first in every branch (switched on in the TAK tab)."""
+    from oden.tak.bridge import get_tak_bridge
+
+    bridge = get_tak_bridge()
+    return bridge is not None and bool(getattr(bridge, "settings", {}).get("publish_reports"))
+
+
 def _pipeline_meta() -> list[dict[str, Any]]:
     from oden.web_handlers.pipeline_handlers import _get_available_pipelines
 
@@ -124,12 +191,15 @@ def _pipeline_meta() -> list[dict[str, Any]]:
 async def routing_handler(request: web.Request) -> web.Response:
     routing = load_routing(cfg)
     by_source, by_branch = await asyncio.to_thread(_counts, cfg.CONFIG_DB)
+    step_stats = await asyncio.to_thread(_step_stats, cfg.CONFIG_DB)
     return web.json_response(
         {
             "routing": routing,
             "sources": _sources(routing, by_source),
             "branch_counts_24h": by_branch,
+            "step_stats_24h": step_stats,
             "pipelines": _pipeline_meta(),
+            "publish_to_tak": _publish_to_tak(),
         }
     )
 

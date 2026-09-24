@@ -141,8 +141,8 @@ Pipelines-fliken styr vart meddelandena tar vägen: varje källa går till en
 |----------|-------------|
 | **Vägval** | Varje källa (TAK, direktmeddelanden, grupper) med vald gren och antal senaste 24 h; grupper med trafik utan egen gren markeras |
 | **Standardgren** | Dit allt som inte tilldelats går |
-| **Grenar** | Skapa (vanlig eller ignorera), byta namn, ta bort |
-| **Steg per gren** | På/av, ordning, lägg till/ta bort, egen undermapp i grenen |
+| **Grenar** | En kolumn per gren med stegen i körordning och antal hanterade senaste 24 h; kolumnen *Ny gren* skapar en (samma steg som standardgrenen, bara reserven, eller ignorera) |
+| **Detaljpanel** | Vald gren: namn, standardgren, ta bort, visa i Flöde. Valt steg: på/av, ordning, egen undermapp i grenen, statistik och länk till hanterade/fel i Flöde |
 | **Grundinställningar** | Det som gäller i alla grenar: standardundermapp, rapportmallar, bekräftelser |
 
 
@@ -274,7 +274,7 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
-| GET | `/api/flow` | Flödet: meddelanden med väg och skäl per pipeline (`source`, `status` — kommaseparerad, `include_empty`, `limit`, `before_id`) |
+| GET | `/api/flow` | Flödet: meddelanden med väg och skäl per pipeline (`source`, `status` — kommaseparerad, `branch`, `pipeline` + `outcome` — handled/skipped/failed, `include_empty`, `limit`, `before_id`) |
 | GET | `/api/flow/{id}` | Ett meddelande: spår, rått kuvert, utdatafil och alla pipeline-körningar |
 | GET | `/api/messages` | Lista råmeddelanden med filter och paginering |
 | GET | `/api/messages/{id}` | Hämta meddelandedetaljer inklusive raw envelope och pipeline-runs |
@@ -285,7 +285,7 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
-| GET | `/api/routing` | Vägval och grenar, källor med gren och antal senaste 24 h, möjliga steg |
+| GET | `/api/routing` | Vägval och grenar, källor med gren och antal senaste 24 h, utfall per gren och steg senaste 24 h, möjliga steg, om TAK-publicering är på |
 | PUT | `/api/routing` | Spara vägval och grenar (`{"routing": {...}}`), valideras |
 | GET | `/api/pipelines` | Lista pipelines, grundinställningar och körningsstatistik |
 | PATCH | `/api/pipelines/{name}/enabled` | Den gamla kedjan (`enabled_pipelines`); styr inte längre vad som körs |
