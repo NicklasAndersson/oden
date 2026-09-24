@@ -1,5 +1,6 @@
 {#- Tab: Signal-konton (accounts + modal + devices) -#}
 <div id="signal-pane-accounts" class="subtab-pane" role="tabpanel" aria-label="Konton">
+    {% include "includes/dashboard/signal_connect.html" %}
     <fieldset class="signal-only"{% if not signal_enabled %} disabled{% endif %}>
     <div class="config-section">
         <h3>📱 Signal-konton</h3>

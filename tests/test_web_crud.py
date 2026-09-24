@@ -15,7 +15,7 @@ class TestResponsesCRUDEndpoints(AioHTTPTestCase):
     """Test the full CRUD lifecycle for /api/responses endpoints."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     # ------------------------------------------------------------------
     # GET /api/responses — list
@@ -184,7 +184,7 @@ class TestTemplateEndpoints(AioHTTPTestCase):
     """Test /api/templates endpoints (list, get, save, preview, reset, export)."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     # --- list ---
 
@@ -381,7 +381,7 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
     """Test that groups_handler exposes group filter lists from pipeline settings."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     @unittest.mock.patch("oden.web_handlers.group_handlers.get_all_groups", return_value=[])
     @unittest.mock.patch("oden.web_handlers.group_handlers.cfg")
@@ -452,7 +452,7 @@ class TestCreateGroupHandler(AioHTTPTestCase):
     """Test POST /api/groups/create."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def test_create_group_requires_name(self):
         """Missing name returns 400 without touching signal-cli."""

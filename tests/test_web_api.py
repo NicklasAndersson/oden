@@ -17,7 +17,7 @@ class TestWebAPIEndpoints(AioHTTPTestCase):
     """Test that all API endpoints respond correctly."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def test_index_returns_html(self):
         resp = await self.client.get("/")
@@ -68,7 +68,7 @@ class TestAccountManagementAPI(AioHTTPTestCase):
     """Regression tests for account listing and deletion."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     @unittest.mock.patch("oden.web_handlers.account_handlers.get_app_state")
     @unittest.mock.patch(
@@ -318,7 +318,7 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
     """Tests for pipeline management API endpoints."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def test_list_pipelines_returns_available_and_enabled(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -505,7 +505,7 @@ class TestMessageObservabilityAPI(AioHTTPTestCase):
     """Tests for /api/messages endpoints."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     def _create_message(
         self,

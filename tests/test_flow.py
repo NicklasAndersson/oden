@@ -202,7 +202,7 @@ class TestGenericPipelineOutcome(unittest.IsolatedAsyncioTestCase):
 
 class TestFlowAPI(AioHTTPTestCase):
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def test_list_and_detail_with_output_preview(self):
         from oden.pipelines_db import append_pipeline_event, complete_pipeline_run, start_pipeline_run

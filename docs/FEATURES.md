@@ -6,7 +6,7 @@ Oden tar emot Signal-meddelanden via `signal-cli` och sparar dem som Markdown-fi
 
 | Dokument | Beskrivning |
 |----------|-------------|
-| [SETUP_FLOW.md](SETUP_FLOW.md) | Setup-wizardens alla steg (hemkatalog, Signal-länkning, vault-sökväg) |
+| [FIRST_START.md](FIRST_START.md) | Första start, koppla Signal från Signal-fliken, Obsidian-fliken |
 | [WEB_GUI.md](WEB_GUI.md) | Web-gränssnittets alla sidor, flikar och komplett API-endpointstabell |
 | [REPORT_TEMPLATE.md](REPORT_TEMPLATE.md) | Jinja2-mallsystem — placeholders, syntax och anpassning |
 | [FORMAT_SPEC.md](FORMAT_SPEC.md) | Normativ specifikation för Oden 7S-utdata |
@@ -46,7 +46,7 @@ Oden tar emot Signal-meddelanden via `signal-cli` och sparar dem som Markdown-fi
 - **`signal_listener.py` / `pipeline_orchestrator.py`** — DB-first ingest: råmeddelanden sparas först i SQLite, därefter körs aktiva pipelines i ordning.
 - **`pipelines/`** — `generic_template` kapslar in nuvarande generiska beteende och `seven_s.py` hanterar 7S RAPPORT som specialfall enligt separat format-spec.
 - **`messages_db.py` / `pipelines_db.py`** — Lagrar råmeddelanden, pipeline-runs och pipeline-events för revision och reprocess.
-- **`web_server.py` / `web_handlers/`** — aiohttp-baserat webbgränssnitt med setup-wizard och dashboard. Kontohantering via `account_handlers.py`.
+- **`web_server.py` / `web_handlers/`** — aiohttp-baserat webbgränssnitt (dashboard). Kontohantering via `account_handlers.py`.
 - **`template_loader.py`** — Jinja2-mallmotor med LRU-cache och sandboxed rendering.
 - **`tray.py`** — System tray-ikon via pystray (valfritt beroende).
 - **`attachment_handler.py`** — Hämtar och sparar bilagor via `app_state.send_jsonrpc()` (dirigerat genom central dispatcher).
@@ -573,17 +573,17 @@ volumes:
 
 ---
 
-## Setup-flöde
+## Första start
 
-Vid första start (eller om konfigurationen saknas) aktiveras en setup-wizard som guidar genom all nödvändig konfiguration: val av hemkatalog, Signal-kontolänkning via QR-kod eller registrering, vault-sökväg och Obsidian-mallinstallation.
+Ingen setup-guide: vid första start skapas hemkatalog och `config.db` med standardvärden (Signal av) och dashboarden öppnas. Valvet ställs in under **Obsidian**, Signal kopplas under **Signal → Konton** (QR-länkning, registrering eller befintligt konto).
 
-→ Se [SETUP_FLOW.md](SETUP_FLOW.md) för detaljerad beskrivning av varje steg.
+→ Se [FIRST_START.md](FIRST_START.md).
 
 ---
 
 ## Web-gränssnitt
 
-Oden har ett inbyggt webbgränssnitt (aiohttp) som startar automatiskt på `http://127.0.0.1:8080`. Det har två lägen: **setup-mode** (första start) och **dashboard-mode** (normal drift). Dashboarden ger tillgång till konfiguration, live-loggar, grupphantering, template-editor och autosvar-editor.
+Oden har ett inbyggt webbgränssnitt (aiohttp) som startar automatiskt på `http://127.0.0.1:8080`. Dashboarden ger tillgång till konfiguration, live-loggar, grupphantering, template-editor och autosvar-editor.
 
 → Se [WEB_GUI.md](WEB_GUI.md) för fullständig beskrivning av alla sidor, flikar och API-endpoints.
 

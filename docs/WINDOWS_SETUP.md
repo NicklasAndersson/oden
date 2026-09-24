@@ -73,7 +73,7 @@ docker run -d `
 
 ## Volymer och sökvägar
 
-Oden i Docker använder två volymer — en för konfiguration och en för rapporter. Sökvägarna som du anger i setup-wizardens GUI är **containerns interna sökvägar** (t.ex. `/data`, `/vault`). Det är `volumes:`-sektionen i `docker-compose.yml` som bestämmer var dessa mappar faktiskt hamnar på din Windows-dator.
+Oden i Docker använder två volymer — en för konfiguration och en för rapporter. Sökvägarna i Odens webbgränssnitt är **containerns interna sökvägar** (t.ex. `/data`, `/vault`). Det är `volumes:`-sektionen i `docker-compose.yml` som bestämmer var dessa mappar faktiskt hamnar på din Windows-dator.
 
 ### Standardkonfiguration
 
@@ -127,23 +127,16 @@ docker compose up -d
 
 ---
 
-## Konfiguration (Setup-wizard)
+## Konfiguration
 
 Efter att containern har startats:
 
-1. Öppna webbläsaren och gå till **http://localhost:8080/setup**
-2. Setup-wizarden guidar dig genom konfigurationen:
+1. Öppna webbläsaren och gå till **http://localhost:8080** — Oden startar direkt i dashboarden.
+2. **Obsidian**-fliken: valvet är redan `/vault` (containerns interna sökväg, mappas till din Windows-mapp via `volumes:` i `docker-compose.yml`). Klicka gärna *Installera Obsidian-inställningar* (grundinställningar och Map View).
+3. **Signal → Konton**: *Visa QR-kod* och skanna med Signal-appen på telefonen (*Inställningar → Länkade enheter → Lägg till enhet*).
+4. Starta om containern (`docker compose restart`) så börjar Oden lyssna efter meddelanden.
 
-| Steg | Beskrivning |
-|------|-------------|
-| **1. Hemkatalog** | Lämna standardvärdet `/data` — det är containerns interna sökväg (var den hamnar på Windows bestäms av `volumes:` i `docker-compose.yml`, se ovan) |
-| **2. Signal-konto** | Länka till ditt Signal-konto genom att skanna QR-koden med Signal-appen på din telefon (*Inställningar → Länkade enheter → Lägg till enhet*) |
-| **3. Vault-sökväg** | Ange `/vault` — containerns interna sökväg (mappas till din Windows-mapp via `volumes:` i `docker-compose.yml`) |
-| **4. Obsidian-mall** | Valfritt — installerar grundinställningar och Map View-plugin |
-
-> **Viktigt:** Sökvägarna i setup-wizarden är alltid containerns interna sökvägar (`/data`, `/vault`). Ändra inte dessa — använd istället `volumes:` i `docker-compose.yml` för att styra var filerna hamnar på din Windows-dator.
-
-3. När setup är klar växlar webbgränssnittet till **dashboard-läge** och Oden börjar lyssna efter meddelanden.
+> **Viktigt:** Ändra inte `/data` och `/vault` inne i Oden — använd `volumes:` i `docker-compose.yml` för att styra var filerna hamnar på din Windows-dator.
 
 > **Viktigt:** Använd inte ditt privata Signal-nummer! Skaffa ett dedikerat nummer för Oden (t.ex. ett billigt kontantkort).
 

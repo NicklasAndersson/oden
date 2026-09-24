@@ -80,26 +80,6 @@ async function loadSignalCliStatus() {
     }
 }
 
-async function rerunSetup() {
-    if (!confirm('Kör setup för Signal? Du kan länka eller byta Signal-konto, eller hoppa över Signal. Befintlig konfiguration behålls tills du sparar ny.')) {
-        return;
-    }
-    try {
-        const response = await fetch('/api/setup/reset', {
-            method: 'DELETE',
-        });
-        const data = await response.json();
-        if (response.ok && data.success) {
-            showConfigMessage('Setup startar om...', 'success');
-            setTimeout(() => { window.location.href = '/setup'; }, 1500);
-        } else {
-            showConfigMessage(data.error || 'Kunde inte starta om setup', 'error');
-        }
-    } catch (error) {
-        showConfigMessage('Nätverksfel: ' + error.message, 'error');
-    }
-}
-
 async function loadSignalConfig() {
     try {
         const response = await fetch('/api/signal-config');

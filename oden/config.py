@@ -59,6 +59,12 @@ def get_default_log_path() -> Path:
         return Path.home() / ".local" / "state" / "oden" / "oden.log"
 
 
+# Set at startup when Signal is enabled in the settings but cannot be used this
+# run (no account linked, account gone). Keeps SIGNAL_ENABLED off at runtime and
+# is shown in the Signal tab.
+SIGNAL_OFF_REASON: str | None = None
+
+
 def _update_paths(oden_home: Path) -> None:
     """Update module-level paths based on ODEN_HOME."""
     global ODEN_HOME, CONFIG_DB, SIGNAL_DATA_PATH
@@ -354,9 +360,9 @@ def reload_config() -> dict:
 
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
-    SIGNAL_ENABLED = app_config.get("signal_enabled", True)
+    SIGNAL_ENABLED = app_config.get("signal_enabled", True) and not SIGNAL_OFF_REASON
     if not SIGNAL_ENABLED:
-        logger.info("Reload: Signal disabled")
+        logger.info("Reload: Signal disabled%s", f" ({SIGNAL_OFF_REASON})" if SIGNAL_OFF_REASON else "")
     elif not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
         logger.warning("SIGNAL_NUMBER is not configured after reload (value=%r, db=%s)", SIGNAL_NUMBER, CONFIG_DB)
     else:
@@ -430,20 +436,59 @@ def reset_config() -> bool:
     return success
 
 
-def soft_reset_config() -> bool:
+def bootstrap() -> bool:
+    """Make sure Oden has a home directory and a config database, without a wizard.
+
+    * No pointer file: use ``ODEN_HOME``/``~/.oden``. An existing ``config.db``
+      there is kept (the pointer is just restored); otherwise a new one is made.
+    * New database: default settings with Signal *off* — a Signal account is
+      linked later from the Signal tab, the vault path set in the Obsidian tab
+      (``ODEN_VAULT`` gives the first-start vault path, e.g. ``/vault`` in Docker).
+    * A corrupt database is never replaced silently: RuntimeError tells the
+      operator which file to move away.
+
+    Returns True when this was a fresh install (a new database was created).
+    Raises RuntimeError with a Swedish message when Oden cannot start.
     """
-    Clear the pointer file without deleting config.db.
+    home = get_oden_home_path() or DEFAULT_ODEN_HOME
+    fresh = not (home / "config.db").exists()
 
-    This puts Oden into setup mode while preserving all existing
-    configuration values. The setup wizard will merge its changes
-    into the existing database instead of starting from scratch.
+    success, error = setup_oden_home(home)
+    if not success:
+        raise RuntimeError(f"Kunde inte förbereda Oden-katalogen {home}: {error}")
 
-    Returns:
-        True if successful, False otherwise.
+    if fresh:
+        logger.info("Första start: skapar standardinställningar i %s (Signal av tills ett konto kopplas)", CONFIG_DB)
+        defaults = {**DEFAULT_CONFIG, "signal_enabled": False}
+        # Docker sets ODEN_VAULT=/vault so the first start writes into the volume.
+        if os.environ.get("ODEN_VAULT"):
+            defaults["vault_path"] = os.environ["ODEN_VAULT"]
+        save_config(defaults)
+
+    is_valid, db_error = check_db_integrity(CONFIG_DB)
+    if not is_valid:
+        raise RuntimeError(
+            f"Konfigurationsdatabasen {CONFIG_DB} går inte att läsa ({db_error}). "
+            "Flytta undan eller radera filen och starta Oden igen — då skapas en ny."
+        )
+    return fresh
+
+
+def signal_config_problem() -> str | None:
+    """Why the configured Signal account cannot be used right now, or None.
+
+    Only meaningful when ``signal_enabled`` is on. Oden then starts without
+    Signal for this run (see ``SIGNAL_OFF_REASON``) instead of refusing to
+    start; the setting itself is left alone so a fixed account just works.
     """
-    from oden.bundle_utils import clear_oden_home_pointer
-
-    return clear_oden_home_pointer()
+    number = (get_all_config(CONFIG_DB).get("signal_number") or "").strip()
+    if not number or number.startswith("+46XXXX"):
+        return "Inget Signal-konto är kopplat."
+    valid, error, accounts = validate_signal_number()
+    if valid:
+        return None
+    known = ", ".join(a.get("number", "") for a in accounts) or "inga"
+    return f"Kontot {number} finns inte i signal-cli (tillgängliga konton: {known}). Koppla om under Signal → Konton."
 
 
 def setup_oden_home(path: Path) -> tuple[bool, str | None]:

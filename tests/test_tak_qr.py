@@ -58,7 +58,7 @@ class ParseTakQrTest(unittest.TestCase):
 
 class TakQrApiTest(AioHTTPTestCase):
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def test_enrollment_qr_fills_the_form_without_saving(self):
         with unittest.mock.patch("oden.web_handlers.tak_handlers.set_config_value") as save:

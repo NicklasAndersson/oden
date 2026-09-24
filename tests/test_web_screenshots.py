@@ -39,7 +39,7 @@ class TestWebGUIScreenshots(AioHTTPTestCase):
     """Visual tests using Playwright to render the GUI and take screenshots."""
 
     async def get_application(self):
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def _setup_playwright(self):
         """Start Playwright and launch browser (async)."""
@@ -107,23 +107,6 @@ class TestWebGUIScreenshots(AioHTTPTestCase):
             await page.screenshot(path=str(path), full_page=True)
             self.assertTrue(path.exists(), "Dashboard screenshot was not created")
             self.assertGreater(path.stat().st_size, 0, "Dashboard screenshot is empty")
-            await page.close()
-        finally:
-            await self._teardown_playwright()
-
-    async def test_setup_page_screenshot(self):
-        """Take a screenshot of the setup wizard page."""
-        await self._setup_playwright()
-        try:
-            page = await self._browser.new_page(viewport={"width": 1280, "height": 900})
-            await page.goto(self._get_base_url() + "/setup")
-
-            await page.wait_for_timeout(1000)
-
-            path = SCREENSHOTS_DIR / "setup.png"
-            await page.screenshot(path=str(path), full_page=True)
-            self.assertTrue(path.exists(), "Setup screenshot was not created")
-            self.assertGreater(path.stat().st_size, 0, "Setup screenshot is empty")
             await page.close()
         finally:
             await self._teardown_playwright()

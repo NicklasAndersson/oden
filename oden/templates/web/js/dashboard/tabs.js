@@ -1,6 +1,7 @@
 // tabs.js — Depends on: responses.js (loadResponses), accounts.js (loadAccounts),
 // contacts.js (loadContacts), pipelines.js (loadPipelinesDashboard),
-// flow.js (loadFlowDashboard), tak.js (loadTakStatus)
+// flow.js (loadFlowDashboard), tak.js (loadTakStatus), obsidian.js (loadObsidianStatus),
+// signal_connect.js (loadSignalConnect)
 //
 // Tab switching with lazy-loading of tab content on first visit. The Signal
 // tab has its own row of sub-tabs (panes), each lazy-loaded the same way.
@@ -21,6 +22,9 @@ function showTab(tabName) {
     }
     if (tabName === 'signal') {
         showSignalPane(signalPane);
+    }
+    if (tabName === 'obsidian') {
+        loadObsidianStatus();
     }
     if (tabName === 'pipelines') {
         loadPipelinesDashboard();
@@ -43,6 +47,7 @@ function showSignalPane(pane) {
 
     if (pane === 'accounts') {
         loadAccounts();
+        loadSignalConnect();
     }
     if (pane === 'contacts') {
         loadContacts();

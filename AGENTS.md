@@ -34,8 +34,8 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 - **tray.py**: System tray icon via pystray. Start/stop toggle, open web GUI, quit. Blocks main thread on macOS (NSApplication)
 - **formatting.py**: Filename sanitization, path generation, display formatting
 - **signal_manager.py**: Starts/stops the signal-cli subprocess
-- **web_server.py**: aiohttp web server with setup mode and dashboard mode
-- **web_handlers/**: Route handlers — `setup_handlers.py` (wizard, Signal linking/QR), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact), `message_handlers.py` (message observability, reprocess, and the Flöde API `/api/flow`)
+- **web_server.py**: aiohttp web server (dashboard only — there is no setup wizard; `config.bootstrap()` creates defaults on first start)
+- **web_handlers/**: Route handlers — `signal_connect_handlers.py` (connect Signal from the Signal tab when it is off: QR link, register, use existing account, disable), `obsidian_handlers.py` (vault status, install `.obsidian` template), `config_handlers.py` (CRUD, export), `group_handlers.py` (ignore/whitelist, join, invitations, group admin via updateGroup), `template_handlers.py` (Jinja2 editor, preview), `account_handlers.py` (multi-account: list, link, activate, delete, force-delete), `contact_handlers.py` (list, refresh, edit contacts via updateContact), `message_handlers.py` (message observability, reprocess, and the Flöde API `/api/flow`)
 - **template_loader.py**: Jinja2 template engine for report formatting. Templates loaded from config_db or files, with LRU cache and validation
 - **attachment_handler.py**: Downloads and saves Signal attachments to vault subdirectories. Uses `app_state.send_jsonrpc()` for attachment fetching (routed through central dispatcher)
 - **path_utils.py**: Path validation, sanitization, directory operations. When `ODEN_HOME` env var is set (Docker), the home-directory constraint is relaxed
@@ -114,12 +114,13 @@ Before push, run `scripts/pre_push_checks.sh` (or enable repo hook with `git con
 ### Web GUI
 A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, or `0.0.0.0:8080` in Docker via `WEB_HOST` env var).
 
-**Setup mode** (first run): Wizard for choosing Oden home dir, linking Signal account (QR code), setting vault path.
+**First start** (no wizard): `config.bootstrap()` creates `ODEN_HOME`/`~/.oden` and `config.db` with defaults (Signal off; vault from `ODEN_VAULT` if set) and the browser opens the dashboard. If Signal is on but its account is missing, Oden runs without Signal for that run (`config.SIGNAL_OFF_REASON`). See `docs/FIRST_START.md`.
 
 **Dashboard mode** (normal operation) — tabs:
 - **Flöde**: everything that comes in, per source, with the pipeline route, the reason for each step, raw envelope, written file, all runs/events, reprocess (replaced the old Meddelandehantering tab)
-- **Grundläggande**: vault path, directory structure, timezone, append window
-- **Signal**: everything Signal, as sub-tabs (`showSignalPane()`): Konton (list, link via QR, activate, delete, force-delete), Grupper (ignore/whitelist, join via invite link, invitations, group admin), Kontakter, Kommandosvar, Inställningar (number, display name, startup message, signal-cli, Signal protocol, restart signal-cli, re-run Signal setup)
+- **Grundläggande**: timezone, append window
+- **Obsidian**: vault path, directory structure, install Oden's `.obsidian` settings
+- **Signal**: everything Signal, as sub-tabs (`showSignalPane()`): Konton (list, link via QR, activate, delete, force-delete), Grupper (ignore/whitelist, join via invite link, invitations, group admin), Kontakter, Kommandosvar, Inställningar (number, display name, startup message, signal-cli, Signal protocol, restart signal-cli, Signal on/off); when Signal is off, Konton shows *Koppla Signal*
 - **TAK**: everything TAK (status, QR connect, connection, certificates, inbound CoT, test marker)
 - **Pipelines**: enable/disable, reorder, per-pipeline config, template editor
 - **Avancerat**: log level, retention
@@ -134,6 +135,7 @@ Oden is distributed as a multi-arch Docker image (`linux/amd64`, `linux/arm64`) 
 
 Key environment variables for Docker:
 - `ODEN_HOME=/data` — where config.db and signal-data live (volume mount)
+- `ODEN_VAULT=/vault` — vault path used on first start (volume mount)
 - `WEB_HOST=0.0.0.0` — bind web GUI to all interfaces
 
 ```bash

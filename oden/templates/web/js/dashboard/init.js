@@ -25,12 +25,12 @@ document.getElementById('join-group-form').addEventListener('submit', handleJoin
 document.getElementById('create-group-form').addEventListener('submit', handleCreateGroupSubmit);
 
 // Prevent form submission on Enter (auto-save handles saving)
-['config-form', 'config-form-signal', 'config-form-advanced'].forEach(formId => {
+['config-form', 'config-form-obsidian', 'config-form-signal', 'config-form-advanced'].forEach(formId => {
     document.getElementById(formId).addEventListener('submit', e => e.preventDefault());
 });
 
 // ========== Auto-Save on Change ==========
-['config-form', 'config-form-signal', 'config-form-advanced'].forEach(formId => {
+['config-form', 'config-form-obsidian', 'config-form-signal', 'config-form-advanced'].forEach(formId => {
     const form = document.getElementById(formId);
     form.addEventListener('input', autoSaveConfig);
     form.addEventListener('change', autoSaveConfig);

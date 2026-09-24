@@ -12,24 +12,51 @@ from oden.signal_listener import (
 from oden.signal_manager import SignalManager, build_signal_cli_command, is_signal_cli_running
 
 
+def _startup_config(**overrides):
+    """What reload_config() returns in main(); main() never touches a real ~/.oden in tests."""
+    import logging
+
+    return {
+        "signal_enabled": True,
+        "signal_number": "+1234567890",
+        "signal_cli_host": "1.2.3.4",
+        "signal_cli_port": 1234,
+        "unmanaged_signal_cli": False,
+        "log_level": logging.INFO,
+        "log_level_str": "INFO",
+        **overrides,
+    }
+
+
+def _patch_startup(**overrides):
+    """Patch main()'s bootstrap so it runs with the given config and no Signal problem."""
+    config = _startup_config(**overrides)
+
+    def decorator(func):
+        for target, value in (
+            ("oden.s7_watcher.bootstrap", MagicMock(return_value=False)),
+            ("oden.s7_watcher.reload_config", MagicMock(return_value=config)),
+            ("oden.s7_watcher.signal_config_problem", MagicMock(return_value=None)),
+            ("oden.s7_watcher.write_log_level", MagicMock()),
+            ("oden.config.SIGNAL_ENABLED", config["signal_enabled"]),
+        ):
+            func = patch(target, value)(func)
+        return func
+
+    return decorator
+
+
 class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
+    @_patch_startup()
     @patch("oden.s7_watcher.run_startup_dependency_diagnostics")
     @patch("oden.s7_watcher._create_tray", return_value=None)
-    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
-    @patch("oden.config.validate_signal_number", return_value=(True, None, []))
     @patch("oden.s7_watcher.WEB_ENABLED", False)
-    @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", False)
     @patch("oden.s7_watcher.SignalManager")
     @patch("oden.s7_watcher.subscribe_and_listen", new_callable=AsyncMock)
-    @patch("oden.s7_watcher.SIGNAL_NUMBER", "+1234567890")
-    @patch("oden.s7_watcher.SIGNAL_CLI_HOST", "1.2.3.4")
-    @patch("oden.s7_watcher.SIGNAL_CLI_PORT", 1234)
     def test_main_managed_success(
         self,
         mock_subscribe,
         mock_signal_manager_class,
-        mock_validate,
-        mock_is_configured,
         mock_tray,
         mock_dependency_diagnostics,
     ):
@@ -48,19 +75,12 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         # the finally block (safety cleanup), so it may be called twice.
         self.assertGreaterEqual(mock_manager_instance.stop.call_count, 1)
 
+    @_patch_startup(unmanaged_signal_cli=True)
     @patch("oden.s7_watcher._create_tray", return_value=None)
-    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
-    @patch("oden.config.validate_signal_number", return_value=(True, None, []))
     @patch("oden.s7_watcher.WEB_ENABLED", False)
-    @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=True)
     @patch("oden.s7_watcher.subscribe_and_listen", new_callable=AsyncMock)
-    @patch("oden.s7_watcher.SIGNAL_NUMBER", "+1234567890")
-    @patch("oden.s7_watcher.SIGNAL_CLI_HOST", "1.2.3.4")
-    @patch("oden.s7_watcher.SIGNAL_CLI_PORT", 1234)
-    def test_main_unmanaged_success(
-        self, mock_subscribe, mock_is_running, mock_validate, mock_is_configured, mock_tray
-    ):
+    def test_main_unmanaged_success(self, mock_subscribe, mock_is_running, mock_tray):
         """Tests main in unmanaged mode with signal-cli already running."""
         with self.assertRaises(SystemExit) as cm:
             s7_main()
@@ -69,16 +89,11 @@ class TestS7Watcher(unittest.IsolatedAsyncioTestCase):
         mock_is_running.assert_called_once_with("1.2.3.4", 1234)
         mock_subscribe.assert_called_once_with("1.2.3.4", 1234)
 
+    @_patch_startup(unmanaged_signal_cli=True)
     @patch("oden.s7_watcher._create_tray", return_value=None)
-    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
-    @patch("oden.config.validate_signal_number", return_value=(True, None, []))
     @patch("oden.s7_watcher.WEB_ENABLED", False)
-    @patch("oden.s7_watcher.UNMANAGED_SIGNAL_CLI", True)
     @patch("oden.s7_watcher.is_signal_cli_running", return_value=False)
-    @patch("oden.s7_watcher.SIGNAL_NUMBER", "+1234567890")
-    @patch("oden.s7_watcher.SIGNAL_CLI_HOST", "1.2.3.4")
-    @patch("oden.s7_watcher.SIGNAL_CLI_PORT", 1234)
-    def test_main_unmanaged_not_running(self, mock_is_running, mock_validate, mock_is_configured, mock_tray):
+    def test_main_unmanaged_not_running(self, mock_is_running, mock_tray):
         """Tests main in unmanaged mode when signal-cli is not running."""
         with self.assertLogs("oden.s7_watcher", level="ERROR") as log:
             with self.assertRaises(SystemExit) as cm:
@@ -654,12 +669,9 @@ if __name__ == "__main__":
 
 
 class TestRunWithoutSignal(unittest.IsolatedAsyncioTestCase):
+    @_patch_startup(signal_enabled=False, signal_number="+46XXXXXXXXX")
     @patch("oden.s7_watcher.run_startup_dependency_diagnostics")
     @patch("oden.s7_watcher._create_tray", return_value=None)
-    @patch("oden.s7_watcher.is_configured", return_value=(True, None))
-    @patch("oden.config.validate_signal_number", return_value=(True, None, []))
-    @patch("oden.s7_watcher.SIGNAL_ENABLED", False)
-    @patch("oden.s7_watcher.SIGNAL_NUMBER", "+46XXXXXXXXX")
     @patch("oden.s7_watcher.SignalManager")
     @patch("oden.s7_watcher._run_lifecycle", new_callable=AsyncMock)
     def test_main_skips_signal_cli(self, mock_lifecycle, mock_signal_manager, *_):
@@ -668,6 +680,37 @@ class TestRunWithoutSignal(unittest.IsolatedAsyncioTestCase):
             s7_main()
 
         self.assertEqual(cm.exception.code, 0)
+        mock_signal_manager.assert_not_called()
+        mock_lifecycle.assert_awaited_once_with(
+            host=ANY, port=ANY, signal_manager=None, tray=None, signal_enabled=False
+        )
+
+    @patch("oden.s7_watcher.run_startup_dependency_diagnostics")
+    @patch("oden.s7_watcher._create_tray", return_value=None)
+    @patch("oden.s7_watcher.SignalManager")
+    @patch("oden.s7_watcher._run_lifecycle", new_callable=AsyncMock)
+    @patch("oden.s7_watcher.write_log_level")
+    @patch("oden.s7_watcher.signal_config_problem", return_value="Inget Signal-konto är kopplat.")
+    @patch("oden.s7_watcher.bootstrap", return_value=False)
+    def test_unusable_signal_account_starts_without_signal(
+        self, _bootstrap, _problem, _write, mock_lifecycle, mock_signal_manager, *_
+    ):
+        """An enabled but unlinked/vanished account must not block startup (there is no wizard any more)."""
+        import oden.config as cfg
+
+        def fake_reload():
+            cfg.SIGNAL_ENABLED = not cfg.SIGNAL_OFF_REASON
+            return _startup_config()
+
+        with (
+            patch("oden.s7_watcher.reload_config", side_effect=fake_reload),
+            patch("oden.config.SIGNAL_OFF_REASON", None),
+            patch("oden.config.SIGNAL_ENABLED", True),
+            self.assertRaises(SystemExit),
+        ):
+            s7_main()
+            self.assertEqual(cfg.SIGNAL_OFF_REASON, "Inget Signal-konto är kopplat.")
+
         mock_signal_manager.assert_not_called()
         mock_lifecycle.assert_awaited_once_with(
             host=ANY, port=ANY, signal_manager=None, tray=None, signal_enabled=False

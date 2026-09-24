@@ -1,25 +1,6 @@
-{#- Tab: Grundläggande (vault, tidszon, append) — Signal-inställningar ligger i Signal-fliken -#}
+{#- Tab: Grundläggande (tidszon, append) — valv i Obsidian-fliken, Signal i Signal-fliken -#}
 <div id="tab-basic" class="tab-content active">
     <form id="config-form" class="config-form">
-        <div class="config-section">
-            <h3>📁 Vault</h3>
-            <div class="config-grid">
-                <div class="config-field full-width">
-                    <label for="cfg-vault-path">Sökväg till vault</label>
-                    <input type="text" id="cfg-vault-path" name="vault_path" placeholder="~/oden-vault">
-                    <span class="help-text">Mapp där rapporter sparas som Markdown-filer (Obsidian vault)</span>
-                </div>
-                <div class="config-field full-width">
-                    <label>Katalogstruktur</label>
-                    <div class="checkbox-wrapper">
-                        <input type="checkbox" id="cfg-group-split-enabled" name="group_split_enabled">
-                        <label for="cfg-group-split-enabled">Grupp uppdelning</label>
-                    </div>
-                    <span class="help-text">När aktiv sparas rapporter under vault/gruppnamn/. När av sparas de direkt i vault (eller pipeline-undermapp).</span>
-                </div>
-            </div>
-        </div>
-
         <div class="config-section">
             <h3>⏱️ Inställningar</h3>
             <div class="config-grid">

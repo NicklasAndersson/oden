@@ -47,7 +47,7 @@ class TestTakEndpoints(AioHTTPTestCase):
             self.addCleanup(p.stop)
         self.addCleanup(lambda: self.db_path.unlink(missing_ok=True))
         self.addCleanup(lambda: shutil.rmtree(self.oden_home, ignore_errors=True))
-        return create_app(setup_mode=False)
+        return create_app()
 
     async def test_status_reports_disabled_by_default(self):
         resp = await self.client.get("/api/tak/status")

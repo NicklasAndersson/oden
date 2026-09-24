@@ -9,6 +9,7 @@ services:
       - ./vault:/vault
     environment:
       - ODEN_HOME=/data
+      - ODEN_VAULT=/vault
       - WEB_HOST=0.0.0.0
     restart: unless-stopped
 

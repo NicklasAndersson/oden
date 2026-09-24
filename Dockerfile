@@ -78,8 +78,10 @@ RUN pip install --no-cache-dir ".[tak]"
 VOLUME ["/data", "/vault"]
 
 # Environment: ODEN_HOME controls where config.db and signal-data live
+# ODEN_VAULT is the vault path Oden starts with on first start (the /vault volume)
 # WEB_HOST=0.0.0.0 so the web GUI is reachable from outside the container
 ENV ODEN_HOME=/data \
+    ODEN_VAULT=/vault \
     WEB_HOST=0.0.0.0
 
 EXPOSE 8080

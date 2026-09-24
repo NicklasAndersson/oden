@@ -1443,3 +1443,40 @@ fieldset.signal-only:disabled {
 .flow-run-events li {
     padding: 2px 0;
 }
+
+/* ========== Signal → Konton: koppla Signal ========== */
+.signal-connect-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-md);
+}
+@media (max-width: 900px) {
+    .signal-connect-options {
+        grid-template-columns: 1fr;
+    }
+}
+.signal-connect-option {
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-inset);
+}
+#signal-connect-accounts:not(:empty) {
+    margin-bottom: var(--spacing-md);
+}
+.signal-qr {
+    width: 220px;
+    margin: var(--spacing-md) 0 var(--spacing-sm);
+    padding: 10px;
+    background: #fff;
+    border-radius: 6px;
+}
+.signal-qr:empty {
+    display: none;
+}
+.signal-qr svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}

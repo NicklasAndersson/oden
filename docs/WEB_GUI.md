@@ -12,19 +12,13 @@ Oden har ett inbyggt webbgränssnitt baserat på aiohttp som startar automatiskt
 | **Standardadress** | `http://127.0.0.1:8080` |
 | **Binding** | Localhost only (`127.0.0.1`). I Docker: `0.0.0.0` via `WEB_HOST`. |
 | **Konfiguration** | `web_enabled` (standard: `True`), `web_port` (standard: `8080`) |
-| **Två lägen** | Setup-mode (första start) och dashboard-mode (normal drift) |
 
 ---
 
-## Setup-mode
+## Första start
 
-Aktiveras automatiskt när ingen giltig konfiguration finns. Enbart setup-routes och rot-sökvägen (`/`) är tillgängliga — rot-sökvägen omdirigeras till `/setup`. Övriga dashboard-routes returnerar 404 eftersom de inte registreras i setup-mode.
-
-Ingen autentisering krävs i setup-mode.
-
-→ Se [SETUP_FLOW.md](SETUP_FLOW.md) för detaljerad beskrivning av varje steg i wizarden.
-
----
+Det finns ingen setup-guide och inget setup-läge. Första start skapar
+standardinställningar och öppnar dashboarden; se [FIRST_START.md](FIRST_START.md).
 
 ## Dashboard-mode
 
@@ -35,8 +29,9 @@ Dashboard-mode aktiveras när konfigurationen är komplett. Alla funktioner besk
 | Flik | Innehåll |
 |------|----------|
 | **Flöde** | Allt som kommer in från alla källor, vart det tog vägen och varför |
-| **Grundläggande** | Vault-sökväg, katalogstruktur, tidszon, append-fönster |
-| **Signal** | Allt som rör Signal, i underflikar: Konton, Grupper, Kontakter, Kommandosvar, Inställningar |
+| **Grundläggande** | Tidszon, append-fönster |
+| **Obsidian** | Valvets sökväg, katalogstruktur, installera Odens Obsidian-inställningar |
+| **Signal** | Allt som rör Signal, i underflikar: Konton (inkl. koppla Signal), Grupper, Kontakter, Kommandosvar, Inställningar |
 | **TAK** | Allt som rör TAK: status, QR-anslutning, anslutning, certifikat, inkommande CoT, testmarkör |
 | **Pipelines** | Körordning, aktivering och inställningar per pipeline, mallar |
 | **Avancerat** | Loggnivå och retention |
@@ -62,7 +57,13 @@ den ordning de kördes. Ersätter den tidigare fliken *Meddelandehantering*.
 
 #### Grundläggande
 
-Vault-sökväg, grupp-uppdelning av katalogstrukturen, tidszon och append-fönster.
+Tidszon och append-fönster.
+
+#### Obsidian
+
+Valvets sökväg, grupp-uppdelning av katalogstrukturen och **Installera
+Obsidian-inställningar** (kopierar Odens `.obsidian` med Map View till valvet;
+en befintlig `.obsidian` skrivs aldrig över).
 
 #### Signal
 
@@ -120,8 +121,9 @@ Nyckelord anges som kommaseparerad lista. Varje nyckelord triggar samma svar nä
 Telefonnummer, visningsnamn och startup-meddelande; signal-cli (host, port,
 sökväg, version, extern/ohanterad, diagnostikloggning, loggövervakning och
 *Starta om signal-cli*); Signal-protokollinställningar (läskvitton,
-skrivindikator, länkförhandsgranskning, sealed sender); och *Kör setup för
-Signal* för att länka om eller slå på Signal.
+skrivindikator, länkförhandsgranskning, sealed sender); och *Signal på/av*.
+När Oden körs utan Signal har **Konton** rutan *Koppla Signal* (QR-länkning,
+registrering, befintligt konto) — se [FIRST_START.md](FIRST_START.md).
 
 #### TAK
 
@@ -193,23 +195,9 @@ Webbgränssnittet har ingen autentisering. Skyddet bygger helt på att det enbar
 
 ## API-endpoints
 
-### Setup-endpoints
+### Signal-koppling och Obsidian
 
-Setup-routes registreras alltid. I setup-mode är de de enda tillgängliga rutterna (tillsammans med en redirect från `/` till `/setup`). I dashboard-mode används de inte av UI:t, men endpoints är fortfarande aktiva och kan ändra tillstånd/konfiguration (t.ex. `/api/setup/reset`, `/api/setup/save-config`).
-
-| Metod | Sökväg | Beskrivning |
-|-------|--------|-------------|
-| GET | `/setup` | Setup-wizardens HTML-sida |
-| GET | `/api/setup/status` | Aktuell setup-status (JSON) |
-| POST | `/api/setup/oden-home` | Sätt Oden-hemkatalog |
-| POST | `/api/setup/validate-path` | Validera en sökväg |
-| POST | `/api/setup/start-link` | Starta QR-kodlänkning |
-| POST | `/api/setup/cancel-link` | Avbryt pågående länkning |
-| POST | `/api/setup/start-register` | Starta nummerregistrering |
-| POST | `/api/setup/verify-code` | Verifiera registreringskod |
-| POST | `/api/setup/save-config` | Spara setup-konfiguration |
-| POST | `/api/setup/install-obsidian-template` | Installera Obsidian-mallar i valvet |
-| DELETE | `/api/setup/reset` | Mjuk reset (återgå till setup) |
+Se [FIRST_START.md](FIRST_START.md#api) för `/api/signal/connect/*` och `/api/obsidian/*`.
 
 ### Dashboard-endpoints
 

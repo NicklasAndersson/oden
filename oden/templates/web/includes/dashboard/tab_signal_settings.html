@@ -124,10 +124,16 @@
     </div>
 
     <div class="config-section section-divider">
-        <h3>🔄 Setup för Signal</h3>
+        <h3>⏻ Signal på/av</h3>
+        {% if signal_enabled %}
         <p class="help-paragraph">
-            Kör setup-guiden för Signal: länka eller byt Signal-konto, eller slå på Signal om Oden körs utan.
+            Stäng av Signal för att köra Oden utan Signal (t.ex. bara TAK). Kontot ligger kvar i signal-cli och kan
+            kopplas på igen under Signal → Konton. Gäller efter omstart.
         </p>
-        <button type="button" class="btn btn-danger" onclick="rerunSetup()">Kör setup för Signal</button>
+        <button type="button" class="btn btn-danger" onclick="disableSignal()">Stäng av Signal</button>
+        {% else %}
+        <p class="help-paragraph">Signal är avstängt. Koppla ett konto under <strong>Konton</strong> för att slå på det.</p>
+        <button type="button" class="btn btn-secondary" onclick="showSignalPane('accounts')">Gå till Konton</button>
+        {% endif %}
     </div>
 </div>
