@@ -158,10 +158,10 @@ def p12_as_pem(path: str, env_name: str) -> tuple[str, str] | None:
     try:
         key, cert, _chain = pkcs12.load_key_and_certificates(blob, None)
     except ValueError:
-        where = f"miljövariabeln {env_name}" if env_name else "en miljövariabel under Miljövariabel för certlösenord"
+        env_hint = f" (eller sätt miljövariabeln {env_name})" if env_name else ""
         raise ValueError(
             f"TAK: klientcertifikatet {Path(path).name} är lösenordsskyddat (eller trasigt) och inget lösenord är satt. "
-            f"Sätt {where} i Odens miljö och starta om Oden."
+            f"Fyll i Certlösenord i TAK-fliken{env_hint} och spara."
         ) from None
     if key is None or cert is None:
         raise ValueError(f"TAK: {Path(path).name} innehåller inget klientcertifikat med nyckel")

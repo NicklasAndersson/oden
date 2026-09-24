@@ -442,6 +442,28 @@ class P12WithoutPasswordTest(unittest.TestCase):
         self.assertIn("lösenordsskyddat", str(caught.exception))
         self.assertIn(_DEFAULTS["tls_client_password_env"], str(caught.exception))
 
+    def test_a_password_typed_in_the_tak_tab_is_used(self):
+        import os
+
+        cert = self.dir / "client-cert-oden.p12"
+        cert.write_bytes(_p12(b"atakatak"))
+        settings = {
+            **_DEFAULTS,
+            "cot_url": "tls://tak.example:8089",
+            "tls_client_cert": str(cert),
+            "tls_client_password": "atakatak",
+        }
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop(_DEFAULTS["tls_client_password_env"], None)
+            cfg = TakBridge(settings)._build_config()
+        self.assertEqual(cfg["PYTAK_TLS_CLIENT_PASSWORD"], "atakatak")
+        self.assertTrue(cfg["PYTAK_TLS_CLIENT_CERT"].endswith(".p12"))
+
+    def test_the_error_points_to_the_field(self):
+        with self.assertRaises(ValueError) as caught:
+            self._config(_p12(b"atakatak"))
+        self.assertIn("Certlösenord i TAK-fliken", str(caught.exception))
+
     def test_with_the_password_set_the_p12_goes_to_pytak_unchanged(self):
         cfg = self._config(_p12(b"atakatak"), env={_DEFAULTS["tls_client_password_env"]: "atakatak"})
         self.assertTrue(cfg["PYTAK_TLS_CLIENT_CERT"].endswith(".p12"))

@@ -30,13 +30,13 @@ logger = logging.getLogger(__name__)
 CERT_WARN_DAYS = 30
 MAX_PACKAGE_BYTES = 5 * 1024 * 1024  # data packages are ~30 KB; 5 MB is generous
 
-# Settings the form may write. tls_client_password is deliberately absent — the
-# password comes from the environment variable named by tls_client_password_env,
-# so it never lands in the config db or in an HTTP response.
+# Settings the form may write.
 #
-# enroll_password is the exception: enrollment is the only way to connect with a
-# trust-only data package, and an env var is awkward to set for a desktop app, so
-# the TAK tab accepts one directly. It is write-only over HTTP — see _SECRET_KEYS.
+# The two passwords (tls_client_password for a .p12, enroll_password for
+# enrollment) can be typed into the TAK tab, because an environment variable is
+# awkward to set for a desktop app. Both are write-only over HTTP — see
+# _SECRET_KEYS — and a set environment variable (tls_client_password_env,
+# enroll_password_env) still wins over the stored value.
 _EDITABLE_KEYS = {
     "enabled": bool,
     "cot_url": str,
@@ -44,6 +44,7 @@ _EDITABLE_KEYS = {
     "tls_client_cert": str,
     "tls_client_key": str,
     "tls_client_password_env": str,
+    "tls_client_password": str,
     "tls_ca_cert": str,
     "tls_verify": bool,
     "tls_check_hostname": bool,
@@ -75,7 +76,7 @@ _EDITABLE_KEYS = {
 
 
 # Written by the form, never read back out of it.
-_SECRET_KEYS = {"enroll_password"}
+_SECRET_KEYS = {"enroll_password", "tls_client_password"}
 
 
 def _coerce(value: Any, kind: type) -> Any:
@@ -102,7 +103,8 @@ async def tak_settings_handler(request: web.Request) -> web.Response:
     """
     settings = {**_INBOUND_DEFAULTS, **load_tak_settings()}
     payload: dict[str, Any] = {key: settings.get(key) for key in _EDITABLE_KEYS if key not in _SECRET_KEYS}
-    payload["enroll_password_set"] = bool(str(settings.get("enroll_password") or "").strip())
+    for key in _SECRET_KEYS:
+        payload[f"{key}_set"] = bool(str(settings.get(key) or "").strip())
     return web.json_response(payload)
 
 

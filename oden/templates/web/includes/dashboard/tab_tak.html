@@ -127,10 +127,18 @@
                         <input type="file" id="tak-ca-cert-file" accept=".pem,.crt,.cer" style="display: none;" onchange="uploadTakCert(this, 'ca_cert', 'tak-ca-cert')">
                     </div>
                 </div>
-                <div class="config-field full-width">
+                <div class="config-field">
+                    <label for="tak-cert-pw">Certlösenord</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="tak-cert-pw" name="tls_client_password" autocomplete="new-password" placeholder="lämna tom för att behålla sparat" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary" onclick="clearTakSecret('tls_client_password', 'tak-cert-pw', 'Certlösenordet')">Rensa</button>
+                    </div>
+                    <span class="help-text" id="tak-cert-pw-help">Lösenordet till en .p12 (från ATAK ofta atakatak). Behövs inte för en .p12 utan lösenord eller för PEM.</span>
+                </div>
+                <div class="config-field">
                     <label for="tak-password-env">Miljövariabel för certlösenord</label>
                     <input type="text" id="tak-password-env" name="tls_client_password_env" placeholder="ODEN_TAK_CERT_PASSWORD">
-                    <span class="help-text">Lösenordet läses ur miljön och sparas aldrig i Oden — sätt variabeln innan start</span>
+                    <span class="help-text">Sätts variabeln i miljön används den istället för fältet bredvid</span>
                 </div>
                 <div class="config-field">
                     <label for="tak-enroll-user">Enrollment-användarnamn</label>
@@ -141,7 +149,7 @@
                     <label for="tak-enroll-pw">Enrollment-lösenord</label>
                     <div style="display: flex; gap: 8px;">
                         <input type="password" id="tak-enroll-pw" name="enroll_password" autocomplete="new-password" placeholder="lämna tom för att behålla sparat" style="flex: 1;">
-                        <button type="button" class="btn btn-secondary" onclick="clearTakEnrollPassword()">Rensa</button>
+                        <button type="button" class="btn btn-secondary" onclick="clearTakSecret('enroll_password', 'tak-enroll-pw', 'Enrollment-lösenordet')">Rensa</button>
                     </div>
                     <span class="help-text" id="tak-enroll-pw-help">Krävs för data-paket som bara innehåller serverns CA. Miljövariabeln nedan har företräde när den är satt.</span>
                 </div>

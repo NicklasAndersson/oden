@@ -67,23 +67,29 @@ async function loadTakSettings() {
         }
     }
 
-    const help = document.getElementById('tak-enroll-pw-help');
-    if (help) {
-        help.textContent = settings.enroll_password_set
-            ? 'Ett lösenord är sparat. Skriv ett nytt för att byta, eller Rensa för att ta bort det.'
-            : 'Krävs för data-paket som bara innehåller serverns CA. Miljövariabeln nedan har företräde när den är satt.';
+    const stored = 'Ett lösenord är sparat. Skriv ett nytt för att byta, eller Rensa för att ta bort det.';
+    for (const [helpId, isSet, empty] of [
+        ['tak-enroll-pw-help', settings.enroll_password_set,
+         'Krävs för data-paket som bara innehåller serverns CA. Miljövariabeln nedan har företräde när den är satt.'],
+        ['tak-cert-pw-help', settings.tls_client_password_set,
+         'Lösenordet till en .p12 (från ATAK ofta atakatak). Behövs inte för en .p12 utan lösenord eller för PEM.'],
+    ]) {
+        const help = document.getElementById(helpId);
+        if (help) help.textContent = isSet ? stored : empty;
     }
 }
 
-async function clearTakEnrollPassword() {
-    document.getElementById('tak-enroll-pw').value = '';
+// Passwords are write-only: blank on save keeps the stored one, so clearing
+// needs its own request with an explicit null.
+async function clearTakSecret(key, inputId, label) {
+    document.getElementById(inputId).value = '';
     const response = await fetch('/api/tak/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({enroll_password: null}),
+        body: JSON.stringify({[key]: null}),
     });
     const result = await response.json();
-    showConfigMessage(result.success ? 'Enrollment-lösenordet borttaget' : (result.error || 'Kunde inte rensa'),
+    showConfigMessage(result.success ? `${label} borttaget` : (result.error || 'Kunde inte rensa'),
                       result.success ? 'success' : 'error');
     if (result.success) loadTakStatus();
 }

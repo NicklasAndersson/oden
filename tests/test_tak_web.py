@@ -107,6 +107,22 @@ class TestTakEndpoints(AioHTTPTestCase):
         self.assertEqual(get_config_value(self.db_path, "tak_settings")["enroll_password"], "")
         self.assertFalse((await (await self.client.get("/api/tak/settings")).json())["enroll_password_set"])
 
+    async def test_cert_password_is_stored_but_never_sent_back(self):
+        """The .p12 password can be typed in the TAK tab; like enroll_password it is write-only."""
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "tls_client_password": "atakatak"})
+        resp = await self.client.get("/api/tak/settings")
+        data = await resp.json()
+        self.assertNotIn("tls_client_password", data)
+        self.assertTrue(data["tls_client_password_set"])
+        self.assertNotIn("atakatak", await resp.text())
+
+        await self.client.post("/api/tak/settings", json={"cot_url": "tls://x:8089", "tls_client_password": ""})
+        self.assertEqual(get_config_value(self.db_path, "tak_settings")["tls_client_password"], "atakatak")
+
+        await self.client.post("/api/tak/settings", json={"tls_client_password": None})
+        self.assertEqual(get_config_value(self.db_path, "tak_settings")["tls_client_password"], "")
+        self.assertFalse((await (await self.client.get("/api/tak/settings")).json())["tls_client_password_set"])
+
     async def test_save_roundtrips_and_splits_comma_lists(self):
         resp = await self.client.post(
             "/api/tak/settings",
