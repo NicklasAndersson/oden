@@ -342,6 +342,36 @@ def _report_name_element(elem: ET.Element, *, depth: int = 0) -> ET.Element:
     return _report_name_element(inner, depth=depth + 1)
 
 
+EMERGENCY_FORM = "Nödlarm"
+
+
+def _parse_emergency(detail: ET.Element) -> dict[str, str]:
+    """An ATAK emergency alert (``<emergency>``) as form fields, or ``{}``.
+
+    ``<emergency>`` is a standard CoT element, so the generic report walk skips
+    it — and with it the only thing that says what the alarm is. ATAK puts the
+    alert kind in ``type`` ("911 Alert", "In Contact", …), the sender's callsign
+    as text, and ``cancel="true"`` when the alarm is called off; others add a
+    ``description`` and an ``<alertOriginator uid>``.
+    """
+    el = detail.find("emergency")
+    if el is None:
+        return {}
+    fields: dict[str, str] = {}
+    kind = (el.get("type") or "").strip()
+    if kind:
+        fields["Larmtyp"] = kind[:_MAX_CUSTOM_FIELD_LEN]
+    description = (el.get("description") or "").strip()
+    if description:
+        fields["Beskrivning"] = description[:_MAX_CUSTOM_FIELD_LEN]
+    fields["Avbrutet"] = "ja" if (el.get("cancel") or "").strip().lower() == "true" else "nej"
+    originator = el.find("alertOriginator")
+    by = (originator.get("uid", "") if originator is not None else "") or (el.text or "")
+    if by.strip():
+        fields["Larmat av"] = sanitize_token(by, max_len=128)
+    return fields
+
+
 def _parse_custom_report(detail: ET.Element) -> tuple[str, dict[str, str]]:
     """Pull operator-defined report fields out of ``<detail>``.
 
@@ -418,6 +448,10 @@ def cot_to_inbound(xml: bytes | str) -> InboundCot | None:
             remarks = remarks_el.text
         is_chat = detail.find("__chat") is not None or root.get("type", "").startswith("b-t-f")
         custom_report_name, custom_report = _parse_custom_report(detail)
+        emergency = _parse_emergency(detail)
+        if emergency:
+            # An alarm outranks whatever else rides along: it names the form.
+            custom_report_name, custom_report = EMERGENCY_FORM, {**emergency, **custom_report}
         creator = detail.find("creator")
         parent = next((el for el in detail.findall("link") if el.get("relation") == "p-p"), None)
         raw_uid = (creator.get("uid", "") if creator is not None else "") or (

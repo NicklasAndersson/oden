@@ -30,8 +30,10 @@ Labels are compared without case, accents, spaces or punctuation, so
 from __future__ import annotations
 
 import datetime
+import functools
 import logging
 import re
+import uuid
 from typing import Any
 
 from oden import config as cfg
@@ -153,6 +155,10 @@ def normalize_format(value: Any, taken_ids: set[str] | None = None) -> dict[str,
         ok, error = validate_template(template)
         if not ok:
             raise ValueError(f"Mallen: {error}")
+        try:
+            _template_env().from_string(template)  # unknown filters show up here, not at parse
+        except Exception as exc:  # jinja2.TemplateError and friends
+            raise ValueError(f"Mallen: {exc}") from exc
 
     return {
         "id": format_id,
@@ -279,14 +285,54 @@ def parse(fmt: dict[str, Any], message_text: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _mgrs_extra(value: str) -> list[str]:
+def _mgrs_coords(value: str) -> tuple[str, str] | None:
+    """``("59.33400", "18.06000")`` from an MGRS value (``"<MGRS>, <plats>"`` works too)."""
     from oden.pipelines.seven_s import _mgrs_to_latlon
 
     coords = _mgrs_to_latlon(value.split(",", 1)[0])
+    return (f"{coords[0]:.5f}", f"{coords[1]:.5f}") if coords else None
+
+
+def _mgrs_extra(value: str) -> list[str]:
+    coords = _mgrs_coords(value)
     if coords is None:
         return []
-    lat, lon = f"{coords[0]:.5f}", f"{coords[1]:.5f}"
+    lat, lon = coords
     return [f"lat: {lat}", f"lon: {lon}", f"location: {yaml_quote(f'{lat},{lon}')}"]
+
+
+def is_whole_file_template(template: str) -> bool:
+    """A template starting with ``---`` writes the whole note, frontmatter included."""
+    return template.lstrip().startswith("---")
+
+
+def _plate(value: Any) -> str:
+    from oden.tak.scrim import canonical_plate
+
+    return canonical_plate(str(value or "")) or ""
+
+
+def _link_plates(value: Any) -> str:
+    from oden.pipelines.seven_s import _link_remaining_plates
+
+    return _link_remaining_plates(str(value or ""))
+
+
+@functools.lru_cache(maxsize=1)
+def _template_env() -> Any:
+    """The sandbox for report format templates, with the filters the built-ins use.
+
+    ``yaml`` quotes a value for frontmatter, ``plate`` gives the canonical form
+    of a registration (empty if it is not one) and ``link_plates`` wraps plates
+    in text as ``[[…]]`` links — the same as 7S and SCRIM do.
+    """
+    from jinja2.sandbox import SandboxedEnvironment
+
+    env = SandboxedEnvironment()
+    env.filters.update(
+        {"yaml": lambda v: yaml_quote("" if v is None else str(v)), "plate": _plate, "link_plates": _link_plates}
+    )
+    return env
 
 
 class FormatReportPipeline(StructuredReportPipeline):
@@ -348,11 +394,15 @@ class FormatReportPipeline(StructuredReportPipeline):
         )
 
         raw_message = (context.envelope.get("dataMessage") or {}).get("message") or ""
-        if fmt["template"].strip():
-            body = self._render_template(context, values, sections, parsed["other"], raw_message)
+        if is_whole_file_template(fmt["template"]):
+            # The template writes the whole note, frontmatter included.
+            report = self._render_template(context, values, sections, parsed["other"], raw_message).strip() + "\n"
         else:
-            body = self._default_body(values, sections, parsed["other"])
-        report = "\n".join(frontmatter) + body.rstrip() + "\n"
+            if fmt["template"].strip():
+                body = self._render_template(context, values, sections, parsed["other"], raw_message)
+            else:
+                body = self._default_body(values, sections, parsed["other"])
+            report = "\n".join(frontmatter) + body.rstrip() + "\n"
         comment = trailing_obsidian_comment(raw_message)
         return f"{report.rstrip()}\n\n{comment}\n" if comment else report
 
@@ -376,19 +426,31 @@ class FormatReportPipeline(StructuredReportPipeline):
         other: list[str],
         raw_message: str,
     ) -> str:
-        from oden.template_loader import _get_sandboxed_env
-
-        template = _get_sandboxed_env().from_string(self.format["template"])
+        lat = lon = None
+        for field in self.format["fields"]:
+            if field["type"] == "mgrs" and values.get(field["key"]):
+                coords = _mgrs_coords(values[field["key"]])
+                if coords:
+                    lat, lon = coords
+                    break
+        template = _template_env().from_string(self.format["template"])
         return template.render(
             format=self.format["name"],
             fields=values,
             sections=sections,
             other="\n".join(other),
+            id=f"{self.report_id_prefix}-{uuid.uuid4()}",
+            report_type=self.report_type,
             tnr=context.resolved_tnr,
             report_time=context.report_dt.strftime("%Y-%m-%d %H:%M"),
+            report_time_iso=context.report_dt.strftime("%Y-%m-%dT%H:%M:%S"),
             signal_time=context.signal_dt.strftime("%Y-%m-%d %H:%M"),
+            signal_time_iso=context.signal_dt.strftime("%Y-%m-%dT%H:%M:%S"),
             sender_name=context.source_name or "",
             sender_number=context.source_number,
+            sender_id=context.source_id,
+            lat=lat,
+            lon=lon,
             group=context.group_title,
             message=raw_message,
         )
@@ -405,6 +467,173 @@ def _f(label: str, *, key: str = "", required: bool = False, aliases: tuple[str,
 
 def _s(label: str, *, key: str, required: bool = False, aliases: tuple[str, ...] = ()):
     return {"key": key, "label": label, "aliases": list(aliases), "required": required}
+
+
+# The same frontmatter the built-ins write (build_base_frontmatter), for templates
+# that write the whole note.
+_BASE_FRONTMATTER = """---
+id: {{ id }}
+typ: {{ report_type }}
+tnr: {{ tnr | yaml }}
+tidpunkt: {{ report_time_iso | yaml }}
+signal_tidpunkt: {{ signal_time_iso | yaml }}
+signal_avsandare_nummer: {{ sender_number | yaml }}
+signal_avsandare_id: {{ sender_id | yaml }}
+"""
+
+_COORDS = """{% if lat %}lat: {{ lat }}
+lon: {{ lon }}
+location: {{ (lat ~ "," ~ lon) | yaml }}
+{% endif %}"""
+
+_TEMPLATE_7S = (
+    _BASE_FRONTMATTER
+    + """plats: {{ fields.stalle | yaml }}
+"""
+    + _COORDS
+    + """sagesman: {{ fields.sagesman | upper }}
+---
+
+**TNR:** {{ tnr }}
+
+**Stund:** {{ fields.stund }}
+
+**Ställe:** {{ fields.stalle }}
+
+{% if fields.handelse %}**Händelse:** {{ fields.handelse }}
+
+{% else %}**Styrka:** {{ fields.styrka }}
+
+**Slag:** {{ fields.slag }}
+
+**Sysselsättning:** {{ fields.sysselsattning }}
+
+{% endif %}{% if fields.symbol %}**Symbol:** {{ fields.symbol | link_plates }}
+
+{% endif %}**Sagesman:** {{ fields.sagesman | upper }}
+{% if fields.sedan %}
+**Sedan:** {{ fields.sedan }}
+{% endif %}"""
+)
+
+_TEMPLATE_FORS = (
+    _BASE_FRONTMATTER
+    + """---
+
+**Till:** {{ fields.till }}
+
+**Från:** {{ fields.fran }}
+
+**TNR:** {{ tnr }}
+
+## F – FÖRBANDETS POSITION
+
+{{ sections.forbandets_position }}
+
+## O – ORIENTERING
+
+{{ sections.orientering }}
+
+## R – REDOGÖRELSE FÖR VHT
+
+**Genomförd:** {{ fields.genomford }}
+
+**Pågående:** {{ fields.pagaende }}
+
+**Planerad:** {{ fields.planerad }}
+{% if sections.slutsatser %}
+## S – SLUTSATSER
+
+{{ sections.slutsatser }}
+{% endif %}
+SLUT!"""
+)
+
+_TEMPLATE_PEDARS = (
+    _BASE_FRONTMATTER
+    + """till: {{ fields.till | yaml }}
+fran: {{ fields.fran | yaml }}
+samlad_formaga: {{ ((sections.samlad_formaga or "").split() or [""])[0] | yaml }}
+---
+{%- macro bullets(text) %}
+{%- for line in (text or "").split("\\n") if line.strip() %}
+- {{ line.strip().lstrip("-").strip() }}
+{%- endfor %}
+{%- endmacro %}
+
+**Till:** {{ fields.till }}
+
+**Från:** {{ fields.fran }}
+
+**TNR:** {{ tnr }}
+
+## P – PERSONAL
+{% for line in (sections.personal or "").split("\\n") if line.strip() %}
+{%- for part in line.split("|") if ":" in part %}
+**{{ part.split(":")[0].strip() }}:** {{ part.split(":", 1)[1].strip() }}
+{% endfor %}
+{%- if ":" not in line %}{{ line.strip() }}
+{% endif %}
+{%- endfor %}
+## E – ERSÄTTNING AV FÖRNÖDENHETER
+
+{{ sections.ersattning or "-" }}
+
+## D – DRIVMEDEL
+{% for line in (sections.drivmedel or "").split("\\n") if line.strip() %}
+{%- if line.strip().endswith(":") %}
+### {{ line.strip()[:-1] }}
+{% else %}
+- {{ line.strip().lstrip("-").strip() }}
+{%- endif %}
+{%- endfor %}
+
+## A – AMMUNITION
+{{ bullets(sections.ammunition) }}
+
+## R – REPARATIONER
+{{ bullets(sections.reparationer) }}
+
+## S – SAMLAD FÖRMÅGA
+
+{% set samlad = (sections.samlad_formaga or "").split("\\n", 1) -%}
+{{ samlad[0] }}
+{% if samlad | length > 1 %}
+{{ samlad[1] }}
+{% endif %}
+SLUT!"""
+)
+
+_TEMPLATE_SCRIM = (
+    _BASE_FRONTMATTER
+    + """{% if fields.stalle %}plats: {{ fields.stalle | yaml }}
+{% endif %}"""
+    + _COORDS
+    + """{% if fields.registrering | plate %}regnr: {{ fields.registrering | plate | yaml }}
+{% endif %}{% if fields.sagesman %}sagesman: {{ fields.sagesman | upper }}
+{% endif %}---
+
+**TNR:** {{ tnr }}
+
+**Stund:** {{ fields.stund }}
+{% if fields.stalle %}
+**Ställe:** {{ fields.stalle }}
+{% endif %}{% if fields.storlek %}
+**Storlek:** {{ fields.storlek }}
+{% endif %}{% if fields.farg %}
+**Färg:** {{ fields.farg }}
+{% endif %}
+**Registrering:** {% if fields.registrering | plate %}[[{{ fields.registrering | plate }}]]{% else %}–{% endif %}
+{% if fields.kannetecken %}
+**Kännetecken:** {{ fields.kannetecken | link_plates }}
+{% endif %}{% if fields.marke %}
+**Märke/modell:** {{ fields.marke }}
+{% endif %}{% if fields.sagesman %}
+**Sagesman:** {{ fields.sagesman }}
+{% endif %}{% if fields.anmarkning %}
+**Anmärkning:** {{ fields.anmarkning | link_plates }}
+{% endif %}"""
+)
 
 
 STARTERS: dict[str, dict[str, Any]] = {
@@ -429,6 +658,7 @@ STARTERS: dict[str, dict[str, Any]] = {
         "tnr_field": "tnr",
         "file_prefix": "TNR",
         "report_type": "7S-rapport",
+        "template": _TEMPLATE_7S,
     },
     "fors": {
         "name": "FORS (eget)",
@@ -451,6 +681,7 @@ STARTERS: dict[str, dict[str, Any]] = {
         "file_prefix": "FORS",
         "report_type": "FORS-rapport",
         "end_marker": "SLUT!",
+        "template": _TEMPLATE_FORS,
     },
     "pedars": {
         "name": "PEDARS (eget)",
@@ -472,6 +703,7 @@ STARTERS: dict[str, dict[str, Any]] = {
         "file_prefix": "PEDARS",
         "report_type": "PEDARS-rapport",
         "end_marker": "SLUT!",
+        "template": _TEMPLATE_PEDARS,
     },
     "scrim": {
         "name": "SCRIM (eget)",
@@ -492,5 +724,6 @@ STARTERS: dict[str, dict[str, Any]] = {
         "tnr_field": "tnr",
         "file_prefix": "SCRIM",
         "report_type": "SCRIM-rapport",
+        "template": _TEMPLATE_SCRIM,
     },
 }

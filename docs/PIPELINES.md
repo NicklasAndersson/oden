@@ -315,7 +315,7 @@ Rapportformat som definieras i inställningarna i stället för i kod
 | `file_prefix` | Filen blir `<prefix><TNR>.md`, som för de inbyggda |
 | `report_type` | `typ:` i frontmatter |
 | `end_marker` | Valfri slutrad, t.ex. `SLUT!` |
-| `template` | Valfri Jinja-mall (sandlåda) för anteckningens innehåll. Variabler: `fields`, `sections`, `other`, `tnr`, `report_time`, `signal_time`, `sender_name`, `sender_number`, `group`, `format`, `message`. Tom = fälten som **Etikett:** värde och avsnitten som rubriker |
+| `template` | Valfri Jinja-mall (sandlåda). Börjar den med `---` skriver den hela anteckningen, frontmatter också; annars bara innehållet efter Odens frontmatter. Variabler: `fields`, `sections`, `other`, `id`, `report_type`, `tnr`, `report_time`, `report_time_iso`, `signal_time`, `signal_time_iso`, `sender_name`, `sender_number`, `sender_id`, `lat`/`lon` (från första MGRS-fältet), `group`, `format`, `message`. Filter: `yaml` (citerar för frontmatter), `plate` (registreringsnummer i kanonisk form), `link_plates` (gör plåtar i text till `[[länkar]]`). Tom = fälten som **Etikett:** värde och avsnitten som rubriker |
 
 Etiketter jämförs utan skiftläge, accenter, mellanslag och skiljetecken, så
 `Förbandets position` och `FORBANDETS-POSITION` är samma etikett. Rader som inte
@@ -331,9 +331,12 @@ format som används i en gren kan inte tas bort förrän steget tagits bort.
 
 De inbyggda formaten (7S, FORS, PEDARS, SCRIM) finns kvar i kod och ändras inte
 här. Varje inbyggt format har en startpunkt (*Utgå från …*) som fyller i
-rubriker, fält och avsnitt som ett eget format att justera. Det egna formatet
-gör inte de inbyggdas specialbehandling (t.ex. 7S-plåtlänkar eller PEDARS
-underrubriker), men läser samma fält.
+rubriker, fält, avsnitt och en mall för hela anteckningen, frontmatter
+inkluderat. Mallen skriver samma anteckning som det inbyggda formatet (utom det
+slumpade `id`): för 7S, FORS och SCRIM tecken för tecken, plåtlänkar
+inkluderade; för PEDARS med samma rubriker, listor och underrubriker, men
+personalsiffrorna i den ordning de står i meddelandet. Testerna
+(`StarterTemplateTest`) jämför startpunkterna med de inbyggda.
 
 ---
 

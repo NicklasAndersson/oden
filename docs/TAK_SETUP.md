@@ -279,6 +279,12 @@ formuläret ska följa med i `%%`-blocket. Med standardinställningarna blir tex
 exakt densamma som tidigare. I Testrutan kan man klistra in en CoT (`<event …>`)
 och se hela vägen (källan sätts till TAK).
 
+**Nödlarm.** Ett `<emergency>` (911, In Contact m.fl.) läses som formuläret
+*Nödlarm* med fälten Larmtyp, Beskrivning, Avbrutet (ja/nej, `cancel="true"`
+när larmet dras tillbaka) och Larmat av. Det syns i observationen, och med
+*formulärets namn som rubrik* börjar texten med `Nödlarm`. Larm släpps igenom av
+`inbound_reports_only` och av standardtyperna (`b-a-*`).
+
 **Andra ATAK-formulär än 8S och SCRIM.** Fälten läses generellt, oavsett hur
 formuläret är uppbyggt. Som standard blir ett okänt formulär en
 `TAK-OBSERVATION` med alla fält. Välj *Formulärets namn som rubrik* i steget TAK

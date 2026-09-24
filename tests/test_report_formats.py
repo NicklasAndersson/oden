@@ -215,7 +215,7 @@ class FormatApiTest(_Base):
         self.assertEqual([f["id"] for f in stored], ["anmalan", "anmalan-2"])
         self.assertTrue(tested["matched"])
         self.assertTrue(tested["handled"])
-        self.assertIn("## O – Orientering", tested["content"])
+        self.assertIn("## O – ORIENTERING", tested["content"])
         self.assertEqual(list(self.vault.rglob("*")), [])
         self.assertIn('id="formats-list"', page)
         self.assertIn("function saveFormat", page)
@@ -269,3 +269,76 @@ class SafetyTest(unittest.TestCase):
         now = datetime.datetime(2026, 9, 24, 14, 30)
         self.assertEqual(pipeline.report_tnr({"tnr": "../24 14:30"}, now), "241430")
         self.assertEqual(pipeline.report_tnr({"tnr": "///"}, now), "241430")
+
+
+class StarterTemplateTest(unittest.IsolatedAsyncioTestCase):
+    """ "Utgå från …" gives a format whose note matches the built-in's (bar the random id)."""
+
+    SAMPLES = {
+        "seven_s": (
+            "seven_s",
+            "7S RAPPORT\nTill: Stab\nFrån: Pluton 1\nTNR: 241430\nStund: 241430\nStälle: 33V VN 12345 67890\n"
+            "Styrka: 4\nSlag: bil\nSysselsättning: rör sig\nSymbol: ABC123 vit volvo\nSagesman: aq\nSedan: norrut",
+        ),
+        "seven_s_event": (
+            "seven_s",
+            "7S RAPPORT\nTill: Stab\nFrån: Pluton 1\nTNR: 241430\nStund: 241430\nStälle: 33V VN 12345 67890\n"
+            "Händelse: Skott hörs\nSagesman: BQ",
+        ),
+        "fors": ("fors", FORS_TEXT.replace("SLUT!", "S – Slutsatser\nInget att rapportera\nSLUT!")),
+        "scrim": (
+            "scrim",
+            "SCRIM RAPPORT\nTNR: 151345\nStund: 151345\nStälle: 33V VN 12345 67890\nStorlek: Ups leveransbil\n"
+            "Färg: Brun\nRegistrering: PHS 331\nKännetecken: dekal ABC123\nMärke: Ups Bil\nSagesman: BRGB05\n"
+            "Anmärkning: kör norrut",
+        ),
+    }
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for patch in (
+            unittest.mock.patch("oden.config.VAULT_PATH", tmp.name),
+            unittest.mock.patch("oden.config.TIMEZONE", zoneinfo.ZoneInfo("Europe/Stockholm")),
+            unittest.mock.patch("oden.config.GROUP_SPLIT_ENABLED", True),
+            unittest.mock.patch("oden.config.PIPELINE_SETTINGS", {}),
+        ):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    async def _both(self, name, text):
+        import re
+
+        from oden.pipeline_orchestrator import PipelineOrchestrator
+
+        builtin = PipelineOrchestrator(Path(tempfile.gettempdir()) / "unused.db")._pipeline_map[name]
+        msg = build_test_message(text, "group:G")
+        a = await builtin.preview(msg)
+        b = await FormatReportPipeline(normalize_format(STARTERS[name])).preview(msg)
+        self.assertTrue(a["handled"] and b["handled"], (a.get("reason"), b.get("reason")))
+        strip = lambda t: re.sub(r"^id: .*$", "id: X", t, flags=re.M).rstrip()  # noqa: E731
+        return strip(a["content"]), strip(b["content"])
+
+    async def test_starters_write_the_same_note_as_the_built_ins(self):
+        for label, (name, text) in self.SAMPLES.items():
+            with self.subTest(label):
+                builtin, starter = await self._both(name, text)
+                self.assertEqual(starter, builtin)
+
+    async def test_pedars_starter_has_the_same_content(self):
+        text = (
+            "PEDARS - UNDERHÅLLSRAPPORT\nTill: TILL\nFrån: FRA\nTNR: 241345\n\nP PERSONAL\n"
+            "Totalt: 36 | Ska vara: 36 | I tjänst: 35\n\nE ERSÄTTNING AV FÖRNÖDENHETER\nBatterier\n\n"
+            "D DRIVMEDEL\nFordon:\nPB8: 50%\n\nA AMMUNITION\n7.62: kvar: 50%, behov: 2000\n\n"
+            "R REPARATIONER\nPB8: service\n\nS SAMLAD FÖRMÅGA\nGul – Reducerad förmåga\nReservkraft låg\n\nSLUT!\n"
+        )
+        builtin, starter = await self._both("pedars", text)
+        # The built-in sorts the personnel figures; the template keeps the message's order,
+        # which here is the same.
+        self.assertEqual(starter, builtin)
+
+    def test_every_starter_has_a_whole_file_template(self):
+        from oden.report_formats import is_whole_file_template
+
+        for name, starter in STARTERS.items():
+            self.assertTrue(is_whole_file_template(starter["template"]), name)

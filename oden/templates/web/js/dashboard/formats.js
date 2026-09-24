@@ -160,7 +160,7 @@ function renderFormatEditor() {
         <div class="routing-field">Avsnitt — en rubrikrad, sedan fri text till nästa avsnitt${formatRowsHtml('sections')}</div>
         <details class="format-template" ${formatDraft.template ? 'open' : ''}>
             <summary>Mall för anteckningens innehåll (valfri)</summary>
-            <p class="routing-source-meta">Tom mall = fälten som <b>Etikett:</b> värde och avsnitten som rubriker. Frontmatter (id, typ, tnr, tider, avsändare och fälten) skrivs alltid.</p>
+            <p class="routing-source-meta">Tom mall = fälten som <b>Etikett:</b> värde och avsnitten som rubriker, med frontmatter (id, typ, tnr, tider, avsändare och fälten) först. Börjar mallen med <code>---</code> skriver den hela anteckningen, frontmatter också — så gör startpunkterna från de inbyggda formaten.</p>
             <textarea id="format-template" rows="6" class="mono" oninput="formatDraftInput(this)">${escapeHtml(formatDraft.template)}</textarea>
             <ul class="format-vars">${vars}</ul>
         </details>

@@ -336,3 +336,56 @@ class UnknownFormEndToEndTest(_Env):
         self.assertTrue(data["success"])
         self.assertIn("format_error", data)
         self.assertEqual(data["form"]["name"], "8-Line Spot Report")
+
+
+# Constructed (not captured from a device): the shape ATAK docs describe for 911.
+EMERGENCY = """<?xml version="1.0" encoding="UTF-8"?>
+<event version="2.0" uid="EMERGENCY-ANDROID-a1b2c3d4e5f6" type="b-a-o-tbl" time="2026-09-24T14:45:00Z"
+       start="2026-09-24T14:45:00Z" stale="2026-09-24T15:45:00Z" how="m-g">
+  <point lat="59.330100" lon="18.062300" hae="12.0" ce="3.0" le="3.0" />
+  <detail>
+    <contact callsign="ALPHA-1" endpoint="192.168.1.50:4242:tcp"/>
+    <emergency cancel="false" type="911" description="Troops In Contact / Under Beskjutning">
+      <alertOriginator uid="ANDROID-a1b2c3d4e5f6"/>
+    </emergency>
+    <status battery="72"/>
+    <remarks>Sökt skydd vid byggnad. Beskjutning från nordväst.</remarks>
+  </detail>
+</event>"""
+
+
+class EmergencyTest(_Tz):
+    def test_the_alarm_is_read_as_a_form(self):
+        cot = cot_to_inbound(EMERGENCY)
+        self.assertEqual(cot.custom_report_name, "Nödlarm")
+        self.assertEqual(
+            cot.custom_report,
+            {
+                "Larmtyp": "911",
+                "Beskrivning": "Troops In Contact / Under Beskjutning",
+                "Avbrutet": "nej",
+                "Larmat av": "ANDROID-a1b2c3d4e5f6",
+            },
+        )
+
+    def test_atak_style_alarm_and_cancel(self):
+        alarm = cot_to_inbound(
+            '<event uid="a" type="b-a-o-tbl" time="2026-09-24T14:45:00Z"><point lat="59" lon="18"/>'
+            '<detail><emergency type="911 Alert">ALPHA-1</emergency></detail></event>'
+        )
+        cancel = cot_to_inbound(
+            '<event uid="a" type="b-a-o-can" time="2026-09-24T14:50:00Z"><point lat="59" lon="18"/>'
+            '<detail><emergency cancel="true">ALPHA-1</emergency></detail></event>'
+        )
+        self.assertEqual(alarm.custom_report, {"Larmtyp": "911 Alert", "Avbrutet": "nej", "Larmat av": "ALPHA-1"})
+        self.assertEqual(cancel.custom_report["Avbrutet"], "ja")
+
+    def test_the_alarm_shows_in_the_note_text_and_passes_the_reports_only_filter(self):
+        from oden.tak.listener import InboundFilter, render_message
+
+        cot = cot_to_inbound(EMERGENCY)
+        observation = render_message(cot)[0]
+        self.assertIn("Larmtyp: 911", observation)
+        self.assertIn("Beskrivning: Troops In Contact / Under Beskjutning", observation)
+        self.assertTrue(render_message(cot, {"unknown_forms": "form_header"})[0].startswith("Nödlarm\n"))
+        self.assertTrue(InboundFilter({"inbound_reports_only": True}).accept(cot))
