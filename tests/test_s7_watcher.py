@@ -11,6 +11,18 @@ from oden.signal_listener import (
 )
 from oden.signal_manager import SignalManager, build_signal_cli_command, is_signal_cli_running
 
+# The lifecycle starts the hourly retention cleanup; tests must never prune (or
+# create) the real ~/.oden/config.db.
+_retention_patch = patch("oden.retention_db.run_retention_loop", new=AsyncMock())
+
+
+def setUpModule():
+    _retention_patch.start()
+
+
+def tearDownModule():
+    _retention_patch.stop()
+
 
 def _startup_config(**overrides):
     """What reload_config() returns in main(); main() never touches a real ~/.oden in tests."""

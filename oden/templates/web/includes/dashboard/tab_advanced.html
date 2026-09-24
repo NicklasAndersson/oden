@@ -1,4 +1,4 @@
-{#- Tab: Avancerat (loggning, retention) — signal-cli och Signal-protokoll ligger i Signal-fliken -#}
+{#- Tab: Avancerat (loggning, lagring/retention, hemkatalog) -#}
 <div id="tab-advanced" class="tab-content">
     <form id="config-form-advanced" class="config-form">
         <div class="config-section">
@@ -14,11 +14,33 @@
                     </select>
                     <span class="help-text">Detaljnivå för loggning. DEBUG ger mest information, ERROR ger minst</span>
                 </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>💾 Lagring</h3>
+            <p class="help-paragraph">
+                Allt som kommer in — från Signal och TAK — sparas rått i databasen (det är det Flöde visar), tillsammans
+                med pipeline-körningarna. Äldre data rensas vid start och sedan varje timme. Filerna i valvet rörs aldrig.
+            </p>
+            <div class="config-grid">
                 <div class="config-field">
-                    <label for="cfg-raw-retention-days">Retention (dagar)</label>
+                    <label for="cfg-raw-retention-days">Spara i (dagar)</label>
                     <input type="number" id="cfg-raw-retention-days" name="raw_message_retention_days" min="1" max="3650" placeholder="30">
-                    <span class="help-text">Rensa råmeddelanden och pipeline-events äldre än detta antal dagar</span>
+                    <span class="help-text">Meddelanden, pipeline-körningar och händelser äldre än så tas bort</span>
                 </div>
+                <div class="config-field">
+                    <label for="cfg-raw-max-mb">Max storlek (MB)</label>
+                    <input type="number" id="cfg-raw-max-mb" name="raw_message_max_mb" min="0" max="1000000" placeholder="0">
+                    <span class="help-text">Blir de råa meddelandena större tas de äldsta bort först. 0 = ingen gräns. TAK-bilagor ligger inbäddade och tar plats</span>
+                </div>
+                <div class="config-field full-width">
+                    <label>Just nu</label>
+                    <div id="storage-status" class="runtime-status">Laddar…</div>
+                </div>
+            </div>
+            <div class="config-actions">
+                <button type="button" class="btn btn-secondary" onclick="runStorageCleanup()">Rensa nu</button>
             </div>
         </div>
 

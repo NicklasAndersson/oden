@@ -43,6 +43,8 @@ from oden.web_handlers.config_handlers import (
     oden_home_handler,
     signal_config_handler,
     signal_config_save_handler,
+    storage_cleanup_handler,
+    storage_handler,
 )
 from oden.web_handlers.contact_handlers import (
     contacts_handler,
@@ -256,6 +258,8 @@ def create_app() -> web.Application:
     app.router.add_post("/api/config-save", config_save_handler)
     app.router.add_delete("/api/config/reset", config_reset_handler)
     app.router.add_get("/api/oden-home", oden_home_handler)
+    app.router.add_get("/api/storage", storage_handler)
+    app.router.add_post("/api/storage/cleanup", storage_cleanup_handler)
     app.router.add_post("/api/oden-home", oden_home_change_handler)
     app.router.add_post("/api/signal-cli/restart", restart_signal_cli_handler)
     app.router.add_get("/api/signal-cli/status", signal_cli_status_handler)

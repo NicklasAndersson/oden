@@ -69,6 +69,7 @@ Läsningar faller tillbaka till `DEFAULT_CONFIG` i [config_db.py](../oden/config
 | `enabled_pipelines` | json | se källa | Ordnad lista med aktiva pipelines |
 | `pipeline_settings` | json | se källa | Per-pipeline-konfiguration |
 | `raw_message_retention_days` | int | `30` | Fönster för automatisk rensning |
+| `raw_message_max_mb` | int | `0` | Max storlek på lagrade råmeddelanden i MB; äldsta tas bort först. `0` = ingen gräns |
 | `signal_typing_indicators` | bool | `false` | |
 | `signal_link_previews` | bool | `false` | |
 | `signal_unidentified_delivery_indicators` | bool | `false` | |
@@ -113,15 +114,25 @@ Primärnyckel: `(group_id, account)` — stöder multi-account.
 
 *(Tillagd i schema v5 — kräver `db_first_enabled = true`)*
 
-Varje inkommande Signal-envelope lagras oförändrad innan pipeline-bearbetning.
+Varje inkommande meddelande lagras oförändrat innan pipeline-bearbetning — från
+**Signal** och från **TAK**. TAK-händelser (CoT-strömmen och data-paket från
+serverns filarkiv) som klarar inkommande-filtren görs om till ett Signal-likt
+kuvert (`oden/tak/listener.py`, `build_envelope`) och går sedan samma väg genom
+pipelinekedjan. Det är den här tabellen fliken **Flöde** visar.
+
+| | Signal | TAK |
+| --- | --- | --- |
+| `account` | Kontot som tog emot meddelandet | Det konfigurerade Signal-numret (platshållaren `+46XXXXXXXXX` om Oden körs utan Signal) — säger inget om källan |
+| `source_number` | Avsändarens nummer | `tak:<enhets-id>` — så känns TAK igen |
+| `envelope_raw` | signal-cli:s JSON | `{"envelope": {..., "_source": "tak", ...}}`; bilagor ligger inbäddade som base64 |
 
 | Kolumn | Typ | Notering |
 | --- | --- | --- |
 | `id` | INTEGER PK AUTOINCREMENT | `message_id` som används i nedströms-tabeller |
-| `account` | TEXT | Signal-kontonummer |
+| `account` | TEXT | Signal-kontonummer (se ovan för TAK) |
 | `timestamp_utc` | TEXT | ISO-8601 UTC från Signal-envelope |
 | `envelope_raw` | TEXT | Full JSON-envelope |
-| `source_number` | TEXT | Avsändarens telefonnummer |
+| `source_number` | TEXT | Avsändarens telefonnummer, eller `tak:<enhets-id>` |
 | `source_name` | TEXT | Avsändarens visningsnamn |
 | `group_id` | TEXT | Signal-grupp-ID (nullable för DM) |
 | `group_name` | TEXT | Gruppnamn vid mottagningstillfället |
@@ -140,7 +151,7 @@ Varje inkommande Signal-envelope lagras oförändrad innan pipeline-bearbetning.
 - `idx_raw_messages_account_ts` på `(account, timestamp_utc DESC)`
 - `idx_raw_messages_status` på `(status)`
 
-Rensas av `retention_db.cleanup_old_data()` baserat på `raw_message_retention_days`.
+Rensas av `retention_db` enligt `raw_message_retention_days` och `raw_message_max_mb` — se [Retention](#retention-datarensning).
 
 ---
 
@@ -191,12 +202,26 @@ Strukturerad händelselogg per pipeline-körning — endast append.
 
 ## Retention (datarensning)
 
-`retention_db.cleanup_old_data(db_path, retention_days)` körs schemalagt och raderar:
+**När:** `retention_db.run_retention_loop()` startas av Odens livscykel
+(`s7_watcher._run_lifecycle`) och kör rensningen **direkt vid start och sedan en
+gång i timmen** (`RETENTION_INTERVAL_SECONDS = 3600`), i en egen tråd. Den är
+oberoende av Signal, så även en installation som bara kör TAK rensas. Knappen
+**Rensa nu** under *Avancerat → Lagring* (`POST /api/storage/cleanup`) kör den
+direkt med de sparade inställningarna.
+
+**Vad:** `cleanup_old_data(db_path, retention_days, max_mb)` raderar i en transaktion:
 
 1. `pipeline_events` äldre än cutoff (via `occurred_at`)
-2. `pipeline_events` vars parent `pipeline_run` tillhör ett gammalt `raw_message`
-3. `pipeline_runs` vars `raw_message` är äldre än cutoff
-4. `raw_messages` äldre än cutoff (via `created_at`)
+2. `raw_messages` äldre än cutoff (via `created_at`) med deras `pipeline_runs` och `pipeline_events`
+3. om `max_mb > 0` och de råa kuverten (`SUM(LENGTH(CAST(envelope_raw AS BLOB)))`)
+   är större: de äldsta `raw_messages` (lägst `id`) med körningar och händelser,
+   tills resten ryms
+
+Därefter körs `VACUUM` om minst 25 % av filen (och minst 8 MB) blivit ledigt,
+så att databasfilen faktiskt krymper. Valvets filer rörs aldrig.
+
+`GET /api/storage` visar antal meddelanden (varav TAK), storlek på rådata och
+databasfil, äldsta meddelande och resultatet av senaste rensningen.
 
 `config`, `metadata`, `responses` och `groups` rensas aldrig av retention-jobbet.
 

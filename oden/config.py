@@ -343,7 +343,7 @@ def reload_config() -> dict:
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
     global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
     global PIPELINE_SETTINGS
-    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS
+    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS, RAW_MESSAGE_MAX_MB
 
     logger.info("Reloading configuration from database")
 
@@ -407,6 +407,7 @@ def reload_config() -> dict:
     )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
+    RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
 
     # Persist and apply the log level so it takes effect immediately
     from oden.log_utils import apply_log_level, write_log_level
@@ -691,6 +692,7 @@ try:
     )
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
+    RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
 
 except Exception as e:
     logger.error("Error loading configuration: %s", e)

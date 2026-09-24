@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Avancerat → Lagring: bestäm hur mycket data som sparas.** Utöver antal dagar (`raw_message_retention_days`) finns nu en storleksgräns i MB (`raw_message_max_mb`, 0 = ingen gräns): blir de råa meddelandena större tas de äldsta bort först. Sektionen visar vad som ligger i databasen (antal meddelanden, varav TAK, storlek, databasfilens storlek, senaste rensningen) och har knappen *Rensa nu*. Nya anrop `GET /api/storage` och `POST /api/storage/cleanup`
 - **TAK: anslut med QR-koden för ATAK eller iTAK.** TAK-fliken har en ny ruta där man klistrar in texten från serverns QR-kod (eller läser in en skärmbild i Chrome/Edge). Enrollment-länken `tak://com.atakmap.app/enroll?host=…&username=…&token=…` fyller i CoT-URL, enrollment-användarnamn och token som enrollment-lösenord; iTAK:s `namn,server,port,protokoll` fyller i serveradressen. Inget sparas förrän man klickar Spara. Nytt API: `POST /api/tak/qr`
 - **TAK: enrollment verifierar servern mot CA:n den skickade.** Servern levererar sin CA-kedja tillsammans med klientcertet; när inget `tls_ca_cert` är satt sparar Oden den som `enrolled-*-ca.pem` och verifierar servern mot den i stället för mot systemets rotcert, som en självsignerad TAK-server aldrig klarar
 
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Råmeddelanden rensades bara när det kom Signal-meddelanden.** Rensningen av `raw_messages` (och pipeline-körningar/händelser) låg i Signal-läsloopen och kördes först efter ett Signal-meddelande, högst en gång i timmen. En installation som bara kör TAK rensades därför aldrig, och TAK-meddelanden med inbäddade bilagor kunde få `config.db` att växa obegränsat. Nu körs rensningen som en egen uppgift direkt vid start och sedan varje timme, oavsett Signal, och databasfilen komprimeras (`VACUUM`) när mycket blivit ledigt
 - **Ett meddelande som inte kunde skrivas till valvet markerades som `processed`.** Reservflödet loggade skrivfelet men rapporterade framgång, så meddelandet gick inte att hitta bland felen och kördes aldrig om. Nu blir körningen `failed` med felet som orsak, och meddelandet kan köras om från Flöde
 
 - **TAK: varje omstart av Oden gjorde nya noter av gamla markörer.** En TAK Server återutsänder allt som är levande, och ATAK kan göra det var tionde sekund, men dedup-skyddet fanns bara i minnet. En omstart läste därför serverns lägesbild som ny: en extra not per levande markör, med kollisionssuffix i filnamnet, och dubbelräkning i analysen. Tillståndet sparas nu i tabellen `tak_inbound_seen` i `config.db` (schema 7), så en omstart känner igen det som redan blivit en not. Poster som inte setts på trettio dygn glöms, och ett databasfel kostar en återimport i stället för en lyssnare som vägrar starta

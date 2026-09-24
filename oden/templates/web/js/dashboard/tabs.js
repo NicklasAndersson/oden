@@ -31,6 +31,7 @@ function showTab(tabName) {
     }
     if (tabName === 'advanced') {
         loadOdenHome();
+        loadStorageStatus();
     }
     if (tabName === 'tak') {
         loadTakStatus();

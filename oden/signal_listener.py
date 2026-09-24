@@ -20,11 +20,9 @@ from oden.messages_db import (
 )
 from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.processing import process_message
-from oden.retention_db import cleanup_old_data
 
 logger = logging.getLogger(__name__)
 
-RETENTION_CLEANUP_INTERVAL_SECONDS = 3600
 GROUPS_CONTACTS_REFRESH_INTERVAL_SECONDS = 900
 
 
@@ -296,7 +294,6 @@ async def subscribe_and_listen(host: str, port: int) -> None:
     writer = None
     app_state = get_app_state()
     orchestrator = PipelineOrchestrator(cfg.CONFIG_DB)
-    last_retention_cleanup_ts = 0.0
     try:
         reader, writer = await asyncio.open_connection(host, port, limit=1024 * 1024 * 100)  # 100 MB limit
         logger.info("Connection successful. Waiting for messages...")
@@ -379,24 +376,6 @@ async def subscribe_and_listen(host: str, port: int) -> None:
                             reader=reader,
                             writer=writer,
                         )
-
-                        now_ts = time.monotonic()
-                        if now_ts - last_retention_cleanup_ts >= RETENTION_CLEANUP_INTERVAL_SECONDS:
-                            summary = cleanup_old_data(cfg.CONFIG_DB, cfg.RAW_MESSAGE_RETENTION_DAYS)
-                            total_deleted = (
-                                summary["deleted_raw_messages"]
-                                + summary["deleted_pipeline_runs"]
-                                + summary["deleted_pipeline_events"]
-                            )
-                            if total_deleted:
-                                logger.info(
-                                    "Retention cleanup removed raw=%d runs=%d events=%d (days=%d)",
-                                    summary["deleted_raw_messages"],
-                                    summary["deleted_pipeline_runs"],
-                                    summary["deleted_pipeline_events"],
-                                    summary["retention_days"],
-                                )
-                            last_retention_cleanup_ts = now_ts
                     else:
                         # Fallback path if DB persistence failed.
                         await process_message(msg_data, reader, writer)

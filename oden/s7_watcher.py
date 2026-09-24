@@ -49,6 +49,7 @@ async def _run_lifecycle(
     asyncio events stored on AppState.  The web server persists
     across stop/start cycles so the GUI is always reachable.
     """
+    from oden.retention_db import run_retention_loop
     from oden.signal_log_monitor import monitor_signal_cli_log
     from oden.tak.bridge import start_tak_bridge, stop_tak_bridge
     from oden.web_server import start_web_server
@@ -80,6 +81,9 @@ async def _run_lifecycle(
 
     # TAK bridge — no-op unless tak_settings.enabled; runs for the whole lifetime
     await start_tak_bridge()
+
+    # Retention: at startup and hourly, whether or not Signal runs (TAK-only too)
+    retention_task = asyncio.create_task(run_retention_loop(quit_event))
 
     try:
         if not signal_enabled:
@@ -158,6 +162,10 @@ async def _run_lifecycle(
     except asyncio.CancelledError:
         logger.info("Lifecycle cancelled.")
     finally:
+        retention_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await retention_task
+
         await stop_tak_bridge()
 
         if log_monitor_task is not None and not log_monitor_task.done():

@@ -52,6 +52,19 @@ class TestConfigSave(AioHTTPTestCase):
         self.assertFalse(data["success"])
         self.assertIn("raw_message_retention_days", data["error"])
 
+    async def test_save_invalid_max_mb_rejected(self):
+        """The storage limit must be 0 (no limit) or a positive number of MB."""
+        resp = await self.client.post(
+            "/api/config-save",
+            json={"signal_number": "+46700000000", "raw_message_retention_days": 30, "raw_message_max_mb": -1},
+        )
+        self.assertEqual(resp.status, 400)
+        self.assertIn("raw_message_max_mb", (await resp.json())["error"])
+
+    async def test_config_returns_max_mb(self):
+        data = await (await self.client.get("/api/config")).json()
+        self.assertIsInstance(data["raw_message_max_mb"], int)
+
     async def test_save_diagnostic_mode(self):
         """Verify diagnostic mode can be persisted via /api/config-save."""
         save_resp = await self.client.post(

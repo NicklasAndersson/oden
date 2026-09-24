@@ -34,7 +34,8 @@ async function _doAutoSave() {
         unmanaged_signal_cli: document.getElementById('cfg-unmanaged').checked,
         log_level: document.getElementById('cfg-log-level').value,
         diagnostic_mode: document.getElementById('cfg-diagnostic-mode').checked,
-        raw_message_retention_days: parseInt(document.getElementById('cfg-raw-retention-days').value) || 30
+        raw_message_retention_days: parseInt(document.getElementById('cfg-raw-retention-days').value) || 30,
+        raw_message_max_mb: Math.max(0, parseInt(document.getElementById('cfg-raw-max-mb').value) || 0)
     };
 
     try {
