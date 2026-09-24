@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Välj fil… för TAK-certifikaten.** Klientcertifikat (`.p12`/`.pfx`/PEM), separat nyckelfil och server-CA har nu en filväljare, som data package-fältet redan hade. Filen laddas upp till `ODEN_HOME/tak/` (`0600`), kontrolleras så att t.ex. ett certifikat inte läggs i nyckelfältet, och fältet fylls i med sökvägen. Nytt anrop `POST /api/tak/upload-cert?kind=client_cert|client_key|ca_cert`
+
 ### Fixed
 
 - **TAK: fält med samma namn tappas inte längre.** Ett formulär med flera värden under samma namn behöll bara det första; nu numreras de (`vehicle`, `vehicle 2`, …). Ett upprepat identiskt värde tas bara med en gång

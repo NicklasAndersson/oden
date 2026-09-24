@@ -133,6 +133,30 @@ async function uploadTakPackage(input) {
     }
 }
 
+// Klientcertifikat, nyckel och server-CA: the browser cannot give Oden a file's
+// path, so the file is uploaded to ODEN_HOME/tak and the field gets that path.
+async function uploadTakCert(input, kind, targetId) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const body = new FormData();
+    body.append('file', file);
+    try {
+        const response = await fetch(`/api/tak/upload-cert?kind=${encodeURIComponent(kind)}`, {method: 'POST', body: body});
+        const result = await response.json();
+        if (result.success) {
+            document.getElementById(targetId).value = result.path;
+            showConfigMessage(`${file.name} uppladdad — klicka Spara för att använda den`, 'success');
+        } else {
+            showConfigMessage(result.error || 'Uppladdning misslyckades', 'error');
+        }
+    } catch (e) {
+        showConfigMessage('Uppladdning misslyckades', 'error');
+    } finally {
+        input.value = '';  // allow re-picking the same file
+    }
+}
+
 async function sendTakTest() {
     const mgrs = document.getElementById('tak-test-mgrs').value.trim();
     if (!mgrs) {

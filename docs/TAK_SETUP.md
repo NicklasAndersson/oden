@@ -81,6 +81,11 @@ Har du en data package: klicka **Välj fil…** vid `pref_package`. Zip:en ladda
 upp till `ODEN_HOME/tak/` (rättigheter `0600`) och sökvägen fylls i automatiskt.
 Du kan också skriva sökvägen direkt om filen redan ligger på Oden-värden.
 
+Har du lösa filer i stället: **Välj fil…** finns också vid klientcertifikat
+(`.p12`/`.pfx` eller PEM), separat nyckelfil (PEM) och server-CA (PEM). Filen
+laddas upp till `ODEN_HOME/tak/` (`0600`), kontrolleras (ett cert ska vara ett
+cert, en nyckel en nyckel) och fältet fylls i med sökvägen; klicka **Spara**.
+
 Alternativt från skript (inställningarna lagras som `tak_settings` i config-db):
 
 ```python

@@ -105,15 +105,27 @@
             <div class="config-grid">
                 <div class="config-field full-width">
                     <label for="tak-client-cert">Klientcertifikat (.p12 eller .pem)</label>
-                    <input type="text" id="tak-client-cert" name="tls_client_cert" placeholder="~/.config/oden/tak/oden.p12">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="tak-client-cert" name="tls_client_cert" placeholder="~/.config/oden/tak/oden.p12" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('tak-client-cert-file').click()">Välj fil…</button>
+                        <input type="file" id="tak-client-cert-file" accept=".p12,.pfx,.pem,.crt" style="display: none;" onchange="uploadTakCert(this, 'client_cert', 'tak-client-cert')">
+                    </div>
                 </div>
                 <div class="config-field">
                     <label for="tak-client-key">Separat nyckelfil (PEM)</label>
-                    <input type="text" id="tak-client-key" name="tls_client_key" placeholder="lämna tom om certet innehåller nyckeln">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="tak-client-key" name="tls_client_key" placeholder="lämna tom om certet innehåller nyckeln" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('tak-client-key-file').click()">Välj fil…</button>
+                        <input type="file" id="tak-client-key-file" accept=".pem,.key" style="display: none;" onchange="uploadTakCert(this, 'client_key', 'tak-client-key')">
+                    </div>
                 </div>
                 <div class="config-field">
                     <label for="tak-ca-cert">Server-CA (PEM)</label>
-                    <input type="text" id="tak-ca-cert" name="tls_ca_cert" placeholder="~/.config/oden/tak/ca.pem">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="tak-ca-cert" name="tls_ca_cert" placeholder="~/.config/oden/tak/ca.pem" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('tak-ca-cert-file').click()">Välj fil…</button>
+                        <input type="file" id="tak-ca-cert-file" accept=".pem,.crt,.cer" style="display: none;" onchange="uploadTakCert(this, 'ca_cert', 'tak-ca-cert')">
+                    </div>
                 </div>
                 <div class="config-field full-width">
                     <label for="tak-password-env">Miljövariabel för certlösenord</label>

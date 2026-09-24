@@ -262,6 +262,70 @@ async def tak_qr_handler(request: web.Request) -> web.Response:
     return web.json_response({"success": True, "kind": qr.kind, "fields": fields, "message": qr.summary()})
 
 
+MAX_CERT_BYTES = 256 * 1024  # a cert, key or CA chain is a few KB
+
+# kind → (settings field it fills, accepted extensions, what the content must look like)
+_CERT_KINDS: dict[str, tuple[str, tuple[str, ...], str]] = {
+    "client_cert": ("tls_client_cert", (".p12", ".pfx", ".pem", ".crt"), "ett klientcertifikat (.p12 eller PEM)"),
+    "client_key": ("tls_client_key", (".pem", ".key"), "en privat nyckel i PEM"),
+    "ca_cert": ("tls_ca_cert", (".pem", ".crt", ".cer"), "ett CA-certifikat i PEM"),
+}
+
+
+def _looks_like(kind: str, filename: str, blob: bytes) -> bool:
+    """Cheap sanity check, so a wrong file is caught at upload rather than as a failed connect."""
+    if kind == "client_cert" and filename.lower().endswith((".p12", ".pfx")):
+        return blob[:1] == b"\x30"  # PKCS#12 is DER: an ASN.1 SEQUENCE
+    if kind == "client_key":
+        return b"PRIVATE KEY-----" in blob
+    return b"-----BEGIN CERTIFICATE-----" in blob
+
+
+@handle_errors("upload TAK certificate")
+async def tak_upload_cert_handler(request: web.Request) -> web.Response:
+    """Store an uploaded client certificate, key or server CA under ODEN_HOME/tak.
+
+    The browser cannot hand over a file's real path, so "Välj fil…" uploads the
+    file and the field gets the stored path, exactly like the data package.
+    Private key material: the file lands 0600 in the 0700 TAK directory.
+    ``?kind=`` is ``client_cert``, ``client_key`` or ``ca_cert``.
+    """
+    kind = request.query.get("kind", "")
+    if kind not in _CERT_KINDS:
+        return web.json_response({"success": False, "error": "Okänd filtyp"}, status=400)
+    setting, extensions, what = _CERT_KINDS[kind]
+
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "file":
+        return web.json_response({"success": False, "error": "Ingen fil skickades"}, status=400)
+
+    filename = Path(field.filename or "").name
+    stem, dot, ext = filename.rpartition(".")
+    ext = f".{ext.lower()}" if dot else ""
+    if ext not in extensions:
+        return web.json_response(
+            {"success": False, "error": f"Filen ska vara {' / '.join(extensions)} – {what}"}, status=400
+        )
+
+    blob = b""
+    while chunk := await field.read_chunk():
+        blob += chunk
+        if len(blob) > MAX_CERT_BYTES:
+            return web.json_response({"success": False, "error": "Filen är för stor (max 256 KB)"}, status=413)
+    if not _looks_like(kind, filename, blob):
+        return web.json_response({"success": False, "error": f"Filen ser inte ut som {what}"}, status=400)
+
+    dest_dir = tak_dir()
+    dest_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    dest = dest_dir / f"{kind.replace('_', '-')}-{sanitize_token(stem, max_len=64)}{ext}"
+    dest.write_bytes(blob)
+    dest.chmod(0o600)
+
+    logger.info("TAK: %s sparad till %s (%d bytes)", kind, dest, len(blob))
+    return web.json_response({"success": True, "path": str(dest), "field": setting})
+
+
 @handle_errors("upload tak package")
 async def tak_upload_package_handler(request: web.Request) -> web.Response:
     """Store an uploaded ATAK data package under ODEN_HOME/tak and return its path.
