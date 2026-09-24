@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **TAK: `.p12` utan lösenord.** Var klientcertifikatet en `.p12` och inget certlösenord satt kraschade anslutningen i pytak med `TypeError: descriptor 'encode' for 'str' objects doesn't apply to a 'NoneType' object`. Nu öppnar Oden en `.p12` utan lösenord själv och ger pytak cert och nyckel som PEM (i `ODEN_HOME/tak/`, `0600`); är den lösenordsskyddad blir felet i klartext och säger vilken miljövariabel som ska sättas
 - **TAK: fält med samma namn tappas inte längre.** Ett formulär med flera värden under samma namn behöll bara det första; nu numreras de (`vehicle`, `vehicle 2`, …). Ett upprepat identiskt värde tas bara med en gång
 - **TAK: rutter (`b-m-r`) blir formuläret *Rutt* med alla punkter.** Waypointerna samlas i ordning som `Punkter: START POINT → CP 1 → OBJ BRAVO`, oavsett om de ligger i `<route>` eller direkt under `<detail>`. Tidigare fick rutten namnet ”Strokeweight” (linjetjockleken togs för rapporten), bara den första punkten kom med, och en waypoint kunde tas för ruttens skapare. Visningstaggar (`strokeWeight`, `strokeStyle` m.fl.) kan inte längre bli ett formulärs namn. Rutter släpps inte igenom av standardfiltret — lägg till `b-m-r` i `inbound_types` för att ta emot dem
 

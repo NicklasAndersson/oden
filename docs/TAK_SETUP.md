@@ -86,6 +86,11 @@ Har du lösa filer i stället: **Välj fil…** finns också vid klientcertifika
 laddas upp till `ODEN_HOME/tak/` (`0600`), kontrolleras (ett cert ska vara ett
 cert, en nyckel en nyckel) och fältet fylls i med sökvägen; klicka **Spara**.
 
+En `.p12` utan lösenord fungerar direkt (Oden gör om den till PEM åt pytak). Är
+den lösenordsskyddad måste lösenordet finnas i miljövariabeln under
+**Miljövariabel för certlösenord** (standard `ODEN_TAK_CERT_PASSWORD`) när Oden
+startar; annars säger TAK-fliken det under *Senaste fel*.
+
 Alternativt från skript (inställningarna lagras som `tak_settings` i config-db):
 
 ```python
