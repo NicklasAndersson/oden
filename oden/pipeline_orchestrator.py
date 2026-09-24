@@ -35,6 +35,15 @@ from oden.pipelines_db import (
     start_pipeline_run,
 )
 from oden.processing import process_message
+from oden.routing import (
+    ROUTER,
+    branch_by_id,
+    branch_steps,
+    load_routing,
+    reset_step_config,
+    resolve_branch,
+    set_step_config,
+)
 from oden.tak.bridge import get_tak_bridge
 
 logger = logging.getLogger(__name__)
@@ -93,38 +102,42 @@ class PipelineOrchestrator:
             "scrim": ScrimPipeline(),
             "generic_template": _GenericPipeline(),
         }
-        self._cached_config: tuple[list, bool] | None = None
-        self._cached_pipelines: list[Any] = []
+        self._step_configs: dict[str, dict[str, Any]] = {}
 
-    def _build_pipelines(self) -> list[Any]:
-        config: list = cfg.ENABLED_PIPELINES or [
-            "group_filter",
-            "seven_s",
-            "fors",
-            "pedars",
-            "scrim",
-            "generic_template",
-        ]
-        # ponytail: rebuilds on ENABLED_PIPELINES reassignment or the TAK bridge
-        # appearing/disappearing (the TAK tab reconnects it live, with new settings).
+    def _publish_to_tak(self) -> bool:
+        # tak_publish writes to TAK; Oden collects by default, so it only runs
+        # when the operator turned on publish_reports in the TAK tab.
         bridge = get_tak_bridge()
-        publish_to_tak = bridge is not None and bool(getattr(bridge, "settings", {}).get("publish_reports"))
-        cache_key = (config, publish_to_tak)
-        if cache_key != self._cached_config:
-            names = list(config)
-            # tak_publish is a non-consuming side-effect pipeline that writes to
-            # TAK. Oden collects by default, so it only runs when the operator has
-            # turned on publish_reports in the TAK tab — then first in the chain.
-            # generic_template is the fallback at the end.
-            names = [n for n in names if n != "tak_publish"]
-            if publish_to_tak:
-                names.insert(0, "tak_publish")
-            if "generic_template" not in names:
-                names.append("generic_template")
-            selected = [self._pipeline_map[n] for n in names if n in self._pipeline_map]
-            self._cached_pipelines = selected or [self._pipeline_map["generic_template"]]
-            self._cached_config = cache_key
-        return self._cached_pipelines
+        return bridge is not None and bool(getattr(bridge, "settings", {}).get("publish_reports"))
+
+    def _build_pipelines(self, branch: dict[str, Any] | None = None) -> list[Any]:
+        """The pipelines that run in ``branch`` (default: the routing's standard branch), in order.
+
+        Also records each step's config overrides in ``self._step_configs`` for run_message.
+        """
+        if branch is None:
+            routing = load_routing(cfg)
+            branch = branch_by_id(routing, routing["default"]) or routing["branches"][0]
+        steps = branch_steps(branch, publish_to_tak=self._publish_to_tak())
+        self._step_configs = {s["pipeline"]: s.get("config") or {} for s in steps}
+        return [self._pipeline_map[s["pipeline"]] for s in steps if s["pipeline"] in self._pipeline_map]
+
+    def _record_route(self, message_id: int, branch: dict[str, Any], reason: str) -> None:
+        """The vägval as the first run of the attempt, so Flöde and stats see it like any step."""
+        run_id = start_pipeline_run(self._db_path, message_id, ROUTER)
+        complete_pipeline_run(self._db_path, run_id)
+        append_pipeline_event(
+            self._db_path,
+            run_id,
+            "pipeline_completed",
+            {
+                "pipeline": ROUTER,
+                "reason": reason,
+                "branch": branch["id"],
+                "branch_name": branch["name"],
+                "ignore": bool(branch.get("ignore")),
+            },
+        )
 
     async def run_message(
         self,
@@ -137,15 +150,44 @@ class PipelineOrchestrator:
         """Run configured pipelines for one message.
 
         Current behavior:
-        - Runs configured pipelines in order from ENABLED_PIPELINES
-        - First pipeline that handles the message ends the chain
+        - Vägval first: the message's source picks a branch (recorded as a
+          ``router`` run); an ignore branch stops here with status ignored
+        - Then the branch's enabled steps in order, each with its own config
+          overrides (routing.step_settings); first pipeline that handles it wins
         - Tracks run state/events in pipeline tables
         - Updates raw message status to processed/failed
         """
         update_message_status(self._db_path, message_id, STATUS_PROCESSING)
+
+        routing = load_routing(cfg)
+        branch, route_reason = resolve_branch(routing, msg_data)
+        self._record_route(message_id, branch, route_reason)
+        if branch.get("ignore"):
+            update_message_status(self._db_path, message_id, STATUS_IGNORED)
+            return
+
+        # Each step sets its own config overrides; the outer token puts the
+        # caller's context back however the steps end.
+        token = set_step_config({})
+        try:
+            await self._run_steps(message_id, msg_data, reader, writer, branch)
+        finally:
+            reset_step_config(token)
+
+    async def _run_steps(
+        self,
+        message_id: int,
+        msg_data: dict[str, Any],
+        reader: Any,
+        writer: Any,
+        branch: dict[str, Any],
+    ) -> None:
+        """Run the branch's steps; first one that handles the message wins."""
         had_pipeline_failure = False
-        for pipeline in self._build_pipelines():
+        self._step_configs: dict[str, dict[str, Any]] = {}
+        for pipeline in self._build_pipelines(branch):
             _reset_run_attrs(pipeline)
+            set_step_config(self._step_configs.get(pipeline.name))
             run_id = start_pipeline_run(self._db_path, message_id, pipeline.name)
             append_pipeline_event(
                 self._db_path,

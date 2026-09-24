@@ -299,6 +299,29 @@ def _migrate_settings_to_pipelines(app_config: dict) -> None:
             logger.info("Migrated settings to generic_template pipeline configuration")
 
 
+def _migrate_routing(app_config: dict) -> None:
+    """Store the routing (branches) once, derived from the old chain + group filter.
+
+    Same outcome as before for every message; ``enabled_pipelines`` and the
+    group filter settings are kept untouched so a downgrade still works, but
+    from here on the routing is what runs and what the GUI edits.
+    """
+    if isinstance(app_config.get("routing"), dict) and app_config["routing"].get("branches"):
+        return
+    from oden.config_db import set_config_value
+    from oden.routing import derive_from_legacy
+
+    routing = derive_from_legacy(app_config.get("enabled_pipelines"), app_config.get("pipeline_settings"))
+    app_config["routing"] = routing
+    set_config_value(CONFIG_DB, "routing", routing)
+    logger.info(
+        "Migrerade pipelinekedjan till grenar: %s (standard: %s, %d tilldelade källor)",
+        ", ".join(b["name"] for b in routing["branches"]),
+        routing["default"],
+        len(routing["assign"]),
+    )
+
+
 def _migrate_enabled_pipelines(app_config: dict) -> None:
     """Ensure new built-in pipelines appear in the default execution order."""
     enabled = list(app_config.get("enabled_pipelines") or [])
@@ -343,7 +366,7 @@ def reload_config() -> dict:
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
     global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
     global PIPELINE_SETTINGS
-    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS, RAW_MESSAGE_MAX_MB
+    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS, RAW_MESSAGE_MAX_MB, ROUTING
 
     logger.info("Reloading configuration from database")
 
@@ -358,6 +381,7 @@ def reload_config() -> dict:
     # Migrate old settings to pipeline configuration if needed
     _migrate_settings_to_pipelines(app_config)
     _migrate_enabled_pipelines(app_config)
+    _migrate_routing(app_config)
 
     VAULT_PATH = app_config["vault_path"]
     SIGNAL_NUMBER = app_config.get("signal_number") or ""
@@ -408,6 +432,7 @@ def reload_config() -> dict:
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
     RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
+    ROUTING = app_config.get("routing")
 
     # Persist and apply the log level so it takes effect immediately
     from oden.log_utils import apply_log_level, write_log_level
@@ -693,6 +718,7 @@ try:
     PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
     RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
     RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
+    ROUTING = app_config.get("routing")
 
 except Exception as e:
     logger.error("Error loading configuration: %s", e)
@@ -728,3 +754,4 @@ except Exception as e:
     ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
     PIPELINE_SETTINGS = {"group_filter": {"mode": "blacklist", "groups": []}}
     RAW_MESSAGE_RETENTION_DAYS = 30
+    ROUTING = None

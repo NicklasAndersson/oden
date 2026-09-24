@@ -134,15 +134,16 @@ ATAK/iTAK-QR-kod, ett konfigformulär och en knapp för att skicka en testmarkö
 
 #### Pipelines
 
-Pipelines-fliken visar hur meddelanden routas i DB-first-flödet och låter dig styra vilka pipelines som körs.
+Pipelines-fliken styr vart meddelandena tar vägen: varje källa går till en
+**gren**, och i grenen körs stegen i ordning. Se [PIPELINES.md](PIPELINES.md).
 
 | Funktion | Beskrivning |
 |----------|-------------|
-| **Aktiva pipelines** | Visar nuvarande körordning för aktiva pipelines |
-| **Urvalslogik** | Visar textbeskrivning av hur varje pipeline väljer meddelanden |
-| **Aktivera/Inaktivera** | Slå av/på en pipeline direkt från GUI |
-| **Ändra ordning** | Flytta pipeline upp/ner i körordning |
-| **Körningsräknare** | Visar antal historiska körningar per pipeline |
+| **Vägval** | Varje källa (TAK, direktmeddelanden, grupper) med vald gren och antal senaste 24 h; grupper med trafik utan egen gren markeras |
+| **Standardgren** | Dit allt som inte tilldelats går |
+| **Grenar** | Skapa (vanlig eller ignorera), byta namn, ta bort |
+| **Steg per gren** | På/av, ordning, lägg till/ta bort, egen undermapp i grenen |
+| **Grundinställningar** | Det som gäller i alla grenar: standardundermapp, rapportmallar, bekräftelser |
 
 
 #### Mallar (Template-editor)
@@ -284,10 +285,12 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
-| GET | `/api/pipelines` | Lista tillgängliga pipelines, aktiva pipelines och körningsstatistik |
-| PATCH | `/api/pipelines/{name}/enabled` | Aktivera/inaktivera en pipeline |
+| GET | `/api/routing` | Vägval och grenar, källor med gren och antal senaste 24 h, möjliga steg |
+| PUT | `/api/routing` | Spara vägval och grenar (`{"routing": {...}}`), valideras |
+| GET | `/api/pipelines` | Lista pipelines, grundinställningar och körningsstatistik |
+| PATCH | `/api/pipelines/{name}/enabled` | Den gamla kedjan (`enabled_pipelines`); styr inte längre vad som körs |
 | PATCH | `/api/pipelines/{name}/config` | Uppdatera pipeline-specifik konfiguration |
-| POST | `/api/pipelines/reorder` | Uppdatera körordning för aktiva pipelines |
+| POST | `/api/pipelines/reorder` | Den gamla kedjans ordning; styr inte längre vad som körs |
 
 #### Mallar
 

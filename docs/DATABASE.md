@@ -66,7 +66,8 @@ Läsningar faller tillbaka till `DEFAULT_CONFIG` i [config_db.py](../oden/config
 | `auto_reaction_emoji` | str | `✅` | |
 | `auto_read_receipt_enabled` | bool | `false` | |
 | `db_first_enabled` | bool | `true` | Persista råmeddelanden före bearbetning |
-| `enabled_pipelines` | json | se källa | Ordnad lista med aktiva pipelines |
+| `routing` | json | se källa | Vägval och grenar: källa → gren, stegen per gren. Det som körs — se [PIPELINES.md](PIPELINES.md) |
+| `enabled_pipelines` | json | se källa | Den gamla kedjan; används bara för att skapa `routing` vid uppgradering |
 | `pipeline_settings` | json | se källa | Per-pipeline-konfiguration |
 | `raw_message_retention_days` | int | `30` | Fönster för automatisk rensning |
 | `raw_message_max_mb` | int | `0` | Max storlek på lagrade råmeddelanden i MB; äldsta tas bort först. `0` = ingen gräns |

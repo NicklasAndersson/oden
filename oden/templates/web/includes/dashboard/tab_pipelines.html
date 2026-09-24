@@ -2,31 +2,39 @@
     <div class="pipelines-toolbar">
         <div class="pipelines-toolbar-text">
             <h3>Pipelines</h3>
-            <p>Välj vilka pipelines som är aktiva och i vilken ordning de körs.</p>
+            <p>Varje källa går till en gren. I grenen körs stegen uppifrån och ner — första steg som tar meddelandet vinner.</p>
         </div>
+        <span id="routing-unassigned" class="routing-flag hidden"></span>
         <button class="btn" onclick="loadPipelinesDashboard()">Uppdatera</button>
     </div>
 
-    <div class="pipelines-layout">
-        <div class="pipelines-list-pane">
-            <h4>Aktiva pipelines (körordning)</h4>
-            <div id="pipelines-enabled-list" class="pipelines-list">
-                <div class="empty-state">Laddar aktiva pipelines...</div>
+    <div class="routing-layout">
+        <section class="routing-sources-pane" aria-label="Vägval">
+            <h4>Vägval: källa → gren</h4>
+            <div id="routing-sources" class="routing-sources">
+                <div class="empty-state">Laddar…</div>
             </div>
-        </div>
+            <label class="routing-default">Standardgren (allt som inte tilldelats)
+                <select id="routing-default" onchange="setDefaultBranch(this.value)"></select>
+            </label>
+        </section>
 
-        <div class="pipelines-list-pane">
-            <h4>Tillgängliga pipelines</h4>
-            <div id="pipelines-available-list" class="pipelines-list">
-                <div class="empty-state">Laddar tillgängliga pipelines...</div>
+        <section class="routing-branches-pane" aria-label="Grenar">
+            <div class="routing-branch-bar">
+                <div id="routing-branch-pills" class="subtabs" role="tablist" aria-label="Grenar"></div>
+                <button type="button" class="btn btn-small" onclick="addBranch()">+ Ny gren</button>
             </div>
-        </div>
+            <div id="routing-branch-detail"></div>
+        </section>
     </div>
 
-    <div class="pipelines-footnote">
-        <strong>Notering:</strong> Stöd för flera instanser av samma pipeline med olika inställningar
-        planeras för senare fas.
-    </div>
+    <details class="pipelines-defaults">
+        <summary>Grundinställningar per pipeline</summary>
+        <p class="help-paragraph">Gäller i alla grenar, om inte grenens steg har en egen undermapp.</p>
+        <div id="pipelines-available-list" class="pipelines-list">
+            <div class="empty-state">Laddar…</div>
+        </div>
+    </details>
 
     <div id="generic-template-editor-modal" class="modal-overlay hidden" onclick="closeGenericTemplateEditor(event)">
         <div class="modal-content generic-template-editor-modal-content" onclick="event.stopPropagation()">

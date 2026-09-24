@@ -1207,6 +1207,7 @@ fieldset.signal-only:disabled {
 .flow-marker-handled { background: var(--flow-handled); }
 .flow-marker-ignored { background: var(--flow-ignored); }
 .flow-marker-recv { background: var(--color-accent); }
+.flow-marker-route { background: var(--color-accent); border-radius: 2px; transform: rotate(45deg) scale(0.85); }
 .flow-marker-running { background: var(--color-accent); opacity: 0.6; }
 .flow-marker-failed { background: var(--flow-failed); border-radius: 2px; }
 .flow-marker-skipped { border: 2px solid var(--flow-skipped); }
@@ -1294,6 +1295,7 @@ fieldset.signal-only:disabled {
 .flow-badge-failed { color: var(--flow-failed); background: rgba(255, 123, 114, 0.12); }
 .flow-badge-side { color: var(--flow-side); background: rgba(169, 154, 245, 0.12); }
 .flow-badge-recv { color: var(--color-accent); background: rgba(79, 195, 247, 0.12); }
+.flow-badge-route { color: var(--color-accent); background: rgba(79, 195, 247, 0.12); }
 .flow-badge-skipped,
 .flow-badge-notrun,
 .flow-badge-running { color: var(--color-text-subtle); background: rgba(142, 160, 192, 0.12); }
@@ -1479,4 +1481,120 @@ fieldset.signal-only:disabled {
     display: block;
     width: 100%;
     height: auto;
+}
+
+/* ========== Pipelines: vägval och grenar ========== */
+.routing-layout {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+}
+@media (max-width: 1000px) {
+    .routing-layout { grid-template-columns: 1fr; }
+}
+.routing-sources-pane,
+.routing-branches-pane {
+    padding: 12px 14px;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    min-width: 0;
+}
+.routing-sources-pane h4 { margin: 0 0 8px; }
+.routing-sources { display: flex; flex-direction: column; }
+.routing-source {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+.routing-source select,
+.routing-default select,
+.routing-add-step select {
+    padding: 5px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    max-width: 150px;
+}
+.routing-kind {
+    width: 34px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 0.65em;
+    font-weight: 700;
+    padding: 3px 0;
+    border-radius: 3px;
+    color: #7fd0f2;
+    background: rgba(127, 208, 242, 0.1);
+}
+.routing-kind-tak { color: #f0b77a; background: rgba(240, 183, 122, 0.11); }
+.routing-kind-direct { color: var(--color-text-subtle); background: rgba(142, 160, 192, 0.12); }
+.routing-source-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.9em;
+}
+.routing-source-meta { font-size: 0.78em; color: var(--color-text-subtle); }
+.routing-flag {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 0.75em;
+    color: #f3c46b;
+    background: #3a2c10;
+}
+.routing-default {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+    font-size: 0.85em;
+    color: var(--color-text-subtle);
+}
+.routing-branch-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    justify-content: space-between;
+}
+.routing-branch-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.routing-step-setting {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+.routing-step-setting input {
+    flex: 1;
+    min-width: 180px;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+}
+.routing-add-step {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+}
+.pipelines-defaults summary {
+    cursor: pointer;
+    color: var(--color-accent);
+    margin-bottom: 10px;
 }

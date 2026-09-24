@@ -12,6 +12,7 @@ const FLOW_KIND_LABELS = {
     running: 'Pågår',
     side: 'Sidoeffekt',
     notrun: 'Kördes inte',
+    route: 'Vägval',
 };
 
 // Status chips: key is sent as ?status= (comma-separated for several).
@@ -25,6 +26,11 @@ const FLOW_STATUS_FILTERS = [
 
 let flowItems = [];
 let flowChain = [];
+let flowChains = {};  // branch id → steps that run there (for "not run" markers)
+
+function flowChainFor(item) {
+    return (item && flowChains[item.branch]) || flowChain;
+}
 let flowSummary = null;
 let flowSource = '';
 let flowStatus = '';
@@ -65,7 +71,7 @@ function flowRoute(item) {
     const steps = item.steps || [];
     const ran = new Set(steps.map(step => step.pipeline));
     return steps.map(step => ({ name: step.pipeline, kind: flowStepKind(step) }))
-        .concat(flowChain.filter(name => !ran.has(name)).map(name => ({ name, kind: 'notrun' })));
+        .concat(flowChainFor(item).filter(name => !ran.has(name)).map(name => ({ name, kind: 'notrun' })));
 }
 
 function flowOutcome(item) {
@@ -261,10 +267,14 @@ function renderFlowDetail() {
         let why = step.reason || '';
         if (step.side_effect) why = step.side_effect + (why ? ` ${why}` : '');
         if (step.outcome === 'failed' && step.error) why = step.error;
+        if (step.pipeline === 'router') {
+            trace.push({ name: 'vägval', kind, verdict: `Gren: ${item.branch_name || item.branch || '?'}`, why, warnings: [] });
+            return;
+        }
         trace.push({ name: step.pipeline, kind, verdict: FLOW_KIND_LABELS[kind], why, out: step.output_path, warnings: step.warnings || [] });
     });
     const ran = new Set((item.steps || []).map(s => s.pipeline));
-    const notRun = flowChain.filter(name => !ran.has(name));
+    const notRun = flowChainFor(item).filter(name => !ran.has(name));
     if (notRun.length && (item.steps || []).length) {
         trace.push({ name: notRun.join(', '), kind: 'notrun', verdict: FLOW_KIND_LABELS.notrun, why: 'Kedjan stannar vid första pipeline som hanterar meddelandet.' });
     }
@@ -293,6 +303,7 @@ async function fetchFlow() {
         if (!response.ok) throw new Error(data.error || 'Kunde inte hämta flödet');
         flowItems = data.messages || [];
         flowChain = data.chain || [];
+        flowChains = data.chains || {};
         flowSummary = data.summary || null;
         const newest = flowItems[0];
         document.getElementById('flow-live-text').textContent = flowPaused
@@ -313,6 +324,7 @@ async function loadFlowDetail(id) {
         if (id !== flowSelectedId) return;
         flowDetail = data;
         if (data.chain) flowChain = data.chain;
+        if (data.chains) flowChains = data.chains;
         renderFlowDetail();
     } catch (error) {
         flowDetail = null;

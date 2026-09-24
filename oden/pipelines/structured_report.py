@@ -17,6 +17,7 @@ from oden import config as cfg
 from oden.app_state import get_app_state
 from oden.attachment_handler import save_attachments
 from oden.formatting import format_sender_display, resolve_output_dir
+from oden.routing import step_settings
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +279,8 @@ class StructuredReportPipeline:
     time_field_label = "TNR"
     #: Subdirectory under VAULT_PATH where reports are written.
     #: ``None`` (the default) means the vault root.
-    #: Can be overridden per-pipeline via PIPELINE_SETTINGS[name]["vault_subdir"].
+    #: Can be overridden per-pipeline via PIPELINE_SETTINGS[name]["vault_subdir"],
+    #: and per branch via the step's config (routing.step_settings).
     vault_subdir: str | None = None
     _last_reply_target: str | None = None
 
@@ -307,7 +309,8 @@ class StructuredReportPipeline:
         raise NotImplementedError
 
     def _resolve_effective_subdir(self) -> str | None:
-        pipeline_settings = cfg.PIPELINE_SETTINGS.get(self.name, {}) if isinstance(cfg.PIPELINE_SETTINGS, dict) else {}
+        # Global settings for this pipeline, overridden by the running branch step's config.
+        pipeline_settings = step_settings(self.name, cfg.PIPELINE_SETTINGS)
         configured_subdir = pipeline_settings.get("vault_subdir", self.vault_subdir)
         enabled_override = pipeline_settings.get("vault_subdir_enabled")
         use_subdir = enabled_override if isinstance(enabled_override, bool) else bool(configured_subdir)

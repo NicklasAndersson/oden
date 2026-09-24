@@ -13,6 +13,7 @@ from oden.messages_db import get_message_detail, get_message_stats, list_message
 from oden.path_utils import is_within_directory, normalize_path
 from oden.pipeline_orchestrator import PipelineOrchestrator
 from oden.pipelines_db import get_events_for_run, get_runs_for_message
+from oden.routing import branch_steps, load_routing
 from oden.web_handlers._helpers import handle_errors, require_writer
 
 _orchestrator: PipelineOrchestrator | None = None
@@ -142,6 +143,16 @@ def _pipeline_chain() -> list[str]:
         return []
 
 
+def _branch_chains() -> dict[str, list[str]]:
+    """Branch id → the step names that run there now, for the "not run" markers in Flöde."""
+    try:
+        routing = load_routing(cfg)
+        publish = _chain_orchestrator._publish_to_tak() if _chain_orchestrator else False
+        return {b["id"]: [s["pipeline"] for s in branch_steps(b, publish_to_tak=publish)] for b in routing["branches"]}
+    except Exception:
+        return {}
+
+
 def _read_output_preview(output_file: str | None) -> dict | None:
     """Read a written vault file for the detail view, only if it is inside the vault."""
     if not output_file or not cfg.VAULT_PATH:
@@ -199,6 +210,7 @@ async def flow_list_handler(request: web.Request) -> web.Response:
         {
             "messages": items,
             "chain": _pipeline_chain(),
+            "chains": _branch_chains(),
             "summary": flow_summary(cfg.CONFIG_DB, has_content_only=not include_empty),
             "limit": limit,
         }
@@ -225,4 +237,6 @@ async def flow_detail_handler(request: web.Request) -> web.Response:
     for run in runs:
         run["events"] = get_events_for_run(cfg.CONFIG_DB, run["id"])
 
-    return web.json_response({"message": item, "chain": _pipeline_chain(), "output": output, "runs": runs})
+    return web.json_response(
+        {"message": item, "chain": _pipeline_chain(), "chains": _branch_chains(), "output": output, "runs": runs}
+    )

@@ -27,6 +27,7 @@ Oden is a Signal-to-Obsidian bridge that receives Signal messages via `signal-cl
 - **s7_watcher.py**: Entry point. Manages signal-cli subprocess, TCP connection, startup tasks, web GUI, tray icon. Starts `subscribe_and_listen()` as a background task in the lifecycle loop
 - **signal_listener.py**: Owns the TCP reader loop (`_reader_loop`) and receive-notification processing; persists raw messages first when DB-first is enabled
 - **processing.py**: Core fallback logic. Parses messages, handles commands (`#help`), reply-append, file I/O. `process_message()` returns a `ProcessOutcome` (action, reason, path) that the generic pipeline reports to the Flöde view
+- **routing.py**: Vägval and branches (grenar). `resolve_branch()` picks a branch from the message's source (`source:tak`, `group_id:`, `group:`, `source:direct`, else the default); the orchestrator records it as a `router` run and then runs the branch's steps. Ignore branches have no steps (status ignored). A step's `config` overrides the pipeline's global settings for that branch only — read them with `routing.step_settings(name, cfg.PIPELINE_SETTINGS)`. Stored as config key `routing`; `config._migrate_routing()` derives it once from the legacy `enabled_pipelines` + `group_filter`
 - **flow_db.py**: Read model for the Flöde tab — joins `raw_messages` with the latest attempt of `pipeline_runs` and the reason each pipeline gave. Pipelines explain themselves by setting `last_reason` / `last_side_effect` / `last_output_file` (the orchestrator clears them before each run)
 - **config.py**: Loads config from `config_db`, exports constants like `VAULT_PATH`, `SIGNAL_NUMBER`, `TIMEZONE`
 - **config_db.py**: SQLite config database (`config.db`). Key-value store with type-aware serialization, integrity checking
@@ -122,7 +123,7 @@ A web interface runs automatically at `http://127.0.0.1:8080` (localhost only, o
 - **Obsidian**: vault path, directory structure, install Oden's `.obsidian` settings
 - **Signal**: everything Signal, as sub-tabs (`showSignalPane()`): Konton (list, link via QR, activate, delete, force-delete), Grupper (ignore/whitelist, join via invite link, invitations, group admin), Kontakter, Kommandosvar, Inställningar (number, display name, startup message, signal-cli, Signal protocol, restart signal-cli, Signal on/off); when Signal is off, Konton shows *Koppla Signal*
 - **TAK**: everything TAK (status, QR connect, connection, certificates, inbound CoT, test marker)
-- **Pipelines**: enable/disable, reorder, per-pipeline config, template editor
+- **Pipelines**: vägval (source → branch, default branch), branches (create, rename, delete, ignore), steps per branch (on/off, order, per-branch vault subdir), global per-pipeline settings, template editor — `routing.js` + `GET/PUT /api/routing`
 - **Avancerat**: log level, storage (`raw_message_retention_days`, `raw_message_max_mb`, stats, clean now — `retention_db.run_retention_loop` runs at startup and hourly from the lifecycle, independent of Signal), Oden home directory (`config.change_oden_home()`: copy to an empty dir or switch to one with a `config.db`; applies after restart; locked when `ODEN_HOME` is set)
 - Live logs (polls every 3 seconds) and a shutdown button
 

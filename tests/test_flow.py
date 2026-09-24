@@ -75,6 +75,9 @@ class _Silent:
 
 class TestFlowRecording(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        routing_patch = unittest.mock.patch("oden.pipeline_orchestrator.cfg.ROUTING", None)
+        routing_patch.start()
+        self.addCleanup(routing_patch.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.db_path = Path(self.tmp.name) / "config.db"
         init_db(self.db_path)
@@ -86,7 +89,7 @@ class TestFlowRecording(unittest.IsolatedAsyncioTestCase):
         msg = msg or _signal_msg()
         message_id = create_raw_message(self.db_path, "+46700000000", msg)
         orchestrator = PipelineOrchestrator(self.db_path)
-        orchestrator._build_pipelines = lambda: pipelines  # type: ignore[method-assign]
+        orchestrator._build_pipelines = lambda *_: pipelines  # type: ignore[method-assign]
         await orchestrator.run_message(message_id=message_id, msg_data=msg, reader=None, writer=None)
         return message_id
 
@@ -110,19 +113,19 @@ class TestFlowRecording(unittest.IsolatedAsyncioTestCase):
         handler.run = _Silent().run  # same instance, now silent
         second = await self._run([handler])
 
-        step = get_flow_item(self.db_path, second)["steps"][0]
+        step = get_flow_item(self.db_path, second)["steps"][-1]
         self.assertIsNone(step["reason"])
         self.assertIsNone(step["output_file"])
 
     async def test_reprocess_shows_only_latest_attempt(self):
         message_id = await self._run([_Skip(), _Handle()])
         orchestrator = PipelineOrchestrator(self.db_path)
-        orchestrator._build_pipelines = lambda: [_Skip(), _Handle()]  # type: ignore[method-assign]
+        orchestrator._build_pipelines = lambda *_: [_Skip(), _Handle()]  # type: ignore[method-assign]
         await orchestrator.reprocess(message_id=message_id, reader=None, writer=None)
 
         item = get_flow_item(self.db_path, message_id)
         self.assertEqual(item["attempts"], 2)
-        self.assertEqual([s["pipeline"] for s in item["steps"]], ["skipper", "handler"])
+        self.assertEqual([s["pipeline"] for s in item["steps"]], ["router", "skipper", "handler"])
 
     async def test_ignored_message_marks_handler_as_ignored(self):
         from oden.messages_db import STATUS_IGNORED
@@ -132,7 +135,7 @@ class TestFlowRecording(unittest.IsolatedAsyncioTestCase):
             status_on_handle = STATUS_IGNORED
 
         message_id = await self._run([_Filter()])
-        self.assertEqual(get_flow_item(self.db_path, message_id)["steps"][0]["outcome"], "ignored")
+        self.assertEqual(get_flow_item(self.db_path, message_id)["steps"][-1]["outcome"], "ignored")
 
 
 class TestFlowReadModel(unittest.TestCase):

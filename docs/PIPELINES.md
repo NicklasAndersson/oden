@@ -4,7 +4,11 @@
 
 **Pipelines** är moduler som processar inkommande meddelanden efter att de sparats i SQLite. Varje pipeline kan välja att hantera ett meddelande (returera `True`) eller hoppa det (`False`) så nästa pipeline i kön får en chans.
 
-### Flöde
+### Vägval och grenar
+
+Först väljs en **gren** utifrån meddelandets källa, sedan körs grenens steg
+uppifrån och ner. Första steg som hanterar meddelandet stoppar kedjan.
+
 ```
 Inkommande meddelande
          │
@@ -12,39 +16,63 @@ Inkommande meddelande
 [Spara i raw_messages]
          │
          ▼
-[PipelineOrchestrator]
-         │
-     ┌────┴────┬──────┬───────┬─────────┐
-     │ Group   │ 7S   │ FORS  │ PEDARS  │ SCRIM │
-     │ Filter  │      │       │         │
-     ▼         ▼      ▼       ▼
-   [Hanterat?] [Hanterat?] [Hanterat?] [Hanterat?]
-     │         │      │       │
-     └─────────┴──────┴───────┘
-            │
-            ▼
-        [Generic Template]
+[Vägval]  källa → gren   (sparas som körningen "router", syns i Flöde)
+   │
+   ├─▶ Spaning:   7S → SCRIM → Reserv
+   ├─▶ Underhåll: FORS → PEDARS → Reserv
+   ├─▶ Ignorera:  inga steg (status ignored, inget skrivs)
+   └─▶ Standardgren: allt som inte tilldelats
 ```
+
+- **Källor:** `source:tak` (allt från TAK-lyssnaren), `group_id:<id>`,
+  `group:<namn>` och `source:direct` (direktmeddelanden), i den ordningen. En
+  källa hör till exakt en gren; det som inte tilldelats går till standardgrenen.
+- **Ignorera-gren:** `ignore: true`, inga steg. Meddelandet sparas och syns i
+  Flöde med skälet, men skrivs aldrig till valvet.
+- **Reserven** (`generic_template`) ligger alltid sist i en vanlig gren.
+- **TAK-publicering** (`tak_publish`) läggs först i varje vanlig gren när
+  publicering är påslagen i TAK-fliken.
+- **Inställningar per steg:** ett stegs `config` gäller bara i den grenen och
+  lägger sig över pipelinens grundinställningar, t.ex. `vault_subdir`. Pipelines
+  läser dem med `routing.step_settings(name, cfg.PIPELINE_SETTINGS)`.
 
 ## Konfiguration
 
-Pipelines aktiveras/deaktiveras via config-nyckeln `enabled_pipelines` (JSON-lista):
+Grenarna ligger i config-nyckeln `routing` (JSON):
 
 ```json
 {
-  "enabled_pipelines": ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
+  "version": 1,
+  "branches": [
+    {"id": "spaning", "name": "Spaning", "ignore": false, "steps": [
+      {"pipeline": "seven_s", "enabled": true, "config": {"vault_subdir": "Spaning/7S", "vault_subdir_enabled": true}},
+      {"pipeline": "generic_template", "enabled": true, "config": {}}
+    ]},
+    {"id": "ignore", "name": "Ignorera", "ignore": true, "steps": []}
+  ],
+  "assign": {"group:Kaffe & logistik": "ignore", "source:tak": "spaning"},
+  "default": "spaning"
 }
 ```
 
-**Ordning är viktig:** Pipelines körs i den ordning de anges. Primera pipeline som hanterar meddelandet stoppar kedjan.
+Den redigeras i fliken **Pipelines** eller via `GET`/`PUT /api/routing`, som
+validerar (okända pipelines tas bort, reserven läggs sist, referenser till
+grenar som inte finns avvisas).
 
-Nuvarande default:
-- `group_filter` — kör först och kan stoppa/ignorera enligt filterregler
-- `seven_s` — söker och hanterar 7S RAPPORT
-- `fors` — söker och hanterar FORS-RAPPORT
-- `pedars` — söker och hanterar PEDARS-underhållsrapport
-- `scrim` — söker och hanterar SCRIM-fordonsbeskrivning
-- `generic_template` — fallback; hanterar resterande meddelanden
+### Migrering från den gamla kedjan
+
+Före grenarna fanns en enda kedja (`enabled_pipelines`) med `group_filter` som
+första steg. Vid första start efter uppgradering skapas `routing` med samma
+utfall (`config._migrate_routing`, `routing.derive_from_legacy`):
+
+| Förut | Blir |
+|---|---|
+| Svartlista med grupper | *Huvudgren* med den gamla kedjan (standard) + *Ignorera* med de listade grupperna |
+| Vitlista med grupper | *Huvudgren* med de listade grupperna och direktmeddelanden + *Ignorera* som standard |
+| Inget filter | *Huvudgren* för allt (och en tom *Ignorera*) |
+
+`enabled_pipelines` och gruppfiltrets inställningar lämnas orörda (för en
+nedgradering) men styr inte längre något. Gruppfiltret är inte längre ett steg.
 
 ## Befintliga Pipelines
 
@@ -145,16 +173,9 @@ ordnas om.
 
 ### Gruppfilter-pipeline (`group_filter`)
 
-**Vad den väljer:** Meddelanden vars grupptitel matchar pipeline-regeln.
-
-**Vad den gör:**
-- Läser pipeline-inställningarna (`mode` + `groups`)
-- Om gruppen matchar regeln stoppas kedjan direkt
-- Meddelandet markeras som `ignored`
-
-**Inställningar:**
-- `mode`: `blacklist` eller `whitelist`
-- `groups`: lista med gruppnamn
+**Ersatt av vägvalet.** Gruppfiltret var ett steg som kunde stoppa kedjan för
+listade grupper (svart- eller vitlista). Nu tilldelas grupper en gren, och en
+ignorera-gren gör samma sak. Befintliga filter migreras automatiskt (se ovan).
 
 ---
 
@@ -246,30 +267,29 @@ CoT-uid fångas repetitionen av dedupen. Myntas ett nytt uid blir det en ny not 
 
 ### I Web-gränssnitt
 
-En ny flik **"Pipelines"** visar:
-- Aktiverade pipelines i körordning
-- Knapp för att ändra ordning (drag-and-drop)
-- Toggle för att slå av/på individuella pipelines
-- Inställningsikon för pipelines med konfiguration
+Fliken **Pipelines**:
+- **Vägval:** varje källa (TAK, direktmeddelanden, varje känd grupp) med en
+  rullista för gren, antal meddelanden senaste 24 h, och en markering för
+  grupper med trafik som saknar egen gren. Standardgrenen väljs under listan.
+- **Grenar:** en knapp per gren (★ = standardgren, antal senaste 24 h), *+ Ny
+  gren* (vanlig gren med samma steg som standardgrenen, eller ignorera-gren),
+  byt namn, ta bort.
+- **Stegen i vald gren:** på/av, ordning, ta bort, lägg till, och *Undermapp i
+  den här grenen* för rapportpipelines.
+- **Grundinställningar per pipeline:** det som gäller i alla grenar
+  (standardundermapp, rapportmallar m.m.).
 
 ### I config.db
 
 ```sql
--- Visa aktiva pipelines
-SELECT value FROM config WHERE key = 'enabled_pipelines';
--- Resultat: ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
-
--- Ändra ordning eller aktivering
-UPDATE config 
-SET value = '["generic_template"]'
-WHERE key = 'enabled_pipelines';
+SELECT value FROM config WHERE key = 'routing';
 ```
 
 ---
 
 ## Framtida: Pipeline-instanser med inställningar
 
-*Planerat för Oden 3.1+*
+*Delvis på plats: samma pipeline kan nu ha egen undermapp per gren (stegets `config`). Resten nedan är fortfarande planerat.*
 
 För närvarande är pipelines globala — en pipeline körs med samma inställningar för alla meddelanden. Vi vill kunna:
 
