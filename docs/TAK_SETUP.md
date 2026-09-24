@@ -49,6 +49,20 @@ Fråga TAK-admin om **ett av** följande (enklast först):
    lös PEM-fil.
 3. **Lösa filer** – klientcertifikat (`.p12` eller PEM) + lösenord + serverns
    CA-cert (PEM).
+4. **QR-kod för ATAK eller iTAK** – t.ex. den OpenTAKServer visar under
+   användarens profil. Skanna koden med mobilkameran, kopiera texten och klistra
+   in den under **Anslut med QR-kod** i TAK-fliken (i Chrome/Edge går det också
+   att läsa in en skärmbild av koden). Två format stöds:
+   - `tak://com.atakmap.app/enroll?host=…&username=…&token=…` (ATAK, nyare iTAK):
+     fyller i `cot_url` (`tls://<host>:8089`), `enroll_username` och
+     `enroll_password` (token fungerar som enrollment-lösenord). Resten är som
+     punkt 2. Serverns CA skickas med certet vid enrollment, och Oden verifierar
+     servern mot den när inget `tls_ca_cert` är satt, precis som ATAK.
+     **Token är ett lösenord** — dela inte skärmbilder av koden.
+   - `namn,server,port,protokoll` (iTAK:s serverkod): fyller bara i `cot_url`;
+     användarnamn och lösenord (eller ett data-paket) behövs fortfarande.
+
+   Ingenting sparas förrän du klickar **Spara**.
 
 Lägg filerna där bara Oden-användaren kan läsa dem:
 
@@ -210,6 +224,9 @@ En TAK Server signerar sina egna certifikat:
 - `pref_package` innehåller serverns CA – Oden konverterar den till PEM åt dig.
   Har paketet även ett klientcert behövs inget mer; är det ett enrollment-paket
   behövs dessutom `enroll_username` + `enroll_password`.
+- Enrollment (konto eller QR-kod) utan `tls_ca_cert`: servern skickar sin CA
+  tillsammans med klientcertet, Oden sparar den som `enrolled-*-ca.pem` bredvid
+  certet och verifierar servern mot den.
 - Lösa filer utan `tls_ca_cert` → `self-signed certificate in certificate chain`.
   Exportera CA:t från TAK-admin/CloudTAK, eller `tls_verify = false` i labb.
 - Serverns cert-namn är ofta inte DNS-namnet du ringer →

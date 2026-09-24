@@ -92,6 +92,7 @@ from oden.web_handlers.setup_handlers import (
     setup_verify_code_handler,
 )
 from oden.web_handlers.tak_handlers import (
+    tak_qr_handler,
     tak_settings_handler,
     tak_settings_save_handler,
     tak_status_handler,
@@ -337,6 +338,7 @@ def create_app(setup_mode: bool = False) -> web.Application:
         app.router.add_post("/api/tak/settings", tak_settings_save_handler)
         app.router.add_post("/api/tak/test", tak_test_handler)
         app.router.add_post("/api/tak/upload-package", tak_upload_package_handler)
+        app.router.add_post("/api/tak/qr", tak_qr_handler)
 
     return app
 

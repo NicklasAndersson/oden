@@ -28,7 +28,23 @@ USER = "25HVBAT675"
 PASSWORD = "Kx4MGg%sj56Y#P?"
 
 
-def _client_p12(passphrase: str, *, days_valid: int) -> bytes:
+def _ca_cert() -> x509.Certificate:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "TAK Test CA")])
+    now = dt.datetime.now(dt.timezone.utc)
+    return (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - dt.timedelta(days=1))
+        .not_valid_after(now + dt.timedelta(days=3650))
+        .sign(key, hashes.SHA256())
+    )
+
+
+def _client_p12(passphrase: str, *, days_valid: int, cas: list | None = None) -> bytes:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, USER)])
     now = dt.datetime.now(dt.timezone.utc)
@@ -46,7 +62,7 @@ def _client_p12(passphrase: str, *, days_valid: int) -> bytes:
         name=USER.encode(),
         key=key,
         cert=cert,
-        cas=None,
+        cas=cas,
         encryption_algorithm=serialization.BestAvailableEncryption(passphrase.encode()),
     )
 
@@ -67,6 +83,7 @@ class FakeEnrollment:
 
     fail_with: str | None = None
     days_valid = 365
+    with_ca = False
 
     def __init__(self, trust_store_path=None):
         pass
@@ -78,7 +95,8 @@ class FakeEnrollment:
         if FakeEnrollment.fail_with:
             logging.getLogger("pytak.crypto_classes").error(FakeEnrollment.fail_with)
             return
-        Path(output_path).write_bytes(_client_p12(passphrase, days_valid=FakeEnrollment.days_valid))
+        cas = [_ca_cert()] if FakeEnrollment.with_ca else None
+        Path(output_path).write_bytes(_client_p12(passphrase, days_valid=FakeEnrollment.days_valid, cas=cas))
 
 
 def _fake_pytak():
@@ -209,6 +227,7 @@ class BridgeEnrollmentTest(unittest.IsolatedAsyncioTestCase):
         _CALLS.clear()
         FakeEnrollment.fail_with = None
         FakeEnrollment.days_valid = 365
+        FakeEnrollment.with_ca = False
         _FakeCLITool.instances = []
 
     async def test_start_points_pytak_at_the_enrolled_cert(self):
@@ -265,3 +284,61 @@ class BridgeEnrollmentTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BridgeEnrollmentCaTest(unittest.IsolatedAsyncioTestCase):
+    """After a QR enrollment there is no CA file: the CA the server sent with our cert is used."""
+
+    def setUp(self) -> None:
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dest = Path(self._tmp.name) / "tak"
+        _CALLS.clear()
+        FakeEnrollment.fail_with = None
+        FakeEnrollment.days_valid = 365
+        FakeEnrollment.with_ca = True
+        _FakeCLITool.instances = []
+
+    async def _start(self, **settings):
+        from oden.tak.bridge import _DEFAULTS, TakBridge
+
+        bridge = TakBridge(
+            {
+                **_DEFAULTS,
+                "cot_url": f"tls://{HOST}:8089",
+                "enroll_username": USER,
+                "enroll_password": PASSWORD,
+                **settings,
+            }
+        )
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "pytak": SimpleNamespace(CLITool=_FakeCLITool),
+                    "pytak.crypto_classes": SimpleNamespace(CertificateEnrollment=FakeEnrollment),
+                },
+            ),
+            patch("oden.tak.bridge.tak_dir", return_value=self.dest),
+            patch("oden.tak.listener.start_tak_listener", return_value=None),
+        ):
+            await bridge.start()
+            self.addCleanup(bridge.stop)
+        return _FakeCLITool.instances[0].config
+
+    async def test_enrolled_ca_is_used_to_verify_the_server(self):
+        config = await self._start()
+        ca_path = config.get("PYTAK_TLS_CLIENT_CAFILE")
+        self.assertTrue(ca_path and ca_path.endswith("-ca.pem"))
+        pem = Path(ca_path).read_bytes()
+        self.assertEqual(x509.load_pem_x509_certificates(pem)[0].subject.rfc4514_string(), "CN=TAK Test CA")
+        self.assertNotIn("PYTAK_TLS_DONT_VERIFY", config)
+
+    async def test_a_configured_ca_file_wins(self):
+        config = await self._start(tls_ca_cert="/etc/tak/ca.pem")
+        self.assertEqual(config.get("PYTAK_TLS_CLIENT_CAFILE"), "/etc/tak/ca.pem")
+
+    async def test_no_ca_in_the_cert_leaves_verification_to_the_system(self):
+        FakeEnrollment.with_ca = False
+        config = await self._start()
+        self.assertNotIn("PYTAK_TLS_CLIENT_CAFILE", config)

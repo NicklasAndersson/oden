@@ -349,13 +349,20 @@ td {
     color: var(--color-text-muted);
 }
 .config-field input,
-.config-field select {
+.config-field select,
+.config-field textarea {
     padding: 10px 12px;
     border: 1px solid var(--color-border);
     border-radius: 4px;
     background: var(--color-bg-surface);
     color: #fff;
     font-size: 0.95em;
+}
+.config-field textarea {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85em;
+    resize: vertical;
+    word-break: break-all;
 }
 .runtime-status {
     padding: 10px 12px;
@@ -371,7 +378,8 @@ td {
     background: rgba(255, 183, 77, 0.12);
 }
 .config-field input:focus,
-.config-field select:focus {
+.config-field select:focus,
+.config-field textarea:focus {
     outline: none;
     border-color: var(--color-accent);
 }

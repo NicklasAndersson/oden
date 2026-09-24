@@ -149,3 +149,58 @@ async function sendTakTest() {
     showConfigMessage(result.message || result.error, result.success ? 'success' : 'error');
     if (result.success) loadTakStatus();
 }
+
+// ========== QR-kod (ATAK/iTAK) ==========
+
+// Image decoding uses the browser's BarcodeDetector. Where it is missing
+// (Safari, Firefox) the button stays hidden and pasting the text still works.
+if ('BarcodeDetector' in window) {
+    document.getElementById('tak-qr-image-btn').classList.remove('hidden');
+}
+
+async function readTakQrImage(input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    try {
+        const detector = new BarcodeDetector({formats: ['qr_code']});
+        const codes = await detector.detect(await createImageBitmap(file));
+        if (!codes.length) {
+            showConfigMessage('Hittade ingen QR-kod i bilden', 'error');
+            return;
+        }
+        document.getElementById('tak-qr-text').value = codes[0].rawValue;
+        await applyTakQr();
+    } catch (e) {
+        showConfigMessage('Kunde inte läsa bilden: ' + e.message, 'error');
+    }
+}
+
+async function applyTakQr() {
+    const text = document.getElementById('tak-qr-text').value;
+    const response = await fetch('/api/tak/qr', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text}),
+    });
+    const result = await response.json();
+    if (!result.success) {
+        showConfigMessage(result.error || 'Kunde inte tolka QR-koden', 'error');
+        return;
+    }
+
+    for (const [key, value] of Object.entries(result.fields)) {
+        const field = document.querySelector('#tak-form [name="' + key + '"]');
+        if (field) field.value = value;
+    }
+    if (result.kind === 'enroll') {
+        // A data package or cert file would win over enrollment; the QR replaces them.
+        document.getElementById('tak-pref-package').value = '';
+        document.getElementById('tak-client-cert').value = '';
+        document.getElementById('tak-client-key').value = '';
+        document.getElementById('tak-enabled').checked = true;
+    }
+    document.getElementById('tak-qr-text').value = '';
+    showConfigMessage(result.message + ' Klicka Spara för att ansluta.', result.kind === 'enroll' ? 'success' : 'warning');
+    document.getElementById('tak-cot-url').scrollIntoView({behavior: 'smooth', block: 'center'});
+}

@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 
 from oden import config as cfg
 from oden.config_db import get_config_value
-from oden.tak.enrollment import EnrolledCert, ensure_cert
+from oden.tak.enrollment import EnrolledCert, ensure_cert, write_ca_bundle
 from oden.tak.pref_package import package_settings, tak_dir
 from oden.tak.redact import redact
 
@@ -289,6 +289,18 @@ class TakBridge:
         self._config["PYTAK_TLS_CLIENT_PASSWORD"] = _escape_for_pytak(
             "PYTAK_TLS_CLIENT_PASSWORD", self.enrolled.passphrase
         )
+        # No CA configured (typical after a QR enrollment): trust the CA the
+        # server handed out with our cert, as ATAK does, instead of failing
+        # verification against the system roots.
+        if not self._config.get("PYTAK_TLS_CLIENT_CAFILE"):
+            try:
+                ca_path = write_ca_bundle(self.enrolled)
+            except Exception as exc:
+                logger.warning("TAK: kunde inte läsa CA-kedjan ur enrollment-certet: %s", exc)
+                ca_path = None
+            if ca_path:
+                self._config["PYTAK_TLS_CLIENT_CAFILE"] = _escape_for_pytak("PYTAK_TLS_CLIENT_CAFILE", ca_path)
+                logger.info("TAK: verifierar servern mot CA:n från enrollment (%s)", ca_path)
 
     async def _connect(self) -> None:
         """Open (or re-open) the pytak connection, keeping our queues."""

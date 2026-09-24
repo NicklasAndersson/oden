@@ -144,6 +144,26 @@ async def enroll(host: str, username: str, password: str, dest_dir: Path) -> Enr
     return EnrolledCert(str(p12_path), passphrase, expires_at)
 
 
+def write_ca_bundle(cert: EnrolledCert) -> str | None:
+    """Write the CA chain the server sent along with our cert, for verifying the server.
+
+    The enrollment response carries the server's CA (``ca0``, ``ca1``, …) and
+    pytak packs it into the ``.p12`` next to our cert. That is what ATAK trusts
+    after a QR enrollment, and it lets Oden keep server verification on without
+    the operator hunting down a separate CA file. Returns the PEM path, or None
+    when the ``.p12`` holds no CA certificates.
+    """
+    from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
+
+    p12_path = Path(cert.path)
+    _key, _cert, extra = pkcs12.load_key_and_certificates(p12_path.read_bytes(), cert.passphrase.encode())
+    if not extra:
+        return None
+    pem_path = p12_path.with_name(f"{p12_path.stem}-ca.pem")
+    pem_path.write_bytes(b"".join(ca.public_bytes(Encoding.PEM) for ca in extra))
+    return str(pem_path)
+
+
 async def ensure_cert(host: str, username: str, password: str, dest_dir: Path) -> EnrolledCert:
     """A valid client cert for this server+account: from the cache when possible, else freshly enrolled."""
     cached = cached_cert(host, username, dest_dir)
