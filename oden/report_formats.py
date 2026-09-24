@@ -316,9 +316,9 @@ class FormatReportPipeline(StructuredReportPipeline):
         return {**parsed["fields"], "_parsed": parsed}
 
     def report_tnr(self, fields: dict[str, Any], reference_dt: datetime.datetime) -> str:
-        if self.format["tnr_field"]:
-            return str(fields.get(self.format["tnr_field"]) or "").strip() or reference_dt.strftime("%d%H%M")
-        return reference_dt.strftime("%d%H%M")
+        # The TNR names the file; only keep characters that are safe in a file name.
+        raw = str(fields.get(self.format["tnr_field"]) or "") if self.format["tnr_field"] else ""
+        return re.sub(r"[^0-9A-Za-z_-]", "", raw)[:40] or reference_dt.strftime("%d%H%M")
 
     def build_report_datetime(self, *, fields: dict[str, Any], reference_dt: datetime.datetime) -> datetime.datetime:
         raw = str(fields.get(self.format["tnr_field"]) or "").strip() if self.format["tnr_field"] else ""

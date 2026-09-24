@@ -200,9 +200,7 @@ class FormatApiTest(_Base):
                 "/api/report-formats", json={"formats": [*listed["formats"], {**ANMALAN, "name": "Anmälan 2"}]}
             )
             tested = await (
-                await client.post(
-                    "/api/report-formats/test", json={"format": STARTERS["fors"], "text": FORS_TEXT, "group": "Pluton"}
-                )
+                await client.post("/api/report-formats/test", json={"format": STARTERS["fors"], "text": FORS_TEXT})
             ).json()
             stored = get_all_config(self.db)["report_formats"]
             page = await (await client.get("/")).text()
@@ -221,3 +219,53 @@ class FormatApiTest(_Base):
         self.assertEqual(list(self.vault.rglob("*")), [])
         self.assertIn('id="formats-list"', page)
         self.assertIn("function saveFormat", page)
+
+
+class SafetyTest(unittest.TestCase):
+    def test_trailing_comment_search_matches_the_old_regex(self):
+        import random
+        import re
+
+        from oden.pipelines.structured_report import iter_nonempty_lines, trailing_obsidian_comment
+
+        old = re.compile(r"\n%%\n.*?\n%%[ \t]*$", re.DOTALL)
+        rng = random.Random(7)
+        pieces = ["\n", "%%", "%", " ", "\t", "a", "\n%%\n", "\n%%"]
+        for _ in range(5000):
+            text = "".join(rng.choice(pieces) for _ in range(rng.randint(0, 12)))
+            match = old.search(text)
+            self.assertEqual(trailing_obsidian_comment(text), match.group(0).strip() if match else "", repr(text))
+            expected = [ln.strip() for ln in old.sub("", text).splitlines() if ln.strip()]
+            self.assertEqual(iter_nonempty_lines(text), expected, repr(text))
+
+    def test_trailing_comment_search_is_linear(self):
+        import time
+
+        from oden.pipelines.structured_report import trailing_obsidian_comment
+
+        text = "\n%%\n" * 50000 + "x"
+        started = time.perf_counter()
+        trailing_obsidian_comment(text)
+        self.assertLess(time.perf_counter() - started, 0.5)
+
+    def test_report_path_never_leaves_the_vault(self):
+        from oden.pipelines.structured_report import build_report_filepath
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            unittest.mock.patch("oden.config.VAULT_PATH", tmp),
+            unittest.mock.patch("oden.config.GROUP_SPLIT_ENABLED", True),
+        ):
+            for prefix, tnr in (("../", "x"), ("A", "/../../etc/x"), ("A/", "../../x")):
+                with self.assertRaises(ValueError):
+                    build_report_filepath("G", None, tnr, prefix=prefix, create=False)
+            path, _ = build_report_filepath("../G", None, "241430", prefix="ANM", create=False)
+            self.assertTrue(path.startswith(tmp))
+
+    def test_format_tnr_is_cleaned_for_the_file_name(self):
+        import datetime
+
+        pipeline = FormatReportPipeline(normalize_format(ANMALAN))
+        now = datetime.datetime(2026, 9, 24, 14, 30)
+        self.assertEqual(pipeline.report_tnr({"tnr": "../24 14:30"}, now), "241430")
+        self.assertEqual(pipeline.report_tnr({"tnr": "///"}, now), "241430")

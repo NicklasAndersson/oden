@@ -60,7 +60,7 @@ function renderFormatsList() {
 // their label; a saved row keeps its key so notes already written stay consistent.
 function formatKey(label) {
     const key = label.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/é/g, 'e')
-        .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+        .split(/[^a-z0-9]/).filter(Boolean).join('_').slice(0, 40);
     return /^[a-z]/.test(key) ? key : (key ? `f_${key}`.slice(0, 40) : '');
 }
 

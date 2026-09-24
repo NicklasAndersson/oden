@@ -54,11 +54,30 @@ def yaml_quote(value: str) -> str:
 
 # A trailing "%% ... %%" block is hidden raw data, never report input — a
 # "TNR: ..." line inside it must not override the real field.
-_TRAILING_OBSIDIAN_COMMENT_RE = re.compile(r"\n%%\n.*?\n%%[ \t]*$", re.DOTALL)
+def _trailing_comment_span(message_text: str) -> tuple[int, int] | None:
+    r"""``(start, end)`` of a trailing ``\n%%\n … \n%%`` block, or None.
+
+    The block ends the text (trailing spaces/tabs and one final newline
+    allowed) and opens at the first ``\n%%\n`` before its closing line. Plain
+    string search on purpose: message text comes from outside, and the regex
+    this replaces (``\n%%\n.*?\n%%[ \t]*$``) could backtrack quadratically.
+    """
+    end = len(message_text)
+    if message_text.endswith("\n"):
+        end -= 1
+    while end > 0 and message_text[end - 1] in " \t":
+        end -= 1
+    closing = end - 3
+    if closing < 0 or message_text[closing:end] != "\n%%":
+        return None
+    opening = message_text.find("\n%%\n", 0, closing)
+    return (opening, end) if opening >= 0 else None
 
 
 def iter_nonempty_lines(message_text: str) -> list[str]:
-    message_text = _TRAILING_OBSIDIAN_COMMENT_RE.sub("", message_text)
+    span = _trailing_comment_span(message_text)
+    if span:
+        message_text = message_text[: span[0]] + message_text[span[1] :]
     return [line.strip() for line in message_text.splitlines() if line.strip()]
 
 
@@ -164,15 +183,21 @@ def build_report_filepath(
     If *vault_subdir* is set, it is appended beneath that base directory.
     With ``create=False`` (Testruta) the directory is not created.
     """
-    target_dir = resolve_output_dir(group_title, vault_subdir)
+    # Group, subdir, prefix and TNR all come from message text or settings:
+    # whatever they contain, the note must land inside the vault.
+    vault_root = os.path.abspath(cfg.VAULT_PATH)
+    target_dir = os.path.abspath(resolve_output_dir(group_title, vault_subdir))
+    if target_dir != vault_root and not target_dir.startswith(vault_root + os.sep):
+        raise ValueError("Rapportens mapp hamnar utanför valvet")
     if create:
         os.makedirs(target_dir, exist_ok=True)
 
     tnr = tnr_base
     counter = 2
     while True:
-        filename = f"{prefix}{tnr}.md"
-        filepath = os.path.join(target_dir, filename)
+        filepath = os.path.abspath(os.path.join(target_dir, f"{prefix}{tnr}.md"))
+        if os.path.dirname(filepath) != target_dir or not filepath.startswith(vault_root + os.sep):
+            raise ValueError(f"Ogiltigt filnamn för rapporten: {prefix}{tnr}.md")
         if not os.path.exists(filepath):
             return filepath, tnr
         tnr = f"{tnr_base}_{counter}"
@@ -229,8 +254,8 @@ def trailing_obsidian_comment(message_text: str | None) -> str:
     """
     if not message_text:
         return ""
-    match = _TRAILING_OBSIDIAN_COMMENT_RE.search(message_text)
-    return match.group(0).strip() if match else ""
+    span = _trailing_comment_span(message_text)
+    return message_text[span[0] : span[1]].strip() if span else ""
 
 
 @dataclass(frozen=True)

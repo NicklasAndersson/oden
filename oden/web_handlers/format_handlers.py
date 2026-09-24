@@ -128,7 +128,7 @@ async def format_test_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": str(exc)}, status=400)
 
     pipeline = FormatReportPipeline(fmt)
-    msg = build_test_message(text, f"group:{str(body.get('group') or 'Testruta')[:60]}")
+    msg = build_test_message(text, "group:Testruta")
     matched = pipeline.matches_message(text)
     preview = await pipeline.preview(msg)
     return web.json_response(
