@@ -15,7 +15,7 @@ const ROUTING_LABELS = {
     tak_text: 'TAK → text',
 };
 const ROUTING_PRE_STEP = 'tak_text';
-const ROUTING_PRE_DEFAULTS = {reshape_8s: true, reshape_scrim: true, other: 'observation', raw_block: true};
+const ROUTING_PRE_DEFAULTS = {reshape_8s: true, reshape_scrim: true, unknown_forms: 'observation', other: 'observation', raw_block: true};
 
 function routingPreSettings(step) {
     return {...ROUTING_PRE_DEFAULTS, ...(step.config || {})};
@@ -26,6 +26,7 @@ function routingPreSummary(step) {
     return [
         s.reshape_8s ? '8S→7S' : '8S som observation',
         s.reshape_scrim ? 'SCRIM' : 'SCRIM som observation',
+        s.unknown_forms === 'form_header' ? 'andra formulär med eget namn' : 'andra formulär som observation',
         s.other === 'skip' ? 'övriga hoppas över' : 'övriga som observation',
     ].join(' · ');
 }
@@ -292,7 +293,14 @@ function preStepDetail(branch, step) {
         <div class="routing-field">Omvandling
             ${check('reshape_8s', '8S blir <b>7S RAPPORT</b> (för 7S-steget)')}
             ${check('reshape_scrim', 'SCRIM blir <b>SCRIM RAPPORT</b> (för SCRIM-steget)')}
-            <label class="routing-field">Övriga markörer
+            <label class="routing-field">Andra ATAK-formulär (utan egen tolkning i Oden)
+                <select id="routing-pre-unknown_forms">
+                    <option value="observation" ${s.unknown_forms === 'form_header' ? '' : 'selected'}>Skriv som TAK-OBSERVATION</option>
+                    <option value="form_header" ${s.unknown_forms === 'form_header' ? 'selected' : ''}>Formulärets namn som rubrik (för ett eget rapportformat)</option>
+                </select>
+            </label>
+            <p class="routing-source-meta">Med formulärets namn som rubrik blir första raden t.ex. <code>8-Line Spot Report</code> och varje fält <code>namn: värde</code>. Skapa ett rapportformat med den rubriken så får formuläret en egen anteckningstyp. Klistra in en CoT i Testrutan för att se texten.</p>
+            <label class="routing-field">Allt annat från TAK (markörer och formulär som inte tagits ovan)
                 <select id="routing-pre-other">
                     <option value="observation" ${s.other === 'skip' ? '' : 'selected'}>Skriv som TAK-OBSERVATION</option>
                     <option value="skip" ${s.other === 'skip' ? 'selected' : ''}>Hoppa över (sparas bara i Flöde)</option>
@@ -320,6 +328,7 @@ function saveFocusedPreStep() {
     const config = {
         reshape_8s: document.getElementById('routing-pre-reshape_8s').checked,
         reshape_scrim: document.getElementById('routing-pre-reshape_scrim').checked,
+        unknown_forms: document.getElementById('routing-pre-unknown_forms').value,
         other: document.getElementById('routing-pre-other').value,
         raw_block: document.getElementById('routing-pre-raw_block').checked,
     };
@@ -536,7 +545,15 @@ function renderRoutingTestSources() {
 async function runRoutingTest() {
     const box = document.getElementById('routing-test-result');
     const text = document.getElementById('routing-test-text').value;
-    const source = document.getElementById('routing-test-source').value;
+    const sourceSelect = document.getElementById('routing-test-source');
+    // XML only comes from TAK: a pasted CoT is tested as a TAK message.
+    let note = '';
+    if (text.trim().startsWith('<') && sourceSelect.value !== 'source:tak'
+            && [...sourceSelect.options].some(o => o.value === 'source:tak')) {
+        sourceSelect.value = 'source:tak';
+        note = '<p class="routing-source-meta">Texten är en CoT, så källan sattes till TAK.</p>';
+    }
+    const source = sourceSelect.value;
     box.innerHTML = '<div class="empty-state">Testar…</div>';
     try {
         const response = await fetch('/api/pipelines/test', {
@@ -546,7 +563,7 @@ async function runRoutingTest() {
         });
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error(data.error || `HTTP ${response.status}`);
-        box.innerHTML = renderRoutingTestResult(data);
+        box.innerHTML = note + renderRoutingTestResult(data);
     } catch (error) {
         box.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }

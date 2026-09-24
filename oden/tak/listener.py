@@ -49,6 +49,7 @@ from oden.tak.cot import (
     raw_event_type,
 )
 from oden.tak.eight_s import is_8s_report, to_7s_message
+from oden.tak.hv_fields import raw_block
 from oden.tak.scrim import is_scrim_report, to_scrim_message
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,9 @@ _INBOUND_DEFAULTS: dict[str, Any] = {
     "inbound_callsign_deny": [],
     "inbound_min_move_m": 100.0,
     "inbound_max_per_minute": 60,
+    # Folder in the vault for TAK notes (and the channel Flöde shows). Not in the
+    # TAK tab any more: TAK is routed as source:tak, and a name saved earlier is
+    # still used so an existing folder does not move.
     "inbound_group_name": "TAK Inkommande",
     # Only notes for reports an operator filled in, never bare map markers.
     "inbound_reports_only": False,
@@ -348,12 +352,42 @@ def render_observation(cot: InboundCot) -> str:
     return "\n".join(lines)
 
 
+def render_form(cot: InboundCot) -> str:
+    """A report form Oden has no parser for, as text headed by the form's own name.
+
+    Unlike a ``TAK-OBSERVATION`` note, the first line names the form (e.g.
+    ``8-Line Spot Report``), so a report format from the settings can be set
+    up with that header and pick exactly these reports. Every line after it is
+    ``Etikett: värde``: the form's fields under the names ATAK sent, then where
+    and when. ``Position`` is plain MGRS, so a format field of type MGRS gets
+    coordinates from it.
+    """
+    local_time = cot.event_time.astimezone(cfg.TIMEZONE)
+    lines = [cot.custom_report_name]
+    lines.extend(f"{key}: {value}" for key, value in cot.custom_report.items())
+    mgrs = latlon_to_mgrs(cot.lat, cot.lon)
+    if mgrs:
+        lines.append(f"Position: {mgrs}")
+    lines += [
+        f"Koordinater: {cot.lat:.5f}, {cot.lon:.5f}",
+        f"Källa: {cot.sender_callsign or cot.callsign}",
+        f"Tid: {local_time.strftime('%Y-%m-%dT%H:%M:%S')}",
+        f"Typ: {cot.cot_type}",
+        f"UID: {cot.uid}",
+    ]
+    remarks = " ".join(cot.remarks.split())
+    if remarks:
+        lines.append(f"Anmärkning: {remarks}")
+    return "\n".join(lines)
+
+
 # How a CoT becomes text. The same settings are the "TAK → text" step's
 # (oden/pipelines/tak_text.py), which redoes this from the stored XML so the
 # conversion is visible in Flöde and adjustable per branch.
 TEXT_DEFAULTS: dict[str, Any] = {
     "reshape_8s": True,  # 8S → "7S RAPPORT" text for the 7S step
     "reshape_scrim": True,  # SCRIM → "SCRIM RAPPORT" text for the SCRIM step
+    "unknown_forms": "observation",  # a form without its own parser: "observation", or "form_header" (named after the form)
     "other": "observation",  # anything else: "observation" note, or "skip" (only kept in Flöde)
     "raw_block": True,  # keep the form verbatim in a trailing %% … %% block
 }
@@ -372,6 +406,9 @@ def render_message(cot: InboundCot, settings: dict[str, Any] | None = None) -> t
         text, what = to_7s_message(cot), "8S omgjord till 7S RAPPORT"
     elif is_scrim_report(cot) and opts["reshape_scrim"]:
         text, what = to_scrim_message(cot), "SCRIM omgjord till SCRIM RAPPORT"
+    elif cot.custom_report and cot.custom_report_name and opts["unknown_forms"] == "form_header":
+        text = render_form(cot) + "\n\n" + raw_block(cot, cot.custom_report_name)
+        what = f"Formuläret ”{cot.custom_report_name}” som text med formulärets namn som rubrik"
     elif opts["other"] == "skip":
         form = f"{cot.custom_report_name} " if cot.custom_report_name else ""
         return None, f"{form}{cot.cot_type} skrivs inte (inställning: övriga markörer hoppas över)"

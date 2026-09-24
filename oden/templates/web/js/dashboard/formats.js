@@ -164,7 +164,7 @@ function renderFormatEditor() {
             <textarea id="format-template" rows="6" class="mono" oninput="formatDraftInput(this)">${escapeHtml(formatDraft.template)}</textarea>
             <ul class="format-vars">${vars}</ul>
         </details>
-        <div class="routing-field">Testa formatet — klistra in ett meddelande (inget sparas eller skrivs)
+        <div class="routing-field">Testa formatet — klistra in ett meddelande, eller en CoT från ATAK (<code>&lt;event …&gt;</code>). Inget sparas eller skrivs
             <textarea id="format-test-text" rows="6" class="mono" oninput="scheduleFormatTest()"
                       placeholder="${escapeHtml((formatDraft.headers[0] || 'RUBRIK') + '\\nTNR: 241430\\n…')}"></textarea>
         </div>
@@ -266,10 +266,48 @@ async function testFormat() {
     }
 }
 
+let formatTestForm = null;  // {name, fields} of the ATAK form in the last pasted CoT
+
 function renderFormatTest(data) {
-    if (!data.matched) {
-        return '<p class="format-test-bad">Första raden matchar ingen av rubrikraderna – formatet skulle hoppa över meddelandet.</p>';
+    formatTestForm = data.form || null;
+    const converted = data.converted_text !== null && data.converted_text !== undefined ? `
+        <details class="format-converted" ${data.matched ? '' : 'open'}>
+            <summary>CoT:en som text (så som TAK → text gör den med formulärets namn som rubrik)</summary>
+            <pre class="routing-test-content">${escapeHtml(data.converted_text)}</pre>
+        </details>
+        ${data.form ? `<div class="routing-detail-actions">
+            <button type="button" class="btn btn-small" onclick="fillFormatFromForm()">Fyll i rubrik och fält från formuläret ”${escapeHtml(data.form.name)}”</button>
+        </div>` : ''}` : '';
+    if (data.format_error) {
+        return converted + `<p class="format-test-bad">Formatet är inte klart än: ${escapeHtml(data.format_error)}</p>`;
     }
+    if (!data.matched) {
+        return converted + '<p class="format-test-bad">Första raden matchar ingen av rubrikraderna – formatet skulle hoppa över meddelandet.</p>';
+    }
+    return converted + renderFormatTestMatched(data);
+}
+
+// A new ATAK form: take its name as the header and its fields (by the names
+// ATAK sent) as the format's fields, keeping rows that are already there.
+function fillFormatFromForm() {
+    if (!formatTestForm || !formatDraft) return;
+    formatDraft.headers = [formatTestForm.name];
+    formatDraft.name = formatDraft.name || formatTestForm.name;
+    const known = new Set(formatDraft.fields.map(f => formatKey(f.label)));
+    const rows = formatDraft.fields.filter(f => f.label.trim());
+    for (const name of [...formatTestForm.fields, 'Position']) {
+        if (known.has(formatKey(name))) continue;
+        rows.push({key: formatKey(name), label: name, aliases: [], required: false,
+            type: name === 'Position' ? 'mgrs' : 'text', _auto: true});
+    }
+    formatDraft.fields = rows;
+    const text = document.getElementById('format-test-text').value;
+    renderFormatEditor();
+    document.getElementById('format-test-text').value = text;
+    testFormat();
+}
+
+function renderFormatTestMatched(data) {
     const p = data.parsed;
     const found = formatDraft.fields.filter(f => f.label).map(f => {
         const value = p.fields[f.key];

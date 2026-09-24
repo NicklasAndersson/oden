@@ -39,8 +39,8 @@
     <section class="routing-test" aria-label="Testruta">
         <div class="routing-test-input">
             <h4 class="pane-heading">Testruta</h4>
-            <p class="help-paragraph">Klistra in ett meddelande och välj källa för att se vilken gren det tar, vad varje steg säger och vilken fil som skulle skrivas. Inget sparas, skickas eller skrivs.</p>
-            <textarea id="routing-test-text" rows="8" placeholder="7S RAPPORT&#10;Stund: 241430&#10;…"></textarea>
+            <p class="help-paragraph">Klistra in ett meddelande och välj källa för att se vilken gren det tar, vad varje steg säger och vilken fil som skulle skrivas. Från TAK går det att klistra in en CoT (<code>&lt;event …&gt;</code>) som den kommer från ATAK — då körs även TAK → text. Inget sparas, skickas eller skrivs.</p>
+            <textarea id="routing-test-text" rows="8" placeholder="7S RAPPORT&#10;Stund: 241430&#10;…&#10;&#10;eller en CoT: &lt;event …&gt;"></textarea>
             <div class="routing-detail-actions">
                 <select id="routing-test-source" aria-label="Källa"></select>
                 <button type="button" class="btn btn-primary btn-small" onclick="runRoutingTest()">Testa</button>

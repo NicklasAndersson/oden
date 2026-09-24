@@ -122,10 +122,34 @@ async def format_test_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Klistra in ett meddelande att testa"}, status=400)
     if len(text) > 20000:
         return web.json_response({"success": False, "error": "Meddelandet är för långt"}, status=400)
+    # A pasted CoT (<event …>) is first made into text the way TAK → text does
+    # with "formulärets namn som rubrik", so a format for a new ATAK form can be
+    # tried on the real thing. The form's field names come back too — before the
+    # format is checked, since filling a new format from them is the point.
+    converted, form = None, None
+    if text.lstrip().startswith("<"):
+        from oden.tak.cot import cot_to_inbound
+        from oden.tak.listener import render_message
+
+        cot = cot_to_inbound(text)
+        if cot is None:
+            return web.json_response(
+                {"success": False, "error": "Kunde inte tolka CoT:en (behöver ett <event> med position)"}, status=400
+            )
+        converted = render_message(cot, {"unknown_forms": "form_header"})[0] or ""
+        if cot.custom_report_name and cot.custom_report:
+            form = {"name": cot.custom_report_name, "fields": list(cot.custom_report)}
+        text = converted
+
     try:
         fmt = normalize_format(body.get("format"))
     except ValueError as exc:
-        return web.json_response({"success": False, "error": str(exc)}, status=400)
+        if converted is None:
+            return web.json_response({"success": False, "error": str(exc)}, status=400)
+        # The CoT itself was fine: show its text (and its fields to fill in).
+        return web.json_response(
+            {"success": True, "converted_text": converted, "form": form, "format_error": str(exc), "matched": False}
+        )
 
     pipeline = FormatReportPipeline(fmt)
     msg = build_test_message(text, "group:Testruta")
@@ -134,6 +158,8 @@ async def format_test_handler(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "success": True,
+            "converted_text": converted,
+            "form": form,
             "step": step_name(fmt["id"]),
             "matched": matched,
             "parsed": parse(fmt, text) if matched else None,

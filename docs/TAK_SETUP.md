@@ -132,7 +132,7 @@ set_config_value(
 | `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på **avsändarens** callsign — samma värde som står som `Avsändare:` på noten, inte markörens namn. Delsträngsmatchning, skiftlägesokänslig |
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
 | `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
-| `inbound_group_name` | `TAK Inkommande` | Gruppnamn noterna hamnar under |
+| `inbound_group_name` | `TAK Inkommande` | Mappen i valvet som TAK-noterna hamnar i (och kanalen Flöde visar). Visas inte längre i TAK-fliken: vart TAK går styrs med källan TAK under Vägval, och mappar under den med grenens steg. Ett tidigare sparat namn gäller fortfarande |
 | `inbound_reports_only` | `false` | Bara händelser som bär ett ifyllt rapportblock. Typfiltret kan inte skilja en 8S från en lös fiendemarkör — båda är `a-h-G` |
 | **Uppdragspaket (rapporter med bilaga)** | | |
 | `inbound_fetch_packages` | `false` | Hämta *mission packages* ur serverns filarkiv. **Utan det tappas hela rapporten** när en 8S skickas med bild – inte bara bilden |
@@ -277,7 +277,16 @@ inställningar per gren: gör om 8S till 7S (på/av), gör om SCRIM (på/av), ö
 markörer som observation eller hoppa över (sparas då bara i Flöde), och om
 formuläret ska följa med i `%%`-blocket. Med standardinställningarna blir texten
 exakt densamma som tidigare. I Testrutan kan man klistra in en CoT (`<event …>`)
-med källan TAK och se hela vägen.
+och se hela vägen (källan sätts till TAK).
+
+**Andra ATAK-formulär än 8S och SCRIM.** Fälten läses generellt, oavsett hur
+formuläret är uppbyggt. Som standard blir ett okänt formulär en
+`TAK-OBSERVATION` med alla fält. Välj *Formulärets namn som rubrik* i steget TAK
+→ text så blir första raden formulärets namn; skapa sedan ett rapportformat med
+den rubriken (Pipelines → Rapportformat). Klistra in formulärets CoT i
+rapportformatets testruta och klicka *Fyll i rubrik och fält från formuläret*
+så fylls rubrik och fält i åt dig. Kontrollera att CoT-typen släpps igenom av
+`inbound_types`.
 
 **Undantag – 8S-rapporter:** bär händelsen en 8S-rapport från ATAK:s
 Reports-plugin mappas den istället till en vanlig `7S RAPPORT` och skrivs som en

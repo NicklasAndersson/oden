@@ -160,8 +160,15 @@ I Flöde syns steget som *Omvandlad* med skälet. Står alltid först i grenen
 **Inställningar per gren** (stegets `config`):
 - `reshape_8s` (standard på) och `reshape_scrim` (standard på) — av: formuläret
   blir en observation i stället
-- `other`: `observation` (standard) eller `skip` — en övrig markör skrivs då
-  inte, utan sparas bara i Flöde (status `ignored`)
+- `unknown_forms`: `observation` (standard) eller `form_header` — ett
+  ATAK-formulär som Oden inte har en egen tolkning för blir text med
+  formulärets namn som första rad (t.ex. `8-Line Spot Report`), följt av
+  fälten som `namn: värde` (namnen ATAK skickade), `Position` (MGRS),
+  `Koordinater`, `Källa`, `Tid`, `Typ`, `UID` och `Anmärkning`. Ett
+  rapportformat med den rubriken ger formuläret en egen anteckningstyp utan kod
+- `other`: `observation` (standard) eller `skip` — allt annat från TAK
+  (markörer, och formulär som inte tagits ovan) skrivs då inte, utan sparas
+  bara i Flöde (status `ignored`)
 - `raw_block` (standard på) — formuläret oförändrat i ett dolt `%%`-block
 
 Med standardinställningarna blir texten exakt den som gjordes vid mottagningen,

@@ -233,3 +233,106 @@ class HostileXmlTest(unittest.TestCase):
 
     def test_real_cot_still_parses(self):
         self.assertIsNotNone(cot_to_inbound(EIGHT_S))
+
+
+SPOT = (
+    "<event uid='Report-Spot-01' type='b-r-i-c-o' time='2026-09-24T10:00:00Z'><point lat='59.3' lon='18.07'/>"
+    "<detail><contact callsign='RECON_TEAM_1'/><custom_report name='8-Line Spot Report'>"
+    "<line1_size>3x Personnel</line1_size><line3_location>11S YT 1234 5678</line3_location>"
+    "</custom_report><remarks>sedd vid bron</remarks></detail></event>"
+)
+
+
+class UnknownFormTest(_Tz):
+    def test_form_header_names_the_text_after_the_form(self):
+        from oden.tak.listener import render_message
+
+        cot = cot_to_inbound(SPOT)
+        text, what = render_message(cot, {"unknown_forms": "form_header"})
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "8-Line Spot Report")
+        self.assertIn("line1_size: 3x Personnel", lines)
+        self.assertTrue(any(line.startswith("Position: 34V") for line in lines))
+        self.assertIn("Anmärkning: sedd vid bron", lines)
+        self.assertIn("%%", text)
+        self.assertIn("namn som rubrik", what)
+        # Default: unchanged, an observation.
+        self.assertTrue(render_message(cot)[0].startswith("TAK-OBSERVATION"))
+
+
+class UnknownFormEndToEndTest(_Env):
+    def setUp(self):
+        super().setUp()
+        from oden.report_formats import normalize_format
+
+        spot = normalize_format(
+            {
+                "name": "Spot",
+                "headers": ["8-Line Spot Report"],
+                "fields": [
+                    {"label": "line1_size", "required": True},
+                    {"label": "Position", "type": "mgrs"},
+                ],
+                "file_prefix": "SPOT",
+            }
+        )
+        self.routing["branches"][0]["steps"] = normalize_routing(
+            {
+                "branches": [
+                    {
+                        "id": "t",
+                        "name": "T",
+                        "steps": [
+                            {"pipeline": "tak_text", "config": {"unknown_forms": "form_header"}},
+                            "format:spot",
+                        ],
+                    }
+                ],
+                "assign": {},
+                "default": "t",
+            }
+        )["branches"][0]["steps"]
+        patch = unittest.mock.patch("oden.config.REPORT_FORMATS", [spot])
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    async def test_a_new_atak_form_gets_its_own_note_through_a_report_format(self):
+        result = await dry_run(build_test_message(SPOT, "source:tak"))
+        self.assertEqual(
+            [(s["pipeline"], s["outcome"]) for s in result["steps"][:2]],
+            [("tak_text", "transform"), ("format:spot", "handled")],
+        )
+        self.assertIn("lat: 59.3", result["content"])
+        self.assertIn("**line1_size:** 3x Personnel", result["content"])
+
+        item = await self._run(_tak_message(SPOT.encode()))
+        self.assertEqual({s["pipeline"]: s["outcome"] for s in item["steps"]}["format:spot"], "handled")
+        self.assertEqual(len(list(self.vault.rglob("SPOT*.md"))), 1)
+
+    async def test_format_editor_test_takes_cot(self):
+        from aiohttp.test_utils import TestClient, TestServer
+
+        from oden.report_formats import STARTERS
+        from oden.web_server import create_app
+
+        fmt = {"name": "Spot", "headers": ["8-Line Spot Report"], "fields": [{"label": "line1_size"}]}
+        async with TestClient(TestServer(create_app())) as client:
+            ok = await (await client.post("/api/report-formats/test", json={"format": fmt, "text": SPOT})).json()
+            bad = await client.post("/api/report-formats/test", json={"format": STARTERS["fors"], "text": "<nope"})
+        self.assertTrue(ok["converted_text"].startswith("8-Line Spot Report\n"))
+        self.assertEqual(ok["form"], {"name": "8-Line Spot Report", "fields": ["line1_size", "line3_location"]})
+        self.assertTrue(ok["matched"])
+        self.assertTrue(ok["handled"])
+        self.assertEqual(bad.status, 400)
+
+    async def test_a_new_empty_format_still_gets_the_cot_text_and_fields(self):
+        from aiohttp.test_utils import TestClient, TestServer
+
+        from oden.web_server import create_app
+
+        empty = {"name": "", "headers": [], "fields": []}
+        async with TestClient(TestServer(create_app())) as client:
+            data = await (await client.post("/api/report-formats/test", json={"format": empty, "text": SPOT})).json()
+        self.assertTrue(data["success"])
+        self.assertIn("format_error", data)
+        self.assertEqual(data["form"]["name"], "8-Line Spot Report")
