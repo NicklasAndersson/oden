@@ -313,11 +313,15 @@ Fliken **Pipelines**:
 - **Vägval:** varje källa (TAK, direktmeddelanden, varje känd grupp) med en
   rullista för gren, antal meddelanden senaste 24 h, och en markering för
   grupper med trafik som saknar egen gren. Standardgrenen väljs under listan.
+  *Ignorera* är ett val i rullistorna, inte en kolumn: den har inga steg.
+  Under listan står vilka källor som ignoreras, med länk till dem i Flöde.
+  Routingen har alltid en ignorera-gren (`normalize_routing` lägger till
+  den om den saknas).
 - **Grenar som kolumner:** varje gren är en kolumn med sina steg i
   körordning (★ = standardgren, antal källor och meddelanden senaste 24 h).
   Varje steg visar undermapp i grenen och hur många meddelanden det hanterat
   senaste 24 h. Sist står kolumnen *Ny gren* (samma steg som standardgrenen,
-  bara reserven, eller ignorera).
+  eller bara reserven).
 - **Detaljpanelen:** klick på en gren eller ett steg visar det till höger.
   För en gren: byt namn, gör till standardgren, ta bort, *Visa grenens
   meddelanden i Flöde*. För ett steg: på/av, upp/ner, *Undermapp i den här

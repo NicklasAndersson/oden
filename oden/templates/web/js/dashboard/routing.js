@@ -46,12 +46,20 @@ function routingStepStats(branchId, pipeline) {
     return ((routingState.step_stats_24h || {})[branchId] || {})[pipeline] || {handled: 0, skipped: 0, failed: 0, side: 0};
 }
 
+// The branch to focus when nothing (or an ignore branch) is: the default, if it has steps.
+function routingFirstColumn() {
+    const {routing} = routingState;
+    const home = routing.branches.find(b => b.id === routing.default && !b.ignore);
+    return (home || routing.branches.find(b => !b.ignore) || routing.branches[0]).id;
+}
+
 async function loadRouting() {
     try {
         const response = await fetch('/api/routing');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         routingState = await response.json();
-        if (!routingFocus || !routingBranch(routingFocus.branch)) routingFocus = {branch: routingState.routing.default};
+        const focused = routingFocus && routingBranch(routingFocus.branch);
+        if (!focused || focused.ignore) routingFocus = {branch: routingFirstColumn()};
         renderRouting();
     } catch (error) {
         const box = document.getElementById('routing-sources');
@@ -82,9 +90,11 @@ function routingCopy() {
     return JSON.parse(JSON.stringify(routingState.routing));
 }
 
+// Branches with steps first; "Ignorera" (no steps, never a column) last.
 function branchOptions(selected) {
-    return routingState.routing.branches.map(b =>
-        `<option value="${escapeHtml(b.id)}" ${b.id === selected ? 'selected' : ''}>${escapeHtml(b.name)}${b.ignore ? ' (ignorera)' : ''}</option>`
+    const branches = routingState.routing.branches;
+    return branches.filter(b => !b.ignore).concat(branches.filter(b => b.ignore)).map(b =>
+        `<option value="${escapeHtml(b.id)}" ${b.id === selected ? 'selected' : ''}>${escapeHtml(b.name)}</option>`
     ).join('');
 }
 
@@ -108,6 +118,13 @@ function renderRoutingSources() {
     flag.classList.toggle('hidden', !unassigned.length);
 
     document.getElementById('routing-default').innerHTML = branchOptions(routing.default);
+    const ignoreIds = routing.branches.filter(b => b.ignore).map(b => b.id);
+    const ignored = sources.filter(s => ignoreIds.includes(s.branch));
+    const ignoredCount = ignored.reduce((sum, s) => sum + s.count_24h, 0);
+    document.getElementById('routing-ignored').innerHTML = ignored.length
+        ? `<b>Ignoreras</b> (sparas bara i Flöde): ${escapeHtml(ignored.map(s => s.label).join(', '))} · ${ignoredCount} senaste 24 h
+           <button type="button" class="flow-link" data-branch="${escapeHtml(ignoreIds[0])}" onclick="showFlowFiltered({branch: this.dataset.branch})">Visa i Flöde</button>`
+        : 'Inget ignoreras. Välj <b>Ignorera</b> för en källa för att bara spara den i Flöde.';
     document.getElementById('routing-sources').innerHTML = sources.map(source => {
         const kindLabel = source.kind === 'tak' ? 'TAK' : (source.kind === 'direct' ? 'DM' : 'SIG');
         const warn = !source.assigned && source.count_24h > 0 && source.kind === 'group'
@@ -155,32 +172,27 @@ function stepCard(branch, step, index) {
 function renderRoutingColumns() {
     const {routing} = routingState;
     const counts = routingState.branch_counts_24h || {};
-    const columns = routing.branches.map(branch => {
+    const columns = routing.branches.filter(branch => !branch.ignore).map(branch => {
         const sources = routingState.sources.filter(s => s.branch === branch.id).length;
         const headFocused = routingFocus.branch === branch.id && !routingFocus.step;
-        let body;
-        if (branch.ignore) {
-            body = '<div class="routing-ignore">∅ Inga steg — sparas bara i Flöde, skrivs aldrig</div>';
-        } else {
-            const takCard = routingState.publish_to_tak ? `
-                <div class="routing-step locked">
-                    <span class="routing-step-head"><span class="flow-marker flow-marker-side"></span>
-                    <span class="routing-step-name">TAK-publicering</span><span class="routing-step-order">först</span></span>
-                    <span class="routing-step-target">Styrs i TAK-fliken</span>
-                </div>` : '';
-            const present = branch.steps.map(s => s.pipeline);
-            const addable = routingReportSteps().filter(name => !present.includes(name));
-            body = takCard + branch.steps.map((step, index) => stepCard(branch, step, index)).join('') + (addable.length ? `
-                <div class="routing-add-step">
-                    <select id="routing-add-${escapeHtml(branch.id)}" aria-label="Steg att lägga till">
-                        ${addable.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(routingPipelineLabel(n))}</option>`).join('')}
-                    </select>
-                    <button type="button" class="btn btn-small" data-branch="${escapeHtml(branch.id)}"
-                            onclick="addStep(this.dataset.branch)">+ Steg</button>
-                </div>` : '');
-        }
+        const takCard = routingState.publish_to_tak ? `
+            <div class="routing-step locked">
+                <span class="routing-step-head"><span class="flow-marker flow-marker-side"></span>
+                <span class="routing-step-name">TAK-publicering</span><span class="routing-step-order">först</span></span>
+                <span class="routing-step-target">Styrs i TAK-fliken</span>
+            </div>` : '';
+        const present = branch.steps.map(s => s.pipeline);
+        const addable = routingReportSteps().filter(name => !present.includes(name));
+        const body = takCard + branch.steps.map((step, index) => stepCard(branch, step, index)).join('') + (addable.length ? `
+            <div class="routing-add-step">
+                <select id="routing-add-${escapeHtml(branch.id)}" aria-label="Steg att lägga till">
+                    ${addable.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(routingPipelineLabel(n))}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-small" data-branch="${escapeHtml(branch.id)}"
+                        onclick="addStep(this.dataset.branch)">+ Steg</button>
+            </div>` : '');
         return `
-            <section class="routing-column ${branch.ignore ? 'ignore' : ''}" aria-label="Gren ${escapeHtml(branch.name)}">
+            <section class="routing-column" aria-label="Gren ${escapeHtml(branch.name)}">
                 <button type="button" class="routing-column-head ${headFocused ? 'focused' : ''}"
                         data-branch="${escapeHtml(branch.id)}" onclick="focusBranch(this.dataset.branch)">
                     <span class="routing-column-name">${escapeHtml(branch.name)}${branch.id === routing.default ? ' <span title="Standardgren">★</span>' : ''}</span>
@@ -196,7 +208,6 @@ function renderRoutingColumns() {
             <select id="routing-new-kind" aria-label="Typ av gren">
                 <option value="copy">Samma steg som standardgrenen</option>
                 <option value="empty">Bara reserven</option>
-                <option value="ignore">Ignorera (inga steg)</option>
             </select>
             <button type="button" class="btn btn-small" onclick="createBranch()">Skapa</button>
         </section>`);
@@ -399,7 +410,6 @@ async function createBranch() {
     const template = routing.branches.find(b => b.id === routing.default);
     routing.branches.push({
         name,
-        ignore: kind === 'ignore',
         steps: kind === 'copy' && template && !template.ignore ? JSON.parse(JSON.stringify(template.steps)) : [],
     });
     const saved = await saveRouting(routing, `Grenen ”${name}” skapad`);
@@ -420,7 +430,7 @@ function deleteFocusedBranch() {
     for (const [key, target] of Object.entries(routing.assign)) {
         if (target === branch.id) delete routing.assign[key];
     }
-    routingFocus = {branch: routing.default};
+    routingFocus = null;
     saveRouting(routing, `Grenen ”${branch.name}” borttagen`);
 }
 

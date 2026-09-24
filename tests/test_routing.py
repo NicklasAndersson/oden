@@ -109,7 +109,15 @@ class NormalizeRoutingTest(unittest.TestCase):
         routing = normalize_routing(
             {"branches": [{"name": "Underhåll"}, {"name": "Underhåll"}], "assign": {}, "default": "underhall"}
         )
-        self.assertEqual([b["id"] for b in routing["branches"]], ["underhall", "underhall-2"])
+        self.assertEqual([b["id"] for b in routing["branches"]], ["underhall", "underhall-2", "ignore"])
+
+    def test_an_ignore_choice_always_exists(self):
+        routing = normalize_routing(
+            {"branches": [{"id": "ignore", "name": "Ignore"}], "assign": {}, "default": "ignore"}
+        )
+        self.assertEqual([(b["id"], b["ignore"]) for b in routing["branches"]], [("ignore", False), ("ignorera", True)])
+        kept = normalize_routing(self._base())
+        self.assertEqual(sum(b["ignore"] for b in kept["branches"]), 1)
 
 
 class ResolveBranchTest(unittest.TestCase):

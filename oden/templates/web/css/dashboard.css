@@ -1605,7 +1605,6 @@ fieldset.signal-only:disabled {
     border: 1px solid var(--color-border);
     border-radius: 6px;
 }
-.routing-column.ignore { border-style: dashed; }
 .routing-column.new { gap: 8px; }
 .routing-column.new input,
 .routing-column.new select,
@@ -1645,12 +1644,7 @@ fieldset.signal-only:disabled {
 .routing-step-target { font-size: 0.78em; color: var(--color-text-subtle); overflow-wrap: anywhere; }
 .routing-step-stat { font-size: 0.75em; color: var(--color-text-subtle); }
 .routing-fail { color: #f28b82; }
-.routing-ignore {
-    padding: 10px 8px;
-    font-size: 0.82em;
-    color: var(--color-text-subtle);
-    text-align: center;
-}
+.routing-ignored { margin: 10px 0 0; line-height: 1.5; }
 .routing-add-step select { flex: 1; min-width: 0; }
 .routing-detail-head { margin-bottom: 8px; }
 .routing-detail-head .pane-heading { margin: 2px 0 4px; }

@@ -145,6 +145,13 @@ def normalize_routing(value: Any) -> dict[str, Any]:
             ]
         branches.append({"id": branch_id, "name": name[:60], "ignore": ignore, "steps": steps})
 
+    # "Ignorera" is a choice, not a column: there is always one ignore branch
+    # to assign sources to, whether or not anything uses it yet.
+    if not any(b["ignore"] for b in branches):
+        ignore_id = IGNORE_ID if IGNORE_ID not in ids else _slug("Ignorera", ids)
+        ids.add(ignore_id)
+        branches.append({"id": ignore_id, "name": "Ignorera", "ignore": True, "steps": []})
+
     default = str(value.get("default") or "")
     if default not in ids:
         raise ValueError("Standardgrenen måste vara en av grenarna")

@@ -140,7 +140,7 @@ Pipelines-fliken styr vart meddelandena tar vägen: varje källa går till en
 |----------|-------------|
 | **Vägval** | Varje källa (TAK, direktmeddelanden, grupper) med vald gren och antal senaste 24 h; grupper med trafik utan egen gren markeras |
 | **Standardgren** | Dit allt som inte tilldelats går |
-| **Grenar** | En kolumn per gren med stegen i körordning och antal hanterade senaste 24 h; kolumnen *Ny gren* skapar en (samma steg som standardgrenen, bara reserven, eller ignorera) |
+| **Grenar** | En kolumn per gren med stegen i körordning och antal hanterade senaste 24 h; kolumnen *Ny gren* skapar en (samma steg som standardgrenen, eller bara reserven). *Ignorera* har inga steg och är därför ingen kolumn, utan ett val i rullistorna; vilka källor som ignoreras står under Vägval |
 | **Detaljpanel** | Vald gren: namn, standardgren, ta bort, visa i Flöde. Valt steg: på/av, ordning, egen undermapp i grenen, statistik och länk till hanterade/fel i Flöde |
 | **Rapportformat** | Egna rapportformat utan kod: rubrikrader, fält (etikett, andra namn, text eller MGRS, obligatoriskt), avsnitt, TNR-fält, filprefix, slutrad och valfri mall, med en testruta som visar hittade fält och anteckningen. De inbyggda (7S, FORS, PEDARS, SCRIM) är startpunkter. Ett sparat format blir ett steg i grenarna |
 | **Reserven per gren** | Mapp för allt annat i grenen, eller avstängd så att det inget steg tog bara sparas i Flöde |

@@ -44,7 +44,7 @@ function _renderGroupBranchSelect(group) {
     if (!_groupBranches.length) return '';
     const fallback = _groupBranches.find(b => b.id === _groupDefaultBranch);
     const options = [`<option value="" ${group.branchAssigned ? '' : 'selected'}>Standard (${escapeHtml(fallback ? fallback.name : '–')})</option>`]
-        .concat(_groupBranches.map(b => `<option value="${escapeHtml(b.id)}" ${group.branchAssigned && group.branch === b.id ? 'selected' : ''}>${escapeHtml(b.name)}${b.ignore ? ' (ignorera)' : ''}</option>`));
+        .concat(_groupBranches.filter(b => !b.ignore).concat(_groupBranches.filter(b => b.ignore)).map(b => `<option value="${escapeHtml(b.id)}" ${group.branchAssigned && group.branch === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`));
     const flag = group.branchAssigned ? '' : '<span class="routing-flag" title="Gruppen har ingen egen gren och följer standardgrenen">ej tilldelad</span>';
     return `
         <label class="group-branch">${flag}<span>Gren</span>
