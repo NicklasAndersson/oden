@@ -144,7 +144,7 @@ set_config_value(
 | `inbound_types` | `a-f-G, a-h-*, a-n-G, a-u-*, a-x-X, b-m-p-*, b-a-*` | CoT-typer att släppa in (`*` som suffix). Fångar manuellt placerade markörer/punkter, inte den automatiska lägesrapporteringen (`a-f-*` med undertyper). `a-x-X` är exakt, inte `a-x-*` — det är där HV Rapporter lägger sina 8S |
 | `inbound_callsign_allow` / `_deny` | tom | Vitlista / svartlista på **avsändarens** callsign — samma värde som står som `Avsändare:` på noten, inte markörens namn. Delsträngsmatchning, skiftlägesokänslig |
 | `inbound_min_move_m` | `100` | Känd enhet som rört sig mindre → ingen ny not |
-| `inbound_max_per_minute` | `60` | Hårt tak; resten loggas och släpps |
+| `inbound_max_per_minute` | `200` | Hårt tak; resten loggas och släpps |
 | `inbound_group_name` | `TAK Inkommande` | Mappen i valvet som TAK-noterna hamnar i (och kanalen Flöde visar). Visas inte längre i TAK-fliken: vart TAK går styrs med källan TAK under Vägval, och mappar under den med grenens steg. Ett tidigare sparat namn gäller fortfarande |
 | `inbound_reports_only` | `false` | Bara händelser som bär ett ifyllt rapportblock. Typfiltret kan inte skilja en 8S från en lös fiendemarkör — båda är `a-h-G` |
 | **Uppdragspaket (rapporter med bilaga)** | | |

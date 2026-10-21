@@ -67,7 +67,7 @@ _INBOUND_DEFAULTS: dict[str, Any] = {
     "inbound_callsign_allow": [],
     "inbound_callsign_deny": [],
     "inbound_min_move_m": 100.0,
-    "inbound_max_per_minute": 60,
+    "inbound_max_per_minute": 200,
     # Folder in the vault for TAK notes (and the channel Flöde shows). Not in the
     # TAK tab any more: TAK is routed as source:tak, and a name saved earlier is
     # still used so an existing folder does not move.
@@ -234,12 +234,13 @@ class InboundFilter:
         self.deny = [c.lower() for c in _as_list(merged["inbound_callsign_deny"])]
         self.reports_only = bool(merged["inbound_reports_only"])
         self.min_move_m = _num(merged["inbound_min_move_m"], 100.0)
-        self.max_per_minute = int(_num(merged["inbound_max_per_minute"], 60.0))
+        self.max_per_minute = int(_num(merged["inbound_max_per_minute"], 200.0))
         self._seen: dict[str, _Seen] = dict(seen or {})
         # True when _seen changed since the last save, so a quiet server costs no writes.
         self.seen_dirty = False
         self._window_start = 0.0
         self._window_count = 0
+        self._window_warned = False
         self.last_reject: str = ""  # why the most recent accept() returned False
 
     def _rate_limited(self, now: float) -> bool:
@@ -248,6 +249,7 @@ class InboundFilter:
         if now - self._window_start >= 60.0:
             self._window_start = now
             self._window_count = 0
+            self._window_warned = False
         self._window_count += 1
         return self._window_count > self.max_per_minute
 
@@ -316,15 +318,19 @@ class InboundFilter:
                 self.last_reject = "oförändrad sedan tidigare (dedup)"
                 return False
 
-        if len(self._seen) >= _SEEN_CAP:
-            self._seen.clear()
-        self._seen[cot.uid] = current  # record content even if rate-limiting drops this instance
-        self.seen_dirty = True
-
+        # Rate check before recording: a dropped CoT must stay unseen, so the server's next
+        # send of it (reconnect replay, periodic refresh) is imported instead of deduped away.
         if self._rate_limited(time.monotonic() if now is None else now):
             self.last_reject = f"över {self.max_per_minute} CoT/minut"
-            logger.warning("TAK: fler än %s inkommande CoT/minut — släpper resten", self.max_per_minute)
+            if not self._window_warned:  # once per window, not once per dropped CoT
+                self._window_warned = True
+                logger.warning("TAK: fler än %s inkommande CoT/minut — släpper resten", self.max_per_minute)
             return False
+
+        if len(self._seen) >= _SEEN_CAP:
+            self._seen.clear()
+        self._seen[cot.uid] = current
+        self.seen_dirty = True
 
         self.last_reject = ""
         return True

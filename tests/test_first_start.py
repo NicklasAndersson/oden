@@ -192,7 +192,7 @@ class ChangeOdenHomeTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        root = Path(self.tmp.name)
+        root = Path(self.tmp.name).resolve()
         self.old = root / "old"
         (self.old / "signal-data" / "data").mkdir(parents=True)
         (self.old / "signal-data" / "data" / "accounts.json").write_text('{"accounts": []}')
