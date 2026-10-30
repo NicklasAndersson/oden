@@ -218,9 +218,10 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
         self.assertIn('signal_avsandare_nummer: "+46701234567"', content)
         self.assertIn('signal_avsandare_id: "dd1bac1d-b955-4ac0-9d53-14053c4fe69f"', content)
         self.assertIn('plats: "Långkärrsvägen"', content)
-        self.assertIn("lat: 59.75513", content)
-        self.assertIn("lon: 18.85253", content)
-        self.assertIn('location: "59.75513,18.85253"', content)
+        # Sista decimalen varierar mellan mgrs-/proj-versioner
+        self.assertRegex(content, r"lat: 59\.7551[34]\n")
+        self.assertRegex(content, r"lon: 18\.8525[34]\n")
+        self.assertRegex(content, r'location: "59\.7551[34],18\.8525[34]"')
         self.assertIn("sagesman: AQ", content)
         self.assertIn("**TNR:** 221520", content)
         self.assertIn("**Stund:** 221520", content)
