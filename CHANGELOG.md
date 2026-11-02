@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.1] - 2026-11-02
+
+### Fixed
+
+- **TAK: tappa inte inkommande CoT vid skov.** Höjt inbound-tak till 200 meddelanden per minut (#289).
+- **Tester för MGRS-koordinater** tolererar variation i sista decimalen mellan biblioteksversioner (#293).
+
+### Changed
+
+- Uppdaterade beroenden: aiohttp, tzdata, setuptools, Ruff och Playwright.
+
 ## [4.2.0] - 2026-10-01
 
 ### Added
