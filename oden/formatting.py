@@ -13,14 +13,6 @@ logger = logging.getLogger(__name__)
 # ==============================================================================
 
 
-def get_safe_group_dir_path(group_title: str) -> str:
-    """Return output directory for a group, honoring global group split setting."""
-    safe_title = re.sub(r"[^\w\-_\. ]", "_", group_title)
-    if cfg.GROUP_SPLIT_ENABLED:
-        return os.path.join(cfg.VAULT_PATH, safe_title)
-    return cfg.VAULT_PATH
-
-
 def resolve_output_dir(group_title: str | None, vault_subdir: str | None = None) -> str:
     """Resolve output directory from group and optional pipeline subdirectory.
 

@@ -388,7 +388,7 @@ class TestGroupsHandlerResponse(AioHTTPTestCase):
     async def test_groups_response_includes_branch_per_group(self, mock_cfg, _mock_db):
         """A legacy whitelist becomes branches: listed groups → main, the rest → ignore (default)."""
         mock_cfg.ROUTING = None
-        mock_cfg.ENABLED_PIPELINES = ["group_filter", "seven_s", "generic_template"]
+        mock_cfg.app_config = {"enabled_pipelines": ["group_filter", "seven_s", "generic_template"]}
         mock_cfg.PIPELINE_SETTINGS = {"group_filter": {"mode": "whitelist", "groups": ["Alpha", "Bravo"]}}
         mock_cfg.SIGNAL_NUMBER = "+460000"
         from oden.app_state import get_app_state

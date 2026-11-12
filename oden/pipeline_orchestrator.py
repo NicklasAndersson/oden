@@ -22,7 +22,6 @@ from oden.messages_db import (
     update_message_status,
 )
 from oden.pipelines.fors import ForsPipeline
-from oden.pipelines.group_filter import GroupFilterPipeline
 from oden.pipelines.pedars import PedarsPipeline
 from oden.pipelines.scrim import ScrimPipeline
 from oden.pipelines.seven_s import SevenSPipeline
@@ -99,7 +98,6 @@ class PipelineOrchestrator:
         self._pipeline_map: dict[str, Any] = {
             "tak_publish": TakPublishPipeline(),
             "tak_text": TakTextPipeline(),
-            "group_filter": GroupFilterPipeline(),
             "seven_s": SevenSPipeline(),
             "fors": ForsPipeline(),
             "pedars": PedarsPipeline(),

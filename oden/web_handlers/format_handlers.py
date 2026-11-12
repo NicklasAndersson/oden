@@ -65,9 +65,9 @@ def _used_in(routing: dict[str, Any]) -> dict[str, list[str]]:
 
 
 def _builtins() -> list[dict[str, Any]]:
-    from oden.web_handlers.pipeline_handlers import _get_available_pipelines
+    from oden.web_handlers.pipeline_handlers import _AVAILABLE_PIPELINES
 
-    available = _get_available_pipelines()
+    available = _AVAILABLE_PIPELINES
     result = []
     for name, starter in STARTERS.items():
         meta = available.get(name, {})

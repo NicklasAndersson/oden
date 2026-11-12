@@ -6,13 +6,10 @@ from pathlib import Path
 import pytest
 
 from oden.path_utils import (
-    UNSAFE_FILENAME_CHARS,
     ensure_directory,
     is_filesystem_root,
     is_within_directory,
     normalize_path,
-    sanitize_filename,
-    validate_path_within_directory,
     validate_path_within_home,
 )
 
@@ -119,64 +116,6 @@ class TestValidatePathWithinHome:
         assert result == tmp_resolved
 
 
-class TestValidatePathWithinDirectory:
-    """Tests for validate_path_within_directory function."""
-
-    def test_path_within_parent(self):
-        """Test that paths within parent are accepted."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Resolve parent to handle symlinks (e.g., /tmp -> /private/tmp on macOS)
-            parent = Path(tmpdir).resolve()
-            result, error = validate_path_within_directory("subdir/file.txt", parent)
-            assert error is None
-            assert is_within_directory(result, parent)
-
-    def test_path_traversal_rejected(self):
-        """Test that path traversal is rejected."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            parent = Path(tmpdir)
-            result, error = validate_path_within_directory("../escape", parent)
-            assert result is None
-            assert "måste vara under" in error
-
-
-class TestSanitizeFilename:
-    """Tests for sanitize_filename function."""
-
-    def test_normal_filename_unchanged(self):
-        """Test that normal filenames are unchanged."""
-        assert sanitize_filename("document.txt") == "document.txt"
-
-    def test_strips_path_components(self):
-        """Test that path separators are stripped."""
-        assert sanitize_filename("/path/to/file.txt") == "file.txt"
-        # Note: ".." is replaced with empty string, leaving "__evil.exe"
-        # after basename extraction on Unix (which treats \\ as literal)
-        result = sanitize_filename("..\\..\\evil.exe")
-        assert "evil.exe" in result
-
-    def test_removes_unsafe_characters(self):
-        """Test that unsafe characters are replaced."""
-        result = sanitize_filename("file<with>:bad*chars?.txt")
-        assert "<" not in result
-        assert ">" not in result
-        assert ":" not in result
-        assert "*" not in result
-        assert "?" not in result
-
-    def test_empty_returns_fallback(self):
-        """Test that empty filename returns fallback."""
-        assert sanitize_filename("") == "unnamed"
-        assert sanitize_filename("", fallback="default") == "default"
-
-    def test_dots_stripped(self):
-        """Test that leading/trailing dots are stripped."""
-        # After sanitization, dots and whitespace are stripped
-        result = sanitize_filename("...test...")
-        assert not result.startswith(".")
-        assert not result.endswith(".")
-
-
 class TestEnsureDirectory:
     """Tests for ensure_directory function."""
 
@@ -196,19 +135,3 @@ class TestEnsureDirectory:
             success, error = ensure_directory(tmpdir)
             assert success is True
             assert error is None
-
-
-class TestUnsafeFilenameChars:
-    """Tests for UNSAFE_FILENAME_CHARS pattern."""
-
-    def test_matches_common_unsafe_chars(self):
-        """Test that common unsafe characters are matched."""
-        unsafe = '<>:"/\\|?*'
-        for char in unsafe:
-            assert UNSAFE_FILENAME_CHARS.search(char), f"Should match {repr(char)}"
-
-    def test_matches_control_characters(self):
-        """Test that control characters are matched."""
-        for i in range(32):
-            char = chr(i)
-            assert UNSAFE_FILENAME_CHARS.search(char), f"Should match control char {i}"

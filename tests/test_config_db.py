@@ -9,7 +9,6 @@ from oden.config_db import (
 )
 from oden.contacts_db import get_all_contacts, upsert_contacts_bulk
 from oden.groups_db import (
-    delete_group,
     get_all_groups,
     upsert_group,
     upsert_groups_bulk,
@@ -375,14 +374,6 @@ class TestGroupsCRUD(unittest.TestCase):
     def test_bulk_upsert_skips_missing_id(self):
         count = upsert_groups_bulk(self.db_path, [{"name": "No ID"}])
         self.assertEqual(count, 0)
-
-    def test_delete_group(self):
-        upsert_group(self.db_path, "abc123", "To Delete")
-        self.assertTrue(delete_group(self.db_path, "abc123"))
-        self.assertEqual(get_all_groups(self.db_path), [])
-
-    def test_delete_nonexistent(self):
-        self.assertFalse(delete_group(self.db_path, "nope"))
 
     def test_get_all_groups_empty_db(self):
         self.assertEqual(get_all_groups(self.db_path), [])

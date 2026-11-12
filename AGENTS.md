@@ -70,7 +70,7 @@ await writer.drain()
 ### Config Constants
 Config is stored in SQLite via `config_db`. Module-level constants are loaded from the database at startup:
 ```python
-from oden.config import VAULT_PATH, SIGNAL_NUMBER, TIMEZONE, IGNORED_GROUPS
+from oden.config import VAULT_PATH, SIGNAL_NUMBER, TIMEZONE
 ```
 For direct database access (read/write individual settings):
 ```python

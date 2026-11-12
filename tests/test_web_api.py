@@ -320,140 +320,23 @@ class TestPipelineManagementAPI(AioHTTPTestCase):
     async def get_application(self):
         return create_app()
 
-    async def test_list_pipelines_returns_available_and_enabled(self):
+    async def test_list_pipelines_returns_available_settings_and_stats(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "config.db"
 
-            with (
-                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
-                unittest.mock.patch(
-                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "fors", "pedars", "generic_template"],
-                ),
-            ):
+            with unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path):
                 resp = await self.client.get("/api/pipelines")
 
             self.assertEqual(resp.status, 200)
             data = await resp.json()
             self.assertIn("available", data)
-            self.assertIn("enabled", data)
+            self.assertIn("settings", data)
+            self.assertNotIn("group_filter", [p["name"] for p in data["available"]])
             self.assertIn("stats", data)
             self.assertTrue(any(p["name"] == "seven_s" for p in data["available"]))
             self.assertTrue(any(p["name"] == "fors" for p in data["available"]))
             self.assertTrue(any(p["name"] == "pedars" for p in data["available"]))
             self.assertTrue(any(p["name"] == "generic_template" for p in data["available"]))
-
-    async def test_toggle_pipeline_disable_updates_enabled_list(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "config.db"
-
-            with (
-                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
-                unittest.mock.patch(
-                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "fors", "pedars", "generic_template"],
-                ),
-            ):
-                resp = await self.client.patch(
-                    "/api/pipelines/seven_s/enabled",
-                    json={"enabled": False},
-                )
-
-            self.assertEqual(resp.status, 200)
-            data = await resp.json()
-            self.assertTrue(data["success"])
-            self.assertEqual(data["updated_list"], ["fors", "pedars", "generic_template"])
-
-    async def test_reorder_pipelines_updates_order(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "config.db"
-
-            with (
-                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
-                unittest.mock.patch(
-                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "fors", "pedars", "generic_template"],
-                ),
-            ):
-                resp = await self.client.post(
-                    "/api/pipelines/reorder",
-                    json={"order": ["generic_template", "seven_s", "fors", "pedars"]},
-                )
-
-            self.assertEqual(resp.status, 200)
-            data = await resp.json()
-            self.assertTrue(data["success"])
-            self.assertEqual(data["updated_list"], ["generic_template", "seven_s", "fors", "pedars"])
-
-    async def test_reorder_pipelines_rejects_unknown_pipeline(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "config.db"
-
-            with (
-                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
-                unittest.mock.patch(
-                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["seven_s", "fors", "pedars", "generic_template"],
-                ),
-            ):
-                resp = await self.client.post(
-                    "/api/pipelines/reorder",
-                    json={"order": ["not_a_pipeline"]},
-                )
-
-            self.assertEqual(resp.status, 400)
-            data = await resp.json()
-            self.assertIn("Unknown pipeline", data["error"])
-
-    async def test_list_pipelines_includes_group_filter(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "config.db"
-
-            with (
-                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
-                unittest.mock.patch(
-                    "oden.web_handlers.pipeline_handlers.cfg.ENABLED_PIPELINES",
-                    ["group_filter", "seven_s", "fors", "pedars", "generic_template"],
-                ),
-                unittest.mock.patch(
-                    "oden.web_handlers.pipeline_handlers.cfg.PIPELINE_SETTINGS",
-                    {"group_filter": {"mode": "whitelist", "groups": ["Alpha"]}},
-                ),
-            ):
-                resp = await self.client.get("/api/pipelines")
-
-            self.assertEqual(resp.status, 200)
-            data = await resp.json()
-            group_filter = next((p for p in data["available"] if p["name"] == "group_filter"), None)
-            self.assertIsNotNone(group_filter)
-            self.assertTrue(group_filter["supports_config"])
-
-            enabled_group_filter = next((p for p in data["enabled"] if p["name"] == "group_filter"), None)
-            self.assertIsNotNone(enabled_group_filter)
-            self.assertEqual(enabled_group_filter["config"]["mode"], "whitelist")
-            self.assertEqual(enabled_group_filter["config"]["groups"], ["Alpha"])
-
-    async def test_update_pipeline_config_group_filter(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "config.db"
-
-            with (
-                unittest.mock.patch("oden.web_handlers.pipeline_handlers.cfg.CONFIG_DB", db_path),
-                unittest.mock.patch(
-                    "oden.web_handlers.pipeline_handlers.cfg.PIPELINE_SETTINGS",
-                    {},
-                ),
-            ):
-                resp = await self.client.patch(
-                    "/api/pipelines/group_filter/config",
-                    json={"config": {"mode": "blacklist", "groups": ["Alpha", "Bravo"]}},
-                )
-
-            self.assertEqual(resp.status, 200)
-            data = await resp.json()
-            self.assertTrue(data["success"])
-            self.assertEqual(data["config"]["mode"], "blacklist")
-            self.assertEqual(data["config"]["groups"], ["Alpha", "Bravo"])
 
     async def test_update_pipeline_config_generic_template_applies_auto_reaction_live(self):
         """Toggling auto_reaction_enabled must take effect immediately (cfg.AUTO_REACTION_ENABLED),

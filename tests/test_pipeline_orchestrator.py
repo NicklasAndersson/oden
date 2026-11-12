@@ -191,7 +191,7 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
     async def test_build_pipelines_defaults_include_fors_after_seven_s(self):
         orchestrator = PipelineOrchestrator(self.db_path)
 
-        with patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", []):
+        with patch("oden.config.app_config", {"enabled_pipelines": []}):
             pipelines = orchestrator._build_pipelines()
 
         # group_filter is no longer a step: it became the vägval before the branch.
@@ -228,7 +228,7 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
         bridge = SimpleNamespace(settings={"publish_reports": True})
 
         with (
-            patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", ["seven_s"]),
+            patch("oden.config.app_config", {"enabled_pipelines": ["seven_s"]}),
             patch("oden.pipeline_orchestrator.get_tak_bridge", return_value=bridge),
         ):
             pipelines = orchestrator._build_pipelines()
@@ -246,7 +246,7 @@ class TestPipelineOrchestrator(unittest.IsolatedAsyncioTestCase):
         bridge = SimpleNamespace(settings=dict(_DEFAULTS))
 
         with (
-            patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", ["seven_s"]),
+            patch("oden.config.app_config", {"enabled_pipelines": ["seven_s"]}),
             patch("oden.pipeline_orchestrator.get_tak_bridge", return_value=bridge),
         ):
             names = [pipeline.name for pipeline in orchestrator._build_pipelines()]

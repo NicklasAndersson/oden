@@ -8,13 +8,9 @@ consistent path handling across the codebase.
 
 import logging
 import os
-import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-# Characters not allowed in filenames (cross-platform safe)
-UNSAFE_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def normalize_path(path: str | Path) -> Path:
@@ -117,68 +113,6 @@ def validate_path_within_home(
         return None, "Kunde inte verifiera hemkatalog"
 
     return resolved, None
-
-
-def validate_path_within_directory(
-    path: str | Path,
-    parent: Path,
-) -> tuple[Path | None, str | None]:
-    """Validate a user-provided path is within a specific directory.
-
-    Args:
-        path: User-provided path (can be relative to parent).
-        parent: Parent directory the path must be within.
-
-    Returns:
-        (normalized_path, None) on success.
-        (None, error_message) on failure.
-    """
-    try:
-        parent_resolved = normalize_path(parent)
-        # Resolve relative to parent to handle relative paths safely
-        resolved = (parent_resolved / path).resolve()
-    except (OSError, RuntimeError, ValueError) as e:
-        return None, f"Ogiltig sökväg: {e}"
-
-    if not is_within_directory(resolved, parent_resolved):
-        logger.warning("Path rejected: %s is outside parent %s", resolved, parent_resolved)
-        return None, f"Sökväg måste vara under {parent_resolved}"
-
-    return resolved, None
-
-
-def sanitize_filename(filename: str, fallback: str = "unnamed") -> str:
-    """Sanitize a filename to prevent path traversal and invalid characters.
-
-    Strips directory components and replaces unsafe characters.
-
-    Args:
-        filename: User-provided filename.
-        fallback: Name to use if filename becomes empty after sanitization.
-
-    Returns:
-        Safe filename with only the base name.
-    """
-    if not filename:
-        return fallback
-
-    # Get basename to strip any path components (handles both / and \\)
-    safe = os.path.basename(filename)
-
-    # Also handle if someone tries ../../ style paths
-    safe = safe.replace("..", "")
-
-    # Remove unsafe characters
-    safe = UNSAFE_FILENAME_CHARS.sub("_", safe)
-
-    # Strip leading/trailing whitespace and dots
-    safe = safe.strip(". \t\n\r")
-
-    # If empty after sanitization, use fallback
-    if not safe:
-        return fallback
-
-    return safe
 
 
 def ensure_directory(path: Path | str, parents: bool = True) -> tuple[bool, str | None]:

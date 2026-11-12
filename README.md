@@ -379,8 +379,6 @@ konto som redan finns i signal-cli — och starta om Oden. Se
 - [PLAN_TAK.md](./docs/PLAN_TAK.md) - Design och implementationsfaser för TAK-integrationen
 - [FORMAT_SPEC.md](./docs/FORMAT_SPEC.md) - Normativ 7S-spec för filformat, länkning och koordinatfält
 - [7S_frontmatter.schema.json](./docs/7S_frontmatter.schema.json) - JSON-schema för 7S-frontmatter
-- [PLAN_PIPELINES_MENU.md](./docs/PLAN_PIPELINES_MENU.md) - Implementationsplan för pipeline-administrationsmeny
-- [PLAN_3.0.md](./docs/PLAN_3.0.md) - Overblick över Oden 3.0 och alla implementationsfaser
 - [WINDOWS_NATIVE_PLAN.md](./docs/WINDOWS_NATIVE_PLAN.md) - Native Windows installer: status och implementationsplan
 - [WINDOWS_SETUP.md](./docs/WINDOWS_SETUP.md) - Docker-baserad Windows-installation
 

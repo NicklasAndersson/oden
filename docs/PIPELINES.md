@@ -526,8 +526,6 @@ Pipelines förväntas:
 | Metod | Sökväg | Beskrivning |
 |-------|--------|-------------|
 | GET | `/api/pipelines` | Lista tillgängliga pipelines, aktiva pipelines och körningsstatistik |
-| POST | `/api/pipelines/reorder` | Ändra exekveringsordning |
-| PATCH | `/api/pipelines/{name}/enabled` | Aktivera/deaktivera pipeline |
 | GET | `/api/report-formats` | Egna rapportformat, vilka grenar som använder dem, de inbyggda med startpunkt och mallvariabler |
 | PUT | `/api/report-formats` | Spara hela listan (`{"formats": [...]}`); valideras, och ett format som används i en gren kan inte tas bort |
 | POST | `/api/report-formats/test` | `{"format", "text"}` → om rubriken matchar, hittade fält och avsnitt, vad som saknas och anteckningen. Skriver inget |
@@ -537,6 +535,5 @@ Pipelines förväntas:
 ## Se även
 
 - [`docs/FEATURES.md`](FEATURES.md#meddelandeflöde) — Arkitektur-överblick
-- [`docs/PLAN_3.0.md`](PLAN_3.0.md) — Implementeringsplan för Oden 3.0
 - `oden/pipeline_orchestrator.py` — Orkestrering-logik
 - `oden/pipelines/` — Pipeline-implementationer

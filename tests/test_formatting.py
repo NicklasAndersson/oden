@@ -11,27 +11,12 @@ from oden.formatting import (
     create_message_filename,
     format_sender_display,
     get_message_filepath,
-    get_safe_group_dir_path,
     get_unique_filename,
     resolve_output_dir,
 )
 
 
 class TestFormatting(unittest.TestCase):
-    @patch("oden.config.VAULT_PATH", "mock_vault")
-    @patch("oden.config.GROUP_SPLIT_ENABLED", True)
-    def test_get_safe_group_dir_path(self):
-        self.assertEqual(get_safe_group_dir_path("My Awesome Group"), os.path.join("mock_vault", "My Awesome Group"))
-        self.assertEqual(
-            get_safe_group_dir_path("Group/With/Slashes"), os.path.join("mock_vault", "Group_With_Slashes")
-        )
-        self.assertEqual(get_safe_group_dir_path("!@#$%^&*()"), os.path.join("mock_vault", "__________"))
-
-    @patch("oden.config.VAULT_PATH", "mock_vault")
-    @patch("oden.config.GROUP_SPLIT_ENABLED", False)
-    def test_get_safe_group_dir_path_group_split_disabled(self):
-        self.assertEqual(get_safe_group_dir_path("My Awesome Group"), "mock_vault")
-
     @patch("oden.config.VAULT_PATH", "mock_vault")
     @patch("oden.config.GROUP_SPLIT_ENABLED", True)
     def test_resolve_output_dir_group_and_subdir(self):

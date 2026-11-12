@@ -17,8 +17,6 @@ class TestAttachmentPathTraversal(unittest.IsolatedAsyncioTestCase):
     @patch("os.path.exists", return_value=False)
     @patch("oden.config.VAULT_PATH", "/mock_vault")
     @patch("oden.config.FILENAME_FORMAT", "classic")
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_attachment_path_traversal_blocked(self, mock_exists, mock_makedirs, mock_open, mock_render):
         """Test that path traversal in attachment filename is blocked."""
         mock_render.return_value = "---\nfileid: test\n---\n\nTest\n"
@@ -64,8 +62,6 @@ class TestAttachmentPathTraversal(unittest.IsolatedAsyncioTestCase):
     @patch("os.path.exists", return_value=False)
     @patch("oden.config.VAULT_PATH", "/mock_vault")
     @patch("oden.config.FILENAME_FORMAT", "classic")
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_attachment_subdir_traversal_blocked(self, mock_exists, mock_makedirs, mock_open, mock_render):
         """Test that subdirectory traversal in attachment filename is blocked."""
         mock_render.return_value = "---\nfileid: test\n---\n\nTest\n"
@@ -109,8 +105,6 @@ class TestCommandLookup(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.processing._send_reply")
     @patch("oden.processing.get_response_by_keyword", return_value=None)
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_command_with_path_traversal_no_match(self, mock_get_response, mock_send_reply):
         """Test that path traversal attempts simply find no match in the database."""
         message_obj = {
@@ -132,8 +126,6 @@ class TestCommandLookup(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.processing._send_reply")
     @patch("oden.processing.get_response_by_keyword", return_value=None)
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_command_with_special_chars_no_match(self, mock_get_response, mock_send_reply):
         """Test that special characters in commands are harmless with DB lookup."""
         message_obj = {
@@ -154,8 +146,6 @@ class TestCommandLookup(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.processing._send_reply")
     @patch("oden.processing.get_response_by_keyword", return_value="HELP_TEXT")
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_valid_command_still_works(self, mock_get_response, mock_send_reply):
         """Test that valid commands are looked up from the database."""
         message_obj = {
@@ -176,8 +166,6 @@ class TestCommandLookup(unittest.IsolatedAsyncioTestCase):
 
     @patch("oden.processing._send_reply")
     @patch("oden.processing.get_response_by_keyword", return_value="HELP_TEXT")
-    @patch("oden.config.WHITELIST_GROUPS", [])
-    @patch("oden.config.IGNORED_GROUPS", set())
     async def test_command_case_insensitive(self, mock_get_response, mock_send_reply):
         """Test that commands are case-insensitive."""
         message_obj = {

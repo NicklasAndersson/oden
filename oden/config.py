@@ -177,11 +177,6 @@ def validate_signal_number(
     return True, None, accounts
 
 
-def get_config_path() -> Path:
-    """Get the path to the config database."""
-    return CONFIG_DB
-
-
 def save_config(config_dict: dict) -> None:
     """Save configuration to the database."""
     logger.info(
@@ -376,16 +371,56 @@ def _migrate_enabled_pipelines(app_config: dict) -> None:
     logger.info("Inserted missing built-in pipelines into enabled_pipelines")
 
 
-def reload_config() -> dict:
-    """Reload configuration from database and update module-level variables."""
-    global app_config, VAULT_PATH, SIGNAL_NUMBER, SIGNAL_ENABLED, DISPLAY_NAME, SIGNAL_CLI_PATH
+def _export(app_config: dict) -> None:
+    """Set the module-level constants from a loaded config dict (missing keys → defaults)."""
+    global VAULT_PATH, SIGNAL_NUMBER, SIGNAL_ENABLED, DISPLAY_NAME, SIGNAL_CLI_PATH
     global UNMANAGED_SIGNAL_CLI, SIGNAL_CLI_HOST, SIGNAL_CLI_PORT
-    global TIMEZONE, APPEND_WINDOW_MINUTES, GROUP_SPLIT_ENABLED, IGNORED_GROUPS, WHITELIST_GROUPS, STARTUP_MESSAGE
+    global TIMEZONE, APPEND_WINDOW_MINUTES, GROUP_SPLIT_ENABLED, STARTUP_MESSAGE
     global FILENAME_FORMAT, SIGNAL_CLI_LOG_FILE, DIAGNOSTIC_MODE, LOG_LEVEL, LOG_FILE
     global WEB_ENABLED, WEB_HOST, WEB_PORT, WEB_ACCESS_LOG
-    global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED, ENABLED_PIPELINES
-    global PIPELINE_SETTINGS
-    global DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS, RAW_MESSAGE_MAX_MB, ROUTING, REPORT_FORMATS
+    global AUTO_REACTION_ENABLED, AUTO_REACTION_EMOJI, AUTO_READ_RECEIPT_ENABLED
+    global PIPELINE_SETTINGS, DB_FIRST_ENABLED, RAW_MESSAGE_RETENTION_DAYS, RAW_MESSAGE_MAX_MB, ROUTING, REPORT_FORMATS
+
+    # generic_template pipeline settings win; the old top-level keys are the fallback
+    generic_config = (app_config.get("pipeline_settings") or {}).get("generic_template") or {}
+
+    VAULT_PATH = app_config.get("vault_path", str(DEFAULT_VAULT_PATH))
+    SIGNAL_NUMBER = app_config.get("signal_number") or ""
+    SIGNAL_ENABLED = app_config.get("signal_enabled", True) and not SIGNAL_OFF_REASON
+    DISPLAY_NAME = app_config.get("display_name")
+    SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
+    UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
+    SIGNAL_CLI_HOST = app_config.get("signal_cli_host", "127.0.0.1")
+    SIGNAL_CLI_PORT = app_config.get("signal_cli_port", 7583)
+    TIMEZONE = app_config.get("timezone", datetime.timezone.utc)
+    APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
+    GROUP_SPLIT_ENABLED = app_config.get("group_split_enabled", True)
+    STARTUP_MESSAGE = app_config.get("startup_message", "self")
+    FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
+    SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
+    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", True)
+    LOG_LEVEL = app_config.get("log_level", logging.INFO)
+    LOG_FILE = os.environ.get("ODEN_LOG_FILE") or app_config.get("log_file") or str(get_default_log_path())
+    WEB_ENABLED = app_config.get("web_enabled", True)
+    WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
+    WEB_PORT = app_config.get("web_port", 8080)
+    WEB_ACCESS_LOG = app_config.get("web_access_log")
+    AUTO_REACTION_ENABLED = generic_config.get("auto_reaction_enabled", app_config.get("auto_reaction_enabled", False))
+    AUTO_REACTION_EMOJI = generic_config.get("auto_reaction_emoji", app_config.get("auto_reaction_emoji", "✅"))
+    AUTO_READ_RECEIPT_ENABLED = generic_config.get(
+        "auto_read_receipt_enabled", app_config.get("auto_read_receipt_enabled", False)
+    )
+    PIPELINE_SETTINGS = app_config.get("pipeline_settings") or {}
+    DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
+    RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
+    RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
+    ROUTING = app_config.get("routing")
+    REPORT_FORMATS = app_config.get("report_formats") or []
+
+
+def reload_config() -> dict:
+    """Reload configuration from database and update module-level variables."""
+    global app_config
 
     logger.info("Reloading configuration from database")
 
@@ -402,57 +437,13 @@ def reload_config() -> dict:
     _migrate_enabled_pipelines(app_config)
     _migrate_routing(app_config)
 
-    VAULT_PATH = app_config["vault_path"]
-    SIGNAL_NUMBER = app_config.get("signal_number") or ""
-    SIGNAL_ENABLED = app_config.get("signal_enabled", True) and not SIGNAL_OFF_REASON
+    _export(app_config)
     if not SIGNAL_ENABLED:
         logger.info("Reload: Signal disabled%s", f" ({SIGNAL_OFF_REASON})" if SIGNAL_OFF_REASON else "")
     elif not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
         logger.warning("SIGNAL_NUMBER is not configured after reload (value=%r, db=%s)", SIGNAL_NUMBER, CONFIG_DB)
     else:
         logger.info("Reload: SIGNAL_NUMBER=%s", SIGNAL_NUMBER)
-    DISPLAY_NAME = app_config.get("display_name")
-    SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
-    UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
-    SIGNAL_CLI_HOST = app_config.get("signal_cli_host", "127.0.0.1")
-    SIGNAL_CLI_PORT = app_config.get("signal_cli_port", 7583)
-
-    # Read from pipeline settings first, fallback to old config for backwards compatibility
-    pipeline_settings = app_config.get("pipeline_settings", {})
-    generic_config = pipeline_settings.get("generic_template", {})
-
-    TIMEZONE = app_config["timezone"]
-    APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
-    GROUP_SPLIT_ENABLED = app_config.get("group_split_enabled", True)
-    IGNORED_GROUPS = app_config.get("ignored_groups", [])
-    WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
-    STARTUP_MESSAGE = app_config.get("startup_message", "self")
-    FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
-    SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
-    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", True)
-    LOG_LEVEL = app_config["log_level"]
-    LOG_FILE = os.environ.get("ODEN_LOG_FILE") or app_config.get("log_file") or str(get_default_log_path())
-    WEB_ENABLED = app_config.get("web_enabled", True)
-    WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
-    WEB_PORT = app_config.get("web_port", 8080)
-    WEB_ACCESS_LOG = app_config.get("web_access_log")
-
-    # Read from pipeline settings first, fallback to old config for backwards compatibility
-    AUTO_REACTION_ENABLED = generic_config.get("auto_reaction_enabled", app_config.get("auto_reaction_enabled", False))
-    AUTO_REACTION_EMOJI = generic_config.get("auto_reaction_emoji", app_config.get("auto_reaction_emoji", "✅"))
-    AUTO_READ_RECEIPT_ENABLED = generic_config.get(
-        "auto_read_receipt_enabled", app_config.get("auto_read_receipt_enabled", False)
-    )
-
-    DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
-    ENABLED_PIPELINES = app_config.get(
-        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
-    )
-    PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
-    RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
-    RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
-    ROUTING = app_config.get("routing")
-    REPORT_FORMATS = app_config.get("report_formats") or []
 
     # Persist and apply the log level so it takes effect immediately
     from oden.log_utils import apply_log_level, write_log_level
@@ -700,80 +691,9 @@ try:
         app_config["oden_home"] = str(ODEN_HOME)
         app_config["signal_data_path"] = str(SIGNAL_DATA_PATH)
 
-    # Export module-level variables
-    VAULT_PATH = app_config.get("vault_path", str(DEFAULT_VAULT_PATH))
-    SIGNAL_NUMBER = app_config.get("signal_number") or ""
-    if not SIGNAL_NUMBER or SIGNAL_NUMBER == "+46XXXXXXXXX":
-        logger.debug("SIGNAL_NUMBER not yet configured")
-    SIGNAL_ENABLED = app_config.get("signal_enabled", True)
-    DISPLAY_NAME = app_config.get("display_name")
-    SIGNAL_CLI_PATH = app_config.get("signal_cli_path")
-    UNMANAGED_SIGNAL_CLI = app_config.get("unmanaged_signal_cli", False)
-    SIGNAL_CLI_HOST = app_config.get("signal_cli_host", "127.0.0.1")
-    SIGNAL_CLI_PORT = app_config.get("signal_cli_port", 7583)
-    TIMEZONE = app_config.get("timezone")
-    APPEND_WINDOW_MINUTES = app_config.get("append_window_minutes", 30)
-    GROUP_SPLIT_ENABLED = app_config.get("group_split_enabled", True)
-    IGNORED_GROUPS = app_config.get("ignored_groups", [])
-    WHITELIST_GROUPS = app_config.get("whitelist_groups", [])
-    STARTUP_MESSAGE = app_config.get("startup_message", "self")
-    pipeline_settings = app_config.get("pipeline_settings", {})
-    generic_config = pipeline_settings.get("generic_template", {})
-    FILENAME_FORMAT = generic_config.get("filename_format", app_config.get("filename_format", "classic"))
-    SIGNAL_CLI_LOG_FILE = app_config.get("signal_cli_log_file")
-    DIAGNOSTIC_MODE = app_config.get("diagnostic_mode", True)
-    LOG_LEVEL = app_config.get("log_level", logging.INFO)
-    LOG_FILE = os.environ.get("ODEN_LOG_FILE") or app_config.get("log_file") or str(get_default_log_path())
-    WEB_ENABLED = app_config.get("web_enabled", True)
-    WEB_HOST = os.environ.get("WEB_HOST") or app_config.get("web_host", "127.0.0.1")
-    WEB_PORT = app_config.get("web_port", 8080)
-    WEB_ACCESS_LOG = app_config.get("web_access_log")
-    AUTO_REACTION_ENABLED = app_config.get("auto_reaction_enabled", False)
-    AUTO_REACTION_EMOJI = app_config.get("auto_reaction_emoji", "✅")
-    AUTO_READ_RECEIPT_ENABLED = app_config.get("auto_read_receipt_enabled", False)
-    DB_FIRST_ENABLED = app_config.get("db_first_enabled", True)
-    ENABLED_PIPELINES = app_config.get(
-        "enabled_pipelines", ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
-    )
-    PIPELINE_SETTINGS = app_config.get("pipeline_settings", {"group_filter": {"mode": "blacklist", "groups": []}})
-    RAW_MESSAGE_RETENTION_DAYS = app_config.get("raw_message_retention_days", 30)
-    RAW_MESSAGE_MAX_MB = app_config.get("raw_message_max_mb", 0)
-    ROUTING = app_config.get("routing")
-    REPORT_FORMATS = app_config.get("report_formats") or []
+    _export(app_config)
 
 except Exception as e:
     logger.error("Error loading configuration: %s", e)
-    # Don't exit - let the web server show setup wizard
     app_config = {}
-    VAULT_PATH = str(DEFAULT_VAULT_PATH)
-    SIGNAL_NUMBER = "+46XXXXXXXXX"
-    SIGNAL_ENABLED = True
-    DISPLAY_NAME = None
-    SIGNAL_CLI_PATH = None
-    UNMANAGED_SIGNAL_CLI = False
-    SIGNAL_CLI_HOST = "127.0.0.1"
-    SIGNAL_CLI_PORT = 7583
-    TIMEZONE = datetime.timezone.utc
-    APPEND_WINDOW_MINUTES = 30
-    GROUP_SPLIT_ENABLED = True
-    IGNORED_GROUPS = []
-    WHITELIST_GROUPS = []
-    STARTUP_MESSAGE = "self"
-    FILENAME_FORMAT = "classic"
-    SIGNAL_CLI_LOG_FILE = None
-    DIAGNOSTIC_MODE = True
-    LOG_LEVEL = logging.INFO
-    LOG_FILE = os.environ.get("ODEN_LOG_FILE") or str(get_default_log_path())
-    WEB_ENABLED = True
-    WEB_HOST = os.environ.get("WEB_HOST", "127.0.0.1")
-    WEB_PORT = 8080
-    WEB_ACCESS_LOG = None
-    AUTO_REACTION_ENABLED = False
-    AUTO_REACTION_EMOJI = "✅"
-    AUTO_READ_RECEIPT_ENABLED = False
-    DB_FIRST_ENABLED = True
-    ENABLED_PIPELINES = ["group_filter", "seven_s", "fors", "pedars", "scrim", "generic_template"]
-    PIPELINE_SETTINGS = {"group_filter": {"mode": "blacklist", "groups": []}}
-    RAW_MESSAGE_RETENTION_DAYS = 30
-    ROUTING = None
-    REPORT_FORMATS = []
+    _export(app_config)
