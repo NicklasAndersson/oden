@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 from oden import config as cfg
-from oden.pipelines.scrim import ScrimPipeline, is_scrim_message, parse_scrim_report
+from oden.pipelines.scrim import ScrimPipeline, parse_scrim_report
 
 _TIMESTAMP = int(datetime.datetime(2026, 9, 15, 20, 9, 11, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
 _SERVER_RECEIVED = int(datetime.datetime(2026, 9, 15, 20, 9, 15, tzinfo=cfg.TIMEZONE).timestamp() * 1000)
@@ -53,10 +53,6 @@ def _make_msg_data(
 
 
 class ScrimHelpersTest(unittest.TestCase):
-    def test_recognises_its_own_header(self):
-        self.assertTrue(is_scrim_message("SCRIM RAPPORT\nTNR: 151345"))
-        self.assertFalse(is_scrim_message("7S RAPPORT\nTill: A"))
-
     def test_a_header_with_no_description_is_refused(self):
         """A bare header must not produce an empty vehicle note."""
         with self.assertRaises(ValueError):

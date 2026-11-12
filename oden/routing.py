@@ -220,9 +220,8 @@ def load_routing(config_module: Any) -> dict[str, Any]:
             return normalize_routing(stored)
         except ValueError:
             pass
-    return derive_from_legacy(
-        getattr(config_module, "ENABLED_PIPELINES", None), getattr(config_module, "PIPELINE_SETTINGS", None)
-    )
+    legacy = getattr(config_module, "app_config", None) or {}
+    return derive_from_legacy(legacy.get("enabled_pipelines"), getattr(config_module, "PIPELINE_SETTINGS", None))
 
 
 def branch_by_id(routing: dict[str, Any], branch_id: str) -> dict[str, Any] | None:
@@ -245,12 +244,6 @@ def message_source(msg_data: dict[str, Any]) -> dict[str, str | None]:
         "group_id": meta.get("id") or meta.get("groupId"),
         "group_name": meta.get("name") or meta.get("title") or meta.get("groupName"),
     }
-
-
-def resolve_branch(routing: dict[str, Any], msg_data: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    """``(branch, reason)`` for a message. The reason is shown in Flöde."""
-    branch, reason, _ = resolve_branch_detail(routing, msg_data)
-    return branch, reason
 
 
 def resolve_branch_detail(routing: dict[str, Any], msg_data: dict[str, Any]) -> tuple[dict[str, Any], str, str | None]:
@@ -308,11 +301,3 @@ def add_pre_step(routing: dict[str, Any]) -> dict[str, Any]:
         branch["steps"].insert(0, {"pipeline": PRE_STEP, "enabled": True, "config": {}})
     routing["version"] = VERSION
     return routing
-
-
-def assigned_sources(routing: dict[str, Any]) -> dict[str, list[str]]:
-    """Branch id → the source keys assigned to it (for the GUI)."""
-    result: dict[str, list[str]] = {b["id"]: [] for b in routing["branches"]}
-    for key, branch_id in routing["assign"].items():
-        result.setdefault(branch_id, []).append(key)
-    return result

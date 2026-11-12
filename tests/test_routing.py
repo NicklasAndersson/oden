@@ -10,12 +10,11 @@ from oden.config_db import init_db
 from oden.flow_db import get_flow_item
 from oden.messages_db import create_raw_message
 from oden.pipeline_orchestrator import PipelineOrchestrator
-from oden.pipeline_settings import is_group_filtered
 from oden.routing import (
     derive_from_legacy,
     message_source,
     normalize_routing,
-    resolve_branch,
+    resolve_branch_detail,
     step_settings,
 )
 
@@ -40,8 +39,10 @@ class DeriveFromLegacyTest(unittest.TestCase):
         routing = derive_from_legacy(CHAIN, settings)
         for msg in messages:
             src = message_source(msg)
-            old_ignored = is_group_filtered(src["group_name"], settings)
-            branch, _ = resolve_branch(routing, msg)
+            name = src["group_name"]
+            # the old group_filter: whitelist drops unlisted groups, blacklist drops listed ones
+            old_ignored = bool(name and groups) and ((name not in groups) if mode == "whitelist" else (name in groups))
+            branch, *_ = resolve_branch_detail(routing, msg)
             self.assertEqual(branch["ignore"], old_ignored, (mode, src))
 
     def test_blacklist_matches_old_behaviour(self):
@@ -62,7 +63,7 @@ class DeriveFromLegacyTest(unittest.TestCase):
         for chain, groups in ((CHAIN, []), ([n for n in CHAIN if n != "group_filter"], ["Kaffe"])):
             routing = derive_from_legacy(chain, {"group_filter": {"mode": "blacklist", "groups": groups}})
             self.assertEqual(routing["assign"], {})
-            self.assertFalse(resolve_branch(routing, _msg("Kaffe"))[0]["ignore"])
+            self.assertFalse(resolve_branch_detail(routing, _msg("Kaffe"))[0]["ignore"])
 
     def test_chain_order_and_fallback_are_kept(self):
         routing = derive_from_legacy(["scrim", "group_filter", "seven_s"], {})
@@ -131,11 +132,11 @@ class ResolveBranchTest(unittest.TestCase):
         )
 
     def test_order_tak_then_group_id_then_name_then_direct_then_default(self):
-        self.assertEqual(resolve_branch(self.routing, _msg("Spaning", tak=True))[0]["id"], "b")
-        self.assertEqual(resolve_branch(self.routing, _msg("Spaning", group_id="gid-1"))[0]["id"], "c")
-        self.assertEqual(resolve_branch(self.routing, _msg("Spaning"))[0]["id"], "a")
-        self.assertEqual(resolve_branch(self.routing, _msg())[0]["id"], "b")
-        branch, reason = resolve_branch(self.routing, _msg("Okänd"))
+        self.assertEqual(resolve_branch_detail(self.routing, _msg("Spaning", tak=True))[0]["id"], "b")
+        self.assertEqual(resolve_branch_detail(self.routing, _msg("Spaning", group_id="gid-1"))[0]["id"], "c")
+        self.assertEqual(resolve_branch_detail(self.routing, _msg("Spaning"))[0]["id"], "a")
+        self.assertEqual(resolve_branch_detail(self.routing, _msg())[0]["id"], "b")
+        branch, reason, _ = resolve_branch_detail(self.routing, _msg("Okänd"))
         self.assertEqual(branch["id"], "a")
         self.assertIn("standardgrenen", reason)
 
@@ -286,7 +287,7 @@ class RoutingApiTest(unittest.IsolatedAsyncioTestCase):
             with (
                 unittest.mock.patch("oden.config.CONFIG_DB", db),
                 unittest.mock.patch("oden.config.ROUTING", None),
-                unittest.mock.patch("oden.config.ENABLED_PIPELINES", CHAIN),
+                unittest.mock.patch("oden.config.app_config", {"enabled_pipelines": CHAIN}),
                 unittest.mock.patch("oden.config.PIPELINE_SETTINGS", legacy),
             ):
                 async with TestClient(TestServer(create_app())) as client:

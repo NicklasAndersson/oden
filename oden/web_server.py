@@ -73,8 +73,6 @@ from oden.web_handlers.message_handlers import (
 from oden.web_handlers.obsidian_handlers import obsidian_install_template_handler, obsidian_status_handler
 from oden.web_handlers.pipeline_handlers import (
     list_pipelines,
-    reorder_pipelines,
-    toggle_pipeline,
     update_pipeline_config,
 )
 from oden.web_handlers.response_handlers import (
@@ -294,9 +292,7 @@ def create_app() -> web.Application:
 
     # Pipeline management routes
     app.router.add_get("/api/pipelines", list_pipelines)
-    app.router.add_patch("/api/pipelines/{name}/enabled", toggle_pipeline)
     app.router.add_patch("/api/pipelines/{name}/config", update_pipeline_config)
-    app.router.add_post("/api/pipelines/reorder", reorder_pipelines)
 
     # Contact routes
     app.router.add_get("/api/contacts", contacts_handler)
@@ -377,20 +373,3 @@ async def start_web_server(port: int = 8080) -> web.AppRunner:
     await site.start()
     logger.info(f"Web GUI started at http://{cfg.WEB_HOST}:{port}")
     return runner
-
-
-async def run_web_server(port: int = 8080) -> None:
-    """Run the web server indefinitely.
-
-    This function starts the web server and waits forever.
-    Use this with asyncio.gather() to run alongside other tasks.
-
-    Args:
-        port: Port to listen on.
-    """
-    runner = await start_web_server(port)
-    try:
-        # Wait forever
-        await asyncio.sleep(float("inf"))
-    finally:
-        await runner.cleanup()

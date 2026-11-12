@@ -343,7 +343,7 @@ Signal-meddelanden kan innehålla bilagor (bilder, filer, etc.). Oden hanterar d
 | **Lagring** | Sparas i unik undermapp: `vault/{grupp}/attachments/{unikt-id}/` |
 | **Filnamn** | Saniterade originalnamn, med indexprefix (`1_`, `2_`, etc.) |
 | **Embed-syntax** | Returneras som Obsidian-embeds: `![[attachments/{id}/1_bild.jpg]]` |
-| **Sökvägsskydd** | Path traversal-skydd via `sanitize_filename()` |
+| **Sökvägsskydd** | Path traversal-skydd via `path_utils.is_within_directory()` och sanerade grupp- och filnamn i `formatting.py` |
 
 ---
 

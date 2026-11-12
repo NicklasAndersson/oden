@@ -6,7 +6,6 @@
 
 let pipelinesState = {
     available: [],
-    enabled: [],
     stats: {
         total_processed: 0,
         by_pipeline: {},
@@ -408,14 +407,13 @@ async function savePipelineConfig(name, config) {
 
 function renderPipelineDefaults() {
     const container = document.getElementById('pipelines-available-list');
-    const available = (pipelinesState.available || []).filter(p => p.name !== 'group_filter');
+    const available = pipelinesState.available || [];
     if (!available.length) {
         container.innerHTML = '<div class="empty-state">Inga pipelines hittades.</div>';
         return;
     }
-    const configs = Object.fromEntries((pipelinesState.enabled || []).map(item => [item.name, item.config]));
     container.innerHTML = available.map(pipeline => {
-        const item = { name: pipeline.name, config: configs[pipeline.name] || pipelinesState.settings?.[pipeline.name] || {} };
+        const item = { name: pipeline.name, config: pipelinesState.settings?.[pipeline.name] || {} };
         const settingsHtml = pipeline.name === 'generic_template'
             ? renderGenericTemplateSettings(item)
             : ['seven_s', 'fors', 'pedars', 'scrim'].includes(pipeline.name)
@@ -443,7 +441,6 @@ async function loadPipelinesDashboard() {
         const payload = await response.json();
         pipelinesState = {
             available: payload.available || [],
-            enabled: payload.enabled || [],
             settings: payload.settings || {},
             stats: payload.stats || { total_processed: 0, by_pipeline: {} },
         };

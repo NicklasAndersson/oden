@@ -178,9 +178,9 @@ def _sources(routing: dict[str, Any], by_source: dict[str, int]) -> list[dict[st
 
 
 def _pipeline_meta() -> list[dict[str, Any]]:
-    from oden.web_handlers.pipeline_handlers import _get_available_pipelines
+    from oden.web_handlers.pipeline_handlers import _AVAILABLE_PIPELINES
 
-    available = _get_available_pipelines()
+    available = _AVAILABLE_PIPELINES
     pre = TakTextPipeline
     available = {
         **available,

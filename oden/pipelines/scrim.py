@@ -21,7 +21,6 @@ from oden.pipelines.structured_report import (
     StructuredReportContext,
     StructuredReportPipeline,
     build_base_frontmatter,
-    is_structured_report_message,
     iter_nonempty_lines,
     normalize_label,
     parse_labeled_fields,
@@ -59,10 +58,6 @@ _NO_PLATE_DISPLAY = "–"  # en dash: "looked, no plate" is an observation, not 
 
 def _normalize_label(label: str) -> str:
     return normalize_label(label, _LABEL_ALIASES)
-
-
-def is_scrim_message(message_text: str | None) -> bool:
-    return is_structured_report_message(message_text, (SCRIM_HEADER,))
 
 
 def parse_scrim_report(message_text: str) -> dict[str, str]:

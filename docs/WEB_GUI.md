@@ -294,9 +294,7 @@ Konfigurationssidan innehåller även Oden 3.0-inställningar för DB-first inge
 | POST | `/api/pipelines/test` | Testruta: `{"text", "source"}` (`group:<namn>`, `source:direct`, `source:tak`) → gren, steg med utfall och skäl, fil och innehåll som skulle skrivas. Skriver och skickar inget |
 | PUT | `/api/routing` | Spara vägval och grenar (`{"routing": {...}}`), valideras |
 | GET | `/api/pipelines` | Lista pipelines, grundinställningar och körningsstatistik |
-| PATCH | `/api/pipelines/{name}/enabled` | Den gamla kedjan (`enabled_pipelines`); styr inte längre vad som körs |
 | PATCH | `/api/pipelines/{name}/config` | Uppdatera pipeline-specifik konfiguration |
-| POST | `/api/pipelines/reorder` | Den gamla kedjans ordning; styr inte längre vad som körs |
 
 #### Mallar
 

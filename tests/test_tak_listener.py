@@ -209,7 +209,7 @@ class InboundRoundTripTest(unittest.IsolatedAsyncioTestCase):
             patch("oden.pipelines.tak_publish.get_tak_bridge", return_value=Bridge()),
             patch("oden.pipeline_orchestrator.get_tak_bridge", return_value=Bridge()),
             patch("oden.config.VAULT_PATH", self.vault),
-            patch("oden.pipeline_orchestrator.cfg.ENABLED_PIPELINES", ["seven_s"]),
+            patch("oden.config.app_config", {"enabled_pipelines": ["seven_s"]}),
         ):
             message_id = create_raw_message(self.db_path, "+46700000000", msg_data)
             orchestrator = PipelineOrchestrator(self.db_path)

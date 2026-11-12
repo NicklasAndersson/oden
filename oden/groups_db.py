@@ -117,21 +117,3 @@ def get_all_groups(db_path: Path, account: str | None = None) -> list[dict]:
         return []
     finally:
         conn.close()
-
-
-def delete_group(db_path: Path, group_id: str) -> bool:
-    """Delete a group by id."""
-    if not db_path.exists():
-        return False
-
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM groups WHERE group_id = ?", (group_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logger.error("Error deleting group '%s': %s", group_id, e)
-        return False
-    finally:
-        conn.close()
