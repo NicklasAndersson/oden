@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import tempfile
 import unittest
@@ -257,6 +258,26 @@ class TestSevenSPipelineRun(unittest.IsolatedAsyncioTestCase):
             any(f"WROTE: {written}" in line for line in logs.output),
             f"sökvägen loggades inte: {logs.output}",
         )
+
+    @patch("oden.pipelines.structured_report.get_app_state")
+    async def test_run_sends_reaction_and_read_receipt(self, mock_get_app_state):
+        app_state = Mock()
+        app_state.resolve_contact_name.return_value = "Nicklas"
+        mock_get_app_state.return_value = app_state
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("oden.config.VAULT_PATH", tmpdir),
+            patch("oden.config.GROUP_SPLIT_ENABLED", False),
+            patch("oden.processing._send_reaction", new_callable=AsyncMock) as react,
+            patch("oden.processing._send_read_receipt", new_callable=AsyncMock) as receipt,
+        ):
+            handled = await SevenSPipeline().run(msg_data=_make_msg_data(), reader=AsyncMock(), writer=AsyncMock())
+            await asyncio.sleep(0)  # let the fire-and-forget tasks run
+
+        self.assertTrue(handled)
+        react.assert_awaited_once_with("+46701234567", _TIMESTAMP, "group123")
+        receipt.assert_awaited_once_with("+46701234567", _TIMESTAMP)
 
     @patch("oden.pipelines.structured_report.get_app_state")
     async def test_run_supports_event_format_with_optional_symbol(self, mock_get_app_state):
