@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import json
 import logging
@@ -480,6 +481,17 @@ class StructuredReportPipeline:
         # only trace is a counter saying a note was created, somewhere.
         logger.info("WROTE: %s", prepared.filepath)
         self.last_output_file = prepared.filepath
+
+        # Same ✅ / read receipt as the unstructured path, so a correctly parsed
+        # report is confirmed to the sender too.
+        from oden.processing import _send_reaction, _send_read_receipt
+
+        envelope = msg_data.get("envelope", {})
+        msg_ts = envelope.get("timestamp")
+        if msg_ts:
+            group_id = extract_message_details(envelope)[2]
+            asyncio.create_task(_send_reaction(prepared.source_number, msg_ts, group_id))
+            asyncio.create_task(_send_read_receipt(prepared.source_number, msg_ts))
         return True
 
     async def preview(self, msg_data: dict[str, Any]) -> dict[str, Any]:
