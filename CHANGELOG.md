@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.2] - 2026-11-19
+
+### Fixed
+
+- **Kvittens även från strukturerade steg.** ✅-reaktionen och läskvittot (när auto-reaktion är påslagen) skickades bara från reservsteget, så en rätt tolkad 7S, FORS, PEDARS, SCRIM eller rapportformat fick ingen bekräftelse medan en felaktig som föll vidare till reservsteget fick en. Nu skickas samma kvittens när ett strukturerat steg har sparat rapporten (#301).
+
+### Changed
+
+- Borttagen död kod och det legacy-gruppfilter som routing ersatt (#298).
+
 ## [4.2.1] - 2026-11-02
 
 ### Fixed
