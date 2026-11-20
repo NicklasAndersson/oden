@@ -384,6 +384,121 @@ jobs:
           name: oden-windows-installer
           path: scripts/Output/Oden-Setup-*.exe
 
+  # Build Linux x64 binary (single file, bundled JRE and signal-cli)
+  # Built in Debian 12 (glibc 2.36) so the binary runs on Debian 12+, Ubuntu 22.04+ and newer.
+  # Console build without tray icon: it runs headless or as a service and serves the web UI on 127.0.0.1:8080.
+  build-linux:
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pr_snapshot == true) ||
+        (github.event_name == 'pull_request' &&
+         contains(github.event.pull_request.labels.*.name, 'snapshot-release') &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container: python:3.12-bookworm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+            echo "VERSION=pr-${PR_NUMBER}-snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+            echo "VERSION=snapshot-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Set version in source
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" oden/__init__.py
+          cat oden/__init__.py
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pyinstaller
+          python3 -m pip install -e ".[tak]"
+
+      - name: Cache JRE x64
+        id: cache-jre-x64-linux
+        uses: actions/cache@v6
+        with:
+          path: build-linux/jre-x64
+          key: temurin-jre-25-linux-x64-v1
+
+      - name: Cache signal-cli
+        id: cache-signal-cli-linux
+        uses: actions/cache@v6
+        with:
+          path: build-linux/signal-cli
+          key: signal-cli-0.14.5-linux-v1
+
+      - name: Download JRE x64
+        if: steps.cache-jre-x64-linux.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build-linux/jre-x64
+          JRE_URL=$(curl -s "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=linux&vendor=eclipse" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['binary']['package']['link'])")
+          echo "Downloading JRE x64 from: $JRE_URL"
+          curl -L -o jre-x64.tar.gz "$JRE_URL"
+          tar -xzf jre-x64.tar.gz -C build-linux/jre-x64 --strip-components=1
+          rm jre-x64.tar.gz
+          rm -rf build-linux/jre-x64/man build-linux/jre-x64/legal
+
+      - name: Download signal-cli
+        if: steps.cache-signal-cli-linux.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build-linux/signal-cli
+          SIGNAL_CLI_VERSION="0.14.5"
+          curl -L -o signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"
+          tar -xzf signal-cli.tar.gz
+          mv signal-cli-${SIGNAL_CLI_VERSION}/* build-linux/signal-cli/
+          rmdir signal-cli-${SIGNAL_CLI_VERSION}
+          rm signal-cli.tar.gz
+          chmod +x build-linux/signal-cli/bin/signal-cli
+
+      - name: Prepare build files
+        run: |
+          cp -r build-linux/jre-x64 .
+          cp -r build-linux/signal-cli .
+          mkdir -p oden/static
+
+      - name: Build Linux binary
+        env:
+          ODEN_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          python3 -m PyInstaller --clean --noconfirm s7_watcher.spec
+          test -x dist/oden
+
+      # A tar.gz keeps the executable bit (workflow artifacts and zip files do not)
+      - name: Package Linux binary
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          tar -C dist -czf "dist/Oden-${VERSION}-linux-x64.tar.gz" oden
+          ls -la dist/
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: oden-linux-x64
+          path: dist/Oden-*-linux-x64.tar.gz
+
   # Create release with all artifacts
   release:
     if: >-
@@ -394,7 +509,7 @@ jobs:
          contains(github.event.pull_request.labels.*.name, 'snapshot-release') &&
          github.event.pull_request.head.repo.full_name == github.repository)
       }}
-    needs: [build-macos, build-docker, build-windows]
+    needs: [build-macos, build-docker, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -434,6 +549,13 @@ jobs:
           name: oden-windows-installer
           path: artifacts/oden-windows-installer
 
+      - name: Download Linux artifacts
+        if: needs.build-linux.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: oden-linux-x64
+          path: artifacts/oden-linux-x64
+
       - name: Get version
         id: version
         run: |
@@ -470,6 +592,11 @@ jobs:
           # Copy Windows installer if available
           if [ -d artifacts/oden-windows-installer ]; then
             find artifacts/oden-windows-installer -name "*.exe" -exec cp {} release_files/ \;
+          fi
+
+          # Copy Linux binary if available
+          if [ -d artifacts/oden-linux-x64 ]; then
+            find artifacts/oden-linux-x64 -name "*.tar.gz" -exec cp {} release_files/ \;
           fi
 
           # Use freshly generated screenshots when available; otherwise fall back to repo images
@@ -619,6 +746,13 @@ jobs:
             1. Download `Oden-Setup-${{ steps.version.outputs.VERSION }}-x64.exe`
             2. Run the installer wizard (per-user install, no admin required)
             3. Launch Oden from Start Menu or desktop shortcut
+
+            ### Linux (x64, no Docker)
+            1. Download `Oden-${{ steps.version.outputs.VERSION }}-linux-x64.tar.gz`
+            2. `tar -xzf Oden-${{ steps.version.outputs.VERSION }}-linux-x64.tar.gz` gives a single executable `oden` (bundled Java and signal-cli)
+            3. Run `./oden` and open `http://127.0.0.1:8080`
+
+            > Built on Debian 12 (glibc 2.36): runs on Debian 12+, Ubuntu 22.04+ and newer. Headless build, no tray icon.
 
             ### Docker (Linux, Windows, Intel Mac, Raspberry Pi)
             ```bash
