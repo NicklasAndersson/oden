@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from oden import config as cfg
+from oden.formatting import sanitize_msg_data
 from oden.messages_db import (
     STATUS_FAILED,
     STATUS_IGNORED,
@@ -182,7 +183,7 @@ class PipelineOrchestrator:
         # caller's context back however the steps end.
         token = set_step_config({})
         try:
-            await self._run_steps(message_id, msg_data, reader, writer, branch)
+            await self._run_steps(message_id, sanitize_msg_data(msg_data), reader, writer, branch)
         finally:
             reset_step_config(token)
 

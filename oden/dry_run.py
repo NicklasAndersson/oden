@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 from oden import config as cfg
+from oden.formatting import sanitize_msg_data
 from oden.pipelines.tak_text import TakTextPipeline
 from oden.processing import preview_message
 from oden.report_formats import load_formats, pipeline_for
@@ -103,6 +104,7 @@ async def dry_run(msg_data: dict[str, Any], routing: dict[str, Any] | None = Non
     """The route a message would take now. Steps after the one that takes it are ``notrun``."""
     routing = routing or load_routing(cfg)
     branch, reason, key = resolve_branch_detail(routing, msg_data)
+    msg_data = sanitize_msg_data(msg_data)  # after routing: group names match unsanitised
     result: dict[str, Any] = {
         "branch": branch["id"],
         "branch_name": branch["name"],
