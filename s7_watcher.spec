@@ -191,6 +191,37 @@ else:
             upx_exclude=[],
             name='Oden',
         )
+    elif os.environ.get('ODEN_ONEDIR') == '1':
+        # Linux onedir (opt-in): dist/oden/oden + dist/oden/_internal. Nothing is unpacked
+        # at start-up, unlike the single-file build, which extracts ~200 MB to /tmp each run.
+        # UPX stays off: it would compress every bundled library separately.
+        exe = EXE(
+            pyz,
+            a.scripts,
+            [],
+            exclude_binaries=True,
+            name='oden',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=False,
+            console=True,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+        )
+
+        coll = COLLECT(
+            exe,
+            a.binaries,
+            a.datas,
+            strip=False,
+            upx=False,
+            upx_exclude=[],
+            name='oden',
+        )
     else:
         # Linux: console single-file executable
         exe = EXE(
