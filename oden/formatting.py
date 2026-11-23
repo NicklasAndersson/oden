@@ -1,3 +1,4 @@
+import copy
 import datetime
 import logging
 import os
@@ -7,6 +8,59 @@ from typing import Any
 from oden import config as cfg
 
 logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# UNTRUSTED TEXT → MARKDOWN
+# ==============================================================================
+# Obsidian renders raw HTML and loads image embeds as soon as a note is opened,
+# so a message with <img src=…>, <iframe> or ![](https://…) could beacon the
+# reader's IP or pull in remote content. Defuse those; keep the rest readable.
+_HTML_TAG_START = re.compile(r"<(?=[A-Za-z/!?])")
+_IMAGE_EMBED = re.compile(r"!\[(?!\[)")  # ![alt](url) / ![alt][ref]; ![[note]] is vault-local
+
+
+def defang_markdown(text: str | None) -> str | None:
+    """Neutralise HTML tags and markdown image embeds in untrusted text."""
+    if not text:
+        return text
+    return _HTML_TAG_START.sub("&lt;", _IMAGE_EMBED.sub(r"!\\[", text))
+
+
+def one_line(text: str | None) -> str | None:
+    """Untrusted name for a single-line slot (heading, ``[[link]]``): no newlines, no link syntax."""
+    if not text:
+        return text
+    return defang_markdown(" ".join(text.split()).translate(str.maketrans("[]|", "()/")))
+
+
+def sanitize_msg_data(msg_data: dict[str, Any]) -> dict[str, Any]:
+    """Copy of ``msg_data`` with the sender-controlled text fields defanged.
+
+    Raw data stays untouched in ``raw_messages``; this is what pipelines see.
+    """
+    msg_data = copy.deepcopy(msg_data)
+    envelope = msg_data.get("envelope")
+    if not isinstance(envelope, dict):
+        return msg_data
+    if envelope.get("sourceName"):
+        envelope["sourceName"] = one_line(envelope["sourceName"])
+    for dm in (envelope.get("dataMessage"), (envelope.get("syncMessage") or {}).get("sentMessage")):
+        if not isinstance(dm, dict):
+            continue
+        for key in ("message", "body"):
+            if isinstance(dm.get(key), str):
+                dm[key] = defang_markdown(dm[key])
+        quote = dm.get("quote")
+        if isinstance(quote, dict) and isinstance(quote.get("text"), str):
+            quote["text"] = defang_markdown(quote["text"])
+        for gkey in ("groupV2", "group", "groupInfo"):
+            group = dm.get(gkey)
+            if isinstance(group, dict):
+                for nkey in ("name", "title", "groupName"):
+                    if isinstance(group.get(nkey), str):
+                        group[nkey] = one_line(group[nkey])
+    return msg_data
+
 
 # ==============================================================================
 # FILENAME AND CONTENT FORMATTING
@@ -278,6 +332,7 @@ def find_latest_file_by_fileid(group_dir: str, source_name: str | None, source_n
 def format_sender_display(source_name: str | None, source_number: str | None) -> str:
     """Constructs a display string for the sender, including name and number."""
     formatted_number = _format_phone_number(source_number)
+    source_name = one_line(source_name)  # contact-cache names are sender-controlled too
     if source_name and source_number:
         return f"{source_name} ({formatted_number})"
     return source_name or formatted_number or "Okänd"

@@ -23,6 +23,7 @@ import copy
 from typing import Any
 
 from oden import config as cfg
+from oden.formatting import defang_markdown
 from oden.messages_db import STATUS_IGNORED, STATUS_PROCESSED
 from oden.routing import step_settings
 
@@ -74,7 +75,7 @@ class TakTextPipeline:
             return True
 
         transformed = copy.deepcopy(msg_data)
-        transformed["envelope"].setdefault("dataMessage", {})["message"] = text
+        transformed["envelope"].setdefault("dataMessage", {})["message"] = defang_markdown(text)
         self.last_transformed = transformed
         self.last_reason = what
         return False

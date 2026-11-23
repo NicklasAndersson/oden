@@ -4,10 +4,12 @@
 
 // ========== Utility Functions ==========
 
+// Escapes quotes too: the result is used inside attributes (value="…",
+// onclick="…('…')"), and group/contact names come straight from Signal.
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return String(text ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
 }
 
 function showConfigMessage(message, type) {
