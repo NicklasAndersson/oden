@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-11-23
+
+### Security
+
+- **XSS i webbgränssnittet.** `escapeHtml()` escapade inte citattecken, så ett gruppnamn från Signal kunde bryta sig ut ur ett HTML-attribut och köra JavaScript i det oautentiserade admin-gränssnittet. Nu escapas `& < > " '` (#305).
+- **Elak markdown i valvet.** Meddelandetext, citat och TAK-text avväpnas innan pipelines ser dem: rå HTML (`<img>`, `<iframe>` …) och bildinbäddningar `![](url)` laddas inte längre när anteckningen öppnas i Obsidian, vilket annars kunde läcka läsarens IP-adress. Grupp- och avsändarnamn skrivs på en rad utan `[ ] |`, så de inte kan bryta sig ut ur rubrik eller `[[länk]]`. `![[anteckning]]` och vanliga länkar fungerar som förut; rådata i `raw_messages` är orörd. Egna mallar som räknar med HTML i meddelandet visar det nu som text (#305).
+
 ### Added
 
-- **Linux onedir (valfritt).** `ODEN_ONEDIR=1 pyinstaller s7_watcher.spec` bygger `dist/oden/` (binären `oden` plus `_internal/`) i stället för en enda fil. Då packas inget upp vid start; onefile-bygget packar upp ca 200 MB i `/tmp` vid varje start, vilket tar RAM och tid på stickor och små maskiner. Standardbygget och releasen är oförändrade.
+- **Linux x64-binär** byggs och publiceras med varje release (#303).
+- **Linux onedir (valfritt).** `ODEN_ONEDIR=1 pyinstaller s7_watcher.spec` bygger `dist/oden/` (binären `oden` plus `_internal/`) i stället för en enda fil. Då packas inget upp vid start; onefile-bygget packar upp ca 200 MB i `/tmp` vid varje start, vilket tar RAM och tid på stickor och små maskiner. Standardbygget och releasen är oförändrade (#304).
 
 ## [4.2.2] - 2026-11-19
 
