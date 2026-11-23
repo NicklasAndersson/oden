@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Linux onedir (valfritt).** `ODEN_ONEDIR=1 pyinstaller s7_watcher.spec` bygger `dist/oden/` (binären `oden` plus `_internal/`) i stället för en enda fil. Då packas inget upp vid start; onefile-bygget packar upp ca 200 MB i `/tmp` vid varje start, vilket tar RAM och tid på stickor och små maskiner. Standardbygget och releasen är oförändrade.
+
 ## [4.2.2] - 2026-11-19
 
 ### Fixed
